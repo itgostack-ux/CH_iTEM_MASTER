@@ -1,0 +1,61 @@
+{
+ "actions": [],
+ "creation": "2026-02-19 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "spec",
+  "is_variant",
+  "in_item_name",
+  "name_order"
+ ],
+ "fields": [
+  {
+   "fieldname": "spec",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Specification",
+   "options": "Item Attribute",
+   "reqd": 1
+  },
+  {
+   "default": "1",
+   "description": "If checked, this spec drives variant creation (e.g. Color, Storage). If unchecked, it is a property stored on the item (e.g. SIM Type).",
+   "fieldname": "is_variant",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Variant"
+  },
+  {
+   "default": "0",
+   "depends_on": "is_variant",
+   "description": "If checked, this spec value will be included in the auto-generated item name",
+   "fieldname": "in_item_name",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Include in Item Name"
+  },
+  {
+   "default": "0",
+   "depends_on": "is_variant",
+   "description": "Order in which this spec appears in the item name (lower = first)",
+   "fieldname": "name_order",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Name Order"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-02-19 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "CH Item Master",
+ "name": "CH Sub Category Spec",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "name_order",
+ "sort_order": "ASC",
+ "states": [],
+ "track_changes": 0
+}

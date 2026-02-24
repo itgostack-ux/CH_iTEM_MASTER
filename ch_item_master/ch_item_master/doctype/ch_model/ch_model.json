@@ -1,0 +1,134 @@
+{
+ "actions": [],
+ "autoname": "field:model_name",
+ "creation": "2026-02-19 00:00:00.000000",
+ "doctype": "DocType",
+ "document_type": "Setup",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "sub_category",
+  "manufacturer",
+  "column_break_01",
+  "brand",
+  "model_name",
+  "is_active",
+  "spec_values_section",
+  "item_name_preview",
+  "spec_values"
+ ],
+ "fields": [
+  {
+   "fieldname": "sub_category",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Sub Category",
+   "options": "CH Sub Category",
+   "reqd": 1
+  },
+  {
+   "fieldname": "manufacturer",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Manufacturer",
+   "options": "Manufacturer",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_01",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "brand",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Brand",
+   "options": "Brand",
+   "reqd": 1
+  },
+  {
+   "fieldname": "model_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Model Name",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Is Active"
+  },
+  {
+   "fieldname": "spec_values_section",
+   "fieldtype": "Section Break",
+   "label": "Specification Values"
+  },
+  {
+   "fieldname": "item_name_preview",
+   "fieldtype": "Data",
+   "label": "Item Name (Preview)",
+   "read_only": 1,
+   "description": "Auto-generated preview based on current spec values and Sub Category name logic."
+  },
+  {
+   "description": "Add one row per allowed value per spec. Multiple rows with same spec = multiple allowed values (e.g. Color: Black + Color: White).",
+   "fieldname": "spec_values",
+   "fieldtype": "Table",
+   "label": "Spec Values",
+   "options": "CH Model Spec Value"
+  }
+ ],
+ "links": [],
+ "modified": "2026-02-19 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "CH Item Master",
+ "name": "CH Model",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "export": 1,
+   "import": 1
+  },
+  {
+   "role": "CH Master Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 0,
+   "export": 1
+  },
+  {
+   "role": "CH Viewer",
+   "read": 1,
+   "write": 0,
+   "create": 0,
+   "export": 1
+  },
+  {
+   "role": "Stock User",
+   "read": 1,
+   "write": 0,
+   "create": 0,
+   "export": 1
+  }
+ ],
+ "show_name_in_global_search": 1,
+ "sort_field": "model_name",
+ "sort_order": "ASC",
+ "states": [],
+ "track_changes": 1
+}

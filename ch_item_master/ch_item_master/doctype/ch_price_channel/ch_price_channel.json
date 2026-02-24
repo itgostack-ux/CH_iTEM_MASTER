@@ -1,0 +1,100 @@
+{
+ "actions": [],
+ "autoname": "field:channel_name",
+ "creation": "2026-02-23 00:00:00.000000",
+ "doctype": "DocType",
+ "document_type": "Setup",
+ "engine": "InnoDB",
+ "field_order": [
+  "channel_name",
+  "description",
+  "column_break_01",
+  "is_active"
+ ],
+ "fields": [
+  {
+   "fieldname": "channel_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Channel Name",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description"
+  },
+  {
+   "fieldname": "column_break_01",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Is Active"
+  },
+  {
+   "fieldname": "is_buying",
+   "fieldtype": "Check",
+   "label": "Is Buying Channel",
+   "default": "0",
+   "description": "Buying channel (e.g. Buyback). Prices sync as buying Item Price instead of selling."
+  },
+  {
+   "fieldname": "price_list",
+   "fieldtype": "Link",
+   "options": "Price List",
+   "label": "ERPNext Price List",
+   "in_list_view": 1,
+   "description": "Linked ERPNext Price List \u2014 Item Prices are written to this list so transactions auto-pick up the rate"
+  }
+ ],
+ "links": [],
+ "modified": "2026-02-23 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Ch Item Master",
+ "name": "CH Price Channel",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "export": 1
+  },
+  {
+   "role": "CH Master Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 0,
+   "export": 1
+  },
+  {
+   "role": "CH Viewer",
+   "read": 1,
+   "write": 0,
+   "create": 0,
+   "export": 1
+  },
+  {
+   "role": "Stock User",
+   "read": 1,
+   "write": 0,
+   "create": 0,
+   "export": 0
+  }
+ ],
+ "sort_field": "channel_name",
+ "sort_order": "ASC",
+ "states": [],
+ "track_changes": 1
+}

@@ -1,0 +1,249 @@
+{
+ "name": "CH Warranty Plan",
+ "module": "CH Item Master",
+ "doctype": "DocType",
+ "document_type": "Setup",
+ "engine": "InnoDB",
+ "naming_rule": "By \"Naming Series\" field",
+ "autoname": "naming_series:",
+ "istable": 0,
+ "issingle": 0,
+ "editable_grid": 1,
+ "track_changes": 1,
+ "title_field": "plan_name",
+ "search_fields": "plan_name,plan_type,service_item",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "fields": [
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "CH-WP-.YYYY.-",
+   "default": "CH-WP-.YYYY.-",
+   "reqd": 1,
+   "hidden": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "reqd": 0,
+   "in_standard_filter": 1,
+   "in_list_view": 1,
+   "remember_last_selected_value": 1,
+   "description": "Leave blank if this record applies to all companies."
+  },
+  {
+   "fieldname": "plan_name",
+   "fieldtype": "Data",
+   "label": "Plan Name",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "unique": 1,
+   "description": "e.g. 'Extended Warranty - 1 Year', 'Screen Protection Plan'"
+  },
+  {
+   "fieldname": "plan_type",
+   "fieldtype": "Select",
+   "label": "Plan Type",
+   "options": "Own Warranty\nExtended Warranty\nValue Added Service\nProtection Plan",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "description": "Own Warranty = manufacturer/store warranty. Extended = paid extension. VAS = screen protector, data transfer, etc."
+  },
+  {
+   "fieldname": "column_break_basic",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "service_item",
+   "fieldtype": "Link",
+   "label": "Service Item",
+   "options": "Item",
+   "reqd": 1,
+   "in_list_view": 1,
+   "description": "The ERPNext Item (is_stock_item=0) that represents this plan in transactions. Created as a non-stock service item."
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Active\nInactive\nDraft",
+   "default": "Active",
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "section_coverage",
+   "fieldtype": "Section Break",
+   "label": "Coverage"
+  },
+  {
+   "fieldname": "duration_months",
+   "fieldtype": "Int",
+   "label": "Duration (Months)",
+   "description": "Duration of the warranty/plan in months. 0 = one-time service."
+  },
+  {
+   "fieldname": "coverage_description",
+   "fieldtype": "Small Text",
+   "label": "Coverage Description",
+   "description": "What is covered under this plan"
+  },
+  {
+   "fieldname": "column_break_coverage",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "max_claims",
+   "fieldtype": "Int",
+   "label": "Max Claims",
+   "description": "Maximum number of claims allowed under this plan. 0 = unlimited."
+  },
+  {
+   "fieldname": "deductible_amount",
+   "fieldtype": "Currency",
+   "label": "Deductible Amount",
+   "description": "Amount customer must pay per claim (excess)."
+  },
+  {
+   "fieldname": "section_pricing",
+   "fieldtype": "Section Break",
+   "label": "Pricing"
+  },
+  {
+   "fieldname": "price",
+   "fieldtype": "Currency",
+   "label": "Standard Price",
+   "reqd": 1,
+   "description": "Base selling price of this plan"
+  },
+  {
+   "fieldname": "pricing_mode",
+   "fieldtype": "Select",
+   "label": "Pricing Mode",
+   "options": "Fixed\nPercentage of Device Price",
+   "default": "Fixed",
+   "description": "Fixed = flat rate. Percentage = calculated as % of the device selling price."
+  },
+  {
+   "fieldname": "percentage_value",
+   "fieldtype": "Percent",
+   "label": "Percentage Value",
+   "depends_on": "eval:doc.pricing_mode=='Percentage of Device Price'",
+   "description": "Percentage of device price when pricing_mode = Percentage"
+  },
+  {
+   "fieldname": "column_break_pricing",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "cost_to_company",
+   "fieldtype": "Currency",
+   "label": "Cost to Company",
+   "description": "What this plan costs GoFix (underwriting, third-party premium, etc.)"
+  },
+  {
+   "fieldname": "section_applicability",
+   "fieldtype": "Section Break",
+   "label": "Applicability"
+  },
+  {
+   "fieldname": "applicable_item_groups",
+   "fieldtype": "Table MultiSelect",
+   "label": "Applicable Item Groups",
+   "options": "CH Warranty Plan Item Group",
+   "description": "Item Groups this plan can be attached to. Leave blank = all."
+  },
+  {
+   "fieldname": "column_break_applicability",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "attach_level",
+   "fieldtype": "Select",
+   "label": "Attach Level",
+   "options": "Item\nBill\nOptional",
+   "default": "Optional",
+   "description": "Item = auto-added per qualifying item line. Bill = one per transaction. Optional = offered to customer."
+  },
+  {
+   "fieldname": "applicable_channels",
+   "fieldtype": "Table MultiSelect",
+   "label": "Applicable Channels",
+   "options": "CH Warranty Plan Channel",
+   "description": "Channels where this plan is available. Leave blank = all channels."
+  },
+  {
+   "fieldname": "section_notes",
+   "fieldtype": "Section Break",
+   "label": "Notes"
+  },
+  {
+   "fieldname": "terms_and_conditions",
+   "fieldtype": "Text Editor",
+   "label": "Terms & Conditions"
+  },
+  {
+   "fieldname": "internal_notes",
+   "fieldtype": "Small Text",
+   "label": "Internal Notes"
+  }
+ ],
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "export": 1,
+   "import": 1,
+   "share": 1
+  },
+  {
+   "role": "CH Master Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 0,
+   "export": 1
+  },
+  {
+   "role": "CH Warranty Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 0,
+   "export": 1
+  },
+  {
+   "role": "CH Viewer",
+   "read": 1,
+   "write": 0,
+   "create": 0,
+   "export": 1
+  },
+  {
+   "role": "Stock User",
+   "read": 1,
+   "write": 0,
+   "create": 0,
+   "export": 1
+  }
+ ],
+ "links": [
+  {
+   "group": "Reference",
+   "link_doctype": "Item",
+   "link_fieldname": "service_item"
+  }
+ ],
+ "actions": [],
+ "modified": "2026-01-01 00:00:00.000000",
+ "creation": "2026-01-01 00:00:00.000000"
+}

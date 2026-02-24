@@ -1,0 +1,39 @@
+{
+ "actions": [],
+ "creation": "2026-02-19 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "spec",
+  "spec_value"
+ ],
+ "fields": [
+  {
+   "fieldname": "spec",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Specification",
+   "options": "Item Attribute",
+   "reqd": 1
+  },
+  {
+   "fieldname": "spec_value",
+   "fieldtype": "Autocomplete",
+   "in_list_view": 1,
+   "label": "Value"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-02-19 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "CH Item Master",
+ "name": "CH Item Spec Value",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "creation",
+ "sort_order": "ASC",
+ "states": [],
+ "track_changes": 0
+}

@@ -1,0 +1,21 @@
+{
+ "name": "CH Warranty Plan Item Group",
+ "module": "CH Item Master",
+ "doctype": "DocType",
+ "istable": 1,
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "fields": [
+  {
+   "fieldname": "item_group",
+   "fieldtype": "Link",
+   "label": "Item Group",
+   "options": "Item Group",
+   "reqd": 1,
+   "in_list_view": 1
+  }
+ ],
+ "permissions": [],
+ "modified": "2026-01-01 00:00:00.000000",
+ "creation": "2026-01-01 00:00:00.000000"
+}

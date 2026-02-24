@@ -1,0 +1,197 @@
+{
+ "actions": [],
+ "autoname": "format:{category}-{sub_category_name}",
+ "creation": "2026-02-19 00:00:00.000000",
+ "doctype": "DocType",
+ "document_type": "Setup",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "category",
+  "item_group",
+  "column_break_01",
+  "sub_category_name",
+  "prefix",
+  "is_active",
+  "tax_section",
+  "hsn_code",
+  "column_break_tax",
+  "gst_rate",
+  "name_logic_section",
+  "include_manufacturer_in_name",
+  "include_brand_in_name",
+  "include_model_in_name",
+  "manufacturers_section",
+  "manufacturers",
+  "specifications_section",
+  "specifications"
+ ],
+ "fields": [
+  {
+   "fieldname": "category",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Category",
+   "options": "CH Category",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "category.item_group",
+   "fetch_if_empty": 1,
+   "fieldname": "item_group",
+   "fieldtype": "Link",
+   "label": "Item Group",
+   "options": "Item Group",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_01",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "sub_category_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Sub Category Name",
+   "reqd": 1
+  },
+  {
+   "description": "Prefix used to auto-generate item codes (e.g., MO for Mobiles, LP for Laptops)",
+   "fieldname": "prefix",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Prefix",
+   "length": 10,
+   "reqd": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Is Active"
+  },
+  {
+   "fieldname": "tax_section",
+   "fieldtype": "Section Break",
+   "label": "Tax & HSN"
+  },
+  {
+   "fieldname": "hsn_code",
+   "fieldtype": "Link",
+   "label": "HSN/SAC Code",
+   "options": "GST HSN Code"
+  },
+  {
+   "fieldname": "column_break_tax",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "gst_rate",
+   "fieldtype": "Float",
+   "label": "GST Rate (%)",
+   "precision": "2"
+  },
+  {
+   "fieldname": "name_logic_section",
+   "fieldtype": "Section Break",
+   "label": "Item Name Logic",
+   "description": "Configure which fields are included in the auto-generated item name"
+  },
+  {
+   "default": "1",
+   "fieldname": "include_manufacturer_in_name",
+   "fieldtype": "Check",
+   "in_list_view": 0,
+   "label": "Include Manufacturer in Name"
+  },
+  {
+   "default": "1",
+   "fieldname": "include_brand_in_name",
+   "fieldtype": "Check",
+   "in_list_view": 0,
+   "label": "Include Brand in Name"
+  },
+  {
+   "default": "1",
+   "fieldname": "include_model_in_name",
+   "fieldtype": "Check",
+   "in_list_view": 0,
+   "label": "Include Model in Name"
+  },
+  {
+   "fieldname": "manufacturers_section",
+   "fieldtype": "Section Break",
+   "label": "Allowed Manufacturers"
+  },
+  {
+   "description": "List of manufacturers allowed for this sub-category",
+   "fieldname": "manufacturers",
+   "fieldtype": "Table",
+   "label": "Manufacturers",
+   "options": "CH Sub Category Manufacturer"
+  },
+  {
+   "fieldname": "specifications_section",
+   "fieldtype": "Section Break",
+   "label": "Specifications Mapping"
+  },
+  {
+   "description": "Specifications applicable to this sub-category. These will appear as fields when creating items.",
+   "fieldname": "specifications",
+   "fieldtype": "Table",
+   "label": "Specifications",
+   "options": "CH Sub Category Spec"
+  }
+ ],
+ "links": [],
+ "modified": "2026-02-19 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "CH Item Master",
+ "name": "CH Sub Category",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "export": 1,
+   "import": 1
+  },
+  {
+   "role": "CH Master Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 0,
+   "export": 1
+  },
+  {
+   "role": "CH Viewer",
+   "read": 1,
+   "write": 0,
+   "create": 0,
+   "export": 1
+  },
+  {
+   "role": "Stock User",
+   "read": 1,
+   "write": 0,
+   "create": 0,
+   "export": 1
+  }
+ ],
+ "show_name_in_global_search": 1,
+ "show_title_field_in_link": 1,
+ "sort_field": "sub_category_name",
+ "sort_order": "ASC",
+ "states": [],
+ "title_field": "sub_category_name",
+ "track_changes": 1
+}
