@@ -72,6 +72,7 @@ from collections import OrderedDict, defaultdict
 
 import frappe
 from frappe import _
+from frappe.utils import escape_html
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -122,41 +123,47 @@ def _resolve(lookup, raw_value, doctype_label, path, errors):
 
 
 def _ensure_attribute_value(attribute, value):
-    """Create an Item Attribute Value if it doesn't exist yet.
+	"""Create an Item Attribute Value if it doesn't exist yet.
 
-    Returns the canonical value string.
-    """
-    value = _norm(value)
-    if not value:
-        return ""
+	Returns the canonical value string.
 
-    existing = frappe.get_all(
-        "Item Attribute Value",
-        filters={"parent": attribute, "attribute_value": value},
-        pluck="attribute_value",
-        limit=1,
-    )
-    if existing:
-        return existing[0]
+	Fetches all existing values in a single query and checks for an exact
+	match first, then falls back to a case-insensitive match — avoids the
+	previous two-query pattern (exact query + full fetch).
+	"""
+	value = _norm(value)
+	if not value:
+		return ""
 
-    # Also try case-insensitive match
-    all_vals = frappe.get_all(
-        "Item Attribute Value",
-        filters={"parent": attribute},
-        pluck="attribute_value",
-    )
-    val_map = {v.upper(): v for v in all_vals}
-    if value.upper() in val_map:
-        return val_map[value.upper()]
+	# Sanitize input to prevent XSS
+	value = escape_html(value)
 
-    # Auto-create
-    attr_doc = frappe.get_doc("Item Attribute", attribute)
-    attr_doc.append("item_attribute_values", {
-        "attribute_value": value,
-        "abbr": value[:3].upper(),
-    })
-    attr_doc.save(ignore_permissions=True)
-    return value
+	# Single query: fetch all existing values for this attribute
+	all_vals = frappe.get_all(
+		"Item Attribute Value",
+		filters={"parent": attribute},
+		pluck="attribute_value",
+	)
+
+	if value in all_vals:
+		return value  # exact match
+
+	# Case-insensitive match
+	val_map = {v.upper(): v for v in all_vals}
+	if value.upper() in val_map:
+		return val_map[value.upper()]
+
+	# Auto-create with proper permissions
+	attr_doc = frappe.get_doc("Item Attribute", attribute)
+	attr_doc.append("item_attribute_values", {
+		"attribute_value": value,
+		"abbr": value[:3].upper(),
+	})
+	# Check permissions instead of blindly ignoring
+	if frappe.has_permission("Item Attribute", "write") or frappe.session.user in ["Administrator", "System Manager"]:
+		attr_doc.flags.ignore_permissions = True
+	attr_doc.save()
+	return value
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -427,7 +434,8 @@ def _validate_and_import(payload):
                     model_name_lookup[mdl_key] = mdl_doc.name
                     summary["models"]["created"] += 1
 
-    frappe.db.commit()
+    # Remove manual commit - let Frappe handle transaction boundaries
+    # frappe.db.commit() removed for proper atomicity
 
     return {"success": True, "summary": summary, "errors": []}
 
@@ -452,6 +460,13 @@ def _csv_to_payload(rows):
     """
     # Ordered dicts to preserve insertion order
     categories = OrderedDict()
+    
+    # Optimization: Cache normalized keys to avoid repeated computation
+    _key_cache = {}
+    def get_cached_norm_key(val):
+        if val not in _key_cache:
+            _key_cache[val] = _norm_key(val)
+        return _key_cache[val]
 
     for row_idx, row in enumerate(rows, start=2):  # row 1 = header
         cat_name = _norm(row.get("category", ""))
@@ -463,7 +478,7 @@ def _csv_to_payload(rows):
         mdl_name = _norm(row.get("model_name", ""))
 
         # ─ Category ──────────────────────────────────────────────────────
-        cat_key = _norm_key(cat_name)
+        cat_key = get_cached_norm_key(cat_name)
         if cat_key not in categories:
             categories[cat_key] = {
                 "category_name": cat_name,
@@ -477,7 +492,7 @@ def _csv_to_payload(rows):
             continue
 
         # ─ Sub Category ──────────────────────────────────────────────────
-        sc_key = _norm_key(f"{cat_name}-{sc_name}")
+        sc_key = get_cached_norm_key(f"{cat_name}-{sc_name}")
         if sc_key not in cat["sub_categories"]:
             cat["sub_categories"][sc_key] = {
                 "sub_category_name": sc_name,
@@ -497,12 +512,12 @@ def _csv_to_payload(rows):
         # Collect manufacturer for sub-category allowed list
         mfr = _norm(row.get("manufacturer", ""))
         if mfr:
-            sc["manufacturers"][_norm_key(mfr)] = mfr
+            sc["manufacturers"][get_cached_norm_key(mfr)] = mfr
 
         # Collect spec for sub-category spec list
         spec = _norm(row.get("spec", ""))
         if spec:
-            spec_key = _norm_key(spec)
+            spec_key = get_cached_norm_key(spec)
             if spec_key not in sc["specs"]:
                 sc["specs"][spec_key] = {
                     "spec": spec,
@@ -515,7 +530,7 @@ def _csv_to_payload(rows):
             continue
 
         # ─ Model ─────────────────────────────────────────────────────────
-        mdl_key = _norm_key(mdl_name)
+        mdl_key = get_cached_norm_key(mdl_name)
         if mdl_key not in sc["models"]:
             sc["models"][mdl_key] = {
                 "model_name": mdl_name,
@@ -529,9 +544,9 @@ def _csv_to_payload(rows):
         # Collect spec value
         spec_value = _norm(row.get("spec_value", ""))
         if spec and spec_value:
-            # Deduplicate
-            existing = {(_norm_key(sv["spec"]), _norm_key(sv["value"])) for sv in mdl["spec_values"]}
-            if (_norm_key(spec), _norm_key(spec_value)) not in existing:
+            # Deduplicate with cached keys
+            existing = {(get_cached_norm_key(sv["spec"]), get_cached_norm_key(sv["value"])) for sv in mdl["spec_values"]}
+            if (get_cached_norm_key(spec), get_cached_norm_key(spec_value)) not in existing:
                 mdl["spec_values"].append({"spec": spec, "value": spec_value})
 
     # ── Flatten OrderedDicts into lists ───────────────────────────────────

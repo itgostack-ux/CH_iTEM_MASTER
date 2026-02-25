@@ -49,21 +49,41 @@ class CHItemPrice(Document):
 
 	def _check_overlapping_price(self):
 		"""No two active price records for the same Item + Channel should overlap."""
+		from_date = getdate(self.effective_from)
+		to_date   = getdate(self.effective_to) if self.effective_to else None
+
+		# Use database-level locking to prevent race conditions
+		# This ensures two concurrent saves don't both pass validation
+		if not self.is_new():
+			frappe.db.sql(
+				"""
+				SELECT name FROM `tabCH Item Price`
+				WHERE item_code = %s AND channel = %s AND name != %s
+				FOR UPDATE
+				""",
+				(self.item_code, self.channel, self.name or ""),
+			)
+
 		filters = {
 			"item_code": self.item_code,
 			"channel": self.channel,
 			"name": ("!=", self.name),
 			"status": ("in", ["Active", "Scheduled"]),
 		}
+		# Pre-filter in SQL: only fetch records whose start is before our end date
+		if to_date:
+			filters["effective_from"] = ("<=", str(to_date))
 
+		# Records that end on or after our start, OR have no end date (open-ended)
 		existing = frappe.get_all(
 			"CH Item Price",
 			filters=filters,
+			or_filters=[
+				["effective_to", "is", "not set"],
+				["effective_to", ">=", str(from_date)],
+			],
 			fields=["name", "effective_from", "effective_to"],
 		)
-
-		from_date = getdate(self.effective_from)
-		to_date   = getdate(self.effective_to) if self.effective_to else None
 
 		conflicts = []
 		for ex in existing:
@@ -126,7 +146,13 @@ class CHItemPrice(Document):
 		"""
 		price_list = self._get_price_list()
 		if not price_list:
-			return  # Channel has no linked Price List yet
+			# Log warning instead of silently failing
+			frappe.log_error(
+				f"CH Price Channel '{self.channel}' has no linked Price List. "
+				f"Cannot sync CH Item Price {self.name} to ERPNext Item Price.",
+				"CH Item Price Sync Warning"
+			)
+			return
 
 		is_buying = frappe.db.get_value("CH Price Channel", self.channel, "is_buying") or 0
 

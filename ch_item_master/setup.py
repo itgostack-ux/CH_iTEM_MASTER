@@ -28,8 +28,8 @@ def setup_roles():
             doc = frappe.new_doc("Role")
             doc.update(role_def)
             doc.insert(ignore_permissions=True)
-
-    frappe.db.commit()
+    # Note: do NOT call frappe.db.commit() here — after_install manages the
+    # outer transaction; an explicit commit here would cut it short prematurely.
 
 
 def setup_item_variant_settings():
@@ -50,7 +50,7 @@ def setup_item_variant_settings():
             settings.append("fields", {"field_name": field_name})
 
     settings.save(ignore_permissions=True)
-    frappe.db.commit()
+    # Note: Commit is handled by the calling function (after_install/after_migrate)
 
 
 # ── Default channels created on install/migrate ───────────────────────────────
@@ -91,7 +91,7 @@ def sync_workspace():
         ws.append("shortcuts", sc)
 
     ws.save(ignore_permissions=True)
-    frappe.db.commit()
+    # Note: Commit is handled by the calling context
     frappe.msgprint(
         f"Workspace synced — {len(ws.shortcuts)} shortcuts, {len(ws.links)} links."
     )
@@ -143,7 +143,7 @@ def setup_channels():
                     update_modified=False,
                 )
 
-    frappe.db.commit()
+    # Note: Commit is handled by the calling function (after_migrate)
 
 
 def delete_ch_custom_fields():
@@ -162,4 +162,4 @@ def delete_ch_custom_fields():
                 if fieldname and frappe.db.exists("Custom Field", {"dt": dt, "fieldname": fieldname}):
                     frappe.delete_doc("Custom Field", f"{dt}-{fieldname}", force=True)
 
-    frappe.db.commit()
+    # Note: Commit is handled by the uninstall process

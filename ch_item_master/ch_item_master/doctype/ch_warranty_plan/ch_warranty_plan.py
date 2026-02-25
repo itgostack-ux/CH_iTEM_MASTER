@@ -81,8 +81,9 @@ class CHWarrantyPlan(Document):
 				ip.flags.ignore_permissions = True
 				ip.save()
 
+	@staticmethod
 	@frappe.whitelist()
-	def get_applicable_plans(item_code=None, item_group=None, channel=None):
+	def get_applicable_plans(item_code=None, item_group=None, channel=None, company=None):
 		"""Return warranty/VAS plans applicable to a given item and channel.
 
 		Used by POS and transaction UI to suggest add-on plans.

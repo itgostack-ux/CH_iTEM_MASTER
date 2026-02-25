@@ -88,14 +88,16 @@ def get_ready_reckoner_data(
 
     item_codes = [i["item_code"] for i in items]
 
-    # ── 2. Get all channels ───────────────────────────────────────────────────
+    # ── 2. Get all channels (with price_list for later use) ──────────────
     channels_qs = frappe.get_all(
         "CH Price Channel",
         filters={"is_active": 1, **({"channel_name": channel} if channel else {})},
-        fields=["name as channel_name"],
+        fields=["name as channel_name", "price_list"],
         order_by="channel_name",
     )
     channel_names = [c["channel_name"] for c in channels_qs]
+    # Optimization: Pre-fetch channel-to-price-list mapping to avoid N+1 queries
+    channel_price_list_map = {c["channel_name"]: c.get("price_list") for c in channels_qs}
 
     # ── 3. Fetch active prices for those items ────────────────────────────────
     _price_filters = {
@@ -130,13 +132,14 @@ def get_ready_reckoner_data(
             price_index[key] = pr
 
     # ── 4. Fetch active offers summary ────────────────────────────────────────
-    now_str = str(now_datetime())
+    # Use the requested as_of date (not now) so historical views are correct
+    as_of_str = str(as_of)  # YYYY-MM-DD
     _offer_filters = {
         "item_code": ("in", item_codes),
         "status": ("in", ["Active", "Scheduled"]),
         "approval_status": "Approved",
-        "start_date": ("<=", now_str),
-        "end_date": (">=", now_str),
+        "start_date": ("<=", as_of_str),
+        "end_date": (">=", as_of_str),
     }
     if _company_filter:
         _offer_filters["company"] = _company_filter
@@ -210,7 +213,19 @@ def get_ready_reckoner_data(
 
         rows.append(row)
 
-    total = frappe.db.count("Item", filters=item_filters)
+    # frappe.db.count() does not support or_filters, so handle item_search separately
+    if item_search:
+        total = len(frappe.get_all(
+            "Item",
+            filters=item_filters,
+            or_filters=[
+                ["name", "like", f"%{item_search}%"],
+                ["item_name", "like", f"%{item_search}%"],
+            ],
+            pluck="name",
+        ))
+    else:
+        total = frappe.db.count("Item", filters=item_filters)
 
     return {
         "items": rows,
@@ -293,12 +308,20 @@ def get_item_price_detail(item_code, company=None):
     )
 
     # Enrich each price with ERPNext Price List and ERP sync status
+    # Optimization: Bulk fetch all channel price lists to avoid N+1 queries
+    channel_ids = list(set(p.get("channel") for p in prices if p.get("channel")))
     _ch_channel_pl = {}
+    if channel_ids:
+        channel_data = frappe.get_all(
+            "CH Price Channel",
+            filters={"name": ("in", channel_ids)},
+            fields=["name", "price_list"]
+        )
+        _ch_channel_pl = {c.name: c.price_list or "" for c in channel_data}
+    
     for p in prices:
         ch = p.get("channel")
-        if ch not in _ch_channel_pl:
-            _ch_channel_pl[ch] = frappe.db.get_value("CH Price Channel", ch, "price_list") or ""
-        p["price_list"] = _ch_channel_pl[ch]
+        p["price_list"] = _ch_channel_pl.get(ch, "")
         # Verify the ERP Item Price still exists and is consistent
         erp_ip = p.get("erp_item_price")
         if erp_ip and frappe.db.exists("Item Price", erp_ip):
@@ -388,23 +411,28 @@ def get_active_price(item_code, channel, as_of_date=None):
     )
 
     if not prices:
-        return {"found": False}
+        return {
+            "found": False,
+            "message": _("No active price found for item {0} in channel {1} on {2}").format(
+                item_code, channel, as_of
+            )
+        }
 
     bp = prices[0]
     # Verify effective_to
     if bp.effective_to and getdate(bp.effective_to) < as_of:
         return {"found": False}
 
-    # Active offers
-    now_str = str(now_datetime())
+    # Active offers — filter by the same as_of date used for prices
+    as_of_str = str(as_of)
     offers = frappe.get_all(
         "CH Item Offer",
         filters=[
             ["item_code", "=", item_code],
-            ["status", "in", ["Active"]],
+            ["status", "in", ["Active", "Scheduled"]],
             ["approval_status", "=", "Approved"],
-            ["start_date", "<=", now_str],
-            ["end_date", ">=", now_str],
+            ["start_date", "<=", as_of_str],
+            ["end_date", ">=", as_of_str],
             ["channel", "in", [channel, ""]],
         ],
         fields=["offer_type", "value_type", "value", "priority", "stackable"],
@@ -520,7 +548,7 @@ def clone_item_pricing(source_item, target_item, include_offers=True, effective_
             new_offer.insert()
             created.append(new_offer.name)
 
-    frappe.db.commit()
+    # Note: Commit is handled by Frappe transaction boundaries
     return {"created": created, "count": len(created)}
 
 
@@ -536,6 +564,8 @@ def export_ready_reckoner(
     """Export CH Ready Reckoner as Excel file."""
     frappe.only_for(["System Manager", "CH Master Manager"])
 
+    # Configurable max export rows (fallback to 5000 if not set)
+    _MAX_EXPORT_ROWS = int(frappe.db.get_single_value("System Settings", "ch_max_export_rows") or 5000)
     data = get_ready_reckoner_data(
         category=category,
         sub_category=sub_category,
@@ -544,8 +574,15 @@ def export_ready_reckoner(
         channel=channel,
         as_of_date=as_of_date,
         company=company,
-        page_length=10000,
+        page_length=_MAX_EXPORT_ROWS,
     )
+    if data.get("total", 0) > _MAX_EXPORT_ROWS:
+        frappe.msgprint(
+            _("Export is limited to {0} rows. Use category / brand / model filters "
+              "to narrow the selection and export in batches.").format(_MAX_EXPORT_ROWS),
+            indicator="orange",
+            title=_("Export Truncated"),
+        )
 
     channels = data["channels"]
     rows_data = data["items"]

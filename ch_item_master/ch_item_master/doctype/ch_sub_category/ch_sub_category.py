@@ -144,6 +144,18 @@ class CHSubCategory(Document):
 		if not changed_specs:
 			return
 
+		# Check if models exist that depend on this sub-category
+		models_count = frappe.db.count("CH Model", {"sub_category": self.name})
+		if models_count > 0:
+			frappe.throw(
+				_(
+					"Cannot modify spec naming configuration for {0} — "
+					"{1} model(s) depend on this sub-category. "
+					"Changing these settings would break existing model and item names."
+				).format(", ".join(changed_specs), models_count),
+				title=_("Specs Locked - Models Exist"),
+			)
+
 		# Lazy-check: only hit the DB if something actually changed
 		if not self._sub_category_used_in_transactions():
 			return
@@ -173,3 +185,4 @@ class CHSubCategory(Document):
 			if frappe.db.exists(doctype, {"item_code": ("in", items), "docstatus": 1}):
 				return True
 		return False
+

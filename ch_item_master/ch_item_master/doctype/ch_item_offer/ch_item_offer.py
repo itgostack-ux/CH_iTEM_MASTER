@@ -47,17 +47,18 @@ class CHItemOffer(Document):
 				_("Percentage discount cannot exceed 100%"),
 				title=_("Invalid Value"),
 			)
-
-	def _auto_set_status(self):
-		if self.status in ("Draft", "Cancelled"):
-			return
-		if self.approval_status != "Approved":
-			return
-
-		now = now_datetime()
-		start = get_datetime(self.start_date)
-		end   = get_datetime(self.end_date)
-
+		# Validate amount discounts aren't unreasonably high
+		if self.value_type == "Amount":
+			# Get max discount from settings, default to 100,000
+			max_discount = float(frappe.db.get_single_value("System Settings", "ch_max_discount_amount") or 100000)
+			if self.value > max_discount:
+				frappe.throw(
+					_("Discount amount {0} exceeds maximum allowed {1}").format(
+						frappe.format_value(self.value, dict(fieldtype="Currency")),
+						frappe.format_value(max_discount, dict(fieldtype="Currency"))
+					),
+					title=_("Invalid Discount Amount"),
+				)
 		if now > end:
 			self.status = "Expired"
 		elif now < start:
@@ -149,7 +150,7 @@ class CHItemOffer(Document):
 		pr.rate_or_discount  = rate_or_discount
 		pr.valid_from        = self.start_date
 		pr.valid_upto        = self.end_date
-		pr.priority          = str(self.priority or 1)
+		pr.priority          = int(self.priority or 1)
 		pr.for_price_list    = price_list
 		pr.min_amt           = self.min_bill_amount or 0
 		pr.rule_description  = (

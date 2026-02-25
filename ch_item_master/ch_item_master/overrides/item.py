@@ -198,13 +198,21 @@ def _set_item_code(doc):
     prefix = prefix.strip().upper()
 
     lock_name = f"ch_item_code_{prefix}"
-    lock_ok = frappe.db.sql("SELECT GET_LOCK(%s, 10)", lock_name)[0][0]
+    # Increased timeout to 30 seconds for high-concurrency scenarios
+    lock_ok = frappe.db.sql("SELECT GET_LOCK(%s, 30)", lock_name)[0][0]
     if not lock_ok:
-        frappe.throw(_("Could not acquire item-code lock. Please retry."))
+        frappe.log_error(f"Lock acquisition timeout for {lock_name}", "Item Code Lock Timeout")
+        frappe.throw(_("System busy generating item codes. Please retry in a moment."))
 
     try:
         doc.item_code = _next_item_code(prefix)
+    except Exception as e:
+        # Ensure lock is released even on exception
+        frappe.db.sql("SELECT RELEASE_LOCK(%s)", lock_name)
+        frappe.log_error(f"Error generating item code for prefix {prefix}: {str(e)}", "Item Code Generation Error")
+        raise
     finally:
+        # Guaranteed cleanup
         frappe.db.sql("SELECT RELEASE_LOCK(%s)", lock_name)
 
 

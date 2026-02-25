@@ -38,15 +38,15 @@ def _next_item_code(prefix):
     Format: <PREFIX><6-digit-seq>
     """
     prefix_len = len(prefix)
+    expected_len = prefix_len + 6  # fixed: PREFIX + exactly 6 digits
     result = frappe.db.sql(
         """
         SELECT MAX(CAST(SUBSTRING(item_code, %s) AS UNSIGNED)) AS last_num
         FROM `tabItem`
         WHERE item_code LIKE %s
-          AND CHAR_LENGTH(item_code) > %s
-          AND SUBSTRING(item_code, %s) REGEXP '^[0-9]+$'
+          AND CHAR_LENGTH(item_code) = %s
         """,
-        (prefix_len + 1, f"{prefix}%", prefix_len, prefix_len + 1),
+        (prefix_len + 1, f"{prefix}%", expected_len),
         as_dict=True,
     )
     last_num = result[0].last_num or 0 if result else 0
@@ -68,14 +68,15 @@ def _group_model_spec_values(model):
         fields=["spec", "spec_value"],
         order_by="idx asc",
     )
-    grouped = defaultdict(list)
+    # Use set for O(1) deduplication, then convert to list
+    grouped = defaultdict(set)
     for sv in rows:
-        if sv.spec and sv.spec_value and sv.spec_value not in grouped[sv.spec]:
-            grouped[sv.spec].append(sv.spec_value)
-    return dict(grouped)
+        if sv.spec and sv.spec_value:
+            grouped[sv.spec].add(sv.spec_value)
+    return {k: list(v) for k, v in grouped.items()}
 
 
-def _get_spec_selectors(sub_category, model):
+def _get_spec_selectors(sub_category, model, grouped=None):
     """Return variant specs (is_variant=1, in_item_name=1) and their allowed values from the model.
 
     Returns: list of {spec, values: ['Black', 'White', ...]}
@@ -90,14 +91,15 @@ def _get_spec_selectors(sub_category, model):
     if not specs_in_name:
         return []
 
-    grouped = _group_model_spec_values(model)
+    if grouped is None:
+        grouped = _group_model_spec_values(model)
     return [
         {"spec": row.spec, "values": grouped.get(row.spec, [])}
         for row in specs_in_name
     ]
 
 
-def _get_property_specs(sub_category, model):
+def _get_property_specs(sub_category, model, grouped=None):
     """Return all specs that do NOT drive variant creation.
 
     A spec drives variant creation only if is_variant=1 AND in_item_name=1.
@@ -120,7 +122,8 @@ def _get_property_specs(sub_category, model):
     if not property_specs:
         return []
 
-    grouped = _group_model_spec_values(model)
+    if grouped is None:
+        grouped = _group_model_spec_values(model)
     return [
         {"spec": row.spec, "values": grouped.get(row.spec, [])}
         for row in property_specs
@@ -259,20 +262,24 @@ def search_specs_for_sub_category(doctype, txt, searchfield, start, page_len, fi
         filters = frappe.parse_json(filters)
     sub_category = (filters or {}).get("sub_category", "")
 
-    conditions = ""
+    # Build conditions list for safer SQL construction
+    conditions = []
     values = {"sub_category": sub_category, "start": int(start), "page_len": int(page_len)}
+    
     if txt:
-        conditions += " AND ia.attribute_name LIKE %(txt)s"
+        conditions.append("ia.attribute_name LIKE %(txt)s")
         values["txt"] = f"%{txt}%"
 
     is_variant = (filters or {}).get("is_variant", None)
     if is_variant is not None:
-        conditions += f" AND csp.is_variant = %(is_variant)s"
+        conditions.append("csp.is_variant = %(is_variant)s")
         values["is_variant"] = int(is_variant)
 
     # Exclude variant-driving specs (is_variant=1 AND in_item_name=1)
     if (filters or {}).get("exclude_variant_selectors"):
-        conditions += " AND NOT (csp.is_variant = 1 AND csp.in_item_name = 1)"
+        conditions.append("NOT (csp.is_variant = 1 AND csp.in_item_name = 1)")
+
+    where_clause = " AND ".join(conditions) if conditions else "1=1"
 
     return frappe.db.sql(
         f"""
@@ -282,8 +289,7 @@ def search_specs_for_sub_category(doctype, txt, searchfield, start, page_len, fi
             ON csp.spec = ia.name
             AND csp.parent = %(sub_category)s
             AND csp.parenttype = 'CH Sub Category'
-        WHERE 1=1
-        {conditions}
+        WHERE {where_clause}
         ORDER BY ia.attribute_name ASC
         LIMIT %(start)s, %(page_len)s
         """,
@@ -322,7 +328,9 @@ def get_model_details(model):
     category = sc_data.get("category", "")
     item_group = frappe.db.get_value("CH Category", category, "item_group") if category else ""
 
-    spec_selectors = _get_spec_selectors(mdoc.sub_category, model)
+    # Compute spec values once — shared by both _get_spec_selectors and _get_property_specs
+    grouped_specs = _group_model_spec_values(model)
+    spec_selectors = _get_spec_selectors(mdoc.sub_category, model, grouped=grouped_specs)
     # has_variants is derived: true only if there are variant-driving specs
     has_variants = len(spec_selectors) > 0
 
@@ -333,7 +341,7 @@ def get_model_details(model):
         "brand": mdoc.brand,
         "has_variants": has_variants,
         "spec_selectors": spec_selectors,
-        "property_specs": _get_property_specs(mdoc.sub_category, model),
+        "property_specs": _get_property_specs(mdoc.sub_category, model, grouped=grouped_specs),
         "hsn_code": sc_data.get("hsn_code", ""),
         "gst_rate": sc_data.get("gst_rate", 0),
         "item_group": item_group or "",

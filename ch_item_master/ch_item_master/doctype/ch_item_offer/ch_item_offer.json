@@ -7,9 +7,15 @@
  "engine": "InnoDB",
  "field_order": [
   "naming_series",
+  "company",
   "item_code",
   "item_name",
   "offer_name",
+  "offer_level",
+  "apply_on",
+  "target_item_group",
+  "target_brand",
+  "apply_discount_on",
   "column_break_01",
   "status",
   "approval_status",
@@ -34,7 +40,8 @@
   "min_bill_amount",
   "payment_mode",
   "notes_section",
-  "notes"
+  "notes",
+  "erp_pricing_rule"
  ],
  "fields": [
   {
@@ -89,7 +96,7 @@
    "insert_after": "offer_name",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "description": "Item = per-line discount. Bill = transaction-level discount (e.g. \u20b9500 off on bills > \u20b910,000)"
+   "description": "Item = per-line discount. Bill = transaction-level discount (e.g. ₹500 off on bills > ₹10,000)"
   },
   {
    "fieldname": "apply_on",
@@ -98,7 +105,7 @@
    "options": "Item Code\nItem Group\nBrand",
    "default": "Item Code",
    "depends_on": "eval:doc.offer_level=='Item'",
-   "description": "How the offer targets items \u2014 by specific item, item group, or brand"
+   "description": "How the offer targets items — by specific item, item group, or brand"
   },
   {
    "fieldname": "target_item_group",
@@ -265,7 +272,7 @@
    "fieldname": "payment_mode",
    "fieldtype": "Data",
    "label": "Payment Mode",
-   "description": "e.g. Card, UPI, Cash \u2014 blank = any"
+   "description": "e.g. Card, UPI, Cash — blank = any"
   },
   {
    "fieldname": "notes_section",
