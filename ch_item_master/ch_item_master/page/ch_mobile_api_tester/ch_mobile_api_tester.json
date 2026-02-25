@@ -1,0 +1,23 @@
+{
+ "creation": "2026-02-25 00:00:00.000000",
+ "doctype": "Page",
+ "icon": "icon-mobile-phone",
+ "idx": 0,
+ "modified": "2026-02-25 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "CH Item Master",
+ "name": "ch-mobile-api-tester",
+ "owner": "Administrator",
+ "page_name": "CH Mobile API Tester",
+ "roles": [
+  {
+   "role": "System Manager"
+  },
+  {
+   "role": "CH Master Manager"
+  }
+ ],
+ "standard": "Yes",
+ "system_page": 0,
+ "title": "Mobile API Tester"
+}

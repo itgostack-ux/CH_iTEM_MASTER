@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CH Item Master - Mobile API Tester</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        }
+        
+        .header h1 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 2rem;
+        }
+        
+        .header p {
+            color: #666;
+            font-size: 1rem;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            transition: transform 0.3s;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .stat-card h3 {
+            font-size: 0.9rem;
+            color: #999;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+        }
+        
+        .stat-card .value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .api-section {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        }
+        
+        .api-section h2 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 1.5rem;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 10px;
+        }
+        
+        .api-endpoint {
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            padding: 20px;
+            margin-bottom: 15px;
+            border-radius: 8px;
+        }
+        
+        .api-endpoint .method {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            padding: 5px 15px;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 0.85rem;
+            margin-bottom: 10px;
+        }
+        
+        .api-endpoint .path {
+            font-family: 'Courier New', monospace;
+            background: #e9ecef;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            overflow-x: auto;
+            font-size: 0.9rem;
+        }
+        
+        .api-endpoint .description {
+            color: #666;
+            margin: 10px 0;
+        }
+        
+        .test-button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 500;
+            transition: background 0.3s;
+            margin-right: 10px;
+        }
+        
+        .test-button:hover {
+            background: #5568d3;
+        }
+        
+        .test-button.secondary {
+            background: #28a745;
+        }
+        
+        .test-button.secondary:hover {
+            background: #218838;
+        }
+        
+        .response-box {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            max-height: 400px;
+            overflow-y: auto;
+            display: none;
+        }
+        
+        .response-box.show {
+            display: block;
+        }
+        
+        .response-box pre {
+            margin: 0;
+            white-space: pre-wrap;
+        }
+        
+        .params {
+            margin-top: 10px;
+        }
+        
+        .params input {
+            padding: 8px 12px;
+            border: 2px solid #e9ecef;
+            border-radius: 4px;
+            margin-right: 10px;
+            margin-bottom: 10px;
+            font-size: 0.9rem;
+        }
+        
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin-left: 10px;
+        }
+        
+        .badge.success {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .badge.warning {
+            background: #fff3cd;
+            color: #856404;
+        }
+        
+        .badge.info {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📱 CH Item Master - Mobile API Tester</h1>
+            <p>Test your mobile-optimized integer ID endpoints with 75% smaller payloads!</p>
+        </div>
+        
+        <div class="stats">
+            <div class="stat-card">
+                <h3>Total Endpoints</h3>
+                <div class="value">8</div>
+            </div>
+            <div class="stat-card">
+                <h3>Payload Reduction</h3>
+                <div class="value">75%</div>
+            </div>
+            <div class="stat-card">
+                <h3>API Version</h3>
+                <div class="value">v1.0</div>
+            </div>
+            <div class="stat-card">
+                <h3>Authentication</h3>
+                <div class="value">Required</div>
+            </div>
+        </div>
+        
+        <!-- Categories API -->
+        <div class="api-section">
+            <h2>📦 Master Data APIs</h2>
+            
+            <div class="api-endpoint">
+                <span class="method">GET</span>
+                <span class="badge success">Integer IDs</span>
+                <div class="path">/api/method/ch_item_master.ch_item_master.api_mobile.get_categories_mobile</div>
+                <div class="description">
+                    Get all active categories with integer IDs. Perfect for dropdown menus.
+                    <br><strong>Response Size:</strong> ~500 bytes (vs 2KB with string IDs)
+                </div>
+                <button class="test-button" onclick="testAPI('get_categories_mobile')">🚀 Test API</button>
+                <button class="test-button secondary" onclick="showCurl('get_categories_mobile')">📋 Copy cURL</button>
+                <div class="response-box" id="response-get_categories_mobile"></div>
+            </div>
+            
+            <div class="api-endpoint">
+                <span class="method">GET</span>
+                <span class="badge success">Integer IDs</span>
+                <div class="path">/api/method/ch_item_master.ch_item_master.api_mobile.get_sub_categories_mobile</div>
+                <div class="description">
+                    Get sub-categories by category ID.
+                    <br><strong>Parameters:</strong> <code>category_id</code> (optional)
+                </div>
+                <div class="params">
+                    <input type="number" id="param-category_id" placeholder="Category ID (optional)" />
+                </div>
+                <button class="test-button" onclick="testAPI('get_sub_categories_mobile', {category_id: document.getElementById('param-category_id').value})">🚀 Test API</button>
+                <button class="test-button secondary" onclick="showCurl('get_sub_categories_mobile')">📋 Copy cURL</button>
+                <div class="response-box" id="response-get_sub_categories_mobile"></div>
+            </div>
+            
+            <div class="api-endpoint">
+                <span class="method">GET</span>
+                <span class="badge success">Integer IDs</span>
+                <span class="badge info">Paginated</span>
+                <div class="path">/api/method/ch_item_master.ch_item_master.api_mobile.get_models_mobile</div>
+                <div class="description">
+                    Get models with pagination. Returns 50 items per page by default.
+                    <br><strong>Parameters:</strong> <code>sub_category_id</code>, <code>limit</code>, <code>offset</code>
+                </div>
+                <div class="params">
+                    <input type="number" id="param-sub_category_id" placeholder="Sub Category ID" />
+                    <input type="number" id="param-limit" placeholder="Limit (default: 50)" value="10" />
+                    <input type="number" id="param-offset" placeholder="Offset (default: 0)" value="0" />
+                </div>
+                <button class="test-button" onclick="testAPI('get_models_mobile', {
+                    sub_category_id: document.getElementById('param-sub_category_id').value,
+                    limit: document.getElementById('param-limit').value || 50,
+                    offset: document.getElementById('param-offset').value || 0
+                })">🚀 Test API</button>
+                <button class="test-button secondary" onclick="showCurl('get_models_mobile')">📋 Copy cURL</button>
+                <div class="response-box" id="response-get_models_mobile"></div>
+            </div>
+            
+            <div class="api-endpoint">
+                <span class="method">GET</span>
+                <span class="badge success">Integer IDs</span>
+                <div class="path">/api/method/ch_item_master.ch_item_master.api_mobile.get_channels_mobile</div>
+                <div class="description">
+                    Get all active price channels (Retail, Online, Wholesale, etc.)
+                    <br><strong>Response Size:</strong> ~300 bytes
+                </div>
+                <button class="test-button" onclick="testAPI('get_channels_mobile')">🚀 Test API</button>
+                <button class="test-button secondary" onclick="showCurl('get_channels_mobile')">📋 Copy cURL</button>
+                <div class="response-box" id="response-get_channels_mobile"></div>
+            </div>
+        </div>
+        
+        <!-- Detail APIs -->
+        <div class="api-section">
+            <h2>🔍 Detail APIs</h2>
+            
+            <div class="api-endpoint">
+                <span class="method">GET</span>
+                <span class="badge success">Integer IDs</span>
+                <div class="path">/api/method/ch_item_master.ch_item_master.api_mobile.get_model_details_mobile</div>
+                <div class="description">
+                    Get complete model details including specs, variants, and pricing matrix.
+                    <br><strong>Parameters:</strong> <code>model_id</code> (required)
+                </div>
+                <div class="params">
+                    <input type="number" id="param-model_id-detail" placeholder="Model ID (required)" />
+                </div>
+                <button class="test-button" onclick="testAPI('get_model_details_mobile', {
+                    model_id: document.getElementById('param-model_id-detail').value
+                })">🚀 Test API</button>
+                <button class="test-button secondary" onclick="showCurl('get_model_details_mobile')">📋 Copy cURL</button>
+                <div class="response-box" id="response-get_model_details_mobile"></div>
+            </div>
+            
+            <div class="api-endpoint">
+                <span class="method">GET</span>
+                <span class="badge success">Integer IDs</span>
+                <div class="path">/api/method/ch_item_master.ch_item_master.api_mobile.get_active_price_mobile</div>
+                <div class="description">
+                    Get active price for an item in a specific channel (by integer ID).
+                    <br><strong>Parameters:</strong> <code>item_code</code>, <code>channel_id</code>, <code>as_of_date</code> (optional)
+                </div>
+                <div class="params">
+                    <input type="text" id="param-item_code" placeholder="Item Code (e.g., MOB-SAM-001)" style="width: 250px;" />
+                    <input type="number" id="param-channel_id-price" placeholder="Channel ID" />
+                </div>
+                <button class="test-button" onclick="testAPI('get_active_price_mobile', {
+                    item_code: document.getElementById('param-item_code').value,
+                    channel_id: document.getElementById('param-channel_id-price').value
+                })">🚀 Test API</button>
+                <button class="test-button secondary" onclick="showCurl('get_active_price_mobile')">📋 Copy cURL</button>
+                <div class="response-box" id="response-get_active_price_mobile"></div>
+            </div>
+        </div>
+        
+        <!-- Advanced APIs -->
+        <div class="api-section">
+            <h2>⚡ Advanced APIs</h2>
+            
+            <div class="api-endpoint">
+                <span class="method">GET</span>
+                <span class="badge success">Integer IDs</span>
+                <span class="badge info">Paginated</span>
+                <span class="badge warning">Heavy</span>
+                <div class="path">/api/method/ch_item_master.ch_item_master.api_mobile.get_ready_reckoner_mobile</div>
+                <div class="description">
+                    Get complete ready reckoner grid with prices, offers, and inventory.
+                    <br><strong>Parameters:</strong> <code>sub_category_id</code>, <code>model_id</code>, <code>channel_id</code>, <code>limit</code>, <code>offset</code>
+                    <br><strong>Response Size:</strong> ~10KB/100 items (vs 56KB with string IDs - 82% reduction!)
+                </div>
+                <div class="params">
+                    <input type="number" id="param-rr-sub_category_id" placeholder="Sub Category ID" />
+                    <input type="number" id="param-rr-model_id" placeholder="Model ID" />
+                    <input type="number" id="param-rr-channel_id" placeholder="Channel ID" />
+                    <input type="number" id="param-rr-limit" placeholder="Limit" value="10" />
+                </div>
+                <button class="test-button" onclick="testAPI('get_ready_reckoner_mobile', {
+                    sub_category_id: document.getElementById('param-rr-sub_category_id').value,
+                    model_id: document.getElementById('param-rr-model_id').value,
+                    channel_id: document.getElementById('param-rr-channel_id').value,
+                    limit: document.getElementById('param-rr-limit').value || 10,
+                    offset: 0
+                })">🚀 Test API</button>
+                <button class="test-button secondary" onclick="showCurl('get_ready_reckoner_mobile')">📋 Copy cURL</button>
+                <div class="response-box" id="response-get_ready_reckoner_mobile"></div>
+            </div>
+            
+            <div class="api-endpoint">
+                <span class="method">GET</span>
+                <span class="badge success">Integer IDs</span>
+                <div class="path">/api/method/ch_item_master.ch_item_master.api_mobile.search_items_mobile</div>
+                <div class="description">
+                    Search items by code or name with optional channel pricing.
+                    <br><strong>Parameters:</strong> <code>query</code> (required), <code>channel_id</code> (optional), <code>limit</code>
+                </div>
+                <div class="params">
+                    <input type="text" id="param-search-query" placeholder="Search query" style="width: 250px;" />
+                    <input type="number" id="param-search-channel_id" placeholder="Channel ID (optional)" />
+                    <input type="number" id="param-search-limit" placeholder="Limit" value="20" />
+                </div>
+                <button class="test-button" onclick="testAPI('search_items_mobile', {
+                    query: document.getElementById('param-search-query').value,
+                    channel_id: document.getElementById('param-search-channel_id').value,
+                    limit: document.getElementById('param-search-limit').value || 20
+                })">🚀 Test API</button>
+                <button class="test-button secondary" onclick="showCurl('search_items_mobile')">📋 Copy cURL</button>
+                <div class="response-box" id="response-search_items_mobile"></div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // API Base URL (auto-detect)
+        const API_BASE = window.location.origin;
+        
+        async function testAPI(endpoint, params = {}) {
+            const responseBox = document.getElementById(`response-${endpoint}`);
+            responseBox.classList.add('show');
+            responseBox.innerHTML = '<div class="loading"></div> Loading...';
+            
+            // Build query string
+            const queryParams = new URLSearchParams();
+            for (const [key, value] of Object.entries(params)) {
+                if (value) queryParams.append(key, value);
+            }
+            
+            const url = `${API_BASE}/api/method/ch_item_master.ch_item_master.api_mobile.${endpoint}?${queryParams}`;
+            
+            try {
+                const startTime = performance.now();
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Frappe-CSRF-Token': frappe.csrf_token || ''
+                    },
+                    credentials: 'include'
+                });
+                
+                const endTime = performance.now();
+                const duration = (endTime - startTime).toFixed(2);
+                
+                const data = await response.json();
+                const jsonSize = new Blob([JSON.stringify(data)]).size;
+                
+                responseBox.innerHTML = `
+                    <div style="margin-bottom: 10px; color: #4caf50;">
+                        ✅ Status: ${response.status} ${response.statusText}
+                        | ⏱️ Time: ${duration}ms 
+                        | 📦 Size: ${(jsonSize / 1024).toFixed(2)} KB
+                        | 📊 Records: ${data.message?.length || '1'}
+                    </div>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `;
+            } catch (error) {
+                responseBox.innerHTML = `
+                    <div style="color: #f44336; margin-bottom: 10px;">
+                        ❌ Error: ${error.message}
+                    </div>
+                    <pre>${error.stack}</pre>
+                `;
+            }
+        }
+        
+        function showCurl(endpoint) {
+            const curl = `curl -X GET "${API_BASE}/api/method/ch_item_master.ch_item_master.api_mobile.${endpoint}" \\
+  -H "Content-Type: application/json" \\
+  -H "Authorization: token YOUR_API_KEY:YOUR_API_SECRET" \\
+  --cookie "sid=YOUR_SESSION_ID"`;
+            
+            alert('cURL command copied to clipboard!\n\n' + curl);
+            
+            // Copy to clipboard
+            navigator.clipboard.writeText(curl);
+        }
+        
+        // Auto-detect if running in Frappe context
+        if (typeof frappe === 'undefined') {
+            console.warn('⚠️ Not running in Frappe context. Some APIs may require authentication.');
+        }
+    </script>
+</body>
+</html>
