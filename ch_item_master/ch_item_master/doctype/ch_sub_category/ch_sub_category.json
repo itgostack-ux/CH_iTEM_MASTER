@@ -7,6 +7,7 @@
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
+  "sub_category_id",
   "category",
   "item_group",
   "column_break_01",
@@ -27,6 +28,15 @@
   "specifications"
  ],
  "fields": [
+  {
+   "fieldname": "sub_category_id",
+   "fieldtype": "Int",
+   "label": "Sub Category ID",
+   "read_only": 1,
+   "in_list_view": 1,
+   "bold": 1,
+   "description": "Auto-generated numeric ID for API integration"
+  },
   {
    "fieldname": "category",
    "fieldtype": "Link",

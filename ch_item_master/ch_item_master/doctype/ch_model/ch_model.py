@@ -7,6 +7,15 @@ from frappe.model.document import Document
 
 
 class CHModel(Document):
+	def autoname(self):
+		"""Auto-generate model_id before insert"""
+		if not self.model_id:
+			last_id = frappe.db.sql("""
+				SELECT COALESCE(MAX(model_id), 0) 
+				FROM `tabCH Model`
+			""")[0][0]
+			self.model_id = (last_id or 0) + 1
+
 	def validate(self):
 		self.validate_manufacturer_allowed()
 		self.validate_brand_belongs_to_manufacturer()

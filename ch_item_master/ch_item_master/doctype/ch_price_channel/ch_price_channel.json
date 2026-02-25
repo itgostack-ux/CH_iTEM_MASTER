@@ -6,12 +6,22 @@
  "document_type": "Setup",
  "engine": "InnoDB",
  "field_order": [
+  "channel_id",
   "channel_name",
   "description",
   "column_break_01",
   "is_active"
  ],
  "fields": [
+  {
+   "fieldname": "channel_id",
+   "fieldtype": "Int",
+   "label": "Channel ID",
+   "read_only": 1,
+   "in_list_view": 1,
+   "bold": 1,
+   "description": "Auto-generated numeric ID for API integration"
+  },
   {
    "fieldname": "channel_name",
    "fieldtype": "Data",

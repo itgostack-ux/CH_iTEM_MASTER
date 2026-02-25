@@ -18,6 +18,15 @@ _TRANSACTION_TABLES = [
 
 
 class CHSubCategory(Document):
+	def autoname(self):
+		"""Auto-generate sub_category_id before insert"""
+		if not self.sub_category_id:
+			last_id = frappe.db.sql("""
+				SELECT COALESCE(MAX(sub_category_id), 0) 
+				FROM `tabCH Sub Category`
+			""")[0][0]
+			self.sub_category_id = (last_id or 0) + 1
+
 	def validate(self):
 		self.validate_unique_name_per_category()
 		self.validate_duplicate_manufacturers()
