@@ -12,7 +12,23 @@ class CHItemOffer(Document):
 		self._validate_dates()
 		self._validate_value()
 		self._validate_targets()
+		self._validate_channel_active()
+		self._validate_no_duplicate_active_offer()
 		self._auto_set_status()
+
+	def _validate_channel_active(self):
+		"""Warn if the offer's channel is inactive."""
+		if not self.channel:
+			return
+		is_active = frappe.db.get_value("CH Price Channel", self.channel, "is_active")
+		if not is_active:
+			frappe.msgprint(
+				_("Channel {0} is currently inactive. This offer will not apply "
+				  "to any transactions until the channel is reactivated."
+				).format(frappe.bold(self.channel)),
+				indicator="orange",
+				title=_("Inactive Channel"),
+			)
 
 	def _validate_targets(self):
 		"""Ensure correct targeting fields are filled based on offer_level and apply_on."""
@@ -21,22 +37,40 @@ class CHItemOffer(Document):
 
 		if offer_level == "Item":
 			if apply_on == "Item Code" and not self.item_code:
-				frappe.throw(_("Item Code is required for item-level offers with Apply On = Item Code"))
+				frappe.throw(
+					_("Item Code is required for item-level offers with Apply On = Item Code"),
+					title=_("Missing Item Code"),
+				)
 			elif apply_on == "Item Group" and not self.get("target_item_group"):
-				frappe.throw(_("Target Item Group is required when Apply On = Item Group"))
+				frappe.throw(
+					_("Target Item Group is required when Apply On = Item Group"),
+					title=_("Missing Target"),
+				)
 			elif apply_on == "Brand" and not self.get("target_brand"):
-				frappe.throw(_("Target Brand is required when Apply On = Brand"))
+				frappe.throw(
+					_("Target Brand is required when Apply On = Brand"),
+					title=_("Missing Target"),
+				)
 		# Bill-level offers don't require item_code
 
 	def _validate_dates(self):
-		if self.start_date and self.end_date:
-			if get_datetime(self.end_date) <= get_datetime(self.start_date):
-				frappe.throw(
-					_("End Date must be after Start Date"),
-					title=_("Invalid Dates"),
-				)
+		"""Start Date and End Date are both required; End must be after Start."""
+		if not self.start_date:
+			frappe.throw(_("Start Date is required"), title=_("Missing Dates"))
+		if not self.end_date:
+			frappe.throw(_("End Date is required"), title=_("Missing Dates"))
+
+		if get_datetime(self.end_date) <= get_datetime(self.start_date):
+			frappe.throw(
+				_("End Date {0} must be after Start Date {1}").format(
+					frappe.bold(str(self.end_date)),
+					frappe.bold(str(self.start_date)),
+				),
+				title=_("Invalid Dates"),
+			)
 
 	def _validate_value(self):
+		"""Validate offer value based on value_type."""
 		if (self.value or 0) <= 0:
 			frappe.throw(
 				_("Offer value must be greater than zero"),
@@ -47,19 +81,95 @@ class CHItemOffer(Document):
 				_("Percentage discount cannot exceed 100%"),
 				title=_("Invalid Value"),
 			)
-		# Validate amount discounts aren't unreasonably high
-		if self.value_type == "Amount":
-			# Get max discount from settings, default to 100,000
-			max_discount = float(frappe.db.get_single_value("System Settings", "ch_max_discount_amount") or 100000)
-			if self.value > max_discount:
-				frappe.throw(
-					_("Discount amount {0} exceeds maximum allowed {1}").format(
-						frappe.format_value(self.value, dict(fieldtype="Currency")),
-						frappe.format_value(max_discount, dict(fieldtype="Currency"))
-					),
-					title=_("Invalid Discount Amount"),
+		if self.value_type == "Amount" and self.value > 500000:
+			frappe.msgprint(
+				_("Discount amount {0} is unusually high. Please verify.").format(
+					frappe.format_value(self.value, dict(fieldtype="Currency"))
+				),
+				indicator="orange",
+				title=_("High Discount Amount"),
+			)
+
+	def _validate_no_duplicate_active_offer(self):
+		"""Block overlapping offers for the same item + channel + offer_type + date range.
+
+		Two offers overlap if their date ranges intersect:
+		  existing.start_date <= self.end_date AND existing.end_date >= self.start_date
+		"""
+		if self.approval_status == "Rejected" or self.status in ("Cancelled", "Expired"):
+			return
+
+		offer_level = self.get("offer_level") or "Item"
+		if offer_level != "Item" or (self.get("apply_on") or "Item Code") != "Item Code":
+			return
+
+		if not self.item_code or not self.channel:
+			return
+
+		if not self.start_date or not self.end_date:
+			return
+
+		overlaps = frappe.db.sql(
+			"""
+			SELECT name, offer_name, start_date, end_date
+			FROM `tabCH Item Offer`
+			WHERE item_code = %(item_code)s
+			  AND channel = %(channel)s
+			  AND offer_type = %(offer_type)s
+			  AND status IN ('Active', 'Scheduled')
+			  AND name != %(self_name)s
+			  AND start_date <= %(end_date)s
+			  AND end_date >= %(start_date)s
+			LIMIT 3
+			""",
+			{
+				"item_code": self.item_code,
+				"channel": self.channel,
+				"offer_type": self.offer_type,
+				"self_name": self.name or "",
+				"start_date": self.start_date,
+				"end_date": self.end_date,
+			},
+			as_dict=True,
+		)
+		if overlaps:
+			conflicts = "<br>".join(
+				_("{0} ({1} to {2})").format(
+					frappe.bold(o.offer_name or o.name),
+					frappe.format_value(o.start_date, dict(fieldtype="Date")),
+					frappe.format_value(o.end_date, dict(fieldtype="Date")),
 				)
-		if now > end:
+				for o in overlaps
+			)
+			frappe.throw(
+				_("Overlapping {0} offer(s) already exist for {1} on channel {2}:<br><br>{3}"
+				  "<br><br>Expire or reject the existing offer(s) first, or change the dates."
+				).format(
+					frappe.bold(self.offer_type),
+					frappe.bold(self.item_code),
+					frappe.bold(self.channel),
+					conflicts,
+				),
+				title=_("Overlapping Offer"),
+			)
+
+	def _auto_set_status(self):
+		"""Auto-compute status based on approval_status and effective dates."""
+		# Rejected/Cancelled stays as-is
+		if self.approval_status == "Rejected" or self.status == "Cancelled":
+			return
+
+		# Draft/Pending offers stay Draft until approved
+		if self.approval_status != "Approved":
+			if self.status not in ("Draft",):
+				self.status = "Draft"
+			return
+
+		now = now_datetime()
+		start = get_datetime(self.start_date) if self.start_date else now
+		end = get_datetime(self.end_date) if self.end_date else None
+
+		if end and now > end:
 			self.status = "Expired"
 		elif now < start:
 			self.status = "Scheduled"

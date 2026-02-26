@@ -31,8 +31,44 @@ class CHSubCategory(Document):
 		self.validate_unique_name_per_category()
 		self.validate_duplicate_manufacturers()
 		self.validate_duplicate_specs()
-		self.validate_name_order_not_changed_after_transactions()
+		self.validate_name_order_sequential()
+		self.validate_spec_changes_after_items_exist()
 		self.validate_hsn_code()
+
+	def validate_name_order_sequential(self):
+		"""Ensure name_order values on specs with in_item_name=1 are sequential starting from 1.
+
+		For example: 1, 2, 3 is valid. 1, 2, 5 is not.
+		"""
+		name_order_specs = []
+		for row in self.specifications or []:
+			if row.in_item_name and row.name_order:
+				name_order_specs.append((row.idx, row.spec, int(row.name_order)))
+
+		if not name_order_specs:
+			return
+
+		# Sort by name_order and check for gaps
+		name_order_specs.sort(key=lambda x: x[2])
+		expected = 1
+		for idx, spec, order in name_order_specs:
+			if order != expected:
+				frappe.throw(
+					_("Name Order must be sequential starting from 1. "
+					  "Spec {0} (Row #{1}) has Name Order {2}, expected {3}. "
+					  "Use consecutive numbers: 1, 2, 3, ..."
+					).format(frappe.bold(spec), idx, order, expected),
+					title=_("Invalid Name Order"),
+				)
+			expected += 1
+
+		# Check for duplicate name_order values
+		orders = [x[2] for x in name_order_specs]
+		if len(orders) != len(set(orders)):
+			frappe.throw(
+				_("Duplicate Name Order values found. Each spec must have a unique sequential number."),
+				title=_("Duplicate Name Order"),
+			)
 
 	def validate_hsn_code(self):
 		"""Validate that the HSN code is 6 or 8 digits and exists in the GST HSN Code master.
@@ -118,65 +154,159 @@ class CHSubCategory(Document):
 				)
 			seen.add(row.spec)
 
-	def validate_name_order_not_changed_after_transactions(self):
-		"""Block changes to is_variant / in_item_name / name_order on spec rows
-		once any item from this sub-category has been used in a transaction.
+	def validate_spec_changes_after_items_exist(self):
+		"""Practical rules for spec changes depending on what data exists.
 
-		These fields drive the generated item name; changing them after items
-		exist in ledgers would break reporting and reconciliation.
+		Business reality: users WILL make mistakes. The rules are:
+
+		ALWAYS ALLOWED (no items exist):
+		  - Add/remove/reorder any spec freely
+
+		AFTER MODELS EXIST (but no items):
+		  - Add new specs (model just won't have values yet — fill them in)
+		  - Change affects_price, in_item_name, name_order (safe — no items yet)
+		  - Remove a spec only if no model has values for it
+		  - Changing is_variant flag is blocked (would break model structure)
+
+		AFTER ITEMS EXIST (but no submitted transactions):
+		  - Add new NON-VARIANT specs (properties) freely
+		  - Add new VARIANT specs with a warning (existing items won't have this variant)
+		  - Change affects_price freely (just changes Ready Reckoner grouping)
+		  - Change in_item_name / name_order with a warning (won't rename existing items)
+		  - Block removing a variant spec (items reference it)
+		  - Block changing is_variant (would break existing items)
+
+		AFTER SUBMITTED TRANSACTIONS:
+		  - Same as above, but name_order changes are fully blocked
+		  - (To fix naming, user must do a data correction patch)
 		"""
 		if self.is_new():
 			return
 
-		# Compare only variant specs (the ones that affect item naming)
 		before = self.get_doc_before_save()
 		if not before:
 			return
 
-		before_map = {
-			row.spec: row
-			for row in (before.specifications or [])
-			if row.is_variant
-		}
+		before_specs = {row.spec: row for row in (before.specifications or [])}
+		current_specs = {row.spec: row for row in (self.specifications or [])}
 
-		changed_specs = []
-		for row in self.specifications or []:
-			if not row.is_variant:
+		# Detect removed specs
+		removed_specs = set(before_specs.keys()) - set(current_specs.keys())
+		# Detect added specs
+		added_specs = set(current_specs.keys()) - set(before_specs.keys())
+		# Detect changed specs
+		changed_variant_flag = []
+		changed_naming = []
+		for spec_name, row in current_specs.items():
+			old = before_specs.get(spec_name)
+			if not old:
 				continue
-			old = before_map.get(row.spec)
-			if old and (
-				old.in_item_name != row.in_item_name
-				or str(old.name_order or "") != str(row.name_order or "")
-			):
-				changed_specs.append(frappe.bold(row.spec))
+			if old.is_variant != row.is_variant:
+				changed_variant_flag.append(spec_name)
+			if old.in_item_name != row.in_item_name or str(old.name_order or 0) != str(row.name_order or 0):
+				changed_naming.append(spec_name)
 
-		if not changed_specs:
+		# If nothing changed, skip
+		if not removed_specs and not added_specs and not changed_variant_flag and not changed_naming:
 			return
 
-		# Check if models exist that depend on this sub-category
+		# Check what data exists
 		models_count = frappe.db.count("CH Model", {"sub_category": self.name})
-		if models_count > 0:
+		items_count = frappe.db.count("Item", {"ch_sub_category": self.name}) if models_count else 0
+		has_transactions = self._sub_category_used_in_transactions() if items_count else False
+
+		# ── Block changing is_variant flag after models exist ──
+		if changed_variant_flag and models_count:
 			frappe.throw(
-				_(
-					"Cannot modify spec naming configuration for {0} — "
-					"{1} model(s) depend on this sub-category. "
-					"Changing these settings would break existing model and item names."
-				).format(", ".join(changed_specs), models_count),
-				title=_("Specs Locked - Models Exist"),
+				_("Cannot change the Variant flag for {0} — {1} model(s) depend on this sub-category. "
+				  "To fix: create a new spec with the correct setting, migrate data, then remove the old one."
+				).format(
+					", ".join(frappe.bold(s) for s in changed_variant_flag),
+					models_count
+				),
+				title=_("Variant Flag Locked"),
 			)
 
-		# Lazy-check: only hit the DB if something actually changed
-		if not self._sub_category_used_in_transactions():
-			return
+		# ── Block removing variant specs after items exist ──
+		removed_variant_specs = [s for s in removed_specs if before_specs[s].is_variant]
+		if removed_variant_specs and items_count:
+			frappe.throw(
+				_("Cannot remove variant spec(s) {0} — {1} item(s) use this sub-category. "
+				  "Items already have variants based on these specs."
+				).format(
+					", ".join(frappe.bold(s) for s in removed_variant_specs),
+					items_count
+				),
+				title=_("Cannot Remove Variant Spec"),
+			)
 
-		frappe.throw(
-			_(
-				"Cannot change naming order for {0} — items from this sub-category "
-				"have already been used in transactions. Changing the naming order "
-				"would break existing records and reporting."
-			).format(", ".join(changed_specs)),
-			title=_("Naming Order Locked"),
-		)
+		# ── Block removing specs that models have values for ──
+		if removed_specs and models_count:
+			for spec_name in removed_specs:
+				used_count = frappe.db.count(
+					"CH Model Spec Value",
+					{"parenttype": "CH Model", "spec": spec_name,
+					 "parent": ("in", frappe.get_all("CH Model", {"sub_category": self.name}, pluck="name"))}
+				)
+				if used_count:
+					frappe.throw(
+						_("Cannot remove spec {0} — {1} model(s) have values for it. "
+						  "Clear the spec values from models first."
+						).format(frappe.bold(spec_name), used_count),
+						title=_("Spec In Use"),
+					)
+
+		# ── Block naming order changes after submitted transactions ──
+		if changed_naming and has_transactions:
+			frappe.throw(
+				_("Cannot change naming configuration for {0} — items from this sub-category "
+				  "have been used in submitted transactions. To fix item names, use a rename tool or data correction patch."
+				).format(", ".join(frappe.bold(s) for s in changed_naming)),
+				title=_("Naming Order Locked"),
+			)
+
+		# ── Warnings (non-blocking) ──
+		warnings = []
+		if changed_naming and items_count and not has_transactions:
+			warnings.append(
+				_("Naming order changed for {0}. Note: existing items will NOT be renamed. "
+				  "Only new items will use the new naming order."
+				).format(", ".join(frappe.bold(s) for s in changed_naming))
+			)
+
+		added_variant_specs = [s for s in added_specs if current_specs[s].is_variant]
+		if added_variant_specs and items_count:
+			warnings.append(
+				_("New variant spec(s) {0} added. Existing items will not have this variant dimension. "
+				  "You may need to create new variants for existing models."
+				).format(", ".join(frappe.bold(s) for s in added_variant_specs))
+			)
+
+		if warnings:
+			frappe.msgprint(
+				"<br>".join(warnings),
+				title=_("Spec Changes — Please Review"),
+				indicator="orange",
+			)
+
+	def on_trash(self):
+		"""Block deletion if models or items depend on this sub-category."""
+		model_count = frappe.db.count("CH Model", {"sub_category": self.name})
+		if model_count:
+			frappe.throw(
+				_("Cannot delete Sub Category {0} — {1} model(s) depend on it. "
+				  "Delete or reassign the models first."
+				).format(frappe.bold(self.sub_category_name), model_count),
+				title=_("Sub Category In Use"),
+			)
+
+		item_count = frappe.db.count("Item", {"ch_sub_category": self.name})
+		if item_count:
+			frappe.throw(
+				_("Cannot delete Sub Category {0} — {1} item(s) reference it."
+				).format(frappe.bold(self.sub_category_name), item_count),
+				title=_("Sub Category In Use"),
+			)
 
 	def _sub_category_used_in_transactions(self):
 		"""Return True if any item belonging to this sub-category appears

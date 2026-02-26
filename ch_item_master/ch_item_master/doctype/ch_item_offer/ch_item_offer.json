@@ -56,11 +56,11 @@
    "fieldtype": "Link",
    "label": "Company",
    "options": "Company",
-   "reqd": 0,
+   "reqd": 1,
    "in_standard_filter": 1,
    "in_list_view": 1,
    "remember_last_selected_value": 1,
-   "description": "Leave blank if this record applies to all companies."
+   "description": "Company this offer applies to."
   },
   {
    "fieldname": "item_code",

@@ -175,6 +175,125 @@ frappe.ui.form.on('CH Model', {
 			frm.add_custom_button(__('Show Items'), () => {
 				frappe.set_route('List', 'Item', { ch_model: frm.doc.name });
 			}, __('View'));
+
+			// ── Generate All Items (bulk variant creation) ───────────────
+			if (frm.doc.is_active) {
+				frm.add_custom_button(__('Generate All Items'), () => {
+					// Count combinations for confirmation
+					let specs = (frm.doc.spec_values || []);
+					let grouped = {};
+					specs.forEach(r => {
+						if (r.spec && r.spec_value) {
+							if (!grouped[r.spec]) grouped[r.spec] = new Set();
+							grouped[r.spec].add(r.spec_value);
+						}
+					});
+					let specNames = Object.keys(grouped);
+					if (!specNames.length) {
+						frappe.msgprint(__('No spec values defined. Add values in the Spec Values table first.'));
+						return;
+					}
+					let total = 1;
+					let details = [];
+					specNames.forEach(s => {
+						let count = grouped[s].size;
+						total *= count;
+						details.push(`${s}: ${count} value(s)`);
+					});
+
+					frappe.confirm(
+						__('This will generate up to <b>{0}</b> item variant(s):<br><br>{1}<br><br>Existing variants will be skipped. Continue?',
+							[total, details.join('<br>')]),
+						() => {
+							frappe.call({
+								method: 'ch_item_master.ch_item_master.api.generate_items_from_model',
+								args: { model: frm.doc.name },
+								freeze: true,
+								freeze_message: __('Generating items...'),
+								callback(r) {
+									let d = r.message || {};
+									let msg = __(
+										'<b>Template:</b> {0}<br>' +
+										'<b>Total combinations:</b> {1}<br>' +
+										'<b>Created:</b> {2}<br>' +
+										'<b>Skipped (already exist):</b> {3}',
+										[d.template, d.total_combinations, d.created, d.skipped]
+									);
+									if (d.errors && d.errors.length) {
+										msg += '<br><br><b>Errors:</b><br>' +
+											d.errors.map(e => frappe.utils.escape_html(e)).join('<br>');
+									}
+									frappe.msgprint({
+										title: __('Item Generation Complete'),
+										message: msg,
+										indicator: d.errors && d.errors.length ? 'orange' : 'green',
+									});
+								},
+							});
+						}
+					);
+				}, __('Actions'));
+			}
+
+			// ── Clone Model ──────────────────────────────────────────────
+			frm.add_custom_button(__('Clone Model'), () => {
+				let d = new frappe.ui.Dialog({
+					title: __('Clone Model to Another Sub Category'),
+					fields: [
+						{
+							fieldname: 'new_sub_category',
+							fieldtype: 'Link',
+							label: __('Target Sub Category'),
+							options: 'CH Sub Category',
+							reqd: 1,
+							get_query() {
+								return { filters: { name: ['!=', frm.doc.sub_category] } };
+							},
+						},
+						{
+							fieldname: 'new_model_name',
+							fieldtype: 'Data',
+							label: __('New Model Name'),
+							default: frm.doc.model_name,
+							reqd: 1,
+						},
+					],
+					primary_action_label: __('Clone'),
+					primary_action(values) {
+						frappe.call({
+							method: 'frappe.client.get_list',
+							args: {
+								doctype: 'CH Sub Category Spec',
+								filters: { parent: values.new_sub_category, parenttype: 'CH Sub Category' },
+								fields: ['spec'],
+								limit_page_length: 100,
+							},
+							callback(r) {
+								let target_specs = new Set((r.message || []).map(s => s.spec));
+								let new_doc = frappe.model.copy_doc(frm.doc);
+								new_doc.sub_category = values.new_sub_category;
+								new_doc.model_name = values.new_model_name;
+								new_doc.is_active = 1;
+								// Clear manufacturer/brand — may not be valid for new sub-category
+								new_doc.manufacturer = '';
+								new_doc.brand = '';
+								new_doc.item_name_preview = '';
+								// Keep only spec values that exist in the target sub-category
+								new_doc.spec_values = (new_doc.spec_values || []).filter(
+									sv => target_specs.has(sv.spec)
+								);
+								frappe.set_route('Form', 'CH Model', new_doc.name);
+								d.hide();
+								frappe.show_alert({
+									message: __('Model cloned. Review manufacturer, brand, and spec values before saving.'),
+									indicator: 'blue',
+								});
+							},
+						});
+					},
+				});
+				d.show();
+			}, __('Actions'));
 		}
 		ch_model.update_preview(frm);
 	},

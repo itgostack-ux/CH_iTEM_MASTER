@@ -9,10 +9,61 @@
 #        - If Price Override exists → final = override price
 #        - Else collect stackable discounts + highest non-stackable
 
+import re
+
 import frappe
 from frappe import _
 from frappe.utils import getdate, nowdate, get_datetime, now_datetime
 from frappe.utils.xlsxutils import make_xlsx
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Helpers: affects_price spec grouping
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _get_non_price_specs():
+    """Return set of Item Attribute names that are variant specs but do NOT affect price.
+
+    These are specs with is_variant=1 AND affects_price=0 in any CH Sub Category Spec row.
+    Built as a global set — the same attribute (e.g. "Colour") may affect price in one
+    sub-category but not another, so we index per sub-category.
+    """
+    rows = frappe.get_all(
+        "CH Sub Category Spec",
+        filters={"is_variant": 1, "affects_price": 0},
+        fields=["parent as sub_category", "spec"],
+    )
+    # Return dict: sub_category → set of non-price spec names
+    result: dict = {}
+    for r in rows:
+        result.setdefault(r.sub_category, set()).add(r.spec)
+    return result
+
+
+def _build_price_group_key(item, variant_attributes, non_price_specs_map):
+    """Build a grouping key for an item based on price-affecting variant attributes.
+
+    Items that share the same key differ only in non-price specs (like Color) and should
+    be displayed as a single row in the Ready Reckoner.
+
+    Returns: (model, price_spec_1_value, price_spec_2_value, ...)
+    """
+    sub_cat = item.get("ch_sub_category") or ""
+    model = item.get("ch_model") or ""
+    non_price_specs = non_price_specs_map.get(sub_cat, set())
+
+    if not non_price_specs:
+        # No non-price specs defined — each item is its own group
+        return item["item_code"]
+
+    # Get variant attributes for this item, keep only price-affecting ones
+    attrs = variant_attributes.get(item["item_code"], {})
+    price_parts = []
+    for attr_name in sorted(attrs.keys()):
+        if attr_name not in non_price_specs:
+            price_parts.append(f"{attr_name}={attrs[attr_name]}")
+
+    return f"{model}||{'|'.join(price_parts)}" if price_parts else model or item["item_code"]
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -33,8 +84,15 @@ def get_ready_reckoner_data(
     company=None,
     page_length=100,
     page=1,
+    group_by_price_specs=0,
 ):
-    """Return the Ready Reckoner grid data: one row per Item with prices, offers, tags."""
+    """Return the Ready Reckoner grid data.
+
+    When group_by_price_specs=1, items that differ only in non-price specs
+    (e.g. Color for phones) are collapsed into a single row showing the
+    representative item, with a 'variant_count' field indicating how many
+    color/non-price variants exist.
+    """
     frappe.only_for(["System Manager", "CH Master Manager", "CH Price Manager",
                      "CH Offer Manager", "CH Warranty Manager", "CH Viewer", "Stock User"])
 
@@ -87,6 +145,64 @@ def get_ready_reckoner_data(
         return {"items": [], "channels": [], "total": 0}
 
     item_codes = [i["item_code"] for i in items]
+
+    # ── 1b. Group by price-affecting specs (optional) ────────────────────────
+    # When enabled, items differing only in non-price specs (e.g. Color for
+    # phones) are collapsed into a single representative row.
+    group_mode = int(group_by_price_specs)
+    grouped_items = items  # default: no grouping
+    all_item_codes = list(item_codes)  # all codes for price/offer lookups
+
+    if group_mode:
+        non_price_map = _get_non_price_specs()
+        if non_price_map:
+            # Fetch variant attributes for all items in one query
+            va_rows = frappe.db.sql("""
+                SELECT parent, attribute, attribute_value
+                FROM `tabItem Variant Attribute`
+                WHERE parent IN %(items)s AND attribute_value IS NOT NULL
+            """, {"items": item_codes}, as_dict=True)
+
+            variant_attrs: dict = {}
+            for va in va_rows:
+                variant_attrs.setdefault(va.parent, {})[va.attribute] = va.attribute_value
+
+            # Group items by price-group key
+            groups: dict = {}
+            for item in items:
+                key = _build_price_group_key(item, variant_attrs, non_price_map)
+                if key not in groups:
+                    groups[key] = {"representative": item, "members": []}
+                groups[key]["members"].append(item["item_code"])
+
+            # Build grouped items list: representative + variant_count
+            grouped_items = []
+            for key, grp in groups.items():
+                row = dict(grp["representative"])
+                row["variant_count"] = len(grp["members"])
+                row["variant_item_codes"] = grp["members"]
+
+                # Strip non-price spec values from the display name
+                sub_cat = row.get("ch_sub_category") or ""
+                np_specs = non_price_map.get(sub_cat, set())
+                if np_specs and row.get("item_name"):
+                    attrs_for_item = variant_attrs.get(row["item_code"], {})
+                    for spec_name in np_specs:
+                        val = attrs_for_item.get(spec_name, "")
+                        if val and val in row["item_name"]:
+                            row["item_name"] = row["item_name"].replace(val, "").strip()
+                    # Clean up any double spaces left after stripping
+                    row["item_name"] = re.sub(r"\s{2,}", " ", row["item_name"]).strip()
+
+                grouped_items.append(row)
+
+            # all_item_codes stays the same — we need prices for any member
+        else:
+            for item in items:
+                item["variant_count"] = 1
+    else:
+        for item in items:
+            item["variant_count"] = 1
 
     # ── 2. Get all channels (with price_list for later use) ──────────────
     channels_qs = frappe.get_all(
@@ -179,13 +295,20 @@ def get_ready_reckoner_data(
 
     # ── 6. Merge into rows ────────────────────────────────────────────────────
     rows = []
-    for item in items:
+    for item in grouped_items:
         ic = item["item_code"]
         row = dict(item)
+        member_codes = item.get("variant_item_codes", [ic])
 
-        # Prices per channel
+        # Prices per channel — for grouped items, use price from any member
+        # (they share the same price since non-price specs don't affect pricing)
         for ch in channel_names:
             pr = price_index.get((ic, ch))
+            if not pr and group_mode:
+                for mc in member_codes:
+                    pr = price_index.get((mc, ch))
+                    if pr:
+                        break
             if pr:
                 row[f"{ch}__mrp"]          = pr.mrp
                 row[f"{ch}__mop"]          = pr.mop
@@ -199,17 +322,25 @@ def get_ready_reckoner_data(
                 row[f"{ch}__status"]        = "—"
                 row[f"{ch}__price_name"]    = None
 
-        # Offers summary
-        item_offers = offer_index.get(ic, [])
-        active_offer = _compute_best_offer(item_offers)
-        row["offer_count"]       = len(item_offers)
+        # Offers summary — aggregate across all member items
+        all_member_offers = []
+        for mc in member_codes:
+            all_member_offers.extend(offer_index.get(mc, []))
+        active_offer = _compute_best_offer(all_member_offers)
+        row["offer_count"]       = len(all_member_offers)
         row["active_offer_price"] = active_offer.get("price")
         row["active_offer_label"] = active_offer.get("label")
-        row["has_bank_offer"]     = any(o.offer_type == "Bank Offer" for o in item_offers)
-        row["has_brand_offer"]    = any(o.offer_type == "Brand Offer" for o in item_offers)
+        row["has_bank_offer"]     = any(o.offer_type == "Bank Offer" for o in all_member_offers)
+        row["has_brand_offer"]    = any(o.offer_type == "Brand Offer" for o in all_member_offers)
 
-        # Tags
-        row["tags"] = ", ".join(tag_index.get(ic, []))
+        # Tags — union across members
+        all_tags = set()
+        for mc in member_codes:
+            all_tags.update(tag_index.get(mc, []))
+        row["tags"] = ", ".join(sorted(all_tags))
+
+        # Clean up internal field before sending to frontend
+        row.pop("variant_item_codes", None)
 
         rows.append(row)
 
@@ -360,14 +491,24 @@ def get_item_price_detail(item_code, company=None):
         limit=20,
     )
 
-    history = frappe.get_all(
-        "Version",
-        filters={"ref_doctype": ("in", ["CH Item Price", "CH Item Offer", "CH Item Commercial Tag"])},
-        or_filters=[["data", "like", f"%{item_code}%"]],
-        fields=["name", "ref_doctype", "docname", "creation", "owner", "data"],
-        order_by="creation desc",
-        limit=30,
-    )
+    # Fetch history via docname references (avoids expensive LIKE scan on Version.data)
+    price_names = [p.name for p in prices]
+    offer_names = [o.name for o in offers]
+    tag_names = [t.name for t in tags]
+    ref_names = price_names + offer_names + tag_names
+
+    history = []
+    if ref_names:
+        history = frappe.get_all(
+            "Version",
+            filters={
+                "ref_doctype": ("in", ["CH Item Price", "CH Item Offer", "CH Item Commercial Tag"]),
+                "docname": ("in", ref_names),
+            },
+            fields=["name", "ref_doctype", "docname", "creation", "owner"],
+            order_by="creation desc",
+            limit=30,
+        )
 
     return {
         "prices": prices,
@@ -465,14 +606,14 @@ def get_active_price(item_code, channel, as_of_date=None):
 
 @frappe.whitelist()
 def approve_price(price_name):
-    """Approve a CH Item Price record."""
+    """Approve a CH Item Price record.
+
+    Delegates to CHItemPrice.approve() to ensure single code path
+    for status computation, ERP sync, and permission checks.
+    """
     frappe.only_for(["System Manager", "CH Master Manager"])
     doc = frappe.get_doc("CH Item Price", price_name)
-    doc.approved_by = frappe.session.user
-    doc.approved_at = now_datetime()
-    doc.status = "Active"
-    doc.save()
-    frappe.msgprint(_("Price {0} approved").format(price_name), indicator="green")
+    doc.approve()
     return "ok"
 
 
@@ -553,6 +694,188 @@ def clone_item_pricing(source_item, target_item, include_offers=True, effective_
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Price propagation — apply price to sibling items sharing same price specs
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _get_sibling_item_codes(item_code):
+    """Find sibling items that share the same price-affecting variant attributes.
+
+    For example, if item_code is a variant that differs from its siblings only
+    in Colour (which has affects_price=0), return all of those sibling codes
+    (including the item itself).
+
+    Returns: list of item_codes, or [item_code] if no non-price specs exist.
+    """
+    # Get the item's template and sub-category
+    item_info = frappe.db.get_value(
+        "Item", item_code,
+        ["variant_of", "ch_sub_category"],
+        as_dict=True,
+    )
+    if not item_info or not item_info.variant_of:
+        return [item_code]
+
+    template = item_info.variant_of
+    sub_cat = item_info.ch_sub_category or ""
+
+    # Find non-price specs for this sub-category
+    non_price_specs = set()
+    spec_rows = frappe.get_all(
+        "CH Sub Category Spec",
+        filters={"parent": sub_cat, "is_variant": 1, "affects_price": 0},
+        pluck="spec",
+    )
+    non_price_specs = set(spec_rows)
+
+    if not non_price_specs:
+        return [item_code]
+
+    # Get all variants of the same template
+    all_variants = frappe.get_all(
+        "Item",
+        filters={"variant_of": template, "disabled": 0},
+        pluck="name",
+    )
+    if len(all_variants) <= 1:
+        return [item_code]
+
+    # Get variant attributes for source item
+    source_attrs = {}
+    for row in frappe.get_all(
+        "Item Variant Attribute",
+        filters={"parent": item_code},
+        fields=["attribute", "attribute_value"],
+    ):
+        source_attrs[row.attribute] = row.attribute_value
+
+    # Build the price-key for the source item (only price-affecting attrs)
+    source_price_key = {
+        k: v for k, v in source_attrs.items()
+        if k not in non_price_specs
+    }
+
+    if not source_price_key:
+        return [item_code]
+
+    # Fetch all variant attributes in one query
+    all_va = frappe.db.sql("""
+        SELECT parent, attribute, attribute_value
+        FROM `tabItem Variant Attribute`
+        WHERE parent IN %(items)s
+    """, {"items": all_variants}, as_dict=True)
+
+    # Group by item
+    item_attrs = {}
+    for va in all_va:
+        item_attrs.setdefault(va.parent, {})[va.attribute] = va.attribute_value
+
+    # Find siblings with matching price-key
+    siblings = []
+    for variant in all_variants:
+        attrs = item_attrs.get(variant, {})
+        price_key = {k: v for k, v in attrs.items() if k not in non_price_specs}
+        if price_key == source_price_key:
+            siblings.append(variant)
+
+    return siblings or [item_code]
+
+
+@frappe.whitelist()
+def get_sibling_items(item_code):
+    """Return sibling item codes that share the same price-affecting specs.
+
+    Used by the UI to show how many items will be affected by price propagation.
+    """
+    frappe.only_for(["System Manager", "CH Master Manager", "CH Price Manager"])
+    siblings = _get_sibling_item_codes(item_code)
+    return {
+        "siblings": siblings,
+        "count": len(siblings),
+        "has_non_price_specs": len(siblings) > 1 or siblings != [item_code],
+    }
+
+
+@frappe.whitelist()
+def save_price_with_propagation(
+    item_code, channel, mrp=0, mop=0, selling_price=0,
+    effective_from=None, notes="", company="",
+    propagate=1, status="Active",
+):
+    """Create a CH Item Price for item_code and optionally propagate to sibling variants.
+
+    When propagate=1, the same price is created/updated for all siblings that
+    share the same price-affecting specs (e.g. same Network+Size+RAM+Storage but
+    different Colour).
+    """
+    frappe.only_for(["System Manager", "CH Master Manager", "CH Price Manager"])
+
+    propagate = int(propagate)
+    mrp = float(mrp or 0)
+    mop = float(mop or 0)
+    selling_price = float(selling_price or 0)
+    eff_from = effective_from or nowdate()
+
+    if propagate:
+        target_items = _get_sibling_item_codes(item_code)
+    else:
+        target_items = [item_code]
+
+    created = []
+    updated = []
+    skipped = []
+
+    for target in target_items:
+        # Check for existing active price for same item+channel
+        existing = frappe.db.get_value(
+            "CH Item Price",
+            {
+                "item_code": target,
+                "channel": channel,
+                "status": ("in", ["Active", "Scheduled"]),
+            },
+            "name",
+        )
+
+        if existing:
+            # Update existing price
+            doc = frappe.get_doc("CH Item Price", existing)
+            doc.mrp = mrp
+            doc.mop = mop
+            doc.selling_price = selling_price
+            doc.effective_from = eff_from
+            doc.notes = notes or doc.notes
+            if company:
+                doc.company = company
+            doc.save(ignore_permissions=True)
+            updated.append(doc.name)
+        else:
+            # Create new price
+            doc = frappe.new_doc("CH Item Price")
+            doc.item_code = target
+            doc.channel = channel
+            doc.mrp = mrp
+            doc.mop = mop
+            doc.selling_price = selling_price
+            doc.effective_from = eff_from
+            doc.status = status
+            doc.notes = notes
+            if company:
+                doc.company = company
+            doc.insert(ignore_permissions=True)
+            created.append(doc.name)
+
+    frappe.db.commit()
+
+    return {
+        "created": created,
+        "updated": updated,
+        "skipped": skipped,
+        "total_items": len(target_items),
+        "target_items": target_items,
+    }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Excel export
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -565,7 +888,10 @@ def export_ready_reckoner(
     frappe.only_for(["System Manager", "CH Master Manager"])
 
     # Configurable max export rows (fallback to 5000 if not set)
-    _MAX_EXPORT_ROWS = int(frappe.db.get_single_value("System Settings", "ch_max_export_rows") or 5000)
+    try:
+        _MAX_EXPORT_ROWS = int(frappe.db.get_single_value("System Settings", "ch_max_export_rows") or 5000)
+    except Exception:
+        _MAX_EXPORT_ROWS = 5000
     data = get_ready_reckoner_data(
         category=category,
         sub_category=sub_category,

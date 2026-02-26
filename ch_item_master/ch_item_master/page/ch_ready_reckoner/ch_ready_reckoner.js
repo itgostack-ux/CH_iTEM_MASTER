@@ -29,6 +29,7 @@ frappe.pages['ch-ready-reckoner'].on_page_load = function (wrapper) {
             as_of_date: frappe.datetime.get_today(),
             tag_filter: '', price_status: '', company: '',
         },
+        group_by_price_specs: 1,
         page: 1,
         page_length: 50,
         data: { items: [], channels: [], total: 0 },
@@ -287,6 +288,15 @@ function _build_filters($wrap, state, onchange) {
         }
     });
 
+    // Group by price specs toggle
+    $(`<div class="filter-group" style="display:flex;align-items:flex-end;gap:6px">
+       <label style="font-size:11px;white-space:nowrap"><input type="checkbox" id="chpb-group-toggle" checked style="margin-right:4px">Group variants</label>
+     </div>`).appendTo($bar);
+    $bar.find('#chpb-group-toggle').on('change', function() {
+        state.group_by_price_specs = this.checked ? 1 : 0;
+        onchange();
+    });
+
     // Refresh button
     $(`<div class="filter-group"><label>&nbsp;</label>
        <button class="btn btn-sm btn-primary" id="chpb-refresh">⟳ Refresh</button>
@@ -309,6 +319,7 @@ function _load($wrap, state) {
             ...state.filters,
             page_length: state.page_length,
             page: state.page,
+            group_by_price_specs: state.group_by_price_specs,
         },
         callback(r) {
             state.loading = false;
@@ -350,12 +361,14 @@ function _render_table($wrap, state) {
     head += `<th></th><th></th><th></th></tr></thead>`;
 
     let rows = '';
+    const esc = frappe.utils.escape_html;
     items.forEach(row => {
-        rows += `<tr data-item="${row.item_code}">
-            <td class="item-code">${row.item_code}</td>
-            <td class="item-name" title="${row.item_name}">${row.item_name || ''}</td>
-            <td style="font-size:11px">${(row.ch_sub_category||'').split('-').pop()}</td>
-            <td style="font-size:11px">${row.brand||''}</td>`;
+        const item_name = esc(row.item_name || '');
+        rows += `<tr data-item="${esc(row.item_code)}" data-variant-count="${row.variant_count || 1}">
+            <td class="item-code">${esc(row.item_code)}</td>
+            <td class="item-name" title="${item_name}">${item_name}${row.variant_count > 1 ? ` <span class="badge badge-info" style="font-size:9px;vertical-align:middle">${row.variant_count} colors</span>` : ''}</td>
+            <td style="font-size:11px">${esc((row.ch_sub_category||'').split('-').pop())}</td>
+            <td style="font-size:11px">${esc(row.brand||'')}</td>`;
 
         channels.forEach(ch => {
             const mrp    = row[ch+'__mrp'];
@@ -396,7 +409,10 @@ function _render_table($wrap, state) {
         e.stopPropagation();
         const item = $(this).data('item');
         const ch   = $(this).data('ch');
-        _quick_price_dialog(item, ch, null, () => _load($wrap, state));
+        const $row = $(this).closest('tr');
+        const variant_count = parseInt($row.attr('data-variant-count') || '1');
+        const is_grouped = variant_count > 1;
+        _quick_price_dialog(item, ch, null, () => _load($wrap, state), is_grouped, variant_count);
     });
 
     $t.find('.chpb-open-btn').on('click', function (e) {
@@ -406,7 +422,10 @@ function _render_table($wrap, state) {
 
     $t.find('.chpb-add-price-btn').on('click', function (e) {
         e.stopPropagation();
-        _quick_price_dialog($(this).data('item'), null, null, () => _load($wrap, state));
+        const $row = $(this).closest('tr');
+        const variant_count = parseInt($row.attr('data-variant-count') || '1');
+        const is_grouped = variant_count > 1;
+        _quick_price_dialog($(this).data('item'), null, null, () => _load($wrap, state), is_grouped, variant_count);
     });
 
     $t.find('tr[data-item]').on('click', function () {
@@ -449,55 +468,132 @@ function _update_stats($wrap, state) {
 
 
 // ─── Quick price dialog ───────────────────────────────────────────────────────
-function _quick_price_dialog(item_code, prefill_channel, prefill_price_name, on_success) {
+function _quick_price_dialog(item_code, prefill_channel, prefill_price_name, on_success, is_grouped, variant_count) {
     if (prefill_price_name) {
         // Open the existing record
         frappe.set_route('Form', 'CH Item Price', prefill_price_name);
         return;
     }
 
+    is_grouped = !!is_grouped;
+    variant_count = variant_count || 1;
+
+    if (is_grouped) {
+        // Grouped view: always propagate, no need to fetch siblings
+        _show_price_dialog(item_code, prefill_channel, on_success, {
+            is_grouped: true,
+            count: variant_count,
+        });
+    } else {
+        // Ungrouped view: fetch sibling count to offer optional propagation
+        frappe.call({
+            method: 'ch_item_master.ch_item_master.ready_reckoner_api.get_sibling_items',
+            args: { item_code },
+            callback(r) {
+                const info = r.message || { count: 1 };
+                _show_price_dialog(item_code, prefill_channel, on_success, {
+                    is_grouped: false,
+                    count: info.count || 1,
+                });
+            },
+            error() {
+                _show_price_dialog(item_code, prefill_channel, on_success, {
+                    is_grouped: false, count: 1,
+                });
+            }
+        });
+    }
+}
+
+function _show_price_dialog(item_code, prefill_channel, on_success, ctx) {
+    const is_grouped = ctx.is_grouped;
+    const sibling_count = ctx.count;
+    const has_siblings = sibling_count > 1;
+
+    const fields = [
+        {
+            fieldtype: 'Link', fieldname: 'channel', label: 'Channel',
+            options: 'CH Price Channel', reqd: 1,
+            default: prefill_channel,
+        },
+        { fieldtype: 'Column Break' },
+        {
+            fieldtype: 'Date', fieldname: 'effective_from', label: 'Effective From',
+            reqd: 1, default: frappe.datetime.get_today(),
+        },
+        { fieldtype: 'Section Break', label: 'Prices' },
+        { fieldtype: 'Currency', fieldname: 'mrp',           label: 'MRP' },
+        { fieldtype: 'Currency', fieldname: 'mop',           label: 'MOP' },
+        { fieldtype: 'Currency', fieldname: 'selling_price', label: 'Selling Price', reqd: 1 },
+        { fieldtype: 'Section Break' },
+        { fieldtype: 'Small Text', fieldname: 'notes', label: 'Notes / Reason' },
+    ];
+
+    if (is_grouped) {
+        // Grouped mode — always propagate, just show an info message
+        fields.push({ fieldtype: 'Section Break' });
+        fields.push({
+            fieldtype: 'HTML', fieldname: 'propagation_info',
+            options: `<div class="text-muted" style="font-size:12px;padding:4px 0;">
+                <span class="indicator-pill green" style="font-size:10px;padding:2px 8px">
+                    Applies to all ${sibling_count} colour variants
+                </span>
+                <div style="margin-top:4px">To update a single colour, uncheck <b>Group variants</b> in the filter bar and edit the specific item.</div>
+            </div>`,
+        });
+    } else if (has_siblings) {
+        // Ungrouped mode with siblings — offer optional propagation (default OFF)
+        fields.push({ fieldtype: 'Section Break', label: 'Price Propagation' });
+        fields.push({
+            fieldtype: 'Check',
+            fieldname: 'propagate',
+            label: __('Also apply to all {0} colour variants', [sibling_count]),
+            default: 0,
+            description: __('Check this to apply the same price to all colour variants with the same price specs'),
+        });
+    }
+
+    const title = is_grouped
+        ? __('Set Price — {0} ({1} colours)', [item_code, sibling_count])
+        : __('Set Price — {0}', [item_code]);
+
     const d = new frappe.ui.Dialog({
-        title: __('Set Price — {0}', [item_code]),
+        title: title,
         size: 'small',
-        fields: [
-            {
-                fieldtype: 'Link', fieldname: 'channel', label: 'Channel',
-                options: 'CH Price Channel', reqd: 1,
-                default: prefill_channel,
-            },
-            { fieldtype: 'Column Break' },
-            {
-                fieldtype: 'Date', fieldname: 'effective_from', label: 'Effective From',
-                reqd: 1, default: frappe.datetime.get_today(),
-            },
-            { fieldtype: 'Section Break', label: 'Prices' },
-            { fieldtype: 'Currency', fieldname: 'mrp',           label: 'MRP' },
-            { fieldtype: 'Currency', fieldname: 'mop',           label: 'MOP' },
-            { fieldtype: 'Currency', fieldname: 'selling_price', label: 'Selling Price', reqd: 1 },
-            { fieldtype: 'Section Break' },
-            { fieldtype: 'Small Text', fieldname: 'notes', label: 'Notes / Reason' },
-        ],
+        fields: fields,
         primary_action_label: __('Save Price'),
         primary_action(vals) {
             if (!vals) return;
+
+            // Grouped mode → always propagate
+            // Ungrouped mode → propagate only if user checks the box
+            const should_propagate = is_grouped ? 1 : (has_siblings && vals.propagate ? 1 : 0);
+
             frappe.call({
-                method: 'frappe.client.insert',
+                method: 'ch_item_master.ch_item_master.ready_reckoner_api.save_price_with_propagation',
                 args: {
-                    doc: {
-                        doctype: 'CH Item Price',
-                        item_code,
-                        channel:       vals.channel,
-                        effective_from: vals.effective_from,
-                        mrp:           vals.mrp,
-                        mop:           vals.mop,
-                        selling_price: vals.selling_price,
-                        status:        'Active',
-                        notes:         vals.notes,
-                    },
+                    item_code,
+                    channel:        vals.channel,
+                    mrp:            vals.mrp || 0,
+                    mop:            vals.mop || 0,
+                    selling_price:  vals.selling_price,
+                    effective_from: vals.effective_from,
+                    notes:          vals.notes || '',
+                    propagate:      should_propagate,
+                    status:         'Active',
                 },
                 callback(r) {
                     d.hide();
-                    frappe.show_alert({ message: __('Price saved'), indicator: 'green' });
+                    const result = r.message || {};
+                    const total = result.total_items || 1;
+                    if (total > 1) {
+                        frappe.show_alert({
+                            message: __('Price applied to {0} colour variants', [total]),
+                            indicator: 'green',
+                        });
+                    } else {
+                        frappe.show_alert({ message: __('Price saved'), indicator: 'green' });
+                    }
                     on_success && on_success();
                 },
             });

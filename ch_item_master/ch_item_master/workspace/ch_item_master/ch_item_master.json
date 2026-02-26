@@ -1,7 +1,7 @@
 {
  "charts": [],
- "content": "[{\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Your Shortcuts</b></span>\",\"col\":12}},{\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"CH Category\",\"col\":3}},{\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"CH Sub Category\",\"col\":3}},{\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"CH Model\",\"col\":3}},{\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Item\",\"col\":3}},{\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"CH Ready Reckoner\",\"col\":3}},{\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"CH Item Price\",\"col\":3}},{\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"CH Item Offer\",\"col\":3}},{\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"CH Item Commercial Tag\",\"col\":3}},{\"type\":\"spacer\",\"data\":{\"col\":12}},{\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Masters</b></span>\",\"col\":12}},{\"type\":\"card\",\"data\":{\"card_name\":\"Hierarchy\",\"col\":4}},{\"type\":\"card\",\"data\":{\"card_name\":\"Product Catalog\",\"col\":4}},{\"type\":\"card\",\"data\":{\"card_name\":\"ERPNext\",\"col\":4}},{\"type\":\"spacer\",\"data\":{\"col\":12}},{\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Pricing</b></span>\",\"col\":12}},{\"type\":\"card\",\"data\":{\"card_name\":\"Pricing\",\"col\":4}},{\"type\":\"card\",\"data\":{\"card_name\":\"Channels\",\"col\":4}}]",
- "creation": "2026-02-19 00:00:00.000000",
+ "content": "[{\"id\":\"Nkh27svWTZ\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Your Shortcuts</b></span>\",\"col\":12}},{\"id\":\"2g4yB1QU_4\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"CH Category\",\"col\":3}},{\"id\":\"q07_OvyUDo\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"CH Sub Category\",\"col\":3}},{\"id\":\"uicVMn_lIE\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"CH Model\",\"col\":3}},{\"id\":\"5MqAt4Pe6n\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Item\",\"col\":3}},{\"id\":\"uRbyCuxnpQ\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"CH Ready Reckoner\",\"col\":3}},{\"id\":\"vRcBpNiURO\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"CH Item Price\",\"col\":3}},{\"id\":\"SjYDw-CKgu\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"CH Item Offer\",\"col\":3}},{\"id\":\"5UfLZrpGij\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"CH Item Commercial Tag\",\"col\":3}},{\"id\":\"abSMRIbTUZ\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"-Mi5DM4AY_\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Masters</b></span>\",\"col\":12}},{\"id\":\"Q1ayLsPD2t\",\"type\":\"card\",\"data\":{\"card_name\":\"Hierarchy\",\"col\":4}},{\"id\":\"rlSQLQ2MWZ\",\"type\":\"card\",\"data\":{\"card_name\":\"Product Catalog\",\"col\":4}},{\"id\":\"Y54ukqvx__\",\"type\":\"card\",\"data\":{\"card_name\":\"Stock\",\"col\":4}},{\"id\":\"s6blNOjazN\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"0KimY7G5RQ\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Pricing</b></span>\",\"col\":12}},{\"id\":\"_WVcvCC-Vc\",\"type\":\"card\",\"data\":{\"card_name\":\"Pricing\",\"col\":4}},{\"id\":\"evDAU0T7a3\",\"type\":\"card\",\"data\":{\"card_name\":\"Channels & Tracking\",\"col\":4}},{\"id\":\"-Vq6rORhlh\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"8nuPS28FYP\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Reports &amp; Analytics</b></span>\",\"col\":12}},{\"id\":\"5Y-wt6aEE0\",\"type\":\"card\",\"data\":{\"card_name\":\"Reports\",\"col\":4}},{\"id\":\"uV_3Kvx_Jz\",\"type\":\"card\",\"data\":{\"card_name\":\"Dashboard\",\"col\":4}}]",
+ "creation": "2026-02-19 00:00:00",
  "custom_blocks": [],
  "docstatus": 0,
  "doctype": "Workspace",
@@ -15,17 +15,18 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "Hierarchy",
-   "link_count": 3,
+   "label": "Pricing",
+   "link_count": 4,
+   "link_type": "DocType",
    "onboard": 0,
    "type": "Card Break"
   },
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "CH Category",
+   "label": "CH Item Price",
    "link_count": 0,
-   "link_to": "CH Category",
+   "link_to": "CH Item Price",
    "link_type": "DocType",
    "onboard": 1,
    "type": "Link"
@@ -33,9 +34,9 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "CH Sub Category",
+   "label": "CH Item Offer",
    "link_count": 0,
-   "link_to": "CH Sub Category",
+   "link_to": "CH Item Offer",
    "link_type": "DocType",
    "onboard": 1,
    "type": "Link"
@@ -43,17 +44,49 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "Product Catalog",
+   "label": "CH Item Commercial Tag",
+   "link_count": 0,
+   "link_to": "CH Item Commercial Tag",
+   "link_type": "DocType",
+   "onboard": 1,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Channels & Tracking",
    "link_count": 3,
+   "link_type": "DocType",
    "onboard": 0,
    "type": "Card Break"
   },
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "Manufacturer",
+   "label": "CH Price Channel",
    "link_count": 0,
-   "link_to": "Manufacturer",
+   "link_to": "CH Price Channel",
+   "link_type": "DocType",
+   "onboard": 1,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "icon": "shield",
+   "is_query_report": 0,
+   "label": "CH Warranty Plan",
+   "link_count": 0,
+   "link_to": "CH Warranty Plan",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "CH Serial Lifecycle",
+   "link_count": 0,
+   "link_to": "CH Serial Lifecycle",
    "link_type": "DocType",
    "onboard": 1,
    "type": "Link"
@@ -61,28 +94,117 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "Brand",
-   "link_count": 0,
-   "link_to": "Brand",
+   "label": "Reports",
+   "link_count": 8,
    "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "Items Without Active Price",
+   "link_count": 0,
+   "link_to": "Items Without Active Price",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "Price Comparison Across Channels",
+   "link_count": 0,
+   "link_to": "Price Comparison Across Channels",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "Expiring Prices",
+   "link_count": 0,
+   "link_to": "Expiring Prices",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "Model Coverage",
+   "link_count": 0,
+   "link_to": "Model Coverage",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "Category Manager Report",
+   "link_count": 0,
+   "link_to": "Category Manager Report",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "Executive Summary",
+   "link_count": 0,
+   "link_to": "Executive Summary",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "Channel Pricing Analysis",
+   "link_count": 0,
+   "link_to": "Channel Pricing Analysis",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "Pricing Status by Company",
+   "link_count": 0,
+   "link_to": "Pricing Status by Company",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Dashboard",
+   "link_count": 1,
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Item Master Dashboard",
+   "link_count": 0,
+   "link_to": "ch-item-master-dashboard",
+   "link_type": "Page",
    "onboard": 1,
    "type": "Link"
   },
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "CH Model",
-   "link_count": 0,
-   "link_to": "CH Model",
+   "label": "Stock",
+   "link_count": 4,
    "link_type": "DocType",
-   "onboard": 1,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "ERPNext",
-   "link_count": 3,
    "onboard": 0,
    "type": "Card Break"
   },
@@ -129,17 +251,18 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "Pricing",
-   "link_count": 4,
+   "label": "Product Catalog",
+   "link_count": 3,
+   "link_type": "DocType",
    "onboard": 0,
    "type": "Card Break"
   },
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "CH Item Price",
+   "label": "Manufacturer",
    "link_count": 0,
-   "link_to": "CH Item Price",
+   "link_to": "Manufacturer",
    "link_type": "DocType",
    "onboard": 1,
    "type": "Link"
@@ -147,9 +270,9 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "CH Item Offer",
+   "label": "Brand",
    "link_count": 0,
-   "link_to": "CH Item Offer",
+   "link_to": "Brand",
    "link_type": "DocType",
    "onboard": 1,
    "type": "Link"
@@ -157,9 +280,9 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "CH Item Commercial Tag",
+   "label": "CH Model",
    "link_count": 0,
-   "link_to": "CH Item Commercial Tag",
+   "link_to": "CH Model",
    "link_type": "DocType",
    "onboard": 1,
    "type": "Link"
@@ -167,33 +290,38 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "Channels",
-   "link_count": 1,
+   "label": "Hierarchy",
+   "link_count": 2,
+   "link_type": "DocType",
    "onboard": 0,
    "type": "Card Break"
   },
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "CH Price Channel",
+   "label": "CH Category",
    "link_count": 0,
-   "link_to": "CH Price Channel",
+   "link_to": "CH Category",
    "link_type": "DocType",
    "onboard": 1,
    "type": "Link"
   },
   {
-   "type": "Link",
-   "label": "CH Warranty Plan",
-   "link_to": "CH Warranty Plan",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "CH Sub Category",
+   "link_count": 0,
+   "link_to": "CH Sub Category",
    "link_type": "DocType",
-   "icon": "shield"
+   "onboard": 1,
+   "type": "Link"
   }
  ],
- "modified": "2026-02-19 00:00:00.000000",
+ "modified": "2026-02-26 13:52:26.672527",
  "modified_by": "Administrator",
  "module": "CH Item Master",
  "name": "CH Item Master",
+ "number_cards": [],
  "owner": "Administrator",
  "parent_page": "",
  "public": 1,
@@ -203,6 +331,7 @@
  "shortcuts": [
   {
    "color": "Green",
+   "doc_view": "",
    "format": "{} Categories",
    "label": "CH Category",
    "link_to": "CH Category",
@@ -210,6 +339,7 @@
   },
   {
    "color": "Orange",
+   "doc_view": "",
    "format": "{} Sub Categories",
    "label": "CH Sub Category",
    "link_to": "CH Sub Category",
@@ -217,34 +347,15 @@
   },
   {
    "color": "Purple",
+   "doc_view": "",
    "format": "{} Models",
    "label": "CH Model",
    "link_to": "CH Model",
    "type": "DocType"
   },
   {
-   "color": "Grey",
-   "format": "{} Manufacturers",
-   "label": "Manufacturer",
-   "link_to": "Manufacturer",
-   "type": "DocType"
-  },
-  {
-   "color": "Grey",
-   "format": "{} Brands",
-   "label": "Brand",
-   "link_to": "Brand",
-   "type": "DocType"
-  },
-  {
-   "color": "Grey",
-   "format": "{} Attributes",
-   "label": "Item Attribute",
-   "link_to": "Item Attribute",
-   "type": "DocType"
-  },
-  {
    "color": "Red",
+   "doc_view": "",
    "format": "{} Items",
    "label": "Item",
    "link_to": "Item",
@@ -252,12 +363,14 @@
   },
   {
    "color": "Blue",
+   "doc_view": "",
    "label": "CH Ready Reckoner",
    "link_to": "ch-ready-reckoner",
    "type": "Page"
   },
   {
    "color": "Green",
+   "doc_view": "",
    "format": "{} Price Records",
    "label": "CH Item Price",
    "link_to": "CH Item Price",
@@ -265,6 +378,7 @@
   },
   {
    "color": "Orange",
+   "doc_view": "",
    "format": "{} Offers",
    "label": "CH Item Offer",
    "link_to": "CH Item Offer",
@@ -272,6 +386,7 @@
   },
   {
    "color": "Purple",
+   "doc_view": "",
    "format": "{} Tags",
    "label": "CH Item Commercial Tag",
    "link_to": "CH Item Commercial Tag",

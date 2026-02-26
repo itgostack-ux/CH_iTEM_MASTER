@@ -1,0 +1,458 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "field:serial_no",
+ "creation": "2026-01-01 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "device_section",
+  "serial_no",
+  "imei_number",
+  "imei_number_2",
+  "column_break_device",
+  "item_code",
+  "item_name",
+  "ch_model",
+  "section_status",
+  "lifecycle_status",
+  "sub_status",
+  "column_break_status",
+  "current_company",
+  "current_warehouse",
+  "current_store",
+  "section_purchase",
+  "purchase_date",
+  "purchase_document",
+  "purchase_rate",
+  "column_break_purchase",
+  "supplier",
+  "supplier_invoice",
+  "section_sale",
+  "sale_date",
+  "sale_document",
+  "sale_rate",
+  "column_break_sale",
+  "customer",
+  "customer_name",
+  "section_warranty",
+  "warranty_plan",
+  "warranty_start_date",
+  "warranty_end_date",
+  "column_break_warranty",
+  "warranty_status",
+  "extended_warranty_end",
+  "section_service",
+  "service_count",
+  "last_service_date",
+  "column_break_service",
+  "last_service_type",
+  "section_buyback",
+  "buyback_date",
+  "buyback_value",
+  "buyback_grade",
+  "column_break_buyback",
+  "buyback_document",
+  "section_history",
+  "lifecycle_log",
+  "section_notes",
+  "notes"
+ ],
+ "fields": [
+  {
+   "fieldname": "device_section",
+   "fieldtype": "Section Break",
+   "label": "Device Information"
+  },
+  {
+   "fieldname": "serial_no",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Serial / IMEI Number",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "imei_number",
+   "fieldtype": "Data",
+   "in_standard_filter": 1,
+   "label": "IMEI 1",
+   "description": "15-digit IMEI for slot 1 (if different from serial)"
+  },
+  {
+   "fieldname": "imei_number_2",
+   "fieldtype": "Data",
+   "label": "IMEI 2",
+   "description": "15-digit IMEI for slot 2 (dual SIM devices)"
+  },
+  {
+   "fieldname": "column_break_device",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "item_code",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Item",
+   "options": "Item",
+   "reqd": 1
+  },
+  {
+   "fieldname": "item_name",
+   "fieldtype": "Data",
+   "fetch_from": "item_code.item_name",
+   "in_list_view": 1,
+   "label": "Item Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ch_model",
+   "fieldtype": "Link",
+   "fetch_from": "item_code.ch_model",
+   "label": "Model",
+   "options": "CH Model",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_status",
+   "fieldtype": "Section Break",
+   "label": "Lifecycle Status"
+  },
+  {
+   "fieldname": "lifecycle_status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "\nReceived\nIn Stock\nDisplayed\nSold\nReturned\nIn Service\nRefurbished\nBuyback\nScrapped\nLost",
+   "reqd": 1,
+   "default": "Received"
+  },
+  {
+   "fieldname": "sub_status",
+   "fieldtype": "Select",
+   "label": "Sub Status",
+   "options": "\nGRN Pending\nQC Passed\nQC Failed\nDisplay Unit\nIn Transit\nDelivered\nService Pending\nService In Progress\nService Complete\nRefurb Grade A\nRefurb Grade B\nRefurb Grade C\nBuyback Assessed\nBuyback Listed\nBuyback Sold\nInsurance Claim"
+  },
+  {
+   "fieldname": "column_break_status",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "current_company",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Current Company",
+   "options": "Company"
+  },
+  {
+   "fieldname": "current_warehouse",
+   "fieldtype": "Link",
+   "label": "Current Warehouse",
+   "options": "Warehouse"
+  },
+  {
+   "fieldname": "current_store",
+   "fieldtype": "Data",
+   "label": "Current Store / Location"
+  },
+  {
+   "fieldname": "section_purchase",
+   "fieldtype": "Section Break",
+   "collapsible": 1,
+   "label": "Purchase Details"
+  },
+  {
+   "fieldname": "purchase_date",
+   "fieldtype": "Date",
+   "label": "Purchase Date"
+  },
+  {
+   "fieldname": "purchase_document",
+   "fieldtype": "Data",
+   "label": "Purchase Document No"
+  },
+  {
+   "fieldname": "purchase_rate",
+   "fieldtype": "Currency",
+   "label": "Purchase Rate"
+  },
+  {
+   "fieldname": "column_break_purchase",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "supplier",
+   "fieldtype": "Link",
+   "label": "Supplier",
+   "options": "Supplier"
+  },
+  {
+   "fieldname": "supplier_invoice",
+   "fieldtype": "Data",
+   "label": "Supplier Invoice No"
+  },
+  {
+   "fieldname": "section_sale",
+   "fieldtype": "Section Break",
+   "collapsible": 1,
+   "label": "Sale Details",
+   "depends_on": "eval:doc.lifecycle_status=='Sold' || doc.lifecycle_status=='Returned'"
+  },
+  {
+   "fieldname": "sale_date",
+   "fieldtype": "Date",
+   "label": "Sale Date"
+  },
+  {
+   "fieldname": "sale_document",
+   "fieldtype": "Data",
+   "label": "Sale Document"
+  },
+  {
+   "fieldname": "sale_rate",
+   "fieldtype": "Currency",
+   "label": "Sale Rate"
+  },
+  {
+   "fieldname": "column_break_sale",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "customer",
+   "fieldtype": "Link",
+   "label": "Customer",
+   "options": "Customer"
+  },
+  {
+   "fieldname": "customer_name",
+   "fieldtype": "Data",
+   "fetch_from": "customer.customer_name",
+   "label": "Customer Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_warranty",
+   "fieldtype": "Section Break",
+   "collapsible": 1,
+   "label": "Warranty"
+  },
+  {
+   "fieldname": "warranty_plan",
+   "fieldtype": "Link",
+   "label": "Warranty Plan",
+   "options": "CH Warranty Plan"
+  },
+  {
+   "fieldname": "warranty_start_date",
+   "fieldtype": "Date",
+   "label": "Warranty Start"
+  },
+  {
+   "fieldname": "warranty_end_date",
+   "fieldtype": "Date",
+   "label": "Warranty End"
+  },
+  {
+   "fieldname": "column_break_warranty",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "warranty_status",
+   "fieldtype": "Select",
+   "label": "Warranty Status",
+   "options": "\nUnder Warranty\nExpired\nExtended\nVoid",
+   "read_only": 1
+  },
+  {
+   "fieldname": "extended_warranty_end",
+   "fieldtype": "Date",
+   "label": "Extended Warranty End",
+   "depends_on": "eval:doc.warranty_status=='Extended'"
+  },
+  {
+   "fieldname": "section_service",
+   "fieldtype": "Section Break",
+   "collapsible": 1,
+   "label": "Service History",
+   "depends_on": "eval:doc.service_count > 0 || doc.lifecycle_status=='In Service'"
+  },
+  {
+   "fieldname": "service_count",
+   "fieldtype": "Int",
+   "label": "Service Count",
+   "default": "0",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_service_date",
+   "fieldtype": "Date",
+   "label": "Last Service Date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_service",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "last_service_type",
+   "fieldtype": "Data",
+   "label": "Last Service Type",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_buyback",
+   "fieldtype": "Section Break",
+   "collapsible": 1,
+   "label": "Buyback / Trade-In",
+   "depends_on": "eval:doc.lifecycle_status=='Buyback'"
+  },
+  {
+   "fieldname": "buyback_date",
+   "fieldtype": "Date",
+   "label": "Buyback Date"
+  },
+  {
+   "fieldname": "buyback_value",
+   "fieldtype": "Currency",
+   "label": "Buyback Value"
+  },
+  {
+   "fieldname": "buyback_grade",
+   "fieldtype": "Select",
+   "label": "Condition Grade",
+   "options": "\nA - Like New\nB - Good\nC - Fair\nD - Poor\nE - Damaged"
+  },
+  {
+   "fieldname": "column_break_buyback",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "buyback_document",
+   "fieldtype": "Data",
+   "label": "Buyback Reference"
+  },
+  {
+   "fieldname": "section_history",
+   "fieldtype": "Section Break",
+   "label": "Lifecycle History"
+  },
+  {
+   "fieldname": "lifecycle_log",
+   "fieldtype": "Table",
+   "label": "Status Change Log",
+   "options": "CH Serial Lifecycle Log",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_notes",
+   "fieldtype": "Section Break",
+   "collapsible": 1,
+   "label": "Notes"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes"
+  }
+ ],
+ "idx": 0,
+ "links": [
+  {
+   "group": "Device",
+   "link_doctype": "Serial No",
+   "link_fieldname": "serial_no"
+  }
+ ],
+ "modified": "2026-01-01 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Ch Item Master",
+ "name": "CH Serial Lifecycle",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Stock Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Stock User",
+   "write": 1
+  }
+ ],
+ "search_fields": "item_code,item_name,imei_number,lifecycle_status",
+ "show_title_field_in_link": 1,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [
+  {
+   "title": "Received",
+   "color": "Blue"
+  },
+  {
+   "title": "In Stock",
+   "color": "Green"
+  },
+  {
+   "title": "Displayed",
+   "color": "Cyan"
+  },
+  {
+   "title": "Sold",
+   "color": "Purple"
+  },
+  {
+   "title": "Returned",
+   "color": "Orange"
+  },
+  {
+   "title": "In Service",
+   "color": "Yellow"
+  },
+  {
+   "title": "Refurbished",
+   "color": "Light Blue"
+  },
+  {
+   "title": "Buyback",
+   "color": "Pink"
+  },
+  {
+   "title": "Scrapped",
+   "color": "Red"
+  },
+  {
+   "title": "Lost",
+   "color": "Red"
+  }
+ ],
+ "title_field": "item_name",
+ "track_changes": 1
+}

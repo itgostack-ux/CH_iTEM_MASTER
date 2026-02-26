@@ -6,6 +6,7 @@
  "field_order": [
   "spec",
   "is_variant",
+  "affects_price",
   "in_item_name",
   "name_order"
  ],
@@ -25,6 +26,15 @@
    "fieldtype": "Check",
    "in_list_view": 1,
    "label": "Variant"
+  },
+  {
+   "default": "1",
+   "depends_on": "is_variant",
+   "description": "If checked, different values of this spec will have different prices (e.g. Storage=Yes, Color=No for phones). Controls Ready Reckoner grouping.",
+   "fieldname": "affects_price",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Affects Price"
   },
   {
    "default": "0",

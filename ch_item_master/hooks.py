@@ -28,11 +28,24 @@ after_migrate = [
 ]
 before_uninstall = "ch_item_master.install.before_uninstall"
 
+# Scheduled Tasks
+scheduler_events = {
+	"daily_long": [
+		"ch_item_master.ch_item_master.scheduled_tasks.auto_expire_records",
+	],
+}
+
 # Document Events
 doc_events = {
 	"Item": {
 		"before_insert": "ch_item_master.ch_item_master.overrides.item.before_insert",
 		"before_save": "ch_item_master.ch_item_master.overrides.item.before_save",
+	},
+	"Manufacturer": {
+		"before_insert": "ch_item_master.ch_item_master.overrides.manufacturer.before_insert",
+	},
+	"Brand": {
+		"before_insert": "ch_item_master.ch_item_master.overrides.brand.before_insert",
 	},
 	# Transactions: manual rate-filling removed.
 	# ERPNext natively uses Item Price (fetched by price list) and applies Pricing Rules.

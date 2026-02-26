@@ -12,6 +12,7 @@ Endpoints called from client-side JS:
   - search_specs_for_sub_category  (ch_model.js + item.js — supports is_variant filter)
   - get_model_attribute_values     (item.js variant dialogs)
   - get_property_spec_values        (item.js ch_spec_values autocomplete)
+  - generate_items_from_model      (ch_model.js — bulk variant generation)
 
 Internal helpers (not whitelisted):
   - _next_item_code         (overrides/item.py)
@@ -22,6 +23,7 @@ Internal helpers (not whitelisted):
 
 import json
 from collections import defaultdict
+from itertools import product as cartesian_product
 
 import frappe
 from frappe import _
@@ -77,48 +79,48 @@ def _group_model_spec_values(model):
 
 
 def _get_spec_selectors(sub_category, model, grouped=None):
-    """Return variant specs (is_variant=1, in_item_name=1) and their allowed values from the model.
+    """Return variant specs (is_variant=1) and their allowed values from the model.
+
+    Every spec with is_variant=1 becomes a variant axis in ERPNext's variant
+    system — each combination of values creates a separate Item (SKU).
+    This includes specs like Colour that don't affect pricing but still
+    need their own item codes.
 
     Returns: list of {spec, values: ['Black', 'White', ...]}
     """
-    specs_in_name = frappe.get_all(
+    variant_specs = frappe.get_all(
         "CH Sub Category Spec",
         filters={"parent": sub_category, "parenttype": "CH Sub Category",
-                 "in_item_name": 1, "is_variant": 1},
+                 "is_variant": 1},
         fields=["spec", "name_order"],
         order_by="name_order asc, idx asc",
     )
-    if not specs_in_name:
+    if not variant_specs:
         return []
 
     if grouped is None:
         grouped = _group_model_spec_values(model)
     return [
         {"spec": row.spec, "values": grouped.get(row.spec, [])}
-        for row in specs_in_name
+        for row in variant_specs
     ]
 
 
 def _get_property_specs(sub_category, model, grouped=None):
-    """Return all specs that do NOT drive variant creation.
+    """Return all specs that do NOT drive variant creation (is_variant=0).
 
-    A spec drives variant creation only if is_variant=1 AND in_item_name=1.
-    Everything else (is_variant=0 OR in_item_name=0) is an attribute/property
-    stored on the item.
+    These are shared properties stored in ch_spec_values on the item,
+    not used as variant axes (no separate Item per value).
 
     Returns: list of {spec, values: ['Dual SIM', ...]}
     """
-    all_specs = frappe.get_all(
+    property_specs = frappe.get_all(
         "CH Sub Category Spec",
-        filters={"parent": sub_category, "parenttype": "CH Sub Category"},
-        fields=["spec", "is_variant", "in_item_name"],
+        filters={"parent": sub_category, "parenttype": "CH Sub Category",
+                 "is_variant": 0},
+        fields=["spec"],
         order_by="idx asc",
     )
-    # Exclude variant-driving specs (is_variant=1 AND in_item_name=1)
-    property_specs = [
-        row for row in all_specs
-        if not (row.is_variant and row.in_item_name)
-    ]
     if not property_specs:
         return []
 
@@ -161,7 +163,10 @@ def generate_item_name(sub_category, manufacturer=None, brand=None, model=None,
 
     # 1. Manufacturer
     if sub_cat.include_manufacturer_in_name and manufacturer:
-        mfr_name = (frappe.db.get_value("Manufacturer", manufacturer, "short_name") or "").strip()
+        mfr_name = (
+            frappe.db.get_value("Manufacturer", manufacturer, "short_name")
+            or manufacturer  # fallback to the Manufacturer ID/name
+        ).strip()
         if mfr_name:
             name_parts.append(mfr_name)
 
@@ -172,12 +177,18 @@ def generate_item_name(sub_category, manufacturer=None, brand=None, model=None,
         if brand_name and brand_name.lower() not in lower_parts:
             name_parts.append(brand_name)
 
-    # 3. Model
+    # 3. Model (deduplicate: if model name starts with brand/manufacturer already added, skip the prefix)
     if sub_cat.include_model_in_name and (model or model_name_override):
         model_name = (model_name_override or
                       (frappe.db.get_value("CH Model", model, "model_name") if model else "") or
                       "").strip()
         if model_name:
+            # If the model name starts with a previously-added part (e.g. brand),
+            # drop that part from name_parts to avoid "Galaxy Galaxy S25"
+            for i, part in enumerate(list(name_parts)):
+                if model_name.lower().startswith(part.lower()):
+                    name_parts.pop(i)
+                    break
             name_parts.append(model_name)
 
     # 4. Spec values (only variant specs, only when explicitly provided)
@@ -185,7 +196,7 @@ def generate_item_name(sub_category, manufacturer=None, brand=None, model=None,
         specs_in_name = frappe.get_all(
             "CH Sub Category Spec",
             filters={"parent": sub_category, "parenttype": "CH Sub Category",
-                     "in_item_name": 1, "is_variant": 1},
+                     "in_item_name": 1},
             fields=["spec", "name_order"],
             order_by="name_order asc, idx asc",
         )
@@ -388,3 +399,145 @@ def get_property_spec_values(model, spec):
 
     grouped = _group_model_spec_values(model)
     return grouped.get(spec, [])
+
+
+# ───────────────────────────────────────────────────────────────────────────────
+# Bulk Item Generation from Model
+# ───────────────────────────────────────────────────────────────────────────────
+
+@frappe.whitelist()
+def generate_items_from_model(model):
+    """Generate all missing ERPNext Item variants for a CH Model.
+
+
+    Steps:
+      1. Ensure the model is active and has variant specs with values
+      2. Find or create the template Item
+      3. Compute cartesian product of variant-spec values
+      4. Create missing variants via ERPNext's create_variant()
+      5. Return summary of created / skipped
+
+    Uses ERPNext's native variant system so all standard variant
+    features (BOM copy, pricing rules, etc.) work out of the box.
+    """
+    frappe.only_for(["System Manager", "CH Master Manager"])
+
+    from erpnext.controllers.item_variant import create_variant, get_variant
+
+    mdoc = frappe.get_doc("CH Model", model)
+    if not mdoc.is_active:
+        frappe.throw(_("Model {0} is inactive. Activate it first.").format(
+            frappe.bold(mdoc.model_name)), title=_("Inactive Model"))
+
+    # ── 1. Gather variant specs and their values ────────────────────────────
+    grouped = _group_model_spec_values(model)
+    spec_selectors = _get_spec_selectors(mdoc.sub_category, model, grouped=grouped)
+
+    if not spec_selectors:
+        frappe.throw(
+            _("No variant specifications found for this model's sub-category. "
+              "Items without variant specs should be created directly from the Item list."),
+            title=_("No Variant Specs"))
+
+    # Check every variant spec has at least one value
+    empty_specs = [s["spec"] for s in spec_selectors if not s["values"]]
+    if empty_specs:
+        frappe.throw(
+            _("These variant specs have no values defined in the model: {0}. "
+              "Add values in the Spec Values table first.").format(
+                ", ".join(frappe.bold(s) for s in empty_specs)),
+            title=_("Missing Spec Values"))
+
+    # ── 2. Find or create the template item ─────────────────────────────────
+    template_code = frappe.db.get_value(
+        "Item",
+        {"ch_model": model, "has_variants": 1},
+        "item_code",
+    )
+
+    if not template_code:
+        # Create template item
+        sc_data = frappe.db.get_value(
+            "CH Sub Category", mdoc.sub_category,
+            ["category", "hsn_code", "gst_rate"],
+            as_dict=True,
+        ) or {}
+        category = sc_data.get("category", "")
+        item_group = frappe.db.get_value("CH Category", category, "item_group") if category else ""
+
+        template = frappe.new_doc("Item")
+        template.ch_model = model
+        template.ch_sub_category = mdoc.sub_category
+        template.ch_category = category
+        template.item_group = item_group or "All Item Groups"
+        template.brand = mdoc.brand
+        template.stock_uom = "Nos"
+        template.has_variants = 1
+        template.variant_based_on = "Item Attribute"
+
+        if sc_data.get("hsn_code"):
+            template.gst_hsn_code = sc_data["hsn_code"]
+
+        # Set variant specs as Item Attributes
+        for sel in spec_selectors:
+            template.append("attributes", {"attribute": sel["spec"]})
+
+        # Set property specs in ch_spec_values
+        property_specs = _get_property_specs(mdoc.sub_category, model, grouped=grouped)
+        for ps in property_specs:
+            for val in ps["values"]:
+                template.append("ch_spec_values", {"spec": ps["spec"], "spec_value": val})
+
+        template.insert(ignore_permissions=True)
+        template_code = template.item_code
+        frappe.db.commit()
+
+    # ── 3. Compute cartesian product ────────────────────────────────────────
+    # spec_selectors = [{"spec": "Color", "values": ["Black", "White"]},
+    #                   {"spec": "Storage", "values": ["128GB", "256GB"]}]
+    spec_names = [s["spec"] for s in spec_selectors]
+    value_lists = [s["values"] for s in spec_selectors]
+
+    total_combos = 1
+    for vl in value_lists:
+        total_combos *= len(vl)
+
+    if total_combos > 500:
+        frappe.throw(
+            _("Too many combinations ({0}). Maximum is 500. "
+              "Reduce variation values or create in batches.").format(total_combos),
+            title=_("Too Many Variants"))
+
+    created = 0
+    skipped = 0
+    errors = []
+
+    for combo in cartesian_product(*value_lists):
+        args = dict(zip(spec_names, combo))
+
+        # Check if variant already exists
+        existing = get_variant(template_code, args=args)
+        if existing:
+            skipped += 1
+            continue
+
+        try:
+            variant = create_variant(template_code, args)
+            variant.insert(ignore_permissions=True)
+            created += 1
+        except Exception as e:
+            errors.append(f"{args}: {str(e)}")
+            frappe.log_error(
+                f"Error creating variant for model {model}: {args}\n{str(e)}",
+                "Bulk Item Generation Error",
+            )
+
+    frappe.db.commit()
+
+    return {
+        "template": template_code,
+        "total_combinations": total_combos,
+        "created": created,
+        "skipped": skipped,
+        "errors": errors,
+    }

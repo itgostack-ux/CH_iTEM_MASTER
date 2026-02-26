@@ -9,15 +9,40 @@
 
 CUSTOM_FIELDS = {
 	# ──────────────────────────────────────────────
-	# Brand: Add manufacturer link
+	# Manufacturer: Add integer ID for mobile/API
+	# ──────────────────────────────────────────────
+	"Manufacturer": [
+		{
+			"fieldname": "manufacturer_id",
+			"label": "Manufacturer ID",
+			"fieldtype": "Int",
+			"insert_after": "name",
+			"read_only": 1,
+			"no_copy": 1,
+			"in_list_view": 1,
+			"description": "Auto-generated sequential ID for mobile/API integration (unique index added by migration)",
+		},
+	],
+	# ──────────────────────────────────────────────
+	# Brand: Add manufacturer link and integer ID
 	# ──────────────────────────────────────────────
 	"Brand": [
+		{
+			"fieldname": "brand_id",
+			"label": "Brand ID",
+			"fieldtype": "Int",
+			"insert_after": "name",
+			"read_only": 1,
+			"no_copy": 1,
+			"in_list_view": 1,
+			"description": "Auto-generated sequential ID for mobile/API integration (unique index added by migration)",
+		},
 		{
 			"fieldname": "ch_manufacturer",
 			"label": "Manufacturer",
 			"fieldtype": "Link",
 			"options": "Manufacturer",
-			"insert_after": "brand",
+			"insert_after": "brand_id",
 			"reqd": 1,
 			"description": "The manufacturer this brand belongs to",
 		},

@@ -1,0 +1,18 @@
+{
+ "content": null,
+ "creation": "2026-02-25 00:00:00.000000",
+ "doctype": "Page",
+ "icon": "dashboard",
+ "module": "Ch Item Master",
+ "name": "ch-item-master-dashboard",
+ "page_name": "ch-item-master-dashboard",
+ "roles": [
+  {"role": "System Manager"},
+  {"role": "Stock Manager"},
+  {"role": "Stock User"}
+ ],
+ "script": null,
+ "style": null,
+ "system_page": 0,
+ "title": "Item Master Dashboard"
+}

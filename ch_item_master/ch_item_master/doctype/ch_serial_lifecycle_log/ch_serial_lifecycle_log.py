@@ -1,9 +1,8 @@
 # Copyright (c) 2026, GoStack and contributors
 # For license information, please see license.txt
 
-import frappe
+from frappe.model.document import Document
 
-no_cache = 1
 
-def get_context(context):
-	context.no_cache = 1
+class CHSerialLifecycleLog(Document):
+    pass

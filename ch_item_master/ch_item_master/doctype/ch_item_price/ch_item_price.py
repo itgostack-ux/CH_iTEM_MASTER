@@ -9,10 +9,41 @@ from frappe.utils import getdate, nowdate
 
 class CHItemPrice(Document):
 	def validate(self):
+		self._validate_positive_prices()
 		self._validate_price_hierarchy()
 		self._validate_effective_dates()
+		self._validate_channel_active()
 		self._check_overlapping_price()
 		self._auto_set_status()
+
+	def _validate_channel_active(self):
+		"""Warn if the price channel is inactive."""
+		if not self.channel:
+			return
+		is_active = frappe.db.get_value("CH Price Channel", self.channel, "is_active")
+		if not is_active:
+			frappe.msgprint(
+				_("Channel {0} is currently inactive. This price will not apply "
+				  "to any transactions until the channel is reactivated."
+				).format(frappe.bold(self.channel)),
+				indicator="orange",
+				title=_("Inactive Channel"),
+			)
+
+	def _validate_positive_prices(self):
+		"""All price fields must be non-negative; selling_price must be > 0."""
+		for field, label in [("mrp", "MRP"), ("mop", "MOP"), ("selling_price", "Selling Price")]:
+			val = self.get(field) or 0
+			if val < 0:
+				frappe.throw(
+					_("{0} cannot be negative ({1})").format(label, val),
+					title=_("Invalid Price"),
+				)
+		if (self.selling_price or 0) <= 0:
+			frappe.throw(
+				_("Selling Price must be greater than zero"),
+				title=_("Invalid Price"),
+			)
 
 	def _validate_price_hierarchy(self):
 		"""MRP >= MOP >= Selling Price (when all three are provided)."""
@@ -48,7 +79,7 @@ class CHItemPrice(Document):
 				)
 
 	def _check_overlapping_price(self):
-		"""No two active price records for the same Item + Channel should overlap."""
+		"""No two active price records for the same Item + Channel + Company should overlap."""
 		from_date = getdate(self.effective_from)
 		to_date   = getdate(self.effective_to) if self.effective_to else None
 
@@ -58,15 +89,16 @@ class CHItemPrice(Document):
 			frappe.db.sql(
 				"""
 				SELECT name FROM `tabCH Item Price`
-				WHERE item_code = %s AND channel = %s AND name != %s
+				WHERE item_code = %s AND channel = %s AND company = %s AND name != %s
 				FOR UPDATE
 				""",
-				(self.item_code, self.channel, self.name or ""),
+				(self.item_code, self.channel, self.company, self.name or ""),
 			)
 
 		filters = {
 			"item_code": self.item_code,
 			"channel": self.channel,
+			"company": self.company,
 			"name": ("!=", self.name),
 			"status": ("in", ["Active", "Scheduled"]),
 		}
@@ -113,12 +145,12 @@ class CHItemPrice(Document):
 			)
 
 	def _auto_set_status(self):
-		"""Auto-compute status based on effective dates."""
+		"""Auto-compute status based on effective dates and approval."""
 		today = getdate(nowdate())
 		from_date = getdate(self.effective_from)
 		to_date   = getdate(self.effective_to) if self.effective_to else None
 
-		# Only auto-set if not explicitly kept as Draft
+		# Draft stays Draft until explicitly approved
 		if self.status == "Draft":
 			return
 
@@ -130,11 +162,62 @@ class CHItemPrice(Document):
 			self.status = "Active"
 
 	def on_update(self):
-		"""Sync selling price to ERPNext native Item Price so all transactions auto-pick it up."""
+		"""Sync selling price to ERPNext native Item Price so all transactions auto-pick it up.
+
+		Only sync when approved (status is Active/Scheduled). Draft prices don't sync.
+		"""
 		if self.status in ("Active", "Scheduled"):
 			self._sync_to_erp_item_price()
 		elif self.status == "Expired":
 			self._expire_erp_item_price()
+
+	@frappe.whitelist()
+	def approve(self):
+		"""Approve this price record — activates it and syncs to ERPNext.
+
+		Only CH Price Manager or System Manager can approve.
+		"""
+		from frappe.utils import now_datetime as _now
+		frappe.only_for(["System Manager", "CH Price Manager", "CH Master Manager"])
+
+		self.approved_by = frappe.session.user
+		self.approved_at = _now()
+		# Compute effective status
+		today = getdate(nowdate())
+		from_date = getdate(self.effective_from)
+		to_date = getdate(self.effective_to) if self.effective_to else None
+
+		if to_date and today > to_date:
+			self.status = "Expired"
+		elif today < from_date:
+			self.status = "Scheduled"
+		else:
+			self.status = "Active"
+
+		self.save()
+
+		frappe.msgprint(
+			_("{0} approved — status set to {1}, synced to ERPNext Item Price").format(
+				self.name, frappe.bold(self.status)
+			),
+			indicator="green",
+		)
+
+	@frappe.whitelist()
+	def reject(self):
+		"""Reject this price record — expires it and disables the ERPNext sync."""
+		frappe.only_for(["System Manager", "CH Price Manager", "CH Master Manager"])
+
+		self.status = "Expired"
+		self.save()
+
+		# Expire the linked ERPNext Item Price
+		self._expire_erp_item_price()
+
+		frappe.msgprint(
+			_("{0} rejected — status set to Expired").format(self.name),
+			indicator="orange",
+		)
 
 	def _sync_to_erp_item_price(self):
 		"""Create or update an ERPNext Item Price record.
@@ -178,6 +261,7 @@ class CHItemPrice(Document):
 		ip.valid_from      = self.effective_from
 		ip.valid_upto      = self.effective_to or None
 		ip.ch_source_price = self.name
+		ip.company         = self.company or ""
 		ip.note = f"Synced from CH Item Price {self.name}"
 
 		ip.flags.ignore_permissions = True

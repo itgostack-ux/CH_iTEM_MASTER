@@ -98,17 +98,72 @@ def _copy_ch_fields_from_template(doc):
         doc.append("ch_spec_values", {"spec": row.spec, "spec_value": row.spec_value})
 
 
+def _validate_ch_spec_values(doc):
+    """Validate ch_spec_values on the Item.
+
+    1. Property specs (is_variant=0) must have at least one value.
+    2. No duplicate spec entries allowed in ch_spec_values.
+    """
+    if not doc.ch_sub_category:
+        return
+
+    # Get property specs (non-variant) for this sub category
+    property_specs = frappe.get_all(
+        "CH Sub Category Spec",
+        filters={
+            "parent": doc.ch_sub_category,
+            "parenttype": "CH Sub Category",
+            "is_variant": 0,
+        },
+        pluck="spec",
+    )
+
+    # Check for duplicate specs in ch_spec_values
+    seen_specs = set()
+    for row in (doc.ch_spec_values or []):
+        if row.spec in seen_specs:
+            frappe.throw(
+                _("Row #{0}: Duplicate spec {1} in Spec Values. "
+                  "Each spec should appear only once."
+                ).format(row.idx, frappe.bold(row.spec)),
+                title=_("Duplicate Spec Value"),
+            )
+        seen_specs.add(row.spec)
+
+    # For non-variant items (templates or variants with property specs),
+    # require all property specs to have a value
+    if property_specs:
+        filled_specs = {row.spec for row in (doc.ch_spec_values or []) if row.spec_value}
+        missing = [s for s in property_specs if s not in filled_specs]
+        if missing:
+            frappe.throw(
+                _("Property spec(s) {0} require a value. "
+                  "Add them in the Spec Values table."
+                ).format(", ".join(frappe.bold(s) for s in missing)),
+                title=_("Missing Property Spec Values"),
+            )
+
+
 def before_save(doc, method=None):
     """Keep ch_display_name in sync on every save."""
     if not doc.ch_sub_category or not doc.ch_model:
         return
 
+    _validate_ch_spec_values(doc)
+
     manufacturer, brand = _get_model_fields(doc)
 
     # For variants, get spec values from ERPNext's attributes table
-    # For simple items (no variants), also include attribute specs if any
+    # AND merge in ch_spec_values (property specs like Colour that don't
+    # affect pricing but may be marked "Include in Name")
     if doc.variant_of:
         spec_values = _get_spec_values_from_attributes(doc)
+        # Merge ch_spec_values (non-pricing / property specs) so that specs
+        # like Colour with in_item_name=1 but affects_price=0 are included
+        attr_specs = {sv["spec"] for sv in spec_values}
+        for row in (doc.ch_spec_values or []):
+            if row.spec not in attr_specs and row.spec_value:
+                spec_values.append({"spec": row.spec, "spec_value": row.spec_value})
     else:
         spec_values = []  # Template or simple item — no spec values in name
 
@@ -121,11 +176,7 @@ def before_save(doc, method=None):
     )
     doc.ch_display_name = display_name
 
-    if doc.variant_of and display_name:
-        # For variants, always set item_name from our naming logic
-        doc.item_name = display_name
-    elif not doc.has_variants and not doc.variant_of and display_name:
-        # For simple items (non-variant), set item_name too
+    if display_name:
         doc.item_name = display_name
 
     # Validate generated name is unique (on every save)
@@ -207,12 +258,10 @@ def _set_item_code(doc):
     try:
         doc.item_code = _next_item_code(prefix)
     except Exception as e:
-        # Ensure lock is released even on exception
-        frappe.db.sql("SELECT RELEASE_LOCK(%s)", lock_name)
         frappe.log_error(f"Error generating item code for prefix {prefix}: {str(e)}", "Item Code Generation Error")
         raise
     finally:
-        # Guaranteed cleanup
+        # Guaranteed cleanup — always release the lock
         frappe.db.sql("SELECT RELEASE_LOCK(%s)", lock_name)
 
 

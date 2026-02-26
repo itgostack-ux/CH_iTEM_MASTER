@@ -22,6 +22,15 @@ def execute():
 	# Backfill CH Price Channel IDs
 	backfill_channel_ids()
 	
+	# Backfill CH Warranty Plan IDs
+	backfill_warranty_plan_ids()
+	
+	# Backfill Manufacturer IDs (Custom Field)
+	backfill_manufacturer_ids()
+	
+	# Backfill Brand IDs (Custom Field)
+	backfill_brand_ids()
+	
 	# Add unique indexes
 	add_indexes()
 	
@@ -133,6 +142,130 @@ def backfill_channel_ids():
 	print(f"✅ Backfilled {len(channels)} CH Price Channel IDs")
 
 
+def backfill_warranty_plan_ids():
+	"""Backfill warranty_plan_id for existing CH Warranty Plan records"""
+	plans = frappe.get_all(
+		"CH Warranty Plan", 
+		fields=["name", "warranty_plan_id"],
+		order_by="creation asc"
+	)
+	
+	if not plans:
+		return
+	
+	print(f"Backfilling {len(plans)} CH Warranty Plan records...")
+	
+	for idx, plan in enumerate(plans, start=1):
+		if not plan.warranty_plan_id:
+			frappe.db.set_value(
+				"CH Warranty Plan", 
+				plan.name, 
+				"warranty_plan_id", 
+				idx, 
+				update_modified=False
+			)
+	
+	print(f"✅ Backfilled {len(plans)} CH Warranty Plan IDs")
+
+
+def backfill_manufacturer_ids():
+	"""Backfill manufacturer_id for existing Manufacturer records"""
+	# First ensure custom field exists
+	if not frappe.db.exists("Custom Field", "Manufacturer-manufacturer_id"):
+		print("⚠️  Custom field 'Manufacturer-manufacturer_id' not found. Creating...")
+		try:
+			doc = frappe.get_doc({
+				"doctype": "Custom Field",
+				"dt": "Manufacturer",
+				"fieldname": "manufacturer_id",
+				"label": "Manufacturer ID",
+				"fieldtype": "Int",
+				"insert_after": "name",
+				"read_only": 1,
+				"unique": 1,
+				"no_copy": 1,
+				"description": "Auto-generated sequential ID for mobile/API integration"
+			})
+			doc.insert(ignore_permissions=True)
+			frappe.db.commit()
+			print("✅ Created custom field for Manufacturer")
+		except Exception as e:
+			print(f"⚠️ Could not create Manufacturer custom field: {e}")
+			return
+	
+	manufacturers = frappe.get_all(
+		"Manufacturer", 
+		fields=["name", "manufacturer_id"],
+		order_by="creation asc"
+	)
+	
+	if not manufacturers:
+		return
+	
+	print(f"Backfilling {len(manufacturers)} Manufacturer records...")
+	
+	for idx, mfr in enumerate(manufacturers, start=1):
+		if not mfr.manufacturer_id:
+			frappe.db.set_value(
+				"Manufacturer", 
+				mfr.name, 
+				"manufacturer_id", 
+				idx, 
+				update_modified=False
+			)
+	
+	print(f"✅ Backfilled {len(manufacturers)} Manufacturer IDs")
+
+
+def backfill_brand_ids():
+	"""Backfill brand_id for existing Brand records"""
+	# First ensure custom field exists
+	if not frappe.db.exists("Custom Field", "Brand-brand_id"):
+		print("⚠️ Custom field 'Brand-brand_id' not found. Creating...")
+		try:
+			doc = frappe.get_doc({
+				"doctype": "Custom Field",
+				"dt": "Brand",
+				"fieldname": "brand_id",
+				"label": "Brand ID",
+				"fieldtype": "Int",
+				"insert_after": "name",
+				"read_only": 1,
+				"unique": 1,
+				"no_copy": 1,
+				"description": "Auto-generated sequential ID for mobile/API integration"
+			})
+			doc.insert(ignore_permissions=True)
+			frappe.db.commit()
+			print("✅ Created custom field for Brand")
+		except Exception as e:
+			print(f"⚠️ Could not create Brand custom field: {e}")
+			return
+	
+	brands = frappe.get_all(
+		"Brand", 
+		fields=["name", "brand_id"],
+		order_by="creation asc"
+	)
+	
+	if not brands:
+		return
+	
+	print(f"Backfilling {len(brands)} Brand records...")
+	
+	for idx, brand in enumerate(brands, start=1):
+		if not brand.brand_id:
+			frappe.db.set_value(
+				"Brand", 
+				brand.name, 
+				"brand_id", 
+				idx, 
+				update_modified=False
+			)
+	
+	print(f"✅ Backfilled {len(brands)} Brand IDs")
+
+
 def add_indexes():
 	"""Add unique indexes on integer ID fields for faster lookups"""
 	
@@ -181,3 +314,36 @@ def add_indexes():
 	except Exception as e:
 		if "Duplicate key name" not in str(e):
 			print(f"⚠️ Could not add index on CH Price Channel: {e}")
+	
+	# Add unique index on warranty_plan_id
+	try:
+		frappe.db.sql("""
+			ALTER TABLE `tabCH Warranty Plan`
+			ADD UNIQUE INDEX IF NOT EXISTS idx_warranty_plan_id (warranty_plan_id)
+		""")
+		print("✅ Added index on CH Warranty Plan.warranty_plan_id")
+	except Exception as e:
+		if "Duplicate key name" not in str(e):
+			print(f"⚠️ Could not add index on CH Warranty Plan: {e}")
+	
+	# Add unique index on manufacturer_id (Custom Field)
+	try:
+		frappe.db.sql("""
+			ALTER TABLE `tabManufacturer`
+			ADD UNIQUE INDEX IF NOT EXISTS idx_manufacturer_id (manufacturer_id)
+		""")
+		print("✅ Added index on Manufacturer.manufacturer_id")
+	except Exception as e:
+		if "Duplicate key name" not in str(e):
+			print(f"⚠️ Could not add index on Manufacturer: {e}")
+	
+	# Add unique index on brand_id (Custom Field)
+	try:
+		frappe.db.sql("""
+			ALTER TABLE `tabBrand`
+			ADD UNIQUE INDEX IF NOT EXISTS idx_brand_id (brand_id)
+		""")
+		print("✅ Added index on Brand.brand_id")
+	except Exception as e:
+		if "Duplicate key name" not in str(e):
+			print(f"⚠️ Could not add index on Brand: {e}")

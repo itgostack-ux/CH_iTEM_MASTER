@@ -1,0 +1,94 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-01-01 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "log_timestamp",
+  "from_status",
+  "to_status",
+  "column_break_1",
+  "changed_by",
+  "company",
+  "warehouse",
+  "section_break_notes",
+  "remarks"
+ ],
+ "fields": [
+  {
+   "fieldname": "log_timestamp",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Timestamp",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "from_status",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "From Status",
+   "read_only": 1,
+   "width": "120"
+  },
+  {
+   "fieldname": "to_status",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "To Status",
+   "read_only": 1,
+   "reqd": 1,
+   "width": "120"
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "changed_by",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Changed By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "read_only": 1
+  },
+  {
+   "fieldname": "warehouse",
+   "fieldtype": "Link",
+   "label": "Warehouse",
+   "options": "Warehouse",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_notes",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "remarks",
+   "fieldtype": "Small Text",
+   "in_list_view": 1,
+   "label": "Remarks"
+  }
+ ],
+ "idx": 0,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-01-01 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Ch Item Master",
+ "name": "CH Serial Lifecycle Log",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "log_timestamp",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}

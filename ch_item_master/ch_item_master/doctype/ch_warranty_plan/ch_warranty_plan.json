@@ -25,15 +25,24 @@
    "hidden": 1
   },
   {
+   "fieldname": "warranty_plan_id",
+   "fieldtype": "Int",
+   "label": "Warranty Plan ID",
+   "read_only": 1,
+   "unique": 1,
+   "no_copy": 1,
+   "description": "Auto-generated sequential ID for mobile/API integration"
+  },
+  {
    "fieldname": "company",
    "fieldtype": "Link",
    "label": "Company",
    "options": "Company",
-   "reqd": 0,
+   "reqd": 1,
    "in_standard_filter": 1,
    "in_list_view": 1,
    "remember_last_selected_value": 1,
-   "description": "Leave blank if this record applies to all companies."
+   "description": "Company this warranty plan applies to."
   },
   {
    "fieldname": "plan_name",
