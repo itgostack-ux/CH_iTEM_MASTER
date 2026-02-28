@@ -6,6 +6,11 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import get_datetime, now_datetime
 
+from ch_item_master.ch_item_master.exceptions import (
+	InvalidOfferError,
+	OverlappingOfferError,
+)
+
 
 class CHItemOffer(Document):
 	def validate(self):
@@ -75,11 +80,13 @@ class CHItemOffer(Document):
 			frappe.throw(
 				_("Offer value must be greater than zero"),
 				title=_("Invalid Value"),
+				exc=InvalidOfferError,
 			)
 		if self.value_type == "Percentage" and self.value > 100:
 			frappe.throw(
 				_("Percentage discount cannot exceed 100%"),
 				title=_("Invalid Value"),
+				exc=InvalidOfferError,
 			)
 		if self.value_type == "Amount" and self.value > 500000:
 			frappe.msgprint(
@@ -151,6 +158,7 @@ class CHItemOffer(Document):
 					conflicts,
 				),
 				title=_("Overlapping Offer"),
+				exc=OverlappingOfferError,
 			)
 
 	def _auto_set_status(self):

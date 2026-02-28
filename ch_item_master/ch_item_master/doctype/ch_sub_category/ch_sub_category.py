@@ -5,6 +5,19 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 
+from ch_item_master.ch_item_master.exceptions import (
+	DuplicateManufacturerError,
+	DuplicateSpecError,
+	DuplicateSubCategoryError,
+	InvalidHSNCodeError,
+	InvalidNameOrderError,
+	NamingOrderLockedError,
+	SpecInUseError,
+	SubCategoryInUseError,
+	VariantFlagLockedError,
+	VariantSpecRemovalError,
+)
+
 
 _TRANSACTION_TABLES = [
 	"Sales Invoice Item",
@@ -29,6 +42,7 @@ class CHSubCategory(Document):
 
 	def validate(self):
 		self.validate_unique_name_per_category()
+		self.validate_case_insensitive_duplicate()
 		self.validate_duplicate_manufacturers()
 		self.validate_duplicate_specs()
 		self.validate_name_order_sequential()
@@ -59,6 +73,7 @@ class CHSubCategory(Document):
 					  "Use consecutive numbers: 1, 2, 3, ..."
 					).format(frappe.bold(spec), idx, order, expected),
 					title=_("Invalid Name Order"),
+					exc=InvalidNameOrderError,
 				)
 			expected += 1
 
@@ -68,6 +83,7 @@ class CHSubCategory(Document):
 			frappe.throw(
 				_("Duplicate Name Order values found. Each spec must have a unique sequential number."),
 				title=_("Duplicate Name Order"),
+				exc=InvalidNameOrderError,
 			)
 
 	def validate_hsn_code(self):
@@ -90,6 +106,7 @@ class CHSubCategory(Document):
 					"(India Compliance requirement). Current length: {1} digits."
 				).format(frappe.bold(code), len(code)),
 				title=_("Invalid HSN Code"),
+				exc=InvalidHSNCodeError,
 			)
 
 		# Verify it exists in the GST HSN Code master
@@ -101,6 +118,7 @@ class CHSubCategory(Document):
 					"using it in a Sub Category."
 				).format(frappe.bold(code)),
 				title=_("HSN Code Not Found"),
+				exc=InvalidHSNCodeError,
 			)
 
 	def validate_unique_name_per_category(self):
@@ -128,6 +146,37 @@ class CHSubCategory(Document):
 					frappe.bold(self.category),
 				),
 				title=_("Duplicate Sub Category"),
+				exc=DuplicateSubCategoryError,
+			)
+
+	def validate_case_insensitive_duplicate(self):
+		"""Case-insensitive duplicate check across ALL categories.
+
+		The auto-name format is '{category}-{sub_category_name}' so two sub-categories
+		under the same category with names differing only by case would collide.
+		This gives a clear error instead of a DuplicateEntryError.
+		"""
+		if not self.category or not self.sub_category_name:
+			return
+		# Check via LOWER to catch collation mismatch
+		dupes = frappe.db.sql("""
+			SELECT name FROM `tabCH Sub Category`
+			WHERE category = %s
+			  AND LOWER(sub_category_name) = LOWER(%s)
+			  AND name != %s
+			LIMIT 1
+		""", (self.category, self.sub_category_name, self.name or ""))
+		if dupes:
+			frappe.throw(
+				_("Sub Category {0} already exists under Category {1} (as {2}). "
+				  "Duplicate names are not allowed (case-insensitive check)."
+				).format(
+					frappe.bold(self.sub_category_name),
+					frappe.bold(self.category),
+					frappe.bold(dupes[0][0]),
+				),
+				title=_("Duplicate Sub Category"),
+				exc=DuplicateSubCategoryError,
 			)
 
 	def validate_duplicate_manufacturers(self):
@@ -138,7 +187,8 @@ class CHSubCategory(Document):
 				frappe.throw(
 					_("Row #{0}: Duplicate manufacturer {1}").format(
 						row.idx, frappe.bold(row.manufacturer)
-					)
+					),
+					exc=DuplicateManufacturerError,
 				)
 			seen.add(row.manufacturer)
 
@@ -150,7 +200,8 @@ class CHSubCategory(Document):
 				frappe.throw(
 					_("Row #{0}: Duplicate specification {1}").format(
 						row.idx, frappe.bold(row.spec)
-					)
+					),
+					exc=DuplicateSpecError,
 				)
 			seen.add(row.spec)
 
@@ -225,6 +276,7 @@ class CHSubCategory(Document):
 					models_count
 				),
 				title=_("Variant Flag Locked"),
+				exc=VariantFlagLockedError,
 			)
 
 		# ── Block removing variant specs after items exist ──
@@ -238,6 +290,7 @@ class CHSubCategory(Document):
 					items_count
 				),
 				title=_("Cannot Remove Variant Spec"),
+				exc=VariantSpecRemovalError,
 			)
 
 		# ── Block removing specs that models have values for ──
@@ -254,6 +307,7 @@ class CHSubCategory(Document):
 						  "Clear the spec values from models first."
 						).format(frappe.bold(spec_name), used_count),
 						title=_("Spec In Use"),
+						exc=SpecInUseError,
 					)
 
 		# ── Block naming order changes after submitted transactions ──
@@ -262,8 +316,7 @@ class CHSubCategory(Document):
 				_("Cannot change naming configuration for {0} — items from this sub-category "
 				  "have been used in submitted transactions. To fix item names, use a rename tool or data correction patch."
 				).format(", ".join(frappe.bold(s) for s in changed_naming)),
-				title=_("Naming Order Locked"),
-			)
+				title=_("Naming Order Locked"),				exc=NamingOrderLockedError,			)
 
 		# ── Warnings (non-blocking) ──
 		warnings = []
@@ -298,6 +351,7 @@ class CHSubCategory(Document):
 				  "Delete or reassign the models first."
 				).format(frappe.bold(self.sub_category_name), model_count),
 				title=_("Sub Category In Use"),
+				exc=SubCategoryInUseError,
 			)
 
 		item_count = frappe.db.count("Item", {"ch_sub_category": self.name})
@@ -306,6 +360,7 @@ class CHSubCategory(Document):
 				_("Cannot delete Sub Category {0} — {1} item(s) reference it."
 				).format(frappe.bold(self.sub_category_name), item_count),
 				title=_("Sub Category In Use"),
+				exc=SubCategoryInUseError,
 			)
 
 	def _sub_category_used_in_transactions(self):

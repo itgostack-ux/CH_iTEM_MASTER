@@ -14,7 +14,7 @@ Endpoints called from client-side JS:
   - get_property_spec_values        (item.js ch_spec_values autocomplete)
   - generate_items_from_model      (ch_model.js — bulk variant generation)
 
-Internal helpers (not whitelisted):
+Internal helpers (in utils.py — imported here for use):
   - _next_item_code         (overrides/item.py)
   - _group_model_spec_values (shared by _get_spec_selectors, _get_property_specs, get_model_attribute_values)
   - _get_spec_selectors     (get_model_details)
@@ -22,114 +22,17 @@ Internal helpers (not whitelisted):
 """
 
 import json
-from collections import defaultdict
 from itertools import product as cartesian_product
 
 import frappe
 from frappe import _
 
-
-# ───────────────────────────────────────────────────────────────────────────────
-# Item Code (internal)
-# ───────────────────────────────────────────────────────────────────────────────
-
-def _next_item_code(prefix):
-    """Return the next sequential item code for *prefix*.
-
-    Uses LIKE for index-friendliness on large tables.
-    Format: <PREFIX><6-digit-seq>
-    """
-    prefix_len = len(prefix)
-    expected_len = prefix_len + 6  # fixed: PREFIX + exactly 6 digits
-    result = frappe.db.sql(
-        """
-        SELECT MAX(CAST(SUBSTRING(item_code, %s) AS UNSIGNED)) AS last_num
-        FROM `tabItem`
-        WHERE item_code LIKE %s
-          AND CHAR_LENGTH(item_code) = %s
-        """,
-        (prefix_len + 1, f"{prefix}%", expected_len),
-        as_dict=True,
-    )
-    last_num = result[0].last_num or 0 if result else 0
-    return f"{prefix}{str(last_num + 1).zfill(6)}"
-
-
-# ───────────────────────────────────────────────────────────────────────────────
-# Spec Selectors (internal — used by get_model_details)
-# ───────────────────────────────────────────────────────────────────────────────
-
-def _group_model_spec_values(model):
-    """Return CH Model Spec Values grouped by spec name.
-
-    Returns: dict {spec_name: [value1, value2, ...]}
-    """
-    rows = frappe.get_all(
-        "CH Model Spec Value",
-        filters={"parent": model, "parenttype": "CH Model"},
-        fields=["spec", "spec_value"],
-        order_by="idx asc",
-    )
-    # Use set for O(1) deduplication, then convert to list
-    grouped = defaultdict(set)
-    for sv in rows:
-        if sv.spec and sv.spec_value:
-            grouped[sv.spec].add(sv.spec_value)
-    return {k: list(v) for k, v in grouped.items()}
-
-
-def _get_spec_selectors(sub_category, model, grouped=None):
-    """Return variant specs (is_variant=1) and their allowed values from the model.
-
-    Every spec with is_variant=1 becomes a variant axis in ERPNext's variant
-    system — each combination of values creates a separate Item (SKU).
-    This includes specs like Colour that don't affect pricing but still
-    need their own item codes.
-
-    Returns: list of {spec, values: ['Black', 'White', ...]}
-    """
-    variant_specs = frappe.get_all(
-        "CH Sub Category Spec",
-        filters={"parent": sub_category, "parenttype": "CH Sub Category",
-                 "is_variant": 1},
-        fields=["spec", "name_order"],
-        order_by="name_order asc, idx asc",
-    )
-    if not variant_specs:
-        return []
-
-    if grouped is None:
-        grouped = _group_model_spec_values(model)
-    return [
-        {"spec": row.spec, "values": grouped.get(row.spec, [])}
-        for row in variant_specs
-    ]
-
-
-def _get_property_specs(sub_category, model, grouped=None):
-    """Return all specs that do NOT drive variant creation (is_variant=0).
-
-    These are shared properties stored in ch_spec_values on the item,
-    not used as variant axes (no separate Item per value).
-
-    Returns: list of {spec, values: ['Dual SIM', ...]}
-    """
-    property_specs = frappe.get_all(
-        "CH Sub Category Spec",
-        filters={"parent": sub_category, "parenttype": "CH Sub Category",
-                 "is_variant": 0},
-        fields=["spec"],
-        order_by="idx asc",
-    )
-    if not property_specs:
-        return []
-
-    if grouped is None:
-        grouped = _group_model_spec_values(model)
-    return [
-        {"spec": row.spec, "values": grouped.get(row.spec, [])}
-        for row in property_specs
-    ]
+from ch_item_master.ch_item_master.utils import (
+    _get_property_specs,
+    _get_spec_selectors,
+    _group_model_spec_values,
+    _next_item_code,
+)
 
 
 # ───────────────────────────────────────────────────────────────────────────────
@@ -541,3 +444,51 @@ def generate_items_from_model(model):
         "skipped": skipped,
         "errors": errors,
     }
+
+
+# ───────────────────────────────────────────────────────────────────────────────
+# Model search for Item form — shows brand + manufacturer as description
+# ───────────────────────────────────────────────────────────────────────────────
+
+@frappe.whitelist()
+def search_models(doctype, txt, searchfield, start, page_len, filters):
+    """Custom link search for CH Model that shows Brand and Manufacturer.
+
+    Returns results like:
+        name | model_name | Brand: Samsung | Manufacturer: Samsung Electronics
+
+    This makes it easy to distinguish same-named models under different brands.
+    """
+    conditions = []
+    values = {}
+
+    if isinstance(filters, str):
+        filters = json.loads(filters)
+
+    if filters.get("is_active"):
+        conditions.append("m.is_active = 1")
+    if filters.get("sub_category"):
+        conditions.append("m.sub_category = %(sub_category)s")
+        values["sub_category"] = filters["sub_category"]
+
+    # Text search across model_name, brand, manufacturer
+    if txt:
+        conditions.append(
+            "(m.model_name LIKE %(txt)s OR m.brand LIKE %(txt)s "
+            "OR m.manufacturer LIKE %(txt)s OR m.name LIKE %(txt)s)"
+        )
+        values["txt"] = f"%{txt}%"
+
+    where = " AND ".join(conditions) if conditions else "1=1"
+
+    return frappe.db.sql(
+        f"""
+        SELECT m.name, m.model_name,
+               CONCAT('Brand: ', m.brand, ' | Mfr: ', m.manufacturer) as description
+        FROM `tabCH Model` m
+        WHERE {where}
+        ORDER BY m.model_name ASC
+        LIMIT %(page_len)s OFFSET %(start)s
+        """,
+        {**values, "start": int(start), "page_len": int(page_len)},
+    )

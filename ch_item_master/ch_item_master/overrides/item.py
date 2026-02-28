@@ -16,9 +16,12 @@ Works with ERPNext's native variant system:
 import frappe
 from frappe import _
 
-from ch_item_master.ch_item_master.api import (
-    _next_item_code,
-    generate_item_name,
+from ch_item_master.ch_item_master.api import generate_item_name
+from ch_item_master.ch_item_master.utils import _next_item_code
+from ch_item_master.ch_item_master.exceptions import (
+    DuplicateItemNameError,
+    DuplicateTemplateError,
+    MissingPrefixError,
 )
 
 
@@ -145,7 +148,9 @@ def _validate_ch_spec_values(doc):
 
 
 def before_save(doc, method=None):
-    """Keep ch_display_name in sync on every save."""
+    """Keep ch_display_name in sync and populate master IDs on every save."""
+    _populate_master_ids(doc)
+
     if not doc.ch_sub_category or not doc.ch_model:
         return
 
@@ -204,6 +209,7 @@ def _check_duplicate_template(doc):
                 f'<a href="/app/item/{existing.name}">{existing.name}</a>',
             ),
             title=_("Duplicate Template"),
+            exc=DuplicateTemplateError,
         )
 
 
@@ -229,6 +235,7 @@ def _check_duplicate_item_name(doc):
                 f'<a href="/app/item/{existing}">{existing}</a>',
             ),
             title=_("Duplicate Item Name"),
+            exc=DuplicateItemNameError,
         )
 
 
@@ -243,7 +250,8 @@ def _set_item_code(doc):
         frappe.throw(
             _("Sub Category {0} has no Prefix configured. Please set a Prefix before creating items.").format(
                 frappe.bold(doc.ch_sub_category)
-            )
+            ),
+            exc=MissingPrefixError,
         )
 
     prefix = prefix.strip().upper()
@@ -282,3 +290,44 @@ def _set_item_name(doc):
         doc.item_name = generated
         # ch_display_name is set by before_save which runs immediately after
         doc.ch_display_name = generated
+
+
+def _populate_master_ids(doc):
+    """Copy numeric IDs from linked master records into the Item.
+
+    Runs on every save so that IDs stay in sync if the linked model/sub-category
+    changes.  Fields populated:
+      - ch_brand_id       ← Brand.brand_id (via CH Model.brand)
+      - ch_manufacturer_id ← Manufacturer.manufacturer_id (via CH Model.manufacturer)
+      - ch_sub_category_id ← CH Sub Category.sub_category_id
+      - ch_model_id        ← CH Model.model_id
+    """
+    # Reset all IDs first — if links are cleared, IDs should be cleared too
+    doc.ch_brand_id = 0
+    doc.ch_manufacturer_id = 0
+    doc.ch_sub_category_id = 0
+    doc.ch_model_id = 0
+
+    if doc.ch_sub_category:
+        doc.ch_sub_category_id = frappe.db.get_value(
+            "CH Sub Category", doc.ch_sub_category, "sub_category_id"
+        ) or 0
+
+    if doc.ch_model:
+        model_data = frappe.db.get_value(
+            "CH Model", doc.ch_model,
+            ["model_id", "brand", "manufacturer"],
+            as_dict=True,
+        )
+        if model_data:
+            doc.ch_model_id = model_data.model_id or 0
+
+            if model_data.brand:
+                doc.ch_brand_id = frappe.db.get_value(
+                    "Brand", model_data.brand, "brand_id"
+                ) or 0
+
+            if model_data.manufacturer:
+                doc.ch_manufacturer_id = frappe.db.get_value(
+                    "Manufacturer", model_data.manufacturer, "manufacturer_id"
+                ) or 0

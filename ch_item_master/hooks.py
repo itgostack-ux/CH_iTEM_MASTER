@@ -43,9 +43,11 @@ doc_events = {
 	},
 	"Manufacturer": {
 		"before_insert": "ch_item_master.ch_item_master.overrides.manufacturer.before_insert",
+		"before_save": "ch_item_master.ch_item_master.overrides.manufacturer.before_save",
 	},
 	"Brand": {
 		"before_insert": "ch_item_master.ch_item_master.overrides.brand.before_insert",
+		"before_save": "ch_item_master.ch_item_master.overrides.brand.before_save",
 	},
 	# Transactions: manual rate-filling removed.
 	# ERPNext natively uses Item Price (fetched by price list) and applies Pricing Rules.

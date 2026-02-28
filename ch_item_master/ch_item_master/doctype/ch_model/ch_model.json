@@ -1,6 +1,7 @@
 {
  "actions": [],
- "autoname": "field:model_name",
+ "autoname": "",
+ "naming_rule": "",
  "creation": "2026-02-19 00:00:00.000000",
  "doctype": "DocType",
  "document_type": "Setup",
@@ -138,9 +139,12 @@
    "export": 1
   }
  ],
+ "search_fields": "model_name,brand,manufacturer,sub_category",
  "show_name_in_global_search": 1,
  "sort_field": "model_name",
  "sort_order": "ASC",
  "states": [],
+ "title_field": "model_name",
+ "show_title_field_in_link": 1,
  "track_changes": 1
 }

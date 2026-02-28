@@ -9,6 +9,7 @@
  "field_order": [
   "sub_category_id",
   "category",
+  "category_id",
   "item_group",
   "column_break_01",
   "sub_category_name",
@@ -47,6 +48,15 @@
    "label": "Category",
    "options": "CH Category",
    "reqd": 1
+  },
+  {
+   "fieldname": "category_id",
+   "fieldtype": "Int",
+   "label": "Category ID",
+   "read_only": 1,
+   "fetch_from": "category.category_id",
+   "fetch_if_empty": 1,
+   "description": "Auto-fetched from linked CH Category"
   },
   {
    "fetch_from": "category.item_group",

@@ -13,13 +13,18 @@
 frappe.ui.form.on('Item', {
 
     setup(frm) {
-        // Model is the primary field
+        // Model is the primary field — show brand and sub_category in search results
         frm.set_query('ch_model', () => {
             let filters = { is_active: 1 };
             if (frm.doc.ch_sub_category) {
                 filters.sub_category = frm.doc.ch_sub_category;
             }
-            return { filters };
+            return {
+                filters,
+                // Include brand in the search description so the user can
+                // distinguish "Galaxy S25 (Samsung)" from "Galaxy S25 (Other Brand)"
+                query: 'ch_item_master.ch_item_master.api.search_models',
+            };
         });
 
         frm.set_query('ch_sub_category', () => ({
@@ -41,6 +46,15 @@ frappe.ui.form.on('Item', {
 
     refresh(frm) {
         _toggle_property_specs_section(frm);
+
+        // Ensure attribute_value column is visible on variant items
+        // ERPNext's toggle_attributes does this too, but reinforce it here
+        // so the user always sees which value each attribute has
+        if (frm.doc.variant_of && frm.fields_dict['attributes']) {
+            let grid = frm.fields_dict['attributes'].grid;
+            grid.set_column_disp('attribute_value', true);
+            grid.toggle_enable('attribute_value', false);
+        }
 
         // Spec rows are model-driven — don't let user add/delete
         if (frm.doc.ch_model && frm.doc.ch_spec_values && frm.doc.ch_spec_values.length) {

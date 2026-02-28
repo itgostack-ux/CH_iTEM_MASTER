@@ -92,7 +92,7 @@ def sync_workspace():
 
     ws.save(ignore_permissions=True)
     # Note: Commit is handled by the calling context
-    frappe.msgprint(
+    frappe.logger("ch_item_master").info(
         f"Workspace synced — {len(ws.shortcuts)} shortcuts, {len(ws.links)} links."
     )
 

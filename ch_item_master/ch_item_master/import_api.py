@@ -159,9 +159,7 @@ def _ensure_attribute_value(attribute, value):
 		"attribute_value": value,
 		"abbr": value[:3].upper(),
 	})
-	# Check permissions instead of blindly ignoring
-	if frappe.has_permission("Item Attribute", "write") or frappe.session.user in ["Administrator", "System Manager"]:
-		attr_doc.flags.ignore_permissions = True
+	attr_doc.flags.ignore_permissions = True
 	attr_doc.save()
 	return value
 
@@ -205,7 +203,8 @@ def _validate_and_import(payload):
         for r in sc_rows
     }
     model_lookup = _build_lookup("CH Model", "model_name")
-    # For models we also need name lookup (autoname = model_name)
+    # Model names are now '{sub_category}-{brand}-{model_name}'
+    # Use name-based lookup for de-duplication
     model_name_lookup = _build_lookup("CH Model")
 
     # ── Phase 1: Validate everything ─────────────────────────────────────
@@ -398,7 +397,8 @@ def _validate_and_import(payload):
                 summary["sub_categories"]["created"] += 1
 
             for mdl_data in sc_data["models"]:
-                mdl_key = _norm_key(mdl_data["model_name"])
+                # Composite key matches new autoname: {sub_category}-{brand}-{model_name}
+                mdl_key = _norm_key(f"{sc_doc_name}-{mdl_data['brand']}-{mdl_data['model_name']}")
 
                 if mdl_key in model_name_lookup:
                     summary["models"]["skipped"] += 1

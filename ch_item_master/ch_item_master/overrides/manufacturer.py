@@ -3,10 +3,11 @@
 
 """
 Overrides for ERPNext standard Manufacturer doctype
-Adds auto-increment logic for manufacturer_id
+Adds auto-increment logic for manufacturer_id and mandatory full_name.
 """
 
 import frappe
+from frappe import _
 
 
 def before_insert(doc, method=None):
@@ -22,3 +23,14 @@ def before_insert(doc, method=None):
 			doc.manufacturer_id = int(max_id) + 1
 		finally:
 			frappe.db.sql("SELECT RELEASE_LOCK(%s)", lock_name)
+
+
+def before_save(doc, method=None):
+	"""Validate that full_name is filled (mandatory for CH Item Master)."""
+	if not doc.full_name:
+		frappe.throw(
+			_("Full Name is mandatory for Manufacturer {0}. "
+			  "Please enter the full legal name."
+			).format(frappe.bold(doc.short_name)),
+			title=_("Missing Full Name"),
+		)

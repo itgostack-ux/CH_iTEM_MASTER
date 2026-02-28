@@ -5,10 +5,27 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 
+from ch_item_master.ch_item_master.exceptions import (
+	BrandManufacturerMismatchError,
+	DuplicateModelError,
+	InvalidSpecValueError,
+	ManufacturerNotAllowedError,
+	MissingSpecValuesError,
+	ModelInUseError,
+)
+
 
 class CHModel(Document):
 	def autoname(self):
-		"""Auto-generate model_id before insert with advisory lock for concurrency."""
+		"""Set document name and auto-generate model_id.
+
+		Name = '{sub_category}-{brand}-{model_name}' so the primary key
+		naturally enforces uniqueness per (sub_category, brand, model_name).
+		"""
+		# Set document name — must precede the model_id block so that the
+		# advisory-lock section never runs without a proper name.
+		self.name = f"{self.sub_category}-{self.brand}-{self.model_name}"
+
 		if not self.model_id:
 			lock_name = "ch_model_autoname"
 			frappe.db.sql("SELECT GET_LOCK(%s, 10)", lock_name)
@@ -22,25 +39,27 @@ class CHModel(Document):
 				frappe.db.sql("SELECT RELEASE_LOCK(%s)", lock_name)
 
 	def validate(self):
-		self.validate_unique_model_in_sub_category()
+		self.validate_unique_model()
 		self.validate_manufacturer_allowed()
 		self.validate_brand_belongs_to_manufacturer()
 		self.validate_spec_values()
 		self.validate_variant_specs_have_values()
 		self.validate_deactivation()
 
-	def validate_unique_model_in_sub_category(self):
-		"""Ensure model_name is unique within the same sub-category.
+	def validate_unique_model(self):
+		"""Ensure model_name is unique per (sub_category + brand).
 
-		The same model name (e.g. 'iPhone 15') shouldn't appear twice under
-		'Smartphones', but can exist under different sub-categories if needed.
+		The same model name (e.g. 'Galaxy A15') can exist under different brands
+		or different sub-categories, but not twice under the same brand +
+		sub-category combination.
 		"""
-		if not self.sub_category or not self.model_name:
+		if not self.sub_category or not self.model_name or not self.brand:
 			return
 		existing = frappe.db.get_value(
 			"CH Model",
 			{
 				"sub_category": self.sub_category,
+				"brand": self.brand,
 				"model_name": self.model_name,
 				"name": ("!=", self.name),
 			},
@@ -48,12 +67,14 @@ class CHModel(Document):
 		)
 		if existing:
 			frappe.throw(
-				_("Model {0} already exists under Sub Category {1} ({2})").format(
+				_("Model {0} already exists under Sub Category {1} + Brand {2} ({3})").format(
 					frappe.bold(self.model_name),
 					frappe.bold(self.sub_category),
+					frappe.bold(self.brand),
 					existing,
 				),
 				title=_("Duplicate Model"),
+				exc=DuplicateModelError,
 			)
 
 	def validate_manufacturer_allowed(self):
@@ -77,6 +98,7 @@ class CHModel(Document):
 					", ".join(frappe.bold(m) for m in allowed),
 				),
 				title=_("Manufacturer Not Allowed"),
+				exc=ManufacturerNotAllowedError,
 			)
 
 	def validate_brand_belongs_to_manufacturer(self):
@@ -95,6 +117,7 @@ class CHModel(Document):
 					frappe.bold(self.manufacturer),
 				),
 				title=_("Brand-Manufacturer Mismatch"),
+				exc=BrandManufacturerMismatchError,
 			)
 
 	def validate_spec_values(self):
@@ -127,6 +150,7 @@ class CHModel(Document):
 						", ".join(allowed_specs),
 					),
 					title=_("Invalid Specification"),
+					exc=InvalidSpecValueError,
 				)
 
 			# Check for duplicate spec+value pairs
@@ -188,6 +212,7 @@ class CHModel(Document):
 				  "Add at least one value for each spec in the Spec Values table."
 				).format(", ".join(frappe.bold(s) for s in missing_variant)),
 				title=_("Missing Variant Spec Values"),
+				exc=MissingSpecValuesError,
 			)
 
 		if missing_property:
@@ -197,6 +222,7 @@ class CHModel(Document):
 				  "Add at least one value for each spec in the Spec Values table."
 				).format(", ".join(frappe.bold(s) for s in missing_property)),
 				title=_("Missing Property Spec Values"),
+				exc=MissingSpecValuesError,
 			)
 
 	def validate_deactivation(self):
@@ -228,4 +254,5 @@ class CHModel(Document):
 				  "Deactivate it instead."
 				).format(frappe.bold(self.model_name), item_count),
 				title=_("Model In Use"),
+				exc=ModelInUseError,
 			)

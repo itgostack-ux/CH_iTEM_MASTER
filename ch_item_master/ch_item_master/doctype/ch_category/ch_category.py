@@ -5,6 +5,11 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 
+from ch_item_master.ch_item_master.exceptions import (
+	CategoryInUseError,
+	DuplicateCategoryError,
+)
+
 
 class CHCategory(Document):
 	def autoname(self):
@@ -18,28 +23,30 @@ class CHCategory(Document):
 			self.category_id = (last_id or 0) + 1
 
 	def validate(self):
-		self._validate_item_group_not_reused()
+		self._validate_duplicate_name()
 		self._validate_deactivation()
 
-	def _validate_item_group_not_reused(self):
-		"""Prevent two categories from pointing to the same Item Group.
+	def _validate_duplicate_name(self):
+		"""Case-insensitive duplicate check for category_name.
 
-		Each CH Category maps 1:1 to an ERPNext Item Group — reusing one
-		would cause items to appear in the wrong category tree.
+		MySQL/MariaDB default collation is case-insensitive, but this
+		explicit check gives the user a clear error message instead of
+		a cryptic DuplicateEntryError.
 		"""
-		if not self.item_group:
+		if not self.category_name:
 			return
 		existing = frappe.db.get_value(
 			"CH Category",
-			{"item_group": self.item_group, "name": ("!=", self.name)},
+			{"category_name": self.category_name, "name": ("!=", self.name)},
 			"name",
 		)
 		if existing:
 			frappe.throw(
-				_("Item Group {0} is already linked to Category {1}. "
-				  "Each Item Group can only belong to one CH Category."
-				).format(frappe.bold(self.item_group), frappe.bold(existing)),
-				title=_("Duplicate Item Group Mapping"),
+				_("Category {0} already exists (as {1}). Duplicate names are not allowed "
+				  "(case-insensitive check)."
+				).format(frappe.bold(self.category_name), frappe.bold(existing)),
+				title=_("Duplicate Category"),
+				exc=DuplicateCategoryError,
 			)
 
 	def _validate_deactivation(self):
@@ -74,4 +81,5 @@ class CHCategory(Document):
 				  "Delete or reassign the sub-categories first."
 				).format(frappe.bold(self.category_name), sub_count),
 				title=_("Category In Use"),
+				exc=CategoryInUseError,
 			)

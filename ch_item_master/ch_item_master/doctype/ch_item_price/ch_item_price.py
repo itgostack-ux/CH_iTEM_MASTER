@@ -6,6 +6,12 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import getdate, nowdate
 
+from ch_item_master.ch_item_master.exceptions import (
+	InvalidPriceError,
+	InvalidPriceHierarchyError,
+	OverlappingPriceError,
+)
+
 
 class CHItemPrice(Document):
 	def validate(self):
@@ -38,11 +44,13 @@ class CHItemPrice(Document):
 				frappe.throw(
 					_("{0} cannot be negative ({1})").format(label, val),
 					title=_("Invalid Price"),
+					exc=InvalidPriceError,
 				)
 		if (self.selling_price or 0) <= 0:
 			frappe.throw(
 				_("Selling Price must be greater than zero"),
 				title=_("Invalid Price"),
+				exc=InvalidPriceError,
 			)
 
 	def _validate_price_hierarchy(self):
@@ -55,16 +63,19 @@ class CHItemPrice(Document):
 			frappe.throw(
 				_("MRP ({0}) cannot be less than MOP ({1})").format(mrp, mop),
 				title=_("Invalid Price Hierarchy"),
+				exc=InvalidPriceHierarchyError,
 			)
 		if mop and sp and mop < sp:
 			frappe.throw(
 				_("MOP ({0}) cannot be less than Selling Price ({1})").format(mop, sp),
 				title=_("Invalid Price Hierarchy"),
+				exc=InvalidPriceHierarchyError,
 			)
 		if mrp and sp and mrp < sp:
 			frappe.throw(
 				_("MRP ({0}) cannot be less than Selling Price ({1})").format(mrp, sp),
 				title=_("Invalid Price Hierarchy"),
+				exc=InvalidPriceHierarchyError,
 			)
 
 	def _validate_effective_dates(self):
@@ -142,6 +153,7 @@ class CHItemPrice(Document):
 					", ".join(conflicts),
 				),
 				title=_("Overlapping Price Records"),
+				exc=OverlappingPriceError,
 			)
 
 	def _auto_set_status(self):
