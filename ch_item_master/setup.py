@@ -42,7 +42,7 @@ def setup_item_variant_settings():
     """
     import frappe
 
-    ch_fields = ["ch_model", "ch_sub_category", "ch_category", "ch_display_name", "ch_spec_values"]
+    ch_fields = ["ch_model", "ch_sub_category", "ch_category", "ch_display_name", "ch_spec_values", "ch_model_features"]
 
     settings = frappe.get_single("Item Variant Settings")
     existing = {row.field_name for row in settings.fields}

@@ -17,12 +17,103 @@ import frappe
 from frappe import _
 
 from ch_item_master.ch_item_master.api import generate_item_name
-from ch_item_master.ch_item_master.utils import _next_item_code
+from ch_item_master.ch_item_master.utils import (
+    _next_item_code,
+    _group_model_spec_values,
+    _get_spec_selectors,
+    _get_property_specs,
+)
 from ch_item_master.ch_item_master.exceptions import (
     DuplicateItemNameError,
     DuplicateTemplateError,
     MissingPrefixError,
 )
+
+
+def _populate_from_model(doc):
+    """Auto-populate Item fields from the linked CH Model.
+
+    Called at the top of before_insert so that items created via the
+    model-driven quick entry (which only sends ch_model + stock_uom)
+    get all derived fields filled in before the rest of the pipeline
+    runs (item_code generation, duplicate checks, etc.).
+
+    Only fills fields that are currently empty/unset so that values
+    explicitly set by the user (e.g. via full-form) are preserved.
+    """
+    if not doc.ch_model or doc.variant_of:
+        return
+
+    model_data = frappe.db.get_value(
+        "CH Model", doc.ch_model,
+        ["sub_category", "manufacturer", "brand"],
+        as_dict=True,
+    )
+    if not model_data:
+        return
+
+    # ── Hierarchy ──────────────────────────────────────────────────────
+    if not doc.ch_sub_category and model_data.sub_category:
+        doc.ch_sub_category = model_data.sub_category
+
+    if doc.ch_sub_category and not doc.ch_category:
+        doc.ch_category = frappe.db.get_value(
+            "CH Sub Category", doc.ch_sub_category, "category"
+        ) or ""
+
+    # ── Core mandatory fields ─────────────────────────────────────────
+    if not doc.item_group and doc.ch_category:
+        doc.item_group = frappe.db.get_value(
+            "CH Category", doc.ch_category, "item_group"
+        ) or ""
+
+    if not doc.get("gst_hsn_code") and doc.ch_sub_category:
+        doc.gst_hsn_code = frappe.db.get_value(
+            "CH Sub Category", doc.ch_sub_category, "hsn_code"
+        ) or ""
+
+    # ── Variant setup ─────────────────────────────────────────────────
+    grouped_specs = _group_model_spec_values(doc.ch_model)
+    spec_selectors = _get_spec_selectors(
+        doc.ch_sub_category, doc.ch_model, grouped=grouped_specs
+    )
+
+    if spec_selectors and not doc.has_variants:
+        doc.has_variants = 1
+        doc.variant_based_on = "Item Attribute"
+
+    # Populate attributes if template but table is empty
+    if doc.has_variants and not doc.get("attributes"):
+        doc.set("attributes", [])
+        for s in spec_selectors:
+            doc.append("attributes", {"attribute": s["spec"]})
+
+    # ── Property specs (non-variant) ──────────────────────────────────
+    if not doc.get("ch_spec_values"):
+        property_specs = _get_property_specs(
+            doc.ch_sub_category, doc.ch_model, grouped=grouped_specs
+        )
+        if property_specs:
+            doc.set("ch_spec_values", [])
+            for ps in property_specs:
+                doc.append("ch_spec_values", {"spec": ps["spec"]})
+
+    # ── Model features ────────────────────────────────────────────────
+    if not doc.get("ch_model_features"):
+        features = frappe.get_all(
+            "CH Model Feature",
+            filters={"parent": doc.ch_model, "parenttype": "CH Model"},
+            fields=["feature_group", "feature_name", "feature_value"],
+            order_by="idx asc",
+        )
+        if features:
+            doc.set("ch_model_features", [])
+            for f in features:
+                doc.append("ch_model_features", {
+                    "feature_group": f.feature_group,
+                    "feature_name": f.feature_name,
+                    "feature_value": f.feature_value,
+                })
 
 
 def _get_model_fields(doc):
@@ -31,6 +122,28 @@ def _get_model_fields(doc):
         return None, None
     fields = frappe.db.get_value("CH Model", doc.ch_model, ["manufacturer", "brand"], as_dict=True)
     return (fields.manufacturer, fields.brand) if fields else (None, None)
+
+
+def _sync_model_features(doc):
+    """Sync model features from CH Model → Item on every save.
+
+    Re-reads the CH Model Feature child table and replaces the Item's
+    ch_model_features table.  This keeps Items in sync when features
+    are edited on the model after the Item was created.
+    """
+    features = frappe.get_all(
+        "CH Model Feature",
+        filters={"parent": doc.ch_model, "parenttype": "CH Model"},
+        fields=["feature_group", "feature_name", "feature_value"],
+        order_by="idx asc",
+    )
+    doc.set("ch_model_features", [])
+    for f in features:
+        doc.append("ch_model_features", {
+            "feature_group": f.feature_group,
+            "feature_name": f.feature_name,
+            "feature_value": f.feature_value,
+        })
 
 
 def _get_spec_values_from_attributes(doc):
@@ -58,6 +171,10 @@ def before_insert(doc, method=None):
     if doc.variant_of:
         _copy_ch_fields_from_template(doc)
         return
+
+    # Auto-populate fields from CH Model (supports quick entry flow
+    # where user only selects a model and everything else is derived)
+    _populate_from_model(doc)
 
     # Template/simple items — need ch_sub_category to proceed
     if not doc.ch_sub_category:
@@ -99,6 +216,20 @@ def _copy_ch_fields_from_template(doc):
         order_by="idx asc",
     ):
         doc.append("ch_spec_values", {"spec": row.spec, "spec_value": row.spec_value})
+
+    # Copy model features from the template
+    doc.set("ch_model_features", [])
+    for row in frappe.get_all(
+        "CH Item Feature",
+        filters={"parent": doc.variant_of, "parenttype": "Item"},
+        fields=["feature_group", "feature_name", "feature_value"],
+        order_by="idx asc",
+    ):
+        doc.append("ch_model_features", {
+            "feature_group": row.feature_group,
+            "feature_name": row.feature_name,
+            "feature_value": row.feature_value,
+        })
 
 
 def _validate_ch_spec_values(doc):
@@ -155,6 +286,10 @@ def before_save(doc, method=None):
         return
 
     _validate_ch_spec_values(doc)
+
+    # Sync model features from CH Model on every save (keeps Item in sync
+    # if features were edited on the model after Item was created)
+    _sync_model_features(doc)
 
     manufacturer, brand = _get_model_fields(doc)
 

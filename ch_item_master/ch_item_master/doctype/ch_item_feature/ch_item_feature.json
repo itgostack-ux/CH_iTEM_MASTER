@@ -1,0 +1,51 @@
+{
+ "actions": [],
+ "creation": "2026-03-02 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "feature_group",
+  "feature_name",
+  "feature_value"
+ ],
+ "fields": [
+  {
+   "fieldname": "feature_group",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Feature Group",
+   "options": "CH Feature Group",
+   "reqd": 1,
+   "in_preview": 1
+  },
+  {
+   "fieldname": "feature_name",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Feature",
+   "options": "CH Feature",
+   "reqd": 1,
+   "in_preview": 1
+  },
+  {
+   "fieldname": "feature_value",
+   "fieldtype": "Small Text",
+   "in_list_view": 1,
+   "label": "Value",
+   "reqd": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-03-02 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "CH Item Master",
+ "name": "CH Item Feature",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "creation",
+ "sort_order": "ASC",
+ "states": [],
+ "track_changes": 0
+}

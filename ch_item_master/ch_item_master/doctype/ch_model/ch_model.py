@@ -104,18 +104,22 @@ class CHModel(Document):
 			)
 
 	def validate_brand_belongs_to_manufacturer(self):
-		"""Ensure the brand belongs to the selected manufacturer (if ch_manufacturer custom field exists on Brand)."""
+		"""Ensure the brand lists the selected manufacturer in its ch_manufacturers table."""
 		if not self.brand or not self.manufacturer:
 			return
 
-		brand_manufacturer = frappe.db.get_value("Brand", self.brand, "ch_manufacturer")
-		if brand_manufacturer and brand_manufacturer != self.manufacturer:
+		brand_manufacturers = frappe.get_all(
+			"CH Brand Manufacturer",
+			filters={"parent": self.brand, "parenttype": "Brand"},
+			pluck="manufacturer",
+		)
+		if brand_manufacturers and self.manufacturer not in brand_manufacturers:
 			frappe.throw(
-				_("Brand {0} belongs to Manufacturer {1}, not {2}. "
-				  "Either change the brand or change the manufacturer."
+				_("Brand {0} does not list Manufacturer {1} in its allowed manufacturers. "
+				  "Either change the brand, change the manufacturer, or add {1} "
+				  "to the Brand's manufacturers list."
 				).format(
 					frappe.bold(self.brand),
-					frappe.bold(brand_manufacturer),
 					frappe.bold(self.manufacturer),
 				),
 				title=_("Brand-Manufacturer Mismatch"),

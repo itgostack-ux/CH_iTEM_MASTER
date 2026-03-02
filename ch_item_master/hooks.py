@@ -16,6 +16,7 @@ add_to_apps_screen = [
 	}
 ]
 
+app_include_js = "public/js/item_quick_entry.js"
 doctype_js = {"Item": "public/js/item.js"}
 
 # Installation / Migration

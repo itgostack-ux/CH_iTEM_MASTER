@@ -3,13 +3,11 @@
 
 """
 Overrides for ERPNext standard Brand doctype
-Adds auto-increment logic for brand_id and manufacturer immutability.
+Adds auto-increment logic for brand_id and manufacturer list validation.
 """
 
 import frappe
 from frappe import _
-
-from ch_item_master.ch_item_master.exceptions import ManufacturerChangeBlockedError
 
 
 def before_insert(doc, method=None):
@@ -31,29 +29,20 @@ def before_insert(doc, method=None):
 
 
 def before_save(doc, method=None):
-	"""Prevent changing the manufacturer on an existing Brand.
-
-	A brand belongs to exactly one manufacturer. Once set, changing it
-	would orphan/corrupt CH Models that reference this brand+manufacturer
-	combination.
-	"""
+	"""Validate manufacturers list — no duplicates allowed."""
 	# Normalize brand name
 	if doc.brand:
 		doc.brand = " ".join(doc.brand.split())
-	if doc.is_new() or not doc.ch_manufacturer:
-		return
 
-	old_manufacturer = frappe.db.get_value("Brand", doc.name, "ch_manufacturer")
-	if old_manufacturer and old_manufacturer != doc.ch_manufacturer:
-		frappe.throw(
-			_("Cannot change manufacturer of Brand {0} from {1} to {2}. "
-			  "A brand cannot be reassigned to a different manufacturer. "
-			  "Create a new brand instead."
-			).format(
-				frappe.bold(doc.brand),
-				frappe.bold(old_manufacturer),
-				frappe.bold(doc.ch_manufacturer),
-			),
-			title=_("Manufacturer Change Blocked"),
-			exc=ManufacturerChangeBlockedError,
-		)
+	# Validate no duplicate manufacturers in the child table
+	seen = set()
+	for row in (doc.get("ch_manufacturers") or []):
+		if row.manufacturer in seen:
+			frappe.throw(
+				_("Row #{0}: Manufacturer {1} is already listed. "
+				  "Each manufacturer should appear only once."
+				).format(row.idx, frappe.bold(row.manufacturer)),
+				title=_("Duplicate Manufacturer"),
+			)
+		seen.add(row.manufacturer)
+

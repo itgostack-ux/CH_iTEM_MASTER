@@ -66,18 +66,36 @@ ch_model._apply_manufacturer_filter = function (frm) {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Helper: refresh allowed brands for the selected manufacturer
+// ─────────────────────────────────────────────────────────────────────────────
+ch_model._refresh_allowed_brands = function (frm) {
+	if (!frm.doc.manufacturer) {
+		frm._allowed_brands = [];
+		return;
+	}
+	frappe.call({
+		method: 'ch_item_master.ch_item_master.api.get_brands_for_manufacturer',
+		args: { manufacturer: frm.doc.manufacturer },
+		callback(r) {
+			frm._allowed_brands = r.message || [];
+		},
+	});
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // CH Model form events
 // ─────────────────────────────────────────────────────────────────────────────
 frappe.ui.form.on('CH Model', {
 	setup(frm) {
-		// Brand must belong to selected manufacturer.
-		// When no manufacturer is chosen yet, return impossible filter so
-		// the dropdown is empty (not showing every brand in the system).
+		// Brand filter — brands that list the selected manufacturer
+		// in their ch_manufacturers child table.
+		// Uses a cached list refreshed when manufacturer changes.
+		frm._allowed_brands = [];
 		frm.set_query('brand', () => {
-			if (!frm.doc.manufacturer) {
+			if (!frm.doc.manufacturer || !frm._allowed_brands.length) {
 				return { filters: { name: 'DISABLED' } };
 			}
-			return { filters: { ch_manufacturer: frm.doc.manufacturer } };
+			return { filters: { name: ['in', frm._allowed_brands] } };
 		});
 
 		// Spec dropdown: only show specs configured for the current sub-category.
@@ -101,6 +119,22 @@ frappe.ui.form.on('CH Model', {
 				params: { spec: spec },
 			};
 		};
+
+		// Model Features: filter feature_group to enabled groups only
+		frm.set_query('feature_group', 'model_features', () => ({
+			filters: { disabled: 0 },
+		}));
+
+		// Model Features: filter feature_name to features in the selected group
+		frm.set_query('feature_name', 'model_features', (doc, cdt, cdn) => {
+			let row = locals[cdt][cdn];
+			return {
+				filters: {
+					feature_group: row.feature_group || '',
+					disabled: 0,
+				},
+			};
+		});
 	},
 
 	sub_category(frm) {
@@ -151,6 +185,8 @@ frappe.ui.form.on('CH Model', {
 	manufacturer(frm) {
 		frm.set_value('brand', '');
 		frm.set_value('item_name_preview', '');
+		// Refresh allowed brands for the newly selected manufacturer
+		ch_model._refresh_allowed_brands(frm);
 	},
 
 	brand(frm) {
@@ -166,6 +202,10 @@ frappe.ui.form.on('CH Model', {
 		// so that re-opening an existing model still restricts the dropdown.
 		if (frm.doc.sub_category) {
 			ch_model._apply_manufacturer_filter(frm);
+		}
+		// Load allowed brands for current manufacturer
+		if (frm.doc.manufacturer) {
+			ch_model._refresh_allowed_brands(frm);
 		}
 
 		if (!frm.is_new()) {
@@ -352,5 +392,12 @@ frappe.ui.form.on('CH Model Spec Value', {
 	// Spec value changed → update preview
 	spec_value(frm) {
 		ch_model.update_preview(frm);
+	},
+});
+
+// ── CH Model Feature — clear feature_name when group changes ────────────────
+frappe.ui.form.on('CH Model Feature', {
+	feature_group(frm, cdt, cdn) {
+		frappe.model.set_value(cdt, cdn, 'feature_name', '');
 	},
 });

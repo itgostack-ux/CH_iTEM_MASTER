@@ -252,7 +252,7 @@
    "hidden": 0,
    "is_query_report": 0,
    "label": "Product Catalog",
-   "link_count": 3,
+   "link_count": 5,
    "link_type": "DocType",
    "onboard": 0,
    "type": "Card Break"
@@ -285,6 +285,26 @@
    "link_to": "CH Model",
    "link_type": "DocType",
    "onboard": 1,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "CH Feature Group",
+   "link_count": 0,
+   "link_to": "CH Feature Group",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "CH Feature",
+   "link_count": 0,
+   "link_to": "CH Feature",
+   "link_type": "DocType",
+   "onboard": 0,
    "type": "Link"
   },
   {

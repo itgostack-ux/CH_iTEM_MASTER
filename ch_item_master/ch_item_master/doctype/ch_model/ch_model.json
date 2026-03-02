@@ -17,7 +17,9 @@
   "disabled",
   "spec_values_section",
   "item_name_preview",
-  "spec_values"
+  "spec_values",
+  "model_features_section",
+  "model_features"
  ],
  "fields": [
   {
@@ -97,6 +99,19 @@
    "fieldtype": "Table",
    "label": "Spec Values",
    "options": "CH Model Spec Value"
+  },
+  {
+   "fieldname": "model_features_section",
+   "fieldtype": "Section Break",
+   "label": "Model Features",
+   "description": "Descriptive features common to all items of this model (e.g. display type, camera specs, chipset). These are NOT variant-forming — they describe the model itself."
+  },
+  {
+   "fieldname": "model_features",
+   "fieldtype": "Table",
+   "label": "Features",
+   "options": "CH Model Feature",
+   "description": "Add product features grouped by category (Display, Camera, Platform, Body, Memory, etc.)"
   }
  ],
  "links": [],

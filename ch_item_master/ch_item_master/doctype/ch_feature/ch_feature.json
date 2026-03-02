@@ -1,0 +1,102 @@
+{
+ "actions": [],
+ "autoname": "format:{feature_group}-{feature_name}",
+ "naming_rule": "Expression",
+ "creation": "2026-03-02 00:00:00.000000",
+ "doctype": "DocType",
+ "document_type": "Setup",
+ "engine": "InnoDB",
+ "field_order": [
+  "feature_id",
+  "feature_group",
+  "feature_name",
+  "column_break_01",
+  "disabled"
+ ],
+ "fields": [
+  {
+   "fieldname": "feature_id",
+   "fieldtype": "Int",
+   "label": "Feature ID",
+   "read_only": 1,
+   "no_copy": 1,
+   "unique": 1,
+   "in_list_view": 1,
+   "bold": 1,
+   "description": "Auto-generated numeric ID for API integration"
+  },
+  {
+   "fieldname": "feature_group",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Feature Group",
+   "options": "CH Feature Group",
+   "reqd": 1
+  },
+  {
+   "fieldname": "feature_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Feature Name",
+   "reqd": 1,
+   "description": "e.g. Type, Size, Resolution, Weight, Chipset, CPU, GPU"
+  },
+  {
+   "fieldname": "column_break_01",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "disabled",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Disabled"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-03-02 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "CH Item Master",
+ "name": "CH Feature",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "export": 1,
+   "import": 1
+  },
+  {
+   "role": "CH Master Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 0,
+   "export": 1
+  },
+  {
+   "role": "CH Viewer",
+   "read": 1,
+   "write": 0,
+   "create": 0,
+   "export": 1
+  }
+ ],
+ "quick_entry": 1,
+ "search_fields": "feature_name,feature_group",
+ "show_name_in_global_search": 1,
+ "sort_field": "feature_group",
+ "sort_order": "ASC",
+ "states": [],
+ "title_field": "feature_name",
+ "show_title_field_in_link": 1,
+ "track_changes": 1
+}

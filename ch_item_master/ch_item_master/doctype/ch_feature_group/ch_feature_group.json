@@ -1,0 +1,102 @@
+{
+ "actions": [],
+ "autoname": "field:group_name",
+ "naming_rule": "By fieldname",
+ "creation": "2026-03-02 00:00:00.000000",
+ "doctype": "DocType",
+ "document_type": "Setup",
+ "engine": "InnoDB",
+ "field_order": [
+  "feature_group_id",
+  "group_name",
+  "column_break_01",
+  "disabled",
+  "display_order"
+ ],
+ "fields": [
+  {
+   "fieldname": "feature_group_id",
+   "fieldtype": "Int",
+   "label": "Feature Group ID",
+   "read_only": 1,
+   "no_copy": 1,
+   "unique": 1,
+   "in_list_view": 1,
+   "bold": 1,
+   "description": "Auto-generated numeric ID for API integration"
+  },
+  {
+   "fieldname": "group_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Group Name",
+   "reqd": 1,
+   "unique": 1,
+   "description": "e.g. Display, Camera, Platform, Body, Memory, Network"
+  },
+  {
+   "fieldname": "column_break_01",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "disabled",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Disabled"
+  },
+  {
+   "fieldname": "display_order",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Display Order",
+   "default": "0",
+   "description": "Controls sort order in feature tables (lower = first)"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-03-02 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "CH Item Master",
+ "name": "CH Feature Group",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "export": 1,
+   "import": 1
+  },
+  {
+   "role": "CH Master Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 0,
+   "export": 1
+  },
+  {
+   "role": "CH Viewer",
+   "read": 1,
+   "write": 0,
+   "create": 0,
+   "export": 1
+  }
+ ],
+ "quick_entry": 1,
+ "search_fields": "group_name",
+ "show_name_in_global_search": 1,
+ "sort_field": "display_order",
+ "sort_order": "ASC",
+ "states": [],
+ "title_field": "group_name",
+ "show_title_field_in_link": 1,
+ "track_changes": 1
+}

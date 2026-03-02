@@ -131,6 +131,25 @@ def get_sub_category_manufacturers(sub_category):
     )
 
 
+@frappe.whitelist()
+def get_brands_for_manufacturer(manufacturer):
+    """Return brand names that list the given manufacturer in their manufacturers table.
+
+    Used by CH Model form to filter the Brand dropdown after a
+    Manufacturer is selected.  Supports the many-to-many Brand↔Manufacturer
+    relationship (e.g. Apple brand produced by both Apple Inc. and third parties).
+    """
+    if not manufacturer:
+        return []
+
+    brands = frappe.get_all(
+        "CH Brand Manufacturer",
+        filters={"manufacturer": manufacturer, "parenttype": "Brand"},
+        pluck="parent",
+    )
+    return list(set(brands))
+
+
 # ───────────────────────────────────────────────────────────────────────────────
 # Attribute Value autocomplete for CH Model Spec Value child table
 # ───────────────────────────────────────────────────────────────────────────────
@@ -248,6 +267,14 @@ def get_model_details(model):
     # has_variants is derived: true only if there are variant-driving specs
     has_variants = len(spec_selectors) > 0
 
+    # Fetch model features (descriptive specs like display, camera, platform)
+    model_features = frappe.get_all(
+        "CH Model Feature",
+        filters={"parent": model, "parenttype": "CH Model"},
+        fields=["feature_group", "feature_name", "feature_value"],
+        order_by="idx asc",
+    )
+
     return {
         "sub_category": mdoc.sub_category,
         "category": category,
@@ -256,6 +283,7 @@ def get_model_details(model):
         "has_variants": has_variants,
         "spec_selectors": spec_selectors,
         "property_specs": _get_property_specs(mdoc.sub_category, model, grouped=grouped_specs),
+        "model_features": model_features,
         "hsn_code": sc_data.get("hsn_code", ""),
         "gst_rate": sc_data.get("gst_rate", 0),
         "item_group": item_group or "",

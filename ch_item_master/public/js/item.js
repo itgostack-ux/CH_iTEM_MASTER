@@ -39,6 +39,15 @@ frappe.ui.form.on('Item', {
             filters: { sub_category: frm.doc.ch_sub_category || '', exclude_variant_selectors: 1 },
         }));
 
+        // Model Features (read-only on Item, but set filters for consistency)
+        frm.set_query('feature_group', 'ch_model_features', () => ({
+            filters: { disabled: 0 },
+        }));
+        frm.set_query('feature_name', 'ch_model_features', (doc, cdt, cdn) => {
+            let row = locals[cdt][cdn];
+            return { filters: { feature_group: row.feature_group || '', disabled: 0 } };
+        });
+
         // Override ERPNext's Multiple Variants dialog to show only
         // model-allowed values instead of ALL Item Attribute Values
         _override_multiple_variants_dialog();
@@ -172,6 +181,16 @@ frappe.ui.form.on('Item', {
 
                 // Show/hide ch_spec_values section based on property specs
                 _toggle_property_specs_section(frm, property_specs.length > 0);
+
+                // Pre-populate MODEL FEATURES (descriptive, read-only)
+                frm.clear_table('ch_model_features');
+                let features = d.model_features || [];
+                features.forEach(function (f) {
+                    let row = frm.add_child('ch_model_features');
+                    row.feature_group = f.feature_group;
+                    row.feature_name = f.feature_name;
+                    row.feature_value = f.feature_value;
+                });
 
                 frm.refresh_fields();
 
