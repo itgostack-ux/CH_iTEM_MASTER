@@ -11,7 +11,7 @@
  "editable_grid": 1,
  "track_changes": 1,
  "title_field": "plan_name",
- "search_fields": "plan_name,plan_type,service_item",
+ "search_fields": "plan_name,plan_type,service_item,brand",
  "sort_field": "modified",
  "sort_order": "DESC",
  "fields": [
@@ -85,6 +85,32 @@
    "default": "Active",
    "in_list_view": 1,
    "in_standard_filter": 1
+  },
+  {
+   "fieldname": "brand",
+   "fieldtype": "Link",
+   "label": "Brand",
+   "options": "Brand",
+   "in_standard_filter": 1,
+   "description": "Restrict this plan to a specific brand. Leave blank = all brands."
+  },
+  {
+   "fieldname": "section_validity",
+   "fieldtype": "Section Break",
+   "label": "Validity Period",
+   "description": "Leave blank for evergreen plans. Set dates for promotional / campaign-bound plans."
+  },
+  {
+   "fieldname": "valid_from",
+   "fieldtype": "Date",
+   "label": "Valid From",
+   "description": "Plan is available for sale starting this date. Blank = always available."
+  },
+  {
+   "fieldname": "valid_to",
+   "fieldtype": "Date",
+   "label": "Valid To",
+   "description": "Plan stops being available for sale after this date. Blank = no end date."
   },
   {
    "fieldname": "section_coverage",
@@ -250,6 +276,11 @@
    "group": "Reference",
    "link_doctype": "Item",
    "link_fieldname": "service_item"
+  },
+  {
+   "group": "Issued Plans",
+   "link_doctype": "CH Sold Plan",
+   "link_fieldname": "warranty_plan"
   }
  ],
  "actions": [],

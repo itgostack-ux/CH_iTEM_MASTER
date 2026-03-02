@@ -10,7 +10,7 @@
   "channel_name",
   "description",
   "column_break_01",
-  "is_active"
+  "disabled"
  ],
  "fields": [
   {
@@ -43,12 +43,12 @@
    "fieldtype": "Column Break"
   },
   {
-   "default": "1",
-   "fieldname": "is_active",
+   "default": "0",
+   "fieldname": "disabled",
    "fieldtype": "Check",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "Is Active"
+   "label": "Disabled"
   },
   {
    "fieldname": "is_buying",
@@ -105,6 +105,7 @@
    "export": 0
   }
  ],
+ "allow_rename": 1,
  "sort_field": "channel_name",
  "sort_order": "ASC",
  "states": [],

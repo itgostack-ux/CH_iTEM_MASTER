@@ -25,11 +25,11 @@ CUSTOM_FIELDS = {
 			"description": _("Auto-generated sequential ID for mobile/API integration"),
 		},
 		{
-			"fieldname": "ch_is_active",
-			"label": _("Is Active"),
+			"fieldname": "ch_disabled",
+			"label": _("Disabled"),
 			"fieldtype": "Check",
 			"insert_after": "manufacturer_id",
-			"default": "1",
+			"default": "0",
 			"in_list_view": 1,
 		},
 	],
@@ -57,12 +57,26 @@ CUSTOM_FIELDS = {
 			"description": _("The manufacturer this brand belongs to"),
 		},
 		{
-			"fieldname": "ch_is_active",
-			"label": _("Is Active"),
+			"fieldname": "ch_disabled",
+			"label": _("Disabled"),
 			"fieldtype": "Check",
 			"insert_after": "ch_manufacturer",
-			"default": "1",
+			"default": "0",
 			"in_list_view": 1,
+		},
+	],
+	# ──────────────────────────────────────────────
+	# Item Group: Add disabled for CH master hierarchy
+	# ──────────────────────────────────────────────
+	"Item Group": [
+		{
+			"fieldname": "ch_disabled",
+			"label": _("Disabled"),
+			"fieldtype": "Check",
+			"insert_after": "is_group",
+			"default": "0",
+			"in_list_view": 1,
+			"in_standard_filter": 1,
 		},
 	],
 	# ──────────────────────────────────────────────
@@ -181,6 +195,60 @@ CUSTOM_FIELDS = {
 			"no_copy": 1,
 			"description": _("Copied from CH Model.model_id on save"),
 		},
+		# ──────────────────────────────────────────────
+		# Warranty & Lifecycle
+		# ──────────────────────────────────────────────
+		{
+			"fieldname": "ch_warranty_section",
+			"label": _("Warranty & Lifecycle"),
+			"fieldtype": "Section Break",
+			"insert_after": "ch_model_id",
+			"collapsible": 1,
+		},
+		{
+			"fieldname": "ch_default_warranty_months",
+			"label": _("Default Warranty (Months)"),
+			"fieldtype": "Int",
+			"insert_after": "ch_warranty_section",
+			"description": _("Default warranty duration in months for this item. Used when auto-creating Sold Plans on sale."),
+		},
+		{
+			"fieldname": "ch_default_warranty_plan",
+			"label": _("Default Warranty Plan"),
+			"fieldtype": "Link",
+			"options": "CH Warranty Plan",
+			"insert_after": "ch_default_warranty_months",
+			"description": _("The default warranty plan automatically issued when this item is sold."),
+		},
+		{
+			"fieldname": "ch_warranty_col_break",
+			"fieldtype": "Column Break",
+			"insert_after": "ch_default_warranty_plan",
+		},
+		{
+			"fieldname": "ch_lifecycle_status",
+			"label": _("Lifecycle Status"),
+			"fieldtype": "Select",
+			"options": "\nActive\nEnd of Life\nDiscontinued",
+			"default": "Active",
+			"insert_after": "ch_warranty_col_break",
+			"in_standard_filter": 1,
+			"description": _("Active = available for sale/purchase. End of Life = no new orders, service only. Discontinued = fully retired."),
+		},
+		{
+			"fieldname": "ch_minimum_selling_price",
+			"label": _("Minimum Selling Price (MSP)"),
+			"fieldtype": "Currency",
+			"insert_after": "ch_lifecycle_status",
+			"description": _("Floor price below which this item cannot be sold without approval."),
+		},
+		{
+			"fieldname": "ch_msp_effective_from",
+			"label": _("MSP Effective From"),
+			"fieldtype": "Date",
+			"insert_after": "ch_minimum_selling_price",
+			"description": _("Date from which this MSP applies."),
+		},
 	],
 	# ──────────────────────────────────────────────
 	# Item Price: Add MRP and MOP alongside selling price
@@ -209,36 +277,6 @@ CUSTOM_FIELDS = {
 			"insert_after": "ch_mop",
 			"read_only": 1,
 			"description": _("The CH Item Price that last wrote this record"),
-		},
-	],
-	# ──────────────────────────────────────────────
-	# Item Group: Link to CH Sub Category
-	# ──────────────────────────────────────────────
-	"Item Group": [
-		{
-			"fieldname": "ch_category",
-			"label": _("CH Category"),
-			"fieldtype": "Link",
-			"options": "CH Category",
-			"insert_after": "parent_item_group",
-			"description": _("Links this Item Group to a CH Item Master Category"),
-		},
-		{
-			"fieldname": "ch_category_id",
-			"label": _("Category ID"),
-			"fieldtype": "Int",
-			"insert_after": "ch_category",
-			"read_only": 1,
-			"no_copy": 1,
-			"description": _("Auto-populated from CH Category.category_id"),
-		},
-		{
-			"fieldname": "ch_is_active",
-			"label": _("Is Active"),
-			"fieldtype": "Check",
-			"insert_after": "ch_category_id",
-			"default": "1",
-			"in_list_view": 1,
 		},
 	],
 }

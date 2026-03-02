@@ -25,8 +25,8 @@ class CHItemOffer(Document):
 		"""Warn if the offer's channel is inactive."""
 		if not self.channel:
 			return
-		is_active = frappe.db.get_value("CH Price Channel", self.channel, "is_active")
-		if not is_active:
+		disabled = frappe.db.get_value("CH Price Channel", self.channel, "disabled")
+		if disabled:
 			frappe.msgprint(
 				_("Channel {0} is currently inactive. This offer will not apply "
 				  "to any transactions until the channel is reactivated."

@@ -14,6 +14,8 @@ from ch_item_master.ch_item_master.exceptions import (
 class CHCategory(Document):
 	def autoname(self):
 		"""Auto-generate category_id before insert"""
+		if self.category_name:
+			self.category_name = " ".join(self.category_name.split())
 		if not self.category_id:
 			# Get next ID from sequence
 			last_id = frappe.db.sql("""
@@ -23,6 +25,8 @@ class CHCategory(Document):
 			self.category_id = (last_id or 0) + 1
 
 	def validate(self):
+		if self.category_name:
+			self.category_name = " ".join(self.category_name.split())
 		self._validate_duplicate_name()
 		self._validate_deactivation()
 
@@ -50,17 +54,17 @@ class CHCategory(Document):
 			)
 
 	def _validate_deactivation(self):
-		"""Warn before deactivating a category that has active sub-categories."""
-		if self.is_new() or self.is_active:
+		"""Warn before disabling a category that has active sub-categories."""
+		if self.is_new() or not self.disabled:
 			return
 
 		before = self.get_doc_before_save()
-		if not before or not before.is_active:
-			return  # was already inactive
+		if not before or before.disabled:
+			return  # was already disabled
 
 		active_subs = frappe.db.count(
 			"CH Sub Category",
-			{"category": self.name, "is_active": 1},
+			{"category": self.name, "disabled": 0},
 		)
 		if active_subs:
 			frappe.msgprint(
@@ -71,6 +75,22 @@ class CHCategory(Document):
 				indicator="orange",
 				title=_("Active Sub-Categories Exist"),
 			)
+
+	def after_rename(self, old, new, merge=False):
+		"""Cascade rename to Sub Categories whose name includes the old
+		category as a prefix  (name format: {category}-{sub_category_name}).
+		Frappe already updated the `category` link field in every Sub Category
+		row, but the document *name* still carries the old prefix."""
+		subs = frappe.get_all(
+			"CH Sub Category",
+			filters={"category": new},
+			pluck="name",
+		)
+		prefix = old + "-"
+		for sub_name in subs:
+			if sub_name.startswith(prefix):
+				new_sub_name = new + sub_name[len(old):]
+				frappe.rename_doc("CH Sub Category", sub_name, new_sub_name)
 
 	def on_trash(self):
 		"""Block deletion if sub-categories exist."""

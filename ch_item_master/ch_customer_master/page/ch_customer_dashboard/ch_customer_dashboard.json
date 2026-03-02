@@ -1,0 +1,20 @@
+{
+ "content": null,
+ "creation": "2026-03-02 12:00:00.000000",
+ "doctype": "Page",
+ "icon": "users",
+ "module": "CH Customer Master",
+ "name": "ch-customer-dashboard",
+ "page_name": "ch-customer-dashboard",
+ "roles": [
+  {"role": "System Manager"},
+  {"role": "Sales Manager"},
+  {"role": "Sales User"},
+  {"role": "Stock Manager"},
+  {"role": "Stock User"}
+ ],
+ "script": null,
+ "style": null,
+ "system_page": 0,
+ "title": "Customer Dashboard"
+}

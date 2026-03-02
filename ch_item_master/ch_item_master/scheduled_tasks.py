@@ -108,3 +108,7 @@ def auto_expire_records():
 		f"Expired prices: {len(newly_expired)}, "
 		f"Expired offers: {len(newly_expired_offers)}"
 	)
+
+	# ── CH Sold Plan: Expire past-due ──
+	from ch_item_master.ch_item_master.warranty_api import expire_sold_plans
+	expire_sold_plans()

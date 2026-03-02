@@ -4,6 +4,7 @@
 from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
 
 from ch_item_master.constants.custom_fields import CUSTOM_FIELDS
+from ch_item_master.ch_customer_master.customer_custom_fields import CUSTOMER_CUSTOM_FIELDS
 
 CH_ROLES = [
     {"role_name": "CH Master Manager",   "desk_access": 1, "is_custom": 1},
@@ -15,8 +16,9 @@ CH_ROLES = [
 
 
 def create_ch_custom_fields():
-    """Create or update custom fields on ERPNext doctypes (Brand, Item, Item Group)."""
+    """Create or update custom fields on ERPNext doctypes (Brand, Item, Item Group, Customer)."""
     create_custom_fields(CUSTOM_FIELDS, ignore_validate=True)
+    create_custom_fields(CUSTOMER_CUSTOM_FIELDS, ignore_validate=True)
 
 
 def setup_roles():
@@ -55,11 +57,11 @@ def setup_item_variant_settings():
 
 # ── Default channels created on install/migrate ───────────────────────────────
 _DEFAULT_CHANNELS = [
-    {"channel_name": "POS",         "description": "Point of Sale",                 "is_active": 1},
-    {"channel_name": "Website",     "description": "Web Store",                     "is_active": 1},
-    {"channel_name": "App",         "description": "Mobile App",                    "is_active": 1},
-    {"channel_name": "Marketplace", "description": "3rd Party Marketplace",         "is_active": 1},
-    {"channel_name": "Buyback",     "description": "Device Buyback / Trade-In",     "is_active": 1, "buying": 1},
+    {"channel_name": "POS",         "description": "Point of Sale",                 "disabled": 0},
+    {"channel_name": "Website",     "description": "Web Store",                     "disabled": 0},
+    {"channel_name": "App",         "description": "Mobile App",                    "disabled": 0},
+    {"channel_name": "Marketplace", "description": "3rd Party Marketplace",         "disabled": 0},
+    {"channel_name": "Buyback",     "description": "Device Buyback / Trade-In",     "disabled": 0, "buying": 1},
 ]
 
 
@@ -73,28 +75,71 @@ def sync_workspace():
     import os
     import frappe
 
-    json_path = os.path.join(
-        frappe.get_app_path("ch_item_master"),
-        "ch_item_master", "workspace", "ch_item_master", "ch_item_master.json",
-    )
-    with open(json_path) as f:
-        file_data = json.load(f)
+    workspaces = [
+        {
+            "module": "ch_item_master",
+            "subfolder": os.path.join("ch_item_master", "workspace", "ch_core"),
+            "filename": "ch_core.json",
+            "label": "CH Core",
+        },
+        {
+            "module": "ch_item_master",
+            "subfolder": os.path.join("ch_item_master", "workspace", "ch_item_master"),
+            "filename": "ch_item_master.json",
+            "label": "CH Item Master",
+        },
+        {
+            "module": "ch_customer_master",
+            "subfolder": os.path.join("ch_customer_master", "workspace", "ch_customer_master"),
+            "filename": "ch_customer_master.json",
+            "label": "CH Customer Master",
+        },
+        {
+            "module": "ch_vendor_master",
+            "subfolder": os.path.join("ch_vendor_master", "workspace", "ch_vendor_master"),
+            "filename": "ch_vendor_master.json",
+            "label": "CH Vendor Master",
+        },
+    ]
 
-    ws = frappe.get_doc("Workspace", "CH Item Master")
-    ws.content = file_data["content"]
-    ws.links = []
-    ws.shortcuts = []
+    for ws_def in workspaces:
+        json_path = os.path.join(
+            frappe.get_app_path("ch_item_master"),
+            ws_def["subfolder"],
+            ws_def["filename"],
+        )
+        if not os.path.exists(json_path):
+            continue
 
-    for lnk in file_data.get("links", []):
-        ws.append("links", lnk)
-    for sc in file_data.get("shortcuts", []):
-        ws.append("shortcuts", sc)
+        with open(json_path) as f:
+            file_data = json.load(f)
 
-    ws.save(ignore_permissions=True)
-    # Note: Commit is handled by the calling context
-    frappe.logger("ch_item_master").info(
-        f"Workspace synced — {len(ws.shortcuts)} shortcuts, {len(ws.links)} links."
-    )
+        if not frappe.db.exists("Workspace", ws_def["label"]):
+            # Create workspace from JSON if it doesn't exist yet
+            ws = frappe.new_doc("Workspace")
+            ws.label = ws_def["label"]
+            ws.name = ws_def["label"]
+        else:
+            ws = frappe.get_doc("Workspace", ws_def["label"])
+
+        ws.content = file_data.get("content", "")
+        ws.icon = file_data.get("icon", "")
+        ws.module = file_data.get("module", ws_def.get("module", ""))
+        ws.parent_page = file_data.get("parent_page", "")
+        ws.public = file_data.get("public", 1)
+        ws.title = file_data.get("title", ws_def["label"])
+        ws.links = []
+        ws.shortcuts = []
+
+        for lnk in file_data.get("links", []):
+            ws.append("links", lnk)
+        for sc in file_data.get("shortcuts", []):
+            ws.append("shortcuts", sc)
+
+        ws.save(ignore_permissions=True)
+        frappe.logger("ch_item_master").info(
+            f"Workspace '{ws_def['label']}' synced — {len(ws.shortcuts)} shortcuts, {len(ws.links)} links."
+        )
 
 
 def setup_channels():
@@ -125,7 +170,7 @@ def setup_channels():
             doc = frappe.new_doc("CH Price Channel")
             doc.channel_name = ch["channel_name"]
             doc.description = ch.get("description", "")
-            doc.is_active = ch.get("is_active", 1)
+            doc.disabled = ch.get("disabled", 0)
             doc.price_list = pl_name
             doc.is_buying = is_buying
             doc.insert(ignore_permissions=True)

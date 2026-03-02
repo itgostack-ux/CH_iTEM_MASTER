@@ -14,7 +14,7 @@
   "column_break_01",
   "brand",
   "model_name",
-  "is_active",
+  "disabled",
   "spec_values_section",
   "item_name_preview",
   "spec_values"
@@ -72,12 +72,12 @@
    "unique": 1
   },
   {
-   "default": "1",
-   "fieldname": "is_active",
+   "default": "0",
+   "fieldname": "disabled",
    "fieldtype": "Check",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "Is Active"
+   "label": "Disabled"
   },
   {
    "fieldname": "spec_values_section",
@@ -139,6 +139,7 @@
    "export": 1
   }
  ],
+ "allow_rename": 1,
  "search_fields": "model_name,brand,manufacturer,sub_category",
  "show_name_in_global_search": 1,
  "sort_field": "model_name",

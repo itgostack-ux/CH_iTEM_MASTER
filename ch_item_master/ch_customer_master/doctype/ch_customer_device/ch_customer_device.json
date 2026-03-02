@@ -1,0 +1,336 @@
+{
+ "actions": [],
+ "autoname": "format:CHD-{customer}-{serial_no}",
+ "creation": "2026-03-02 10:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "customer_section",
+  "customer",
+  "customer_name",
+  "column_break_cust",
+  "company",
+  "device_section",
+  "serial_no",
+  "item_code",
+  "item_name",
+  "brand",
+  "column_break_device",
+  "imei_number",
+  "color",
+  "storage_capacity",
+  "status_section",
+  "current_status",
+  "column_break_status",
+  "lifecycle",
+  "purchase_section",
+  "purchase_date",
+  "purchase_invoice",
+  "purchase_company",
+  "purchase_store",
+  "column_break_purchase",
+  "purchase_price",
+  "warranty_section",
+  "warranty_status",
+  "warranty_expiry",
+  "active_warranty_plan",
+  "column_break_warranty",
+  "warranty_plan_name",
+  "warranty_months",
+  "vas_section",
+  "vas_plans",
+  "buyback_section",
+  "buyback_date",
+  "buyback_request",
+  "column_break_buyback",
+  "buyback_price",
+  "buyback_grade"
+ ],
+ "fields": [
+  {
+   "fieldname": "customer_section",
+   "fieldtype": "Section Break",
+   "label": "Customer"
+  },
+  {
+   "fieldname": "customer",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Customer",
+   "options": "Customer",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "customer.customer_name",
+   "fieldname": "customer_name",
+   "fieldtype": "Data",
+   "label": "Customer Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_cust",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Sold By Company",
+   "options": "Company"
+  },
+  {
+   "fieldname": "device_section",
+   "fieldtype": "Section Break",
+   "label": "Device Details"
+  },
+  {
+   "fieldname": "serial_no",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Serial No",
+   "options": "Serial No",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "item_code",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Item Code",
+   "options": "Item",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "item_code.item_name",
+   "fieldname": "item_name",
+   "fieldtype": "Data",
+   "label": "Item Name",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "item_code.brand",
+   "fieldname": "brand",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Brand",
+   "options": "Brand",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_device",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "imei_number",
+   "fieldtype": "Data",
+   "label": "IMEI Number"
+  },
+  {
+   "fieldname": "color",
+   "fieldtype": "Data",
+   "label": "Color"
+  },
+  {
+   "fieldname": "storage_capacity",
+   "fieldtype": "Data",
+   "label": "Storage Capacity"
+  },
+  {
+   "fieldname": "status_section",
+   "fieldtype": "Section Break",
+   "label": "Status"
+  },
+  {
+   "default": "Owned",
+   "fieldname": "current_status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Current Status",
+   "options": "Owned\nIn Service\nBuyback\nSold\nReturned\nLost\nScrapped"
+  },
+  {
+   "fieldname": "column_break_status",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "lifecycle",
+   "fieldtype": "Link",
+   "label": "Serial Lifecycle",
+   "options": "CH Serial Lifecycle",
+   "read_only": 1
+  },
+  {
+   "fieldname": "purchase_section",
+   "fieldtype": "Section Break",
+   "label": "Purchase Details"
+  },
+  {
+   "fieldname": "purchase_date",
+   "fieldtype": "Date",
+   "label": "Purchase Date"
+  },
+  {
+   "fieldname": "purchase_invoice",
+   "fieldtype": "Link",
+   "label": "Purchase Invoice (Sales Invoice)",
+   "options": "Sales Invoice"
+  },
+  {
+   "fieldname": "purchase_company",
+   "fieldtype": "Link",
+   "label": "Purchased From Company",
+   "options": "Company"
+  },
+  {
+   "fieldname": "purchase_store",
+   "fieldtype": "Link",
+   "label": "Purchase Store",
+   "options": "Warehouse"
+  },
+  {
+   "fieldname": "column_break_purchase",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "purchase_price",
+   "fieldtype": "Currency",
+   "label": "Purchase Price"
+  },
+  {
+   "fieldname": "warranty_section",
+   "fieldtype": "Section Break",
+   "label": "Warranty"
+  },
+  {
+   "default": "In Warranty",
+   "fieldname": "warranty_status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Warranty Status",
+   "options": "In Warranty\nExpired\nClaimed\nNo Warranty"
+  },
+  {
+   "fieldname": "warranty_expiry",
+   "fieldtype": "Date",
+   "label": "Warranty Expiry"
+  },
+  {
+   "fieldname": "active_warranty_plan",
+   "fieldtype": "Link",
+   "label": "Active Warranty Plan",
+   "options": "CH Sold Plan"
+  },
+  {
+   "fieldname": "column_break_warranty",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "warranty_plan_name",
+   "fieldtype": "Data",
+   "label": "Warranty Plan Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "warranty_months",
+   "fieldtype": "Int",
+   "label": "Warranty Months"
+  },
+  {
+   "fieldname": "vas_section",
+   "fieldtype": "Section Break",
+   "label": "VAS / Extended Plans"
+  },
+  {
+   "fieldname": "vas_plans",
+   "fieldtype": "Table",
+   "label": "VAS Plans",
+   "options": "CH Customer Device VAS"
+  },
+  {
+   "fieldname": "buyback_section",
+   "fieldtype": "Section Break",
+   "label": "Buyback Details",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "buyback_date",
+   "fieldtype": "Date",
+   "label": "Buyback Date"
+  },
+  {
+   "fieldname": "buyback_request",
+   "fieldtype": "Link",
+   "label": "Buyback Request",
+   "options": "Buyback Request"
+  },
+  {
+   "fieldname": "column_break_buyback",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "buyback_price",
+   "fieldtype": "Currency",
+   "label": "Buyback Price"
+  },
+  {
+   "fieldname": "buyback_grade",
+   "fieldtype": "Data",
+   "label": "Buyback Grade"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [
+  {
+   "link_doctype": "Service Request",
+   "link_fieldname": "device_serial"
+  }
+ ],
+ "modified": "2026-03-02 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "CH Customer Master",
+ "name": "CH Customer Device",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Sales User",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "Sales Manager",
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "export": 1
+  }
+ ],
+ "show_title_field_in_link": 1,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "item_name",
+ "track_changes": 1
+}

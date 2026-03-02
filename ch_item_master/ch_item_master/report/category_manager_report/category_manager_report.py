@@ -49,7 +49,7 @@ def get_columns():
 
 
 def get_data(filters):
-    conditions = ["m.is_active = 1"]
+    conditions = ["m.disabled = 0"]
     values = {}
     cur_date = today()
 

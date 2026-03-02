@@ -207,7 +207,7 @@ def get_ready_reckoner_data(
     # ── 2. Get all channels (with price_list for later use) ──────────────
     channels_qs = frappe.get_all(
         "CH Price Channel",
-        filters={"is_active": 1, **({"channel_name": channel} if channel else {})},
+        filters={"disabled": 0, **({"channel_name": channel} if channel else {})},
         fields=["name as channel_name", "price_list"],
         order_by="channel_name",
     )

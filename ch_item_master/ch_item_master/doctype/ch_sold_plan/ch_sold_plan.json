@@ -1,0 +1,346 @@
+{
+ "name": "CH Sold Plan",
+ "module": "CH Item Master",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "engine": "InnoDB",
+ "naming_rule": "By \"Naming Series\" field",
+ "autoname": "naming_series:",
+ "istable": 0,
+ "issingle": 0,
+ "is_submittable": 1,
+ "editable_grid": 1,
+ "track_changes": 1,
+ "title_field": "plan_title",
+ "search_fields": "customer,serial_no,warranty_plan,item_code",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "fields": [
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "CH-SP-.YYYY.-",
+   "default": "CH-SP-.YYYY.-",
+   "reqd": 1,
+   "hidden": 1
+  },
+  {
+   "fieldname": "sold_plan_id",
+   "fieldtype": "Int",
+   "label": "Sold Plan ID",
+   "read_only": 1,
+   "unique": 1,
+   "no_copy": 1,
+   "description": "Auto-generated sequential ID for mobile/API integration"
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1,
+   "in_standard_filter": 1,
+   "remember_last_selected_value": 1
+  },
+  {
+   "fieldname": "warranty_plan",
+   "fieldtype": "Link",
+   "label": "Warranty Plan",
+   "options": "CH Warranty Plan",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "description": "The CH Warranty Plan being issued to this customer/device."
+  },
+  {
+   "fieldname": "plan_title",
+   "fieldtype": "Data",
+   "label": "Plan Title",
+   "fetch_from": "warranty_plan.plan_name",
+   "read_only": 1,
+   "in_list_view": 1,
+   "description": "Auto-fetched from the linked Warranty Plan."
+  },
+  {
+   "fieldname": "plan_type",
+   "fieldtype": "Data",
+   "label": "Plan Type",
+   "fetch_from": "warranty_plan.plan_type",
+   "read_only": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "column_break_basic",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "customer",
+   "fieldtype": "Link",
+   "label": "Customer",
+   "options": "Customer",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "customer_name",
+   "fieldtype": "Data",
+   "label": "Customer Name",
+   "fetch_from": "customer.customer_name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Active\nExpired\nClaimed\nVoid\nCancelled",
+   "default": "Active",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "read_only": 1,
+   "no_copy": 1,
+   "description": "Active = warranty in effect. Expired = past end_date. Claimed = max claims reached. Void = manually voided."
+  },
+  {
+   "fieldname": "section_device",
+   "fieldtype": "Section Break",
+   "label": "Device"
+  },
+  {
+   "fieldname": "item_code",
+   "fieldtype": "Link",
+   "label": "Item",
+   "options": "Item",
+   "reqd": 1,
+   "in_standard_filter": 1,
+   "description": "The device/product this plan covers."
+  },
+  {
+   "fieldname": "item_name",
+   "fieldtype": "Data",
+   "label": "Item Name",
+   "fetch_from": "item_code.item_name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_device",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "serial_no",
+   "fieldtype": "Data",
+   "label": "Serial / IMEI",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "description": "Serial number or IMEI of the device covered by this plan."
+  },
+  {
+   "fieldname": "brand",
+   "fieldtype": "Link",
+   "label": "Brand",
+   "options": "Brand",
+   "fetch_from": "item_code.brand",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_coverage",
+   "fieldtype": "Section Break",
+   "label": "Coverage Period"
+  },
+  {
+   "fieldname": "start_date",
+   "fieldtype": "Date",
+   "label": "Start Date",
+   "reqd": 1,
+   "description": "When the coverage begins (typically sale date)."
+  },
+  {
+   "fieldname": "end_date",
+   "fieldtype": "Date",
+   "label": "End Date",
+   "reqd": 1,
+   "description": "When the coverage expires."
+  },
+  {
+   "fieldname": "duration_months",
+   "fieldtype": "Int",
+   "label": "Duration (Months)",
+   "fetch_from": "warranty_plan.duration_months",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_coverage",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "max_claims",
+   "fieldtype": "Int",
+   "label": "Max Claims",
+   "fetch_from": "warranty_plan.max_claims",
+   "read_only": 1,
+   "description": "0 = unlimited."
+  },
+  {
+   "fieldname": "claims_used",
+   "fieldtype": "Int",
+   "label": "Claims Used",
+   "default": "0",
+   "read_only": 1,
+   "description": "Number of warranty claims consumed against this plan."
+  },
+  {
+   "fieldname": "deductible_amount",
+   "fieldtype": "Currency",
+   "label": "Deductible per Claim",
+   "fetch_from": "warranty_plan.deductible_amount",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_transaction",
+   "fieldtype": "Section Break",
+   "label": "Transaction Reference"
+  },
+  {
+   "fieldname": "sales_invoice",
+   "fieldtype": "Link",
+   "label": "Sales Invoice",
+   "options": "Sales Invoice",
+   "description": "The invoice where this plan was sold."
+  },
+  {
+   "fieldname": "sales_order",
+   "fieldtype": "Link",
+   "label": "Sales Order",
+   "options": "Sales Order",
+   "description": "The sales order / service order (if applicable)."
+  },
+  {
+   "fieldname": "column_break_transaction",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "sold_by",
+   "fieldtype": "Link",
+   "label": "Sold By",
+   "options": "User",
+   "read_only": 1,
+   "description": "User who sold/issued this plan."
+  },
+  {
+   "fieldname": "plan_price",
+   "fieldtype": "Currency",
+   "label": "Plan Price",
+   "read_only": 1,
+   "description": "Actual price charged to the customer for this plan."
+  },
+  {
+   "fieldname": "section_notes",
+   "fieldtype": "Section Break",
+   "label": "Notes",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "remarks",
+   "fieldtype": "Small Text",
+   "label": "Remarks"
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "options": "CH Sold Plan",
+   "read_only": 1,
+   "no_copy": 1,
+   "hidden": 1
+  }
+ ],
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1,
+   "export": 1,
+   "import": 1,
+   "share": 1
+  },
+  {
+   "role": "CH Warranty Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1,
+   "export": 1
+  },
+  {
+   "role": "CH Master Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "submit": 1,
+   "export": 1
+  },
+  {
+   "role": "Sales User",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "submit": 1,
+   "export": 1
+  },
+  {
+   "role": "CH Viewer",
+   "read": 1,
+   "export": 1
+  },
+  {
+   "role": "Stock User",
+   "read": 1,
+   "export": 1
+  }
+ ],
+ "links": [
+  {
+   "group": "Plan",
+   "link_doctype": "CH Warranty Plan",
+   "link_fieldname": "warranty_plan"
+  },
+  {
+   "group": "Device",
+   "link_doctype": "CH Serial Lifecycle",
+   "link_fieldname": "serial_no"
+  }
+ ],
+ "actions": [],
+ "states": [
+  {
+   "title": "Active",
+   "color": "Green"
+  },
+  {
+   "title": "Expired",
+   "color": "Grey"
+  },
+  {
+   "title": "Claimed",
+   "color": "Orange"
+  },
+  {
+   "title": "Void",
+   "color": "Red"
+  },
+  {
+   "title": "Cancelled",
+   "color": "Red"
+  }
+ ],
+ "modified": "2026-02-28 00:00:00.000000",
+ "creation": "2026-02-28 00:00:00.000000"
+}

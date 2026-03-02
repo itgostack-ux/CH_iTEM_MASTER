@@ -33,6 +33,8 @@ _TRANSACTION_TABLES = [
 class CHSubCategory(Document):
 	def autoname(self):
 		"""Auto-generate sub_category_id before insert"""
+		if self.sub_category_name:
+			self.sub_category_name = " ".join(self.sub_category_name.split())
 		if not self.sub_category_id:
 			last_id = frappe.db.sql("""
 				SELECT COALESCE(MAX(sub_category_id), 0) 
@@ -41,6 +43,9 @@ class CHSubCategory(Document):
 			self.sub_category_id = (last_id or 0) + 1
 
 	def validate(self):
+		if self.sub_category_name:
+			self.sub_category_name = " ".join(self.sub_category_name.split())
+		self._auto_fill_hsn_from_item_group()
 		self.validate_unique_name_per_category()
 		self.validate_case_insensitive_duplicate()
 		self.validate_duplicate_manufacturers()
@@ -48,6 +53,22 @@ class CHSubCategory(Document):
 		self.validate_name_order_sequential()
 		self.validate_spec_changes_after_items_exist()
 		self.validate_hsn_code()
+
+	def _auto_fill_hsn_from_item_group(self):
+		"""Auto-fill HSN from Item Group if not already set.
+
+		Hierarchy: Sub Category → Category → Item Group → gst_hsn_code.
+		If the linked Item Group has an HSN code (from India Compliance)
+		and this sub-category's hsn_code is empty, auto-populate it.
+		"""
+		if self.hsn_code or not self.category:
+			return
+		item_group = frappe.db.get_value("CH Category", self.category, "item_group")
+		if not item_group:
+			return
+		hsn = frappe.db.get_value("Item Group", item_group, "gst_hsn_code")
+		if hsn:
+			self.hsn_code = hsn
 
 	def validate_name_order_sequential(self):
 		"""Ensure name_order values on specs with in_item_name=1 are sequential starting from 1.
@@ -362,6 +383,32 @@ class CHSubCategory(Document):
 				title=_("Sub Category In Use"),
 				exc=SubCategoryInUseError,
 			)
+
+	def after_rename(self, old, new, merge=False):
+		"""Keep sub_category_name in sync with the document name
+		(name format: {category}-{sub_category_name}) and cascade
+		the rename to CH Model documents whose name embeds this
+		Sub Category as a prefix."""
+		category = frappe.db.get_value("CH Sub Category", new, "category")
+		prefix = (category or "") + "-"
+		if category and new.startswith(prefix):
+			new_sub_name = new[len(prefix):]
+			frappe.db.set_value(
+				"CH Sub Category", new, "sub_category_name",
+				new_sub_name, update_modified=False,
+			)
+
+		# Cascade to Models
+		models = frappe.get_all(
+			"CH Model",
+			filters={"sub_category": new},
+			pluck="name",
+		)
+		old_prefix = old + "-"
+		for model_name in models:
+			if model_name.startswith(old_prefix):
+				new_model_name = new + model_name[len(old):]
+				frappe.rename_doc("CH Model", model_name, new_model_name)
 
 	def _sub_category_used_in_transactions(self):
 		"""Return True if any item belonging to this sub-category appears

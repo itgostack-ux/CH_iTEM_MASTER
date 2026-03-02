@@ -14,6 +14,9 @@ from ch_item_master.ch_item_master.exceptions import ManufacturerChangeBlockedEr
 
 def before_insert(doc, method=None):
 	"""Auto-generate brand_id if not set, with advisory lock for concurrency."""
+	# Normalize brand name
+	if doc.brand:
+		doc.brand = " ".join(doc.brand.split())
 	if not doc.brand_id:
 		lock_name = "ch_brand_autoname"
 		frappe.db.sql("SELECT GET_LOCK(%s, 10)", lock_name)
@@ -34,6 +37,9 @@ def before_save(doc, method=None):
 	would orphan/corrupt CH Models that reference this brand+manufacturer
 	combination.
 	"""
+	# Normalize brand name
+	if doc.brand:
+		doc.brand = " ".join(doc.brand.split())
 	if doc.is_new() or not doc.ch_manufacturer:
 		return
 

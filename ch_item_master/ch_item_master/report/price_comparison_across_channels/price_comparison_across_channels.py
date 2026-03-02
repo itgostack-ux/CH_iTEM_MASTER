@@ -19,7 +19,7 @@ def execute(filters=None):
     # Get all active channels
     channels = frappe.get_all(
         "CH Price Channel",
-        filters={"is_active": 1},
+        filters={"disabled": 0},
         fields=["name", "channel_name"],
         order_by="channel_name",
     )

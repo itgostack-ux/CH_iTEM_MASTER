@@ -1,1 +1,4 @@
 CH Item Master
+CH Customer Master
+CH Vendor Master
+CH Core

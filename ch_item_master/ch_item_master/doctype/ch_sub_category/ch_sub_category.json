@@ -14,7 +14,7 @@
   "column_break_01",
   "sub_category_name",
   "prefix",
-  "is_active",
+  "disabled",
   "tax_section",
   "hsn_code",
   "column_break_tax",
@@ -89,12 +89,12 @@
    "reqd": 1
   },
   {
-   "default": "1",
-   "fieldname": "is_active",
+   "default": "0",
+   "fieldname": "disabled",
    "fieldtype": "Check",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "Is Active"
+   "label": "Disabled"
   },
   {
    "fieldname": "tax_section",
@@ -209,6 +209,7 @@
    "export": 1
   }
  ],
+ "allow_rename": 1,
  "show_name_in_global_search": 1,
  "show_title_field_in_link": 1,
  "sort_field": "sub_category_name",

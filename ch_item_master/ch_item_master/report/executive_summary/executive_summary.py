@@ -93,7 +93,7 @@ def _data_by_company(cur_date, company_filter):
 
 
 def _data_by_category(cur_date, company_filter):
-    categories = frappe.get_all("CH Category", filters={"is_active": 1},
+    categories = frappe.get_all("CH Category", filters={"disabled": 0},
                                 fields=["name"], order_by="name")
     data = []
     for cat in categories:
@@ -102,7 +102,7 @@ def _data_by_category(cur_date, company_filter):
 
 
 def _data_by_channel(cur_date, company_filter):
-    channels = frappe.get_all("CH Price Channel", filters={"is_active": 1},
+    channels = frappe.get_all("CH Price Channel", filters={"disabled": 0},
                               fields=["name as channel_name"], order_by="name")
     data = []
     for ch in channels:
@@ -145,7 +145,7 @@ def _build_row(label, cur_date, company=None, category=None, channel=None):
         vals)[0][0] or 0
 
     # Models
-    model_conds = ["m.is_active = 1"]
+    model_conds = ["m.disabled = 0"]
     if category:
         model_conds.append("m.sub_category IN (SELECT name FROM `tabCH Sub Category` WHERE category = %(category)s)")
     total_models = frappe.db.sql(

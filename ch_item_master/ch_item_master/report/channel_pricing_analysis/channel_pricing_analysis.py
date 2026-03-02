@@ -25,7 +25,7 @@ def execute(filters=None):
         frappe.throw(_("Please select a Company"))
 
     channels = frappe.get_all("CH Price Channel",
-                              filters={"is_active": 1},
+                              filters={"disabled": 0},
                               fields=["name", "channel_name"],
                               order_by="channel_name")
 

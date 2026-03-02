@@ -8,7 +8,7 @@ frappe.ui.form.on('CH Item Offer', {
 		}));
 
 		frm.set_query('channel', () => ({
-			filters: { is_active: 1 }
+			filters: { disabled: 0 }
 		}));
 
 		frm.set_query('target_item_group', () => ({

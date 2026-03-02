@@ -35,9 +35,9 @@ def get_dashboard_data():
 def _get_kpis(today):
     """Core KPI numbers for the top cards."""
     return {
-        "total_categories": frappe.db.count("CH Category", {"is_active": 1}),
-        "total_sub_categories": frappe.db.count("CH Sub Category", {"is_active": 1}),
-        "total_models": frappe.db.count("CH Model", {"is_active": 1}),
+        "total_categories": frappe.db.count("CH Category", {"disabled": 0}),
+        "total_sub_categories": frappe.db.count("CH Sub Category", {"disabled": 0}),
+        "total_models": frappe.db.count("CH Model", {"disabled": 0}),
         "total_items": frappe.db.count("Item", {
             "ch_model": ("is", "set"),
             "has_variants": 0,
@@ -49,7 +49,7 @@ def _get_kpis(today):
         }),
         "active_prices": frappe.db.count("CH Item Price", {"status": "Active"}),
         "active_offers": frappe.db.count("CH Item Offer", {"status": "Active"}),
-        "active_channels": frappe.db.count("CH Price Channel", {"is_active": 1}),
+        "active_channels": frappe.db.count("CH Price Channel", {"disabled": 0}),
         "total_manufacturers": frappe.db.count("Manufacturer"),
         "total_brands": frappe.db.count("Brand"),
     }
@@ -128,7 +128,7 @@ def _get_alerts(today):
     # 6. Models without items generated
     models_no_items = frappe.db.sql("""
         SELECT COUNT(*) FROM `tabCH Model` m
-        WHERE m.is_active = 1
+        WHERE m.disabled = 0
           AND NOT EXISTS (
             SELECT 1 FROM `tabItem` i
             WHERE i.ch_model = m.name
@@ -188,7 +188,7 @@ def _get_insights(today):
                COUNT(DISTINCT i.item_code) as item_count
         FROM `tabCH Model` m
         LEFT JOIN `tabItem` i ON i.ch_model = m.name AND i.has_variants = 0
-        WHERE m.is_active = 1
+        WHERE m.disabled = 0
         GROUP BY m.name, m.model_name
         HAVING COUNT(DISTINCT i.item_code) > 0 AND COUNT(DISTINCT i.item_code) < 3
         LIMIT 5
@@ -250,7 +250,7 @@ def _get_insights(today):
     # 5. Sub-categories without any models
     empty_scs = frappe.db.sql("""
         SELECT COUNT(*) FROM `tabCH Sub Category` sc
-        WHERE sc.is_active = 1
+        WHERE sc.disabled = 0
           AND NOT EXISTS (
             SELECT 1 FROM `tabCH Model` m WHERE m.sub_category = sc.name
           )
@@ -285,7 +285,7 @@ def _get_coverage_data():
         LEFT JOIN (
             SELECT DISTINCT item_code FROM `tabCH Item Price` WHERE status = 'Active'
         ) ap ON ap.item_code = i.item_code
-        WHERE m.is_active = 1
+        WHERE m.disabled = 0
         GROUP BY sc.category
         ORDER BY models DESC
     """, as_dict=True)
@@ -325,13 +325,13 @@ def _get_category_summary():
         SELECT
             c.name as category,
             c.category_name,
-            c.is_active as cat_active,
+            c.disabled as cat_disabled,
             COUNT(DISTINCT sc.name) as sub_categories,
             COUNT(DISTINCT m.name) as models,
             COUNT(DISTINCT CASE WHEN i.has_variants = 0 THEN i.item_code END) as items
         FROM `tabCH Category` c
-        LEFT JOIN `tabCH Sub Category` sc ON sc.category = c.name AND sc.is_active = 1
-        LEFT JOIN `tabCH Model` m ON m.sub_category = sc.name AND m.is_active = 1
+        LEFT JOIN `tabCH Sub Category` sc ON sc.category = c.name AND sc.disabled = 0
+        LEFT JOIN `tabCH Model` m ON m.sub_category = sc.name AND m.disabled = 0
         LEFT JOIN `tabItem` i ON i.ch_model = m.name AND i.disabled = 0
         GROUP BY c.name
         ORDER BY items DESC
@@ -441,7 +441,7 @@ def _get_channel_comparison(today):
         FROM `tabCH Price Channel` ch
         LEFT JOIN `tabCH Item Price` p ON p.channel = ch.name AND p.status = 'Active'
         LEFT JOIN `tabCH Item Offer` o ON o.channel = ch.name AND o.status = 'Active'
-        WHERE ch.is_active = 1
+        WHERE ch.disabled = 0
         GROUP BY ch.name
         ORDER BY items_priced DESC
     """, as_dict=True)

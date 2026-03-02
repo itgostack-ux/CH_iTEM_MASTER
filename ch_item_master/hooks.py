@@ -32,6 +32,7 @@ before_uninstall = "ch_item_master.install.before_uninstall"
 scheduler_events = {
 	"daily_long": [
 		"ch_item_master.ch_item_master.scheduled_tasks.auto_expire_records",
+		"ch_item_master.ch_customer_master.doctype.ch_loyalty_transaction.ch_loyalty_transaction.expire_loyalty_points",
 	],
 }
 
@@ -48,6 +49,19 @@ doc_events = {
 	"Brand": {
 		"before_insert": "ch_item_master.ch_item_master.overrides.brand.before_insert",
 		"before_save": "ch_item_master.ch_item_master.overrides.brand.before_save",
+	},
+	"Customer": {
+		"before_insert": "ch_item_master.ch_customer_master.overrides.customer.before_insert",
+		"validate": "ch_item_master.ch_customer_master.overrides.customer.validate",
+	},
+	"Sales Invoice": {
+		"on_submit": "ch_item_master.ch_customer_master.hooks.on_sales_invoice_submit",
+	},
+	"Service Request": {
+		"on_submit": "ch_item_master.ch_customer_master.hooks.on_service_request_submit",
+	},
+	"Buyback Request": {
+		"on_submit": "ch_item_master.ch_customer_master.hooks.on_buyback_request_submit",
 	},
 	# Transactions: manual rate-filling removed.
 	# ERPNext natively uses Item Price (fetched by price list) and applies Pricing Rules.

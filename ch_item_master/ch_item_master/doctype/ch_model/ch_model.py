@@ -39,6 +39,8 @@ class CHModel(Document):
 				frappe.db.sql("SELECT RELEASE_LOCK(%s)", lock_name)
 
 	def validate(self):
+		if self.model_name:
+			self.model_name = " ".join(self.model_name.split())
 		self.validate_unique_model()
 		self.validate_manufacturer_allowed()
 		self.validate_brand_belongs_to_manufacturer()
@@ -227,12 +229,12 @@ class CHModel(Document):
 
 	def validate_deactivation(self):
 		"""Block deactivation if items exist for this model."""
-		if self.is_new() or self.is_active:
+		if self.is_new() or not self.disabled:
 			return
 
 		before = self.get_doc_before_save()
-		if not before or not before.is_active:
-			return  # was already inactive
+		if not before or before.disabled:
+			return  # was already disabled
 
 		item_count = frappe.db.count("Item", {"ch_model": self.name})
 		if item_count:
@@ -244,6 +246,21 @@ class CHModel(Document):
 				indicator="orange",
 				title=_("Items Exist"),
 			)
+
+	def after_rename(self, old, new, merge=False):
+		"""Keep model_name in sync with the document name
+		(name format: {sub_category}-{brand}-{model_name})."""
+		row = frappe.db.get_value(
+			"CH Model", new, ["sub_category", "brand"], as_dict=True
+		)
+		if row:
+			prefix = f"{row.sub_category}-{row.brand}-"
+			if new.startswith(prefix):
+				new_model_name = new[len(prefix):]
+				frappe.db.set_value(
+					"CH Model", new, "model_name",
+					new_model_name, update_modified=False,
+				)
 
 	def on_trash(self):
 		"""Block deletion if items reference this model."""

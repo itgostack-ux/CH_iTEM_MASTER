@@ -328,9 +328,9 @@ def generate_items_from_model(model):
     from erpnext.controllers.item_variant import create_variant, get_variant
 
     mdoc = frappe.get_doc("CH Model", model)
-    if not mdoc.is_active:
-        frappe.throw(_("Model {0} is inactive. Activate it first.").format(
-            frappe.bold(mdoc.model_name)), title=_("Inactive Model"))
+    if mdoc.disabled:
+        frappe.throw(_("Model {0} is disabled. Enable it first.").format(
+            frappe.bold(mdoc.model_name)), title=_("Disabled Model"))
 
     # ── 1. Gather variant specs and their values ────────────────────────────
     grouped = _group_model_spec_values(model)
@@ -465,8 +465,11 @@ def search_models(doctype, txt, searchfield, start, page_len, filters):
     if isinstance(filters, str):
         filters = json.loads(filters)
 
-    if filters.get("is_active"):
-        conditions.append("m.is_active = 1")
+    if filters.get("disabled") is not None:
+        if not filters["disabled"]:
+            conditions.append("m.disabled = 0")
+        else:
+            conditions.append("m.disabled = 1")
     if filters.get("sub_category"):
         conditions.append("m.sub_category = %(sub_category)s")
         values["sub_category"] = filters["sub_category"]

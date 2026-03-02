@@ -9,6 +9,8 @@ from frappe.model.document import Document
 class CHPriceChannel(Document):
 	def autoname(self):
 		"""Auto-generate channel_id before insert"""
+		if self.channel_name:
+			self.channel_name = " ".join(self.channel_name.split())
 		if not self.channel_id:
 			last_id = frappe.db.sql("""
 				SELECT COALESCE(MAX(channel_id), 0) 
@@ -17,6 +19,8 @@ class CHPriceChannel(Document):
 			self.channel_id = (last_id or 0) + 1
 
 	def validate(self):
+		if self.channel_name:
+			self.channel_name = " ".join(self.channel_name.split())
 		self._validate_price_list()
 		self._validate_deactivation()
 
@@ -32,13 +36,13 @@ class CHPriceChannel(Document):
 			)
 
 	def _validate_deactivation(self):
-		"""Warn when deactivating a channel that has active prices or offers."""
-		if self.is_new() or self.is_active:
+		"""Warn when disabling a channel that has active prices or offers."""
+		if self.is_new() or not self.disabled:
 			return
 
 		before = self.get_doc_before_save()
-		if not before or not before.is_active:
-			return  # was already inactive
+		if not before or before.disabled:
+			return  # was already disabled
 
 		active_prices = frappe.db.count(
 			"CH Item Price",

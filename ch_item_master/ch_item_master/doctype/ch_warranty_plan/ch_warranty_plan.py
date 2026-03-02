@@ -9,15 +9,20 @@ from frappe.model.document import Document
 class CHWarrantyPlan(Document):
 	def autoname(self):
 		"""Auto-generate warranty_plan_id if not set."""
+		if self.plan_name:
+			self.plan_name = " ".join(self.plan_name.split())
 		if not self.warranty_plan_id:
 			max_id = frappe.db.sql("SELECT IFNULL(MAX(warranty_plan_id), 0) FROM `tabCH Warranty Plan`")[0][0]
 			self.warranty_plan_id = int(max_id) + 1
 
 	def validate(self):
+		if self.plan_name:
+			self.plan_name = " ".join(self.plan_name.split())
 		self._validate_pricing()
 		self._validate_service_item()
 		self._validate_duration()
 		self._validate_deductible()
+		self._validate_validity_dates()
 		self._validate_unique_plan_per_company()
 
 	def _validate_pricing(self):
@@ -113,6 +118,19 @@ class CHWarrantyPlan(Document):
 				title=_("High Deductible"),
 			)
 
+	def _validate_validity_dates(self):
+		"""Ensure valid_from <= valid_to when both are set."""
+		if self.valid_from and self.valid_to:
+			from frappe.utils import getdate
+			if getdate(self.valid_from) > getdate(self.valid_to):
+				frappe.throw(
+					_("Valid From ({0}) cannot be after Valid To ({1})").format(
+						frappe.format_value(self.valid_from, {"fieldtype": "Date"}),
+						frappe.format_value(self.valid_to, {"fieldtype": "Date"}),
+					),
+					title=_("Invalid Validity Period"),
+				)
+
 	def _validate_unique_plan_per_company(self):
 		"""Warn if the same plan_name exists for another company (might be intentional for multi-company)."""
 		if not self.plan_name or not self.company:
@@ -158,7 +176,7 @@ class CHWarrantyPlan(Document):
 		else:
 			channel_names = frappe.get_all(
 				"CH Price Channel",
-				filters={"is_active": 1, "is_buying": 0},
+				filters={"disabled": 0, "is_buying": 0},
 				pluck="name",
 			)
 
@@ -192,12 +210,17 @@ class CHWarrantyPlan(Document):
 
 	@staticmethod
 	@frappe.whitelist()
-	def get_applicable_plans(item_code=None, item_group=None, channel=None, company=None):
+	def get_applicable_plans(item_code=None, item_group=None, channel=None,
+	                         company=None, brand=None):
 		"""Return warranty/VAS plans applicable to a given item and channel.
 
 		Used by POS and transaction UI to suggest add-on plans.
+		Filters by: status, company, brand, valid_from/valid_to, item_group, channel.
 		"""
+		from frappe.utils import nowdate, getdate
+
 		filters = {"status": "Active"}
+		today = getdate(nowdate())
 
 		# Company filter: match the specific company OR plans with no company set (global)
 		if company:
@@ -213,6 +236,8 @@ class CHWarrantyPlan(Document):
 					"name", "plan_name", "plan_type", "service_item",
 					"price", "pricing_mode", "percentage_value",
 					"duration_months", "attach_level", "coverage_description",
+					"brand", "valid_from", "valid_to", "max_claims",
+					"deductible_amount",
 				],
 			)
 		else:
@@ -223,11 +248,23 @@ class CHWarrantyPlan(Document):
 					"name", "plan_name", "plan_type", "service_item",
 					"price", "pricing_mode", "percentage_value",
 					"duration_months", "attach_level", "coverage_description",
+					"brand", "valid_from", "valid_to", "max_claims",
+					"deductible_amount",
 				],
 			)
 
 		result = []
 		for plan in plans:
+			# Check validity dates (promotional window)
+			if plan.valid_from and today < getdate(plan.valid_from):
+				continue
+			if plan.valid_to and today > getdate(plan.valid_to):
+				continue
+
+			# Check brand applicability
+			if brand and plan.brand and plan.brand != brand:
+				continue
+
 			# Check item group applicability
 			if item_group:
 				applicable_groups = frappe.get_all(

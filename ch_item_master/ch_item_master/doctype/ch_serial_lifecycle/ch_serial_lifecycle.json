@@ -42,6 +42,7 @@
   "column_break_warranty",
   "warranty_status",
   "extended_warranty_end",
+  "warranty_claims_used",
   "section_service",
   "service_count",
   "last_service_date",
@@ -271,6 +272,14 @@
    "fieldtype": "Date",
    "label": "Extended Warranty End",
    "depends_on": "eval:doc.warranty_status=='Extended'"
+  },
+  {
+   "fieldname": "warranty_claims_used",
+   "fieldtype": "Int",
+   "label": "Warranty Claims Used",
+   "default": "0",
+   "read_only": 1,
+   "description": "Total warranty claims made for this device across all plans."
   },
   {
    "fieldname": "section_service",

@@ -15,7 +15,7 @@ frappe.ui.form.on('Item', {
     setup(frm) {
         // Model is the primary field — show brand and sub_category in search results
         frm.set_query('ch_model', () => {
-            let filters = { is_active: 1 };
+            let filters = { disabled: 0 };
             if (frm.doc.ch_sub_category) {
                 filters.sub_category = frm.doc.ch_sub_category;
             }

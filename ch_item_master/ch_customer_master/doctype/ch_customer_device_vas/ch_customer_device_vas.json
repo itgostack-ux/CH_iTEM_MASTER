@@ -1,0 +1,84 @@
+{
+ "actions": [],
+ "creation": "2026-03-02 10:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "plan",
+  "plan_name",
+  "status",
+  "column_break_dates",
+  "valid_from",
+  "valid_to",
+  "claims_used",
+  "max_claims"
+ ],
+ "fields": [
+  {
+   "fieldname": "plan",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Sold Plan",
+   "options": "CH Sold Plan",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "plan.plan_name",
+   "fieldname": "plan_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Plan Name",
+   "read_only": 1
+  },
+  {
+   "default": "Active",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "Active\nExpired\nClaimed\nCancelled"
+  },
+  {
+   "fieldname": "column_break_dates",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "valid_from",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Valid From"
+  },
+  {
+   "fieldname": "valid_to",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Valid To"
+  },
+  {
+   "default": "0",
+   "fieldname": "claims_used",
+   "fieldtype": "Int",
+   "label": "Claims Used"
+  },
+  {
+   "default": "0",
+   "fieldname": "max_claims",
+   "fieldtype": "Int",
+   "label": "Max Claims"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-03-02 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "CH Customer Master",
+ "name": "CH Customer Device VAS",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

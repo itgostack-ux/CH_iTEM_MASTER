@@ -323,7 +323,7 @@
  "name": "CH Item Master",
  "number_cards": [],
  "owner": "Administrator",
- "parent_page": "",
+ "parent_page": "CH Core",
  "public": 1,
  "quick_lists": [],
  "roles": [],

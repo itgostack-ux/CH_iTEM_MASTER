@@ -19,6 +19,22 @@ frappe.ui.form.on('CH Warranty Plan', {
 			);
 		}
 
+		// Validity period indicator
+		if (frm.doc.valid_from || frm.doc.valid_to) {
+			let today = frappe.datetime.get_today();
+			let is_valid = true;
+			if (frm.doc.valid_from && today < frm.doc.valid_from) is_valid = false;
+			if (frm.doc.valid_to && today > frm.doc.valid_to) is_valid = false;
+
+			if (!is_valid) {
+				frm.dashboard.add_comment(
+					__('This plan is outside its validity period ({0} to {1})',
+						[frm.doc.valid_from || 'N/A', frm.doc.valid_to || 'N/A']),
+					'orange', true
+				);
+			}
+		}
+
 		// If pricing_mode is Percentage, show calculated price example
 		if (frm.doc.pricing_mode === 'Percentage of Device Price' && frm.doc.percentage_value) {
 			let example_price = 20000; // ₹20,000 device

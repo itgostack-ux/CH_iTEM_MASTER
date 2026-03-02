@@ -40,7 +40,7 @@ def get_columns():
         {"fieldname": "actual_items", "label": _("Actual Items"), "fieldtype": "Int", "width": 110},
         {"fieldname": "has_template", "label": _("Template?"), "fieldtype": "Data", "width": 90},
         {"fieldname": "coverage_pct", "label": _("Coverage %"), "fieldtype": "Percent", "width": 100},
-        {"fieldname": "is_active", "label": _("Active"), "fieldtype": "Check", "width": 70},
+        {"fieldname": "disabled", "label": _("Disabled"), "fieldtype": "Check", "width": 70},
     ]
 
 
@@ -58,7 +58,7 @@ def get_data(filters):
 
     show_inactive = filters.get("show_inactive")
     if not show_inactive:
-        conditions.append("m.is_active = 1")
+        conditions.append("m.disabled = 0")
 
     where = " AND ".join(conditions) if conditions else "1=1"
 
@@ -69,7 +69,7 @@ def get_data(filters):
             m.sub_category,
             m.manufacturer,
             m.brand,
-            m.is_active
+            m.disabled
         FROM `tabCH Model` m
         WHERE {where}
         ORDER BY m.sub_category, m.model_name

@@ -1,0 +1,170 @@
+{
+ "charts": [],
+ "content": "[{\"id\":\"cm_hdr_0\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Dashboard</b></span>\",\"col\":12}},{\"id\":\"cm_sc_0\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Customer Intelligence Dashboard\",\"col\":4}},{\"id\":\"cm_sp_0\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"cm_hdr_1\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Quick Access</b></span>\",\"col\":12}},{\"id\":\"cm_sc_1\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Customer\",\"col\":3}},{\"id\":\"cm_sc_2\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"CH Customer Device\",\"col\":3}},{\"id\":\"cm_sc_3\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"CH Loyalty Transaction\",\"col\":3}},{\"id\":\"cm_sp_1\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"cm_hdr_2\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Masters</b></span>\",\"col\":12}},{\"id\":\"cm_cd_1\",\"type\":\"card\",\"data\":{\"card_name\":\"Customer Management\",\"col\":4}},{\"id\":\"cm_cd_2\",\"type\":\"card\",\"data\":{\"card_name\":\"Devices & Warranty\",\"col\":4}},{\"id\":\"cm_cd_3\",\"type\":\"card\",\"data\":{\"card_name\":\"Loyalty & Engagement\",\"col\":4}}]",
+ "creation": "2026-03-02 10:00:00",
+ "custom_blocks": [],
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "for_user": "",
+ "hide_custom": 0,
+ "icon": "users",
+ "idx": 0,
+ "is_hidden": 0,
+ "label": "CH Customer Master",
+ "links": [
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Customer Management",
+   "link_count": 3,
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Customer",
+   "link_count": 0,
+   "link_to": "Customer",
+   "link_type": "DocType",
+   "onboard": 1,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Customer Group",
+   "link_count": 0,
+   "link_to": "Customer Group",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Territory",
+   "link_count": 0,
+   "link_to": "Territory",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Devices & Warranty",
+   "link_count": 3,
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "CH Customer Device",
+   "link_count": 0,
+   "link_to": "CH Customer Device",
+   "link_type": "DocType",
+   "onboard": 1,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "CH Warranty Plan",
+   "link_count": 0,
+   "link_to": "CH Warranty Plan",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "CH Sold Plan",
+   "link_count": 0,
+   "link_to": "CH Sold Plan",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Loyalty & Engagement",
+   "link_count": 2,
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "CH Loyalty Transaction",
+   "link_count": 0,
+   "link_to": "CH Loyalty Transaction",
+   "link_type": "DocType",
+   "onboard": 1,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Loyalty Program",
+   "link_count": 0,
+   "link_to": "Loyalty Program",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  }
+ ],
+ "modified": "2026-03-02 13:04:53.190740",
+ "modified_by": "Administrator",
+ "module": "CH Customer Master",
+ "name": "CH Customer Master",
+ "number_cards": [],
+ "owner": "Administrator",
+ "parent_page": "CH Core",
+ "public": 1,
+ "quick_lists": [],
+ "restrict_to_domain": "",
+ "roles": [],
+ "sequence_id": 25.0,
+ "shortcuts": [
+  {
+   "color": "Blue",
+   "doc_view": "List",
+   "label": "Customer",
+   "link_to": "Customer",
+   "stats_filter": "",
+   "type": "DocType"
+  },
+  {
+   "color": "Green",
+   "doc_view": "List",
+   "label": "CH Customer Device",
+   "link_to": "CH Customer Device",
+   "stats_filter": "",
+   "type": "DocType"
+  },
+  {
+   "color": "Orange",
+   "doc_view": "List",
+   "label": "CH Loyalty Transaction",
+   "link_to": "CH Loyalty Transaction",
+   "stats_filter": "",
+   "type": "DocType"
+  },
+  {
+   "color": "Purple",
+   "doc_view": "",
+   "label": "Customer Intelligence Dashboard",
+   "link_to": "ch-customer-dashboard",
+   "stats_filter": "",
+   "type": "Page"
+  }
+ ],
+ "title": "CH Customer Master"
+}

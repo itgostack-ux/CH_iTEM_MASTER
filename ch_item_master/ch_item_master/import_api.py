@@ -323,7 +323,7 @@ def _validate_and_import(payload):
                     "model_name": mdl_name,
                     "manufacturer": mdl_mfr,
                     "brand": mdl_brand,
-                    "is_active": int(mdl.get("is_active", 1)),
+                    "disabled": 0 if int(mdl.get("is_active", 1)) else 1,
                     "spec_values": resolved_svs,
                 })
 
@@ -362,7 +362,7 @@ def _validate_and_import(payload):
             cat_doc = frappe.new_doc("CH Category")
             cat_doc.category_name = cat_name
             cat_doc.item_group = cat_data["item_group"]
-            cat_doc.is_active = 1
+            cat_doc.disabled = 0
             cat_doc.insert(ignore_permissions=True)
             cat_doc_name = cat_doc.name
             cat_lookup[_norm_key(cat_name)] = cat_doc_name
@@ -422,7 +422,7 @@ def _validate_and_import(payload):
                     mdl_doc.model_name = mdl_data["model_name"]
                     mdl_doc.manufacturer = mdl_data["manufacturer"]
                     mdl_doc.brand = mdl_data["brand"]
-                    mdl_doc.is_active = mdl_data["is_active"]
+                    mdl_doc.disabled = mdl_data["disabled"]
 
                     for sv in mdl_data["spec_values"]:
                         mdl_doc.append("spec_values", {

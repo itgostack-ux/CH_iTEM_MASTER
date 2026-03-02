@@ -177,7 +177,7 @@ frappe.ui.form.on('CH Model', {
 			}, __('View'));
 
 			// ── Generate All Items (bulk variant creation) ───────────────
-			if (frm.doc.is_active) {
+			if (!frm.doc.disabled) {
 				frm.add_custom_button(__('Generate All Items'), () => {
 					// Count combinations for confirmation
 					let specs = (frm.doc.spec_values || []);
@@ -273,7 +273,7 @@ frappe.ui.form.on('CH Model', {
 								let new_doc = frappe.model.copy_doc(frm.doc);
 								new_doc.sub_category = values.new_sub_category;
 								new_doc.model_name = values.new_model_name;
-								new_doc.is_active = 1;
+								new_doc.disabled = 0;
 								// Clear manufacturer/brand — may not be valid for new sub-category
 								new_doc.manufacturer = '';
 								new_doc.brand = '';

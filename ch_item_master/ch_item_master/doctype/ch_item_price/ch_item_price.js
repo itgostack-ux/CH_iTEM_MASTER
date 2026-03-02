@@ -10,7 +10,7 @@ frappe.ui.form.on('CH Item Price', {
 
 		// Filter channel to active channels only
 		frm.set_query('channel', () => ({
-			filters: { is_active: 1 }
+			filters: { disabled: 0 }
 		}));
 	},
 

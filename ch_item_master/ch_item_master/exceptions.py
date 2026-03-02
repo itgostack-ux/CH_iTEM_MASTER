@@ -124,3 +124,34 @@ class MissingPrefixError(frappe.ValidationError):
 # ── Brand / Manufacturer Overrides ──────────────────────────────────────────
 class ManufacturerChangeBlockedError(frappe.ValidationError):
 	pass
+
+
+# ── CH Warranty Plan ─────────────────────────────────────────────────────────
+class InvalidValidityPeriodError(frappe.ValidationError):
+	pass
+
+
+class InactivePlanError(frappe.ValidationError):
+	pass
+
+
+# ── CH Sold Plan ─────────────────────────────────────────────────────────────
+class DuplicateSoldPlanError(frappe.ValidationError):
+	pass
+
+
+class WarrantyExpiredError(frappe.ValidationError):
+	pass
+
+
+class MaxClaimsReachedError(frappe.ValidationError):
+	pass
+
+
+class WarrantyVoidError(frappe.ValidationError):
+	pass
+
+
+# ── MSP (Minimum Selling Price) ──────────────────────────────────────────────
+class BelowMSPError(frappe.ValidationError):
+	pass
