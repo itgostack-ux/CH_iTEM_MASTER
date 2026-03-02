@@ -273,11 +273,6 @@
  ],
  "links": [
   {
-   "group": "Reference",
-   "link_doctype": "Item",
-   "link_fieldname": "service_item"
-  },
-  {
    "group": "Issued Plans",
    "link_doctype": "CH Sold Plan",
    "link_fieldname": "warranty_plan"
