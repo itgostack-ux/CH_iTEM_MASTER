@@ -612,7 +612,7 @@ function _show_price_dialog(item_code, prefill_channel, on_success, ctx) {
         title: title,
         size: 'small',
         fields: fields,
-        primary_action_label: __('Save Price'),
+        primary_action_label: __('Submit for Approval'),
         primary_action(vals) {
             if (!vals) return;
 
@@ -621,31 +621,27 @@ function _show_price_dialog(item_code, prefill_channel, on_success, ctx) {
             const should_propagate = is_grouped ? 1 : (has_siblings && vals.propagate ? 1 : 0);
 
             frappe.call({
-                method: 'ch_item_master.ch_item_master.ready_reckoner_api.save_price_with_propagation',
+                method: 'ch_item_master.ch_item_master.ready_reckoner_api.create_price_change_batch',
                 args: {
                     item_code,
+                    change_type:    'Selling Price',
                     channel:        vals.channel,
                     mrp:            vals.mrp || 0,
                     mop:            vals.mop || 0,
                     selling_price:  vals.selling_price,
                     effective_from: vals.effective_from,
-                    notes:          vals.notes || '',
+                    reason:         vals.notes || '',
                     propagate:      should_propagate,
-                    status:         'Active',
                 },
                 callback(r) {
                     d.hide();
                     const result = r.message || {};
-                    const total = result.total_items || 1;
-                    if (total > 1) {
-                        frappe.show_alert({
-                            message: __('Price applied to {0} colour variants', [total]),
-                            indicator: 'green',
-                        });
-                    } else {
-                        frappe.show_alert({ message: __('Price saved'), indicator: 'green' });
-                    }
-                    on_success && on_success();
+                    frappe.show_alert({
+                        message: __('Price change batch created with {0} changes — redirecting…',
+                            [result.total_changes || 1]),
+                        indicator: 'blue',
+                    });
+                    frappe.set_route('Form', 'CH Price Upload Batch', result.batch_name);
                 },
             });
         },
@@ -700,19 +696,24 @@ function _buyback_price_dialog(item_code, on_success, existing_data) {
             { fieldtype: 'Currency', fieldname: 'c_grade_oow_11', label: 'C Grade', default: bb.c_grade_oow_11 || 0 },
             { fieldtype: 'Column Break' },
             { fieldtype: 'Currency', fieldname: 'd_grade_oow_11', label: 'D Grade', default: bb.d_grade_oow_11 || 0 },
+
+            { fieldtype: 'Section Break' },
+            { fieldtype: 'Small Text', fieldname: 'reason', label: 'Reason for Change' },
         ];
 
         const d = new frappe.ui.Dialog({
             title: __('Buyback Prices — {0}', [item_code]),
             size: 'large',
             fields: fields,
-            primary_action_label: __('Save Buyback Prices'),
+            primary_action_label: __('Submit for Approval'),
             primary_action(vals) {
                 if (!vals) return;
                 frappe.call({
-                    method: 'ch_item_master.ch_item_master.ready_reckoner_api.save_buyback_price',
+                    method: 'ch_item_master.ch_item_master.ready_reckoner_api.create_price_change_batch',
                     args: {
                         item_code,
+                        change_type: 'Buyback Price',
+                        reason: vals.reason || '',
                         current_market_price: vals.current_market_price || 0,
                         vendor_price: vals.vendor_price || 0,
                         a_grade_iw_0_3: vals.a_grade_iw_0_3 || 0,
@@ -735,12 +736,11 @@ function _buyback_price_dialog(item_code, on_success, existing_data) {
                         d.hide();
                         const result = r.message || {};
                         frappe.show_alert({
-                            message: result.created
-                                ? __('Buyback price created for {0}', [item_code])
-                                : __('Buyback price updated for {0}', [item_code]),
-                            indicator: 'green',
+                            message: __('Buyback price change batch created with {0} changes — redirecting…',
+                                [result.total_changes || 1]),
+                            indicator: 'blue',
                         });
-                        on_success && on_success();
+                        frappe.set_route('Form', 'CH Price Upload Batch', result.batch_name);
                     },
                 });
             },

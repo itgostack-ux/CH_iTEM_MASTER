@@ -1116,6 +1116,134 @@ def save_buyback_price(item_code, current_market_price=0, vendor_price=0, **kwar
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Single-item batch creation from Ready Reckoner dialogs
+# ─────────────────────────────────────────────────────────────────────────────
+
+_BUYBACK_FIELD_LABELS = {
+    "current_market_price": "Market Price",
+    "vendor_price": "Vendor Price",
+    "a_grade_iw_0_3": "A IW 0-3", "b_grade_iw_0_3": "B IW 0-3", "c_grade_iw_0_3": "C IW 0-3",
+    "a_grade_iw_0_6": "A IW 0-6", "b_grade_iw_0_6": "B IW 0-6", "c_grade_iw_0_6": "C IW 0-6", "d_grade_iw_0_6": "D IW 0-6",
+    "a_grade_iw_6_11": "A IW 6-11", "b_grade_iw_6_11": "B IW 6-11", "c_grade_iw_6_11": "C IW 6-11", "d_grade_iw_6_11": "D IW 6-11",
+    "a_grade_oow_11": "A OOW 11+", "b_grade_oow_11": "B OOW 11+", "c_grade_oow_11": "C OOW 11+", "d_grade_oow_11": "D OOW 11+",
+}
+
+
+@frappe.whitelist()
+def create_price_change_batch(
+    item_code, change_type, reason="", company="",
+    channel="", propagate=0,
+    # Selling price fields
+    mrp=None, mop=None, selling_price=None, effective_from=None,
+    # Buyback price fields — passed as kwargs
+    **kwargs
+):
+    """Create a single-item CH Price Upload Batch from a Ready Reckoner dialog.
+
+    Instead of saving prices directly, this creates a Draft batch with
+    old vs new comparisons, so it goes through maker/checker approval.
+
+    Args:
+        change_type: "Selling Price" or "Buyback Price"
+        propagate: 1 to also include sibling colour variants (selling only)
+    """
+    frappe.only_for(["System Manager", "CH Master Manager", "CH Price Manager"])
+
+    batch_items = []
+
+    if change_type == "Selling Price":
+        propagate = int(propagate or 0)
+        if propagate:
+            target_items = _get_sibling_item_codes(item_code)
+        else:
+            target_items = [item_code]
+
+        new_prices = {
+            "mrp": float(mrp or 0),
+            "mop": float(mop or 0),
+            "selling_price": float(selling_price or 0),
+        }
+        label_map = {"mrp": "MRP", "mop": "MOP", "selling_price": "Selling Price"}
+
+        for target in target_items:
+            existing = frappe.db.get_value(
+                "CH Item Price",
+                {"item_code": target, "channel": channel,
+                 "status": ("in", ["Active", "Scheduled"])},
+                ["mrp", "mop", "selling_price"],
+                as_dict=True,
+            )
+            for field in ("mrp", "mop", "selling_price"):
+                old_val = float((existing or {}).get(field) or 0)
+                new_val = new_prices[field]
+                if old_val != new_val:
+                    batch_items.append({
+                        "item_code": target,
+                        "channel": channel,
+                        "change_type": "Selling Price",
+                        "field_label": label_map[field],
+                        "old_value": str(old_val),
+                        "new_value": str(new_val),
+                        "reason": reason,
+                    })
+
+    elif change_type == "Buyback Price":
+        all_bb_fields = ["current_market_price", "vendor_price"] + BUYBACK_GRADE_FIELDS
+        new_prices = {}
+        for f in all_bb_fields:
+            val = kwargs.get(f)
+            if val is not None:
+                new_prices[f] = float(val or 0)
+
+        existing = frappe.db.get_value(
+            "Buyback Price Master",
+            {"item_code": item_code, "is_active": 1},
+            all_bb_fields,
+            as_dict=True,
+        )
+
+        for field, new_val in new_prices.items():
+            old_val = float((existing or {}).get(field) or 0)
+            if old_val != new_val:
+                batch_items.append({
+                    "item_code": item_code,
+                    "channel": field,  # store DB field name for buyback apply
+                    "change_type": "Buyback Price",
+                    "field_label": _BUYBACK_FIELD_LABELS.get(field, field),
+                    "old_value": str(old_val),
+                    "new_value": str(new_val),
+                    "reason": reason,
+                })
+
+    if not batch_items:
+        frappe.throw(_("No changes detected — all values match the current prices."))
+
+    # Create batch
+    batch = frappe.new_doc("CH Price Upload Batch")
+    item_name = frappe.db.get_value("Item", item_code, "item_name") or item_code
+    batch.title = f"{change_type} — {item_name} ({len(batch_items)} changes)"
+    batch.uploaded_by = frappe.session.user
+    batch.upload_date = nowdate()
+    batch.status = "Draft"
+    if company:
+        batch.company = company
+
+    for item_data in batch_items:
+        batch.append("items", item_data)
+
+    # Enrich with sales/stock context
+    _enrich_batch_items(batch, {bi["item_code"] for bi in batch_items})
+
+    batch.insert(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {
+        "batch_name": batch.name,
+        "total_changes": len(batch_items),
+    }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Bulk upload prices from Ready Reckoner Excel
 # ─────────────────────────────────────────────────────────────────────────────
 
