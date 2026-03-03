@@ -69,4 +69,14 @@ doc_events = {
 	# CH Item Price.on_update() syncs into ERPNext Item Price on save.
 	# CH Item Offer.approve() syncs into ERPNext Pricing Rule on approval.
 	# No manual hook required for Sales Order, Sales Invoice, Quotation, etc.
+
+	# ── Price governance: block direct edits & auto-log changes ───────────
+	"CH Item Price": {
+		"validate": "ch_item_master.ch_item_master.price_governance.validate_ch_item_price",
+		"on_update": "ch_item_master.ch_item_master.price_governance.log_ch_item_price_change",
+	},
+	"Buyback Price Master": {
+		"validate": "ch_item_master.ch_item_master.price_governance.validate_buyback_price",
+		"on_update": "ch_item_master.ch_item_master.price_governance.log_buyback_price_change",
+	},
 }

@@ -1087,18 +1087,21 @@ function chpb_upload(state) {
             {
                 fieldtype: 'HTML', fieldname: 'instructions',
                 options: `<div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;line-height:1.5">
-                    <strong>How it works:</strong>
+                    <strong>Maker / Checker Price Upload:</strong>
                     <ol style="padding-left:20px;margin:6px 0">
                         <li>Export the current grid using <b>Menu → Export Excel</b></li>
-                        <li>Update prices in the exported file</li>
+                        <li>Update prices / tags in the exported file</li>
                         <li>Upload the modified file here</li>
+                        <li>A <b>draft batch</b> is created showing all detected changes (old → new)</li>
+                        <li>Submit for approval → <b>Manager reviews &amp; approves</b> → changes applied</li>
                     </ol>
                     <div style="margin-top:6px">
-                        <b>Selling channels</b> (POS, Website, etc.): updates MRP, MOP, Selling Price → CH Item Price<br>
-                        <b>Buyback channel</b>: updates Market Price, Vendor Price, Grade×Warranty → Buyback Price Master
+                        <b>Selling channels</b>: MRP, MOP, Selling Price<br>
+                        <b>Buyback channel</b>: Market Price, Vendor Price, Grade×Warranty<br>
+                        <b>Tags</b>: Comma-separated (EOL, FAST MOVING, SLOW MOVING, NEW, PROMO FOCUS, RESTRICTED)
                     </div>
-                    <div style="margin-top:6px;color:var(--orange-600)">
-                        ⚠ Only rows with changed values are updated. Empty cells are skipped.
+                    <div style="margin-top:6px;color:var(--blue-600)">
+                        ℹ No prices change until the batch is approved by a manager.
                     </div>
                 </div>`,
             },
@@ -1107,58 +1110,41 @@ function chpb_upload(state) {
                 label: 'Excel File (.xlsx)', reqd: 1,
                 options: { restrictions: { allowed_file_types: ['.xlsx'] } },
             },
-            { fieldtype: 'Section Break' },
-            {
-                fieldtype: 'Date', fieldname: 'effective_from',
-                label: 'Effective From (for new selling prices)',
-                default: frappe.datetime.get_today(),
-                description: 'Applied only when creating new CH Item Price records',
-            },
         ],
-        primary_action_label: __('Upload & Process'),
+        primary_action_label: __('Upload & Create Batch'),
         primary_action(vals) {
             if (!vals.file) return;
             d.disable_primary_action();
-            d.set_title(__('Processing…'));
+            d.set_title(__('Parsing file…'));
 
             frappe.call({
                 method: 'ch_item_master.ch_item_master.ready_reckoner_api.upload_ready_reckoner_prices',
                 args: {
                     file_url: vals.file,
-                    effective_from: vals.effective_from || '',
                     company: state.filters.company || '',
                 },
                 callback(r) {
                     d.hide();
                     const res = r.message || {};
 
-                    const parts = [];
-                    if (res.selling_created) parts.push(`${res.selling_created} selling prices created`);
-                    if (res.selling_updated) parts.push(`${res.selling_updated} selling prices updated`);
-                    if (res.buyback_created) parts.push(`${res.buyback_created} buyback prices created`);
-                    if (res.buyback_updated) parts.push(`${res.buyback_updated} buyback prices updated`);
-                    if (res.skipped) parts.push(`${res.skipped} unchanged (skipped)`);
+                    if (res.batch_name) {
+                        let summary = `<b>${res.total_changes} change(s)</b> detected across ${res.total_rows} items.`;
+                        if (res.parse_errors && res.parse_errors.length) {
+                            summary += `<br><span style="color:var(--orange-600)">${res.parse_errors.length} warning(s) — see batch notes.</span>`;
+                        }
+                        summary += `<br><br>Opening the batch for review…`;
 
-                    let msg = `<b>Processed ${res.total_rows || 0} items</b>`;
-                    if (parts.length) msg += `<br>${parts.join('<br>')}`;
+                        frappe.msgprint({
+                            title: __('Batch Created'),
+                            message: summary,
+                            indicator: 'blue',
+                        });
 
-                    if (res.errors && res.errors.length) {
-                        msg += `<br><br><b style="color:var(--red-500)">${res.errors.length} error(s):</b>`;
-                        msg += `<div style="max-height:200px;overflow-y:auto;font-size:11px;margin-top:4px;
-                                    padding:8px;background:var(--bg-light-gray);border-radius:4px">`;
-                        res.errors.slice(0, 50).forEach(e => { msg += `${e}<br>`; });
-                        if (res.errors.length > 50) msg += `<br>… and ${res.errors.length - 50} more`;
-                        msg += `</div>`;
+                        // Open the batch form for review
+                        setTimeout(() => {
+                            frappe.set_route('Form', 'CH Price Upload Batch', res.batch_name);
+                        }, 1200);
                     }
-
-                    frappe.msgprint({
-                        title: __('Upload Complete'),
-                        message: msg,
-                        indicator: (res.errors && res.errors.length) ? 'orange' : 'green',
-                    });
-
-                    // Reload the grid
-                    _load($('.chpb-wrap'), state);
                 },
                 error() {
                     d.enable_primary_action();

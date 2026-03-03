@@ -1,0 +1,169 @@
+{
+ "actions": [],
+ "autoname": "hash",
+ "creation": "2026-03-03 00:00:00.000000",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "engine": "InnoDB",
+ "field_order": [
+  "item_code",
+  "item_name",
+  "channel",
+  "change_type",
+  "column_break_01",
+  "field_name",
+  "field_label",
+  "old_value",
+  "new_value",
+  "column_break_02",
+  "source",
+  "batch_ref",
+  "reason",
+  "changed_by",
+  "changed_at"
+ ],
+ "fields": [
+  {
+   "fieldname": "item_code",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Item Code",
+   "options": "Item",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "item_code.item_name",
+   "fieldname": "item_name",
+   "fieldtype": "Data",
+   "label": "Item Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "channel",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Channel"
+  },
+  {
+   "fieldname": "change_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Type",
+   "options": "Selling Price\nBuyback Price\nTag"
+  },
+  {
+   "fieldname": "column_break_01",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "field_name",
+   "fieldtype": "Data",
+   "label": "Field Name",
+   "description": "Database field name"
+  },
+  {
+   "fieldname": "field_label",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Field"
+  },
+  {
+   "fieldname": "old_value",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Old Value"
+  },
+  {
+   "fieldname": "new_value",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "New Value"
+  },
+  {
+   "fieldname": "column_break_02",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "source",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Source",
+   "options": "Upload Batch\nReady Reckoner Dialog\nDirect Edit\nAPI"
+  },
+  {
+   "fieldname": "batch_ref",
+   "fieldtype": "Link",
+   "label": "Upload Batch",
+   "options": "CH Price Upload Batch",
+   "description": "If change came from an upload batch"
+  },
+  {
+   "fieldname": "reason",
+   "fieldtype": "Small Text",
+   "label": "Reason"
+  },
+  {
+   "fieldname": "changed_by",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Changed By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "changed_at",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Changed At",
+   "read_only": 1
+  }
+ ],
+ "in_create": 1,
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-03-03 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Ch Item Master",
+ "name": "CH Price Change Log",
+ "naming_rule": "Random",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 0,
+   "create": 0,
+   "delete": 1,
+   "export": 1
+  },
+  {
+   "role": "CH Master Manager",
+   "read": 1,
+   "write": 0,
+   "create": 0,
+   "export": 1
+  },
+  {
+   "role": "CH Price Manager",
+   "read": 1,
+   "write": 0,
+   "create": 0,
+   "export": 1
+  },
+  {
+   "role": "CH Viewer",
+   "read": 1,
+   "write": 0,
+   "create": 0,
+   "export": 1
+  }
+ ],
+ "sort_field": "changed_at",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}

@@ -905,6 +905,7 @@ def save_price_with_propagation(
             doc.notes = notes or doc.notes
             if company:
                 doc.company = company
+            doc.flags.from_ready_reckoner = True
             doc.save(ignore_permissions=True)
             updated.append(doc.name)
         else:
@@ -920,6 +921,7 @@ def save_price_with_propagation(
             doc.notes = notes
             if company:
                 doc.company = company
+            doc.flags.from_ready_reckoner = True
             doc.insert(ignore_permissions=True)
             created.append(doc.name)
 
@@ -1102,6 +1104,7 @@ def save_buyback_price(item_code, current_market_price=0, vendor_price=0, **kwar
         if val is not None:
             setattr(doc, field, float(val or 0))
 
+    doc.flags.from_ready_reckoner = True
     doc.save(ignore_permissions=True)
     frappe.db.commit()
 
@@ -1144,21 +1147,28 @@ _BUYBACK_HEADER_MAP = {
 }
 
 
+_TAG_HEADER = "Tags"
+
+# Valid tag options (must match CH Item Commercial Tag.tag select field)
+_VALID_TAGS = {"EOL", "FAST MOVING", "SLOW MOVING", "NEW", "PROMO FOCUS", "RESTRICTED"}
+
+
 @frappe.whitelist()
 def upload_ready_reckoner_prices(file_url, effective_from=None, company=None):
-    """Bulk update prices from a Ready Reckoner Excel file.
+    """Parse a Ready Reckoner Excel and create a CH Price Upload Batch (Draft).
 
-    Accepts the same format exported by export_ready_reckoner().
-    - Selling channel columns (MRP, MOP, Selling Price) → create/update CH Item Price
-    - Buying channel columns (Market Price, Vendor Price, grade fields) → create/update Buyback Price Master
+    Instead of applying changes directly, this creates a maker/checker batch:
+    - Compares each cell against the current value in the database
+    - Only rows with actual changes are added to the batch
+    - Tags column is parsed (comma-separated) and compared
+    - Returns the batch name so the UI can open the form for review
 
-    Returns summary of created, updated, skipped, and errors.
+    The batch must then be submitted for approval and approved by a manager
+    before any prices or tags are actually modified.
     """
     frappe.only_for(["System Manager", "CH Master Manager", "CH Price Manager"])
 
     import openpyxl
-
-    eff_from = effective_from or nowdate()
 
     # Read the uploaded file
     file_doc = frappe.get_doc("File", {"file_url": file_url})
@@ -1174,54 +1184,104 @@ def upload_ready_reckoner_prices(file_url, effective_from=None, company=None):
 
     headers = [str(h).strip() if h else "" for h in headers]
 
-    # Find Item Code column
+    # Find Item Code & Tags columns
     try:
         item_code_idx = headers.index("Item Code")
     except ValueError:
         frappe.throw(_("Missing 'Item Code' column in header row."))
 
+    tags_idx = None
+    if _TAG_HEADER in headers:
+        tags_idx = headers.index(_TAG_HEADER)
+
     # ── Parse header columns to determine channel → field mappings ────────
-    # Detect buying channels from the database
     buying_channel_set = set(
         frappe.get_all("CH Price Channel", filters={"is_buying": 1, "disabled": 0}, pluck="name")
     )
 
-    # Build column mappings: { col_index: { "channel": ..., "field": ..., "type": "selling"|"buyback" } }
     col_map = {}
     for idx, header in enumerate(headers):
         if not header:
             continue
-        # Try selling channel headers: "{Channel} MRP", "{Channel} MOP", "{Channel} Selling Price"
         for suffix, field in _SELLING_HEADER_MAP.items():
             if header.endswith(f" {suffix}"):
                 channel = header[: -(len(suffix) + 1)]
                 if channel and channel not in buying_channel_set:
-                    col_map[idx] = {"channel": channel, "field": field, "type": "selling"}
+                    col_map[idx] = {"channel": channel, "field": field, "type": "selling",
+                                    "label": suffix}
                 break
-        # Try buyback channel headers: "{Channel} Market Price", "{Channel} A IW 0-3", etc.
         for suffix, field in _BUYBACK_HEADER_MAP.items():
             if header.endswith(f" {suffix}"):
                 channel = header[: -(len(suffix) + 1)]
                 if channel and channel in buying_channel_set:
-                    col_map[idx] = {"channel": channel, "field": field, "type": "buyback"}
+                    col_map[idx] = {"channel": channel, "field": field, "type": "buyback",
+                                    "label": suffix}
                 break
 
-    if not col_map:
-        frappe.throw(_("No editable price columns found in the file. "
-                       "Ensure column headers match the exported format (e.g. 'POS MRP', 'Buyback Market Price')."))
+    if not col_map and tags_idx is None:
+        frappe.throw(_("No editable columns found in the file. "
+                       "Ensure column headers match the exported format."))
 
-    # ── Process rows ──────────────────────────────────────────────────────
-    result = {
-        "selling_created": 0,
-        "selling_updated": 0,
-        "buyback_created": 0,
-        "buyback_updated": 0,
-        "skipped": 0,
-        "errors": [],
-        "total_rows": 0,
-    }
+    # ── Collect all item codes first for batch DB lookups ─────────────────
+    all_rows = list(rows_iter)
+    wb.close()
 
-    for row_num, row in enumerate(rows_iter, start=2):
+    item_codes_in_file = set()
+    for row in all_rows:
+        if row and len(row) > item_code_idx:
+            ic = str(row[item_code_idx] or "").strip()
+            if ic:
+                item_codes_in_file.add(ic)
+
+    if not item_codes_in_file:
+        frappe.throw(_("No item codes found in the file."))
+
+    # Batch-fetch current selling prices
+    selling_price_index = {}  # (item_code, channel) → {mrp, mop, selling_price}
+    selling_channels = set(m["channel"] for m in col_map.values() if m["type"] == "selling")
+    if selling_channels:
+        sp_records = frappe.get_all(
+            "CH Item Price",
+            filters={
+                "item_code": ("in", list(item_codes_in_file)),
+                "channel": ("in", list(selling_channels)),
+                "status": ("in", ["Active", "Scheduled"]),
+            },
+            fields=["item_code", "channel", "mrp", "mop", "selling_price"],
+        )
+        for sp in sp_records:
+            selling_price_index[(sp.item_code, sp.channel)] = sp
+
+    # Batch-fetch current buyback prices
+    buyback_price_index = {}  # item_code → {field: value, ...}
+    buyback_channels = set(m["channel"] for m in col_map.values() if m["type"] == "buyback")
+    if buyback_channels:
+        bb_fields = ["item_code", "current_market_price", "vendor_price"] + BUYBACK_GRADE_FIELDS
+        bb_records = frappe.get_all(
+            "Buyback Price Master",
+            filters={"item_code": ("in", list(item_codes_in_file)), "is_active": 1},
+            fields=bb_fields,
+        )
+        for bb in bb_records:
+            buyback_price_index[bb.item_code] = bb
+
+    # Batch-fetch current tags
+    tag_index = {}  # item_code → set of active tags
+    if tags_idx is not None:
+        tag_records = frappe.get_all(
+            "CH Item Commercial Tag",
+            filters={"item_code": ("in", list(item_codes_in_file)), "status": "Active"},
+            fields=["item_code", "tag"],
+        )
+        for t in tag_records:
+            tag_index.setdefault(t.item_code, set()).add(t.tag)
+
+    # ── Build batch items comparing old vs new ────────────────────────────
+    batch_items = []
+    parse_errors = []
+    total_rows = 0
+
+    for row_num, row in enumerate(all_rows, start=2):
         if not row or len(row) <= item_code_idx:
             continue
 
@@ -1229,15 +1289,12 @@ def upload_ready_reckoner_prices(file_url, effective_from=None, company=None):
         if not item_code:
             continue
         if not frappe.db.exists("Item", item_code):
-            result["errors"].append(f"Row {row_num}: Item '{item_code}' not found")
+            parse_errors.append(f"Row {row_num}: Item '{item_code}' not found")
             continue
 
-        result["total_rows"] += 1
+        total_rows += 1
 
-        # ── Collect selling channel data per channel ──────────────────────
-        selling_data: dict = {}  # channel → {mrp, mop, selling_price}
-        buyback_data: dict = {}  # channel → {current_market_price, vendor_price, grade fields...}
-
+        # ── Selling & Buyback price columns ───────────────────────────────
         for col_idx, mapping in col_map.items():
             if col_idx >= len(row):
                 continue
@@ -1246,96 +1303,193 @@ def upload_ready_reckoner_prices(file_url, effective_from=None, company=None):
                 continue
 
             try:
-                val = float(raw_val)
+                new_val = float(raw_val)
             except (ValueError, TypeError):
-                result["errors"].append(
+                parse_errors.append(
                     f"Row {row_num}, col '{headers[col_idx]}': invalid number '{raw_val}'"
                 )
                 continue
 
             ch = mapping["channel"]
             field = mapping["field"]
+            label = mapping["label"]
+
             if mapping["type"] == "selling":
-                selling_data.setdefault(ch, {})[field] = val
+                existing = selling_price_index.get((item_code, ch))
+                old_val = float(existing.get(field) or 0) if existing else 0.0
+                if old_val != new_val:
+                    batch_items.append({
+                        "item_code": item_code,
+                        "channel": ch,
+                        "change_type": "Selling Price",
+                        "field_label": label,
+                        "old_value": str(old_val),
+                        "new_value": str(new_val),
+                    })
             else:
-                buyback_data.setdefault(ch, {})[field] = val
+                existing = buyback_price_index.get(item_code)
+                old_val = float(existing.get(field) or 0) if existing else 0.0
+                if old_val != new_val:
+                    batch_items.append({
+                        "item_code": item_code,
+                        "channel": field,  # store DB field name for buyback apply
+                        "change_type": "Buyback Price",
+                        "field_label": label,
+                        "old_value": str(old_val),
+                        "new_value": str(new_val),
+                    })
 
-        # ── Upsert CH Item Price per selling channel ──────────────────────
-        for ch, prices in selling_data.items():
-            if not prices.get("selling_price"):
-                # selling_price is required; skip if not provided
-                continue
-            try:
-                existing = frappe.db.get_value(
-                    "CH Item Price",
-                    {"item_code": item_code, "channel": ch, "status": ("in", ["Active", "Scheduled"])},
-                    "name",
-                )
-                if existing:
-                    doc = frappe.get_doc("CH Item Price", existing)
-                    changed = False
-                    for f in ("mrp", "mop", "selling_price"):
-                        new_val = prices.get(f)
-                        if new_val is not None and float(doc.get(f) or 0) != new_val:
-                            doc.set(f, new_val)
-                            changed = True
-                    if changed:
-                        doc.save(ignore_permissions=True)
-                        result["selling_updated"] += 1
-                    else:
-                        result["skipped"] += 1
-                else:
-                    doc = frappe.new_doc("CH Item Price")
-                    doc.item_code = item_code
-                    doc.channel = ch
-                    doc.mrp = prices.get("mrp", 0)
-                    doc.mop = prices.get("mop", 0)
-                    doc.selling_price = prices["selling_price"]
-                    doc.effective_from = eff_from
-                    doc.status = "Active"
-                    if company:
-                        doc.company = company
-                    doc.insert(ignore_permissions=True)
-                    result["selling_created"] += 1
-            except Exception as e:
-                result["errors"].append(f"Row {row_num}, {ch}: {str(e)[:120]}")
+        # ── Tags column ───────────────────────────────────────────────────
+        if tags_idx is not None and len(row) > tags_idx:
+            raw_tags = str(row[tags_idx] or "").strip()
+            new_tags = set()
+            if raw_tags:
+                for t in raw_tags.split(","):
+                    t = t.strip().upper()
+                    if t in _VALID_TAGS:
+                        new_tags.add(t)
+                    elif t:
+                        parse_errors.append(
+                            f"Row {row_num}: Unknown tag '{t}' — valid: {', '.join(sorted(_VALID_TAGS))}"
+                        )
 
-        # ── Upsert Buyback Price Master per buying channel ────────────────
-        for _ch, bb_prices in buyback_data.items():
-            if not any(bb_prices.values()):
-                continue
-            try:
-                existing = frappe.db.get_value(
-                    "Buyback Price Master",
-                    {"item_code": item_code, "is_active": 1},
-                    "name",
-                )
-                if existing:
-                    doc = frappe.get_doc("Buyback Price Master", existing)
-                    changed = False
-                    for f, v in bb_prices.items():
-                        if v is not None and float(doc.get(f) or 0) != v:
-                            doc.set(f, v)
-                            changed = True
-                    if changed:
-                        doc.save(ignore_permissions=True)
-                        result["buyback_updated"] += 1
-                    else:
-                        result["skipped"] += 1
-                else:
-                    doc = frappe.new_doc("Buyback Price Master")
-                    doc.item_code = item_code
-                    doc.is_active = 1
-                    doc.current_market_price = bb_prices.get("current_market_price", 0)
-                    doc.vendor_price = bb_prices.get("vendor_price", 0)
-                    for field in BUYBACK_GRADE_FIELDS:
-                        setattr(doc, field, bb_prices.get(field, 0))
-                    doc.insert(ignore_permissions=True)
-                    result["buyback_created"] += 1
-            except Exception as e:
-                result["errors"].append(f"Row {row_num}, Buyback: {str(e)[:120]}")
+            old_tags = tag_index.get(item_code, set())
 
+            # Tags to add
+            for tag in sorted(new_tags - old_tags):
+                batch_items.append({
+                    "item_code": item_code,
+                    "channel": "",
+                    "change_type": "Tag",
+                    "field_label": "Add Tag",
+                    "old_value": "",
+                    "new_value": tag,
+                })
+
+            # Tags to remove
+            for tag in sorted(old_tags - new_tags):
+                batch_items.append({
+                    "item_code": item_code,
+                    "channel": "",
+                    "change_type": "Tag",
+                    "field_label": "Remove Tag",
+                    "old_value": tag,
+                    "new_value": "",
+                })
+
+    if not batch_items:
+        msg = _("No changes detected — all values match the current database.")
+        if parse_errors:
+            msg += "<br><br><b>" + _("{0} parse error(s):").format(len(parse_errors)) + "</b><br>"
+            msg += "<br>".join(parse_errors[:20])
+        frappe.throw(msg)
+
+    # ── Create the batch document ─────────────────────────────────────────
+    batch = frappe.new_doc("CH Price Upload Batch")
+    batch.title = f"Price Upload — {total_rows} items, {len(batch_items)} changes"
+    batch.upload_file = file_url
+    batch.uploaded_by = frappe.session.user
+    batch.upload_date = nowdate()
+    batch.status = "Draft"
+    if company:
+        batch.company = company
+
+    for item_data in batch_items:
+        batch.append("items", item_data)
+
+    # ── Auto-enrich with sales / stock context ────────────────────────────
+    _enrich_batch_items(batch, item_codes_in_file)
+
+    batch.notes = ""
+    if parse_errors:
+        batch.notes = f"{len(parse_errors)} parse warning(s):\n" + "\n".join(parse_errors[:50])
+
+    batch.insert(ignore_permissions=True)
     frappe.db.commit()
-    wb.close()
 
-    return result
+    return {
+        "batch_name": batch.name,
+        "total_rows": total_rows,
+        "total_changes": len(batch_items),
+        "parse_errors": parse_errors[:20],
+    }
+
+
+def _enrich_batch_items(batch, item_codes):
+    """Populate enrichment fields on batch items for checker context.
+
+    Fetches in bulk:
+    - Current stock (from tabBin, summed across warehouses)
+    - Last purchase rate (from tabBin valuation_rate)
+    - Last sold date, qty, rate (from most recent Sales Invoice Item)
+
+    Then computes margin % = (new_value - purchase_rate) / purchase_rate * 100.
+    """
+    if not item_codes:
+        return
+
+    ic_list = list(item_codes)
+
+    # 1. Stock & valuation from Bin (sum across warehouses)
+    bin_data = frappe.get_all(
+        "Bin",
+        filters={"item_code": ("in", ic_list)},
+        fields=["item_code", "sum(actual_qty) as total_qty", "avg(valuation_rate) as avg_valuation"],
+        group_by="item_code",
+    )
+    stock_index = {b.item_code: b for b in bin_data}
+
+    # 2. Last sale from Sales Invoice Item (most recent submitted invoice)
+    last_sale_query = """
+        SELECT sii.item_code, si.posting_date, sii.qty, sii.rate
+        FROM `tabSales Invoice Item` sii
+        JOIN `tabSales Invoice` si ON si.name = sii.parent
+        WHERE sii.item_code IN %(items)s
+          AND si.docstatus = 1
+        ORDER BY si.posting_date DESC, si.creation DESC
+    """
+    try:
+        last_sales = frappe.db.sql(last_sale_query, {"items": ic_list}, as_dict=True)
+    except Exception:
+        last_sales = []
+
+    sale_index = {}
+    for s in last_sales:
+        if s.item_code not in sale_index:  # keep the most recent only
+            sale_index[s.item_code] = s
+
+    # 3. Apply to batch items
+    for row in batch.items:
+        ic = row.item_code
+
+        # Stock
+        bin_info = stock_index.get(ic)
+        if bin_info:
+            row.current_stock = bin_info.total_qty or 0
+            row.last_purchase_rate = bin_info.avg_valuation or 0
+        else:
+            row.current_stock = 0
+            row.last_purchase_rate = 0
+
+        # Last sale
+        sale = sale_index.get(ic)
+        if sale:
+            row.last_sold_date = sale.posting_date
+            row.last_sold_qty = sale.qty or 0
+            row.last_sold_rate = sale.rate or 0
+        else:
+            row.last_sold_date = None
+            row.last_sold_qty = 0
+            row.last_sold_rate = 0
+
+        # Margin % (only meaningful for selling price changes)
+        purchase_rate = row.last_purchase_rate or 0
+        try:
+            new_val = float(row.new_value or 0)
+        except (ValueError, TypeError):
+            new_val = 0
+
+        if purchase_rate > 0 and new_val > 0 and row.change_type in ("Selling Price", "Buyback Price"):
+            row.margin_percent = round((new_val - purchase_rate) / purchase_rate * 100, 2)
+        else:
+            row.margin_percent = 0

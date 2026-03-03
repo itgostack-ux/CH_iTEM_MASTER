@@ -1,0 +1,185 @@
+{
+ "actions": [],
+ "creation": "2026-03-03 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "item_code",
+  "item_name",
+  "channel",
+  "change_type",
+  "column_break_01",
+  "field_label",
+  "old_value",
+  "new_value",
+  "reason",
+  "column_break_02",
+  "status",
+  "error_message",
+  "enrichment_section",
+  "current_stock",
+  "last_purchase_rate",
+  "column_break_enrich",
+  "last_sold_date",
+  "last_sold_qty",
+  "last_sold_rate",
+  "column_break_enrich2",
+  "margin_percent"
+ ],
+ "fields": [
+  {
+   "fieldname": "item_code",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Item Code",
+   "options": "Item",
+   "reqd": 1,
+   "columns": 2
+  },
+  {
+   "fetch_from": "item_code.item_name",
+   "fieldname": "item_name",
+   "fieldtype": "Data",
+   "label": "Item Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "channel",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Channel",
+   "columns": 1
+  },
+  {
+   "fieldname": "change_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Type",
+   "options": "Selling Price\nBuyback Price\nTag",
+   "reqd": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "column_break_01",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "field_label",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Field",
+   "read_only": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "old_value",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Old Value",
+   "read_only": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "new_value",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "New Value",
+   "read_only": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "reason",
+   "fieldtype": "Small Text",
+   "in_list_view": 1,
+   "label": "Reason",
+   "columns": 2,
+   "description": "Why is this price being changed?"
+  },
+  {
+   "fieldname": "column_break_02",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Pending",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "Pending\nApplied\nSkipped\nError",
+   "read_only": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "error_message",
+   "fieldtype": "Small Text",
+   "label": "Error",
+   "read_only": 1
+  },
+  {
+   "fieldname": "enrichment_section",
+   "fieldtype": "Section Break",
+   "label": "Context (auto-populated)",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "current_stock",
+   "fieldtype": "Float",
+   "label": "Current Stock",
+   "read_only": 1,
+   "precision": 1
+  },
+  {
+   "fieldname": "last_purchase_rate",
+   "fieldtype": "Currency",
+   "label": "Last Purchase Rate",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_enrich",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "last_sold_date",
+   "fieldtype": "Date",
+   "label": "Last Sold Date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_sold_qty",
+   "fieldtype": "Float",
+   "label": "Last Sold Qty",
+   "read_only": 1,
+   "precision": 1
+  },
+  {
+   "fieldname": "last_sold_rate",
+   "fieldtype": "Currency",
+   "label": "Last Sold Rate",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_enrich2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "margin_percent",
+   "fieldtype": "Percent",
+   "label": "Margin % (new vs purchase)",
+   "read_only": 1,
+   "description": "Based on new value vs last purchase rate"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-03-03 00:00:01.000000",
+ "modified_by": "Administrator",
+ "module": "Ch Item Master",
+ "name": "CH Price Upload Item",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "idx",
+ "sort_order": "ASC",
+ "states": [],
+ "track_changes": 0
+}

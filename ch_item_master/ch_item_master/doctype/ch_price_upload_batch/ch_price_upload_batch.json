@@ -1,0 +1,288 @@
+{
+ "actions": [],
+ "autoname": "naming_series:",
+ "creation": "2026-03-03 00:00:00.000000",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "title",
+  "company",
+  "upload_file",
+  "column_break_01",
+  "status",
+  "uploaded_by",
+  "upload_date",
+  "approval_section",
+  "approved_by",
+  "approved_at",
+  "column_break_approval",
+  "rejected_by",
+  "rejected_at",
+  "rejection_reason",
+  "summary_section",
+  "total_changes",
+  "selling_price_changes",
+  "column_break_summary",
+  "buyback_price_changes",
+  "tag_changes",
+  "applied_section",
+  "applied_count",
+  "skipped_count",
+  "column_break_applied",
+  "error_count",
+  "applied_at",
+  "items_section",
+  "items",
+  "notes_section",
+  "notes"
+ ],
+ "fields": [
+  {
+   "default": "CHPUP-.YYYY.-.####",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "CHPUP-.YYYY.-.####"
+  },
+  {
+   "fieldname": "title",
+   "fieldtype": "Data",
+   "label": "Title",
+   "read_only": 1,
+   "in_list_view": 1,
+   "bold": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "upload_file",
+   "fieldtype": "Attach",
+   "label": "Upload File",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_01",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Draft",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Draft\nPending Approval\nApproved\nApplying\nApplied\nPartially Applied\nRejected\nCancelled",
+   "read_only": 1,
+   "bold": 1
+  },
+  {
+   "fieldname": "uploaded_by",
+   "fieldtype": "Link",
+   "label": "Uploaded By",
+   "options": "User",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "upload_date",
+   "fieldtype": "Date",
+   "label": "Upload Date",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "approval_section",
+   "fieldtype": "Section Break",
+   "label": "Approval",
+   "depends_on": "eval:doc.status !== 'Draft'"
+  },
+  {
+   "fieldname": "approved_by",
+   "fieldtype": "Link",
+   "label": "Approved By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "approved_at",
+   "fieldtype": "Datetime",
+   "label": "Approved At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_approval",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "rejected_by",
+   "fieldtype": "Link",
+   "label": "Rejected By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "rejected_at",
+   "fieldtype": "Datetime",
+   "label": "Rejected At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "rejection_reason",
+   "fieldtype": "Small Text",
+   "label": "Rejection Reason"
+  },
+  {
+   "fieldname": "summary_section",
+   "fieldtype": "Section Break",
+   "label": "Change Summary"
+  },
+  {
+   "default": "0",
+   "fieldname": "total_changes",
+   "fieldtype": "Int",
+   "label": "Total Changes",
+   "read_only": 1,
+   "in_list_view": 1,
+   "bold": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "selling_price_changes",
+   "fieldtype": "Int",
+   "label": "Selling Price Changes",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_summary",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "buyback_price_changes",
+   "fieldtype": "Int",
+   "label": "Buyback Price Changes",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "tag_changes",
+   "fieldtype": "Int",
+   "label": "Tag Changes",
+   "read_only": 1
+  },
+  {
+   "fieldname": "applied_section",
+   "fieldtype": "Section Break",
+   "label": "Application Result",
+   "depends_on": "eval:['Applied','Partially Applied'].includes(doc.status)"
+  },
+  {
+   "default": "0",
+   "fieldname": "applied_count",
+   "fieldtype": "Int",
+   "label": "Applied",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "skipped_count",
+   "fieldtype": "Int",
+   "label": "Skipped (unchanged)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_applied",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "error_count",
+   "fieldtype": "Int",
+   "label": "Errors",
+   "read_only": 1
+  },
+  {
+   "fieldname": "applied_at",
+   "fieldtype": "Datetime",
+   "label": "Applied At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "items_section",
+   "fieldtype": "Section Break",
+   "label": "Price Changes"
+  },
+  {
+   "fieldname": "items",
+   "fieldtype": "Table",
+   "label": "Changes",
+   "options": "CH Price Upload Item",
+   "reqd": 1
+  },
+  {
+   "fieldname": "notes_section",
+   "fieldtype": "Section Break",
+   "label": "Notes"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-03-03 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Ch Item Master",
+ "name": "CH Price Upload Batch",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "export": 1,
+   "share": 1
+  },
+  {
+   "role": "CH Master Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 0,
+   "export": 1
+  },
+  {
+   "role": "CH Price Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 0,
+   "export": 1
+  },
+  {
+   "role": "CH Viewer",
+   "read": 1,
+   "write": 0,
+   "create": 0,
+   "export": 1
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "title",
+ "track_changes": 1,
+ "show_title_field_in_link": 1
+}
