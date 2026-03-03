@@ -208,10 +208,11 @@ def get_ready_reckoner_data(
     channels_qs = frappe.get_all(
         "CH Price Channel",
         filters={"disabled": 0, **({"channel_name": channel} if channel else {})},
-        fields=["name as channel_name", "price_list"],
+        fields=["name as channel_name", "price_list", "is_buying"],
         order_by="channel_name",
     )
     channel_names = [c["channel_name"] for c in channels_qs]
+    buying_channels = {c["channel_name"] for c in channels_qs if c.get("is_buying")}
     # Optimization: Pre-fetch channel-to-price-list mapping to avoid N+1 queries
     channel_price_list_map = {c["channel_name"]: c.get("price_list") for c in channels_qs}
 
@@ -293,6 +294,25 @@ def get_ready_reckoner_data(
     for t in tag_records:
         tag_index.setdefault(t.item_code, []).append(t.tag)
 
+    # ── 5b. Fetch Buyback Price Master data for buying channels ───────────
+    buyback_index: dict = {}
+    if buying_channels and item_codes:
+        _bpm_fields = [
+            "item_code", "name as buyback_name",
+            "current_market_price", "vendor_price",
+            "a_grade_iw_0_3", "b_grade_iw_0_3", "c_grade_iw_0_3",
+            "a_grade_iw_0_6", "b_grade_iw_0_6", "c_grade_iw_0_6", "d_grade_iw_0_6",
+            "a_grade_iw_6_11", "b_grade_iw_6_11", "c_grade_iw_6_11", "d_grade_iw_6_11",
+            "a_grade_oow_11", "b_grade_oow_11", "c_grade_oow_11", "d_grade_oow_11",
+        ]
+        bpm_records = frappe.get_all(
+            "Buyback Price Master",
+            filters={"item_code": ("in", item_codes), "is_active": 1},
+            fields=_bpm_fields,
+        )
+        for bp in bpm_records:
+            buyback_index[bp.item_code] = bp
+
     # ── 6. Merge into rows ────────────────────────────────────────────────────
     rows = []
     for item in grouped_items:
@@ -303,24 +323,44 @@ def get_ready_reckoner_data(
         # Prices per channel — for grouped items, use price from any member
         # (they share the same price since non-price specs don't affect pricing)
         for ch in channel_names:
-            pr = price_index.get((ic, ch))
-            if not pr and group_mode:
-                for mc in member_codes:
-                    pr = price_index.get((mc, ch))
-                    if pr:
-                        break
-            if pr:
-                row[f"{ch}__mrp"]          = pr.mrp
-                row[f"{ch}__mop"]          = pr.mop
-                row[f"{ch}__selling_price"] = pr.selling_price
-                row[f"{ch}__status"]        = pr.status
-                row[f"{ch}__price_name"]    = pr.price_name
+            if ch in buying_channels:
+                # ── Buying channel (e.g. Buyback) — use Buyback Price Master ──
+                bpm = buyback_index.get(ic)
+                if not bpm and group_mode:
+                    for mc in member_codes:
+                        bpm = buyback_index.get(mc)
+                        if bpm:
+                            break
+                if bpm:
+                    row[f"{ch}__market_price"]  = bpm.current_market_price
+                    row[f"{ch}__vendor_price"]  = bpm.vendor_price
+                    row[f"{ch}__buyback_name"]  = bpm.buyback_name
+                    row[f"{ch}__status"]        = "Active"
+                else:
+                    row[f"{ch}__market_price"]  = None
+                    row[f"{ch}__vendor_price"]  = None
+                    row[f"{ch}__buyback_name"]  = None
+                    row[f"{ch}__status"]        = "—"
             else:
-                row[f"{ch}__mrp"]          = None
-                row[f"{ch}__mop"]          = None
-                row[f"{ch}__selling_price"] = None
-                row[f"{ch}__status"]        = "—"
-                row[f"{ch}__price_name"]    = None
+                # ── Selling channel — use CH Item Price ──
+                pr = price_index.get((ic, ch))
+                if not pr and group_mode:
+                    for mc in member_codes:
+                        pr = price_index.get((mc, ch))
+                        if pr:
+                            break
+                if pr:
+                    row[f"{ch}__mrp"]          = pr.mrp
+                    row[f"{ch}__mop"]          = pr.mop
+                    row[f"{ch}__selling_price"] = pr.selling_price
+                    row[f"{ch}__status"]        = pr.status
+                    row[f"{ch}__price_name"]    = pr.price_name
+                else:
+                    row[f"{ch}__mrp"]          = None
+                    row[f"{ch}__mop"]          = None
+                    row[f"{ch}__selling_price"] = None
+                    row[f"{ch}__status"]        = "—"
+                    row[f"{ch}__price_name"]    = None
 
         # Offers summary — aggregate across all member items
         all_member_offers = []
@@ -361,6 +401,7 @@ def get_ready_reckoner_data(
     return {
         "items": rows,
         "channels": channel_names,
+        "buying_channels": list(buying_channels),
         "total": total,
         "page": int(page),
         "page_length": int(page_length),
@@ -510,11 +551,29 @@ def get_item_price_detail(item_code, company=None):
             limit=30,
         )
 
+    # ── Buyback Price Master data ─────────────────────────────────────────
+    buyback = None
+    bpm_list = frappe.get_all(
+        "Buyback Price Master",
+        filters={"item_code": item_code, "is_active": 1},
+        fields=[
+            "name", "item_code", "current_market_price", "vendor_price",
+            "a_grade_iw_0_3", "b_grade_iw_0_3", "c_grade_iw_0_3",
+            "a_grade_iw_0_6", "b_grade_iw_0_6", "c_grade_iw_0_6", "d_grade_iw_0_6",
+            "a_grade_iw_6_11", "b_grade_iw_6_11", "c_grade_iw_6_11", "d_grade_iw_6_11",
+            "a_grade_oow_11", "b_grade_oow_11", "c_grade_oow_11", "d_grade_oow_11",
+        ],
+        limit=1,
+    )
+    if bpm_list:
+        buyback = bpm_list[0]
+
     return {
         "prices": prices,
         "offers": offers,
         "tags": tags,
         "history": history,
+        "buyback": buyback,
     }
 
 
@@ -911,6 +970,7 @@ def export_ready_reckoner(
         )
 
     channels = data["channels"]
+    buying_channels = set(data.get("buying_channels", []))
     rows_data = data["items"]
 
     # Build header row
@@ -920,7 +980,10 @@ def export_ready_reckoner(
     ]
     price_headers = []
     for ch in channels:
-        price_headers += [f"{ch} MRP", f"{ch} MOP", f"{ch} Selling Price", f"{ch} Status"]
+        if ch in buying_channels:
+            price_headers += [f"{ch} Market Price", f"{ch} Vendor Price"]
+        else:
+            price_headers += [f"{ch} MRP", f"{ch} MOP", f"{ch} Selling Price", f"{ch} Status"]
 
     extra_headers = [
         "Active Offer Count", "Active Offer Label",
@@ -936,12 +999,18 @@ def export_ready_reckoner(
             r.get("brand"), r.get("ch_category"), r.get("ch_sub_category"), r.get("ch_model"),
         ]
         for ch in channels:
-            row += [
-                r.get(f"{ch}__mrp"),
-                r.get(f"{ch}__mop"),
-                r.get(f"{ch}__selling_price"),
-                r.get(f"{ch}__status"),
-            ]
+            if ch in buying_channels:
+                row += [
+                    r.get(f"{ch}__market_price"),
+                    r.get(f"{ch}__vendor_price"),
+                ]
+            else:
+                row += [
+                    r.get(f"{ch}__mrp"),
+                    r.get(f"{ch}__mop"),
+                    r.get(f"{ch}__selling_price"),
+                    r.get(f"{ch}__status"),
+                ]
         row += [
             r.get("offer_count"),
             r.get("active_offer_label"),
@@ -955,3 +1024,59 @@ def export_ready_reckoner(
     frappe.response["filename"] = f"ch_ready_reckoner_{nowdate()}.xlsx"
     frappe.response["filecontent"] = xlsx_file.getvalue()
     frappe.response["type"] = "binary"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Buyback Price Master — save / update from Ready Reckoner
+# ─────────────────────────────────────────────────────────────────────────────
+
+BUYBACK_GRADE_FIELDS = [
+    "a_grade_iw_0_3", "b_grade_iw_0_3", "c_grade_iw_0_3",
+    "a_grade_iw_0_6", "b_grade_iw_0_6", "c_grade_iw_0_6", "d_grade_iw_0_6",
+    "a_grade_iw_6_11", "b_grade_iw_6_11", "c_grade_iw_6_11", "d_grade_iw_6_11",
+    "a_grade_oow_11", "b_grade_oow_11", "c_grade_oow_11", "d_grade_oow_11",
+]
+
+
+@frappe.whitelist()
+def save_buyback_price(item_code, current_market_price=0, vendor_price=0, **kwargs):
+    """Create or update a Buyback Price Master record from the Ready Reckoner.
+
+    Accepts current_market_price, vendor_price, and all 15 grade×warranty fields.
+    If an active record already exists for this item, it is updated; otherwise a new
+    record is created.
+    """
+    frappe.only_for(["System Manager", "CH Master Manager", "CH Price Manager"])
+
+    current_market_price = float(current_market_price or 0)
+    vendor_price = float(vendor_price or 0)
+
+    existing = frappe.db.get_value(
+        "Buyback Price Master",
+        {"item_code": item_code, "is_active": 1},
+        "name",
+    )
+
+    if existing:
+        doc = frappe.get_doc("Buyback Price Master", existing)
+    else:
+        doc = frappe.new_doc("Buyback Price Master")
+        doc.item_code = item_code
+        doc.is_active = 1
+
+    doc.current_market_price = current_market_price
+    doc.vendor_price = vendor_price
+
+    for field in BUYBACK_GRADE_FIELDS:
+        val = kwargs.get(field)
+        if val is not None:
+            setattr(doc, field, float(val or 0))
+
+    doc.save(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {
+        "name": doc.name,
+        "created": not existing,
+        "item_code": item_code,
+    }

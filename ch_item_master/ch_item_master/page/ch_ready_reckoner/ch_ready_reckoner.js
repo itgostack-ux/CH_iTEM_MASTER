@@ -111,6 +111,10 @@ frappe.pages['ch-ready-reckoner'].on_page_load = function (wrapper) {
         .chpb-tag.RESTRICTED { background: #f5c6cb; color: #721c24; }
         .chpb-tag.PROMO\ FOCUS { background: #e2d9f3; color: #4a235a; }
 
+        /* Buyback price cells */
+        .chpb-table td.price-cell[data-buyback-name] { color: var(--orange-600, #e67e22); }
+        .chpb-table td.price-cell[data-buyback-name]:hover { background: var(--orange-50, #fff8f0); }
+
         /* Side Drawer */
         .chpb-drawer {
             width: 0; overflow: hidden;
@@ -323,7 +327,7 @@ function _load($wrap, state) {
         },
         callback(r) {
             state.loading = false;
-            state.data = r.message || { items: [], channels: [], total: 0 };
+            state.data = r.message || { items: [], channels: [], buying_channels: [], total: 0 };
             _render_table($wrap, state);
             _update_stats($wrap, state);
         },
@@ -335,6 +339,7 @@ function _load($wrap, state) {
 // ─── Render grid ──────────────────────────────────────────────────────────────
 function _render_table($wrap, state) {
     const { items, channels } = state.data;
+    const buying_set = new Set(state.data.buying_channels || []);
 
     if (!items.length) {
         $wrap.find('#chpb-table-wrap').html(`<div class="chpb-empty">No items found. Adjust filters and try again.</div>`);
@@ -348,15 +353,24 @@ function _render_table($wrap, state) {
         <th>Brand</th>`;
 
     channels.forEach(ch => {
-        head += `<th colspan="3" class="ch-group" style="text-align:center">${ch}</th>`;
+        if (buying_set.has(ch)) {
+            head += `<th colspan="2" class="ch-group" style="text-align:center">${ch}</th>`;
+        } else {
+            head += `<th colspan="3" class="ch-group" style="text-align:center">${ch}</th>`;
+        }
     });
     head += `<th>Offers</th><th>Tags</th><th></th></tr>
     <tr>
         <th></th><th></th><th></th><th></th>`;
-    channels.forEach(() => {
-        head += `<th style="font-size:10px">MRP</th>
-                 <th style="font-size:10px">MOP</th>
-                 <th style="font-size:10px">Selling</th>`;
+    channels.forEach(ch => {
+        if (buying_set.has(ch)) {
+            head += `<th style="font-size:10px">Market</th>
+                     <th style="font-size:10px">Vendor</th>`;
+        } else {
+            head += `<th style="font-size:10px">MRP</th>
+                     <th style="font-size:10px">MOP</th>
+                     <th style="font-size:10px">Selling</th>`;
+        }
     });
     head += `<th></th><th></th><th></th></tr></thead>`;
 
@@ -371,15 +385,25 @@ function _render_table($wrap, state) {
             <td style="font-size:11px">${esc(row.brand||'')}</td>`;
 
         channels.forEach(ch => {
-            const mrp    = row[ch+'__mrp'];
-            const mop    = row[ch+'__mop'];
-            const sp     = row[ch+'__selling_price'];
-            const pname  = row[ch+'__price_name'];
-            const status = row[ch+'__status'];
+            if (buying_set.has(ch)) {
+                const mp     = row[ch+'__market_price'];
+                const vp     = row[ch+'__vendor_price'];
+                const bname  = row[ch+'__buyback_name'];
+                const status = row[ch+'__status'];
 
-            rows += _price_cell(mrp,  ch, 'mrp',           row.item_code, pname, status);
-            rows += _price_cell(mop,  ch, 'mop',           row.item_code, pname, status);
-            rows += _price_cell(sp,   ch, 'selling_price', row.item_code, pname, status);
+                rows += _buyback_price_cell(mp, ch, 'market_price', row.item_code, bname, status);
+                rows += _buyback_price_cell(vp, ch, 'vendor_price', row.item_code, bname, status);
+            } else {
+                const mrp    = row[ch+'__mrp'];
+                const mop    = row[ch+'__mop'];
+                const sp     = row[ch+'__selling_price'];
+                const pname  = row[ch+'__price_name'];
+                const status = row[ch+'__status'];
+
+                rows += _price_cell(mrp,  ch, 'mrp',           row.item_code, pname, status);
+                rows += _price_cell(mop,  ch, 'mop',           row.item_code, pname, status);
+                rows += _price_cell(sp,   ch, 'selling_price', row.item_code, pname, status);
+            }
         });
 
         const offerHtml = row.active_offer_label
@@ -405,6 +429,12 @@ function _render_table($wrap, state) {
         frappe.set_route('Form', 'CH Item Price', pname);
     });
 
+    $t.find('.price-cell[data-buyback-name]').on('click', function (e) {
+        e.stopPropagation();
+        const item = $(this).data('item');
+        _buyback_price_dialog(item, () => _load($wrap, state));
+    });
+
     $t.find('.price-cell.no-value').on('click', function (e) {
         e.stopPropagation();
         const item = $(this).data('item');
@@ -412,7 +442,12 @@ function _render_table($wrap, state) {
         const $row = $(this).closest('tr');
         const variant_count = parseInt($row.attr('data-variant-count') || '1');
         const is_grouped = variant_count > 1;
-        _quick_price_dialog(item, ch, null, () => _load($wrap, state), is_grouped, variant_count);
+        const buying_set = new Set(state.data.buying_channels || []);
+        if (buying_set.has(ch)) {
+            _buyback_price_dialog(item, () => _load($wrap, state));
+        } else {
+            _quick_price_dialog(item, ch, null, () => _load($wrap, state), is_grouped, variant_count);
+        }
     });
 
     $t.find('.chpb-open-btn').on('click', function (e) {
@@ -450,6 +485,21 @@ function _price_cell(val, ch, field, item_code, pname, status) {
     return `<td class="price-cell no-value" data-ch="${ch}" data-field="${field}"
                 data-item="${item_code}" title="Click to add price for ${ch}">—
                 <span class="edit-hint">+ add</span>
+            </td>`;
+}
+
+function _buyback_price_cell(val, ch, field, item_code, bname, status) {
+    if (val) {
+        const fmt = frappe.format(val, { fieldtype: 'Currency' });
+        return `<td class="price-cell has-value" data-ch="${ch}"
+                    data-field="${field}" data-item="${item_code}" data-buyback-name="${bname}"
+                    title="Click to open Buyback Price Master"
+                    style="color:var(--orange-600,#e67e22)">${fmt}
+                    <span class="edit-hint">✎</span>
+                </td>`;
+    }
+    return `<td class="price-cell no-value" data-ch="${ch}" data-field="${field}"
+                data-item="${item_code}" title="No buyback price for ${ch}">—
             </td>`;
 }
 
@@ -603,6 +653,120 @@ function _show_price_dialog(item_code, prefill_channel, on_success, ctx) {
 }
 
 
+// ─── Buyback Price Dialog ─────────────────────────────────────────────────────
+function _buyback_price_dialog(item_code, on_success, existing_data) {
+    // If we have existing data, pre-fill; otherwise fetch from API
+    const _show = (data) => {
+        const bb = data || {};
+        const fields = [
+            { fieldtype: 'HTML', fieldname: 'buyback_header',
+              options: `<div style="font-size:12px;color:var(--orange-600,#e67e22);font-weight:600;margin-bottom:4px">
+                          Buyback Price Master — ${item_code}
+                        </div>` },
+            { fieldtype: 'Section Break', label: 'Reference Prices' },
+            { fieldtype: 'Currency', fieldname: 'current_market_price', label: 'Current Market Price',
+              reqd: 1, default: bb.current_market_price || 0 },
+            { fieldtype: 'Column Break' },
+            { fieldtype: 'Currency', fieldname: 'vendor_price', label: 'Vendor Price',
+              reqd: 1, default: bb.vendor_price || 0 },
+
+            { fieldtype: 'Section Break', label: 'IW 0-3 Months (In Warranty)' },
+            { fieldtype: 'Currency', fieldname: 'a_grade_iw_0_3', label: 'A Grade', default: bb.a_grade_iw_0_3 || 0 },
+            { fieldtype: 'Column Break' },
+            { fieldtype: 'Currency', fieldname: 'b_grade_iw_0_3', label: 'B Grade', default: bb.b_grade_iw_0_3 || 0 },
+            { fieldtype: 'Column Break' },
+            { fieldtype: 'Currency', fieldname: 'c_grade_iw_0_3', label: 'C Grade', default: bb.c_grade_iw_0_3 || 0 },
+
+            { fieldtype: 'Section Break', label: 'IW 0-6 Months (In Warranty)' },
+            { fieldtype: 'Currency', fieldname: 'a_grade_iw_0_6', label: 'A Grade', default: bb.a_grade_iw_0_6 || 0 },
+            { fieldtype: 'Column Break' },
+            { fieldtype: 'Currency', fieldname: 'b_grade_iw_0_6', label: 'B Grade', default: bb.b_grade_iw_0_6 || 0 },
+            { fieldtype: 'Column Break' },
+            { fieldtype: 'Currency', fieldname: 'c_grade_iw_0_6', label: 'C Grade', default: bb.c_grade_iw_0_6 || 0 },
+            { fieldtype: 'Column Break' },
+            { fieldtype: 'Currency', fieldname: 'd_grade_iw_0_6', label: 'D Grade', default: bb.d_grade_iw_0_6 || 0 },
+
+            { fieldtype: 'Section Break', label: 'IW 6-11 Months (In Warranty)' },
+            { fieldtype: 'Currency', fieldname: 'a_grade_iw_6_11', label: 'A Grade', default: bb.a_grade_iw_6_11 || 0 },
+            { fieldtype: 'Column Break' },
+            { fieldtype: 'Currency', fieldname: 'b_grade_iw_6_11', label: 'B Grade', default: bb.b_grade_iw_6_11 || 0 },
+            { fieldtype: 'Column Break' },
+            { fieldtype: 'Currency', fieldname: 'c_grade_iw_6_11', label: 'C Grade', default: bb.c_grade_iw_6_11 || 0 },
+            { fieldtype: 'Column Break' },
+            { fieldtype: 'Currency', fieldname: 'd_grade_iw_6_11', label: 'D Grade', default: bb.d_grade_iw_6_11 || 0 },
+
+            { fieldtype: 'Section Break', label: 'OOW 11+ Months (Out of Warranty)' },
+            { fieldtype: 'Currency', fieldname: 'a_grade_oow_11', label: 'A Grade', default: bb.a_grade_oow_11 || 0 },
+            { fieldtype: 'Column Break' },
+            { fieldtype: 'Currency', fieldname: 'b_grade_oow_11', label: 'B Grade', default: bb.b_grade_oow_11 || 0 },
+            { fieldtype: 'Column Break' },
+            { fieldtype: 'Currency', fieldname: 'c_grade_oow_11', label: 'C Grade', default: bb.c_grade_oow_11 || 0 },
+            { fieldtype: 'Column Break' },
+            { fieldtype: 'Currency', fieldname: 'd_grade_oow_11', label: 'D Grade', default: bb.d_grade_oow_11 || 0 },
+        ];
+
+        const d = new frappe.ui.Dialog({
+            title: __('Buyback Prices — {0}', [item_code]),
+            size: 'large',
+            fields: fields,
+            primary_action_label: __('Save Buyback Prices'),
+            primary_action(vals) {
+                if (!vals) return;
+                frappe.call({
+                    method: 'ch_item_master.ch_item_master.ready_reckoner_api.save_buyback_price',
+                    args: {
+                        item_code,
+                        current_market_price: vals.current_market_price || 0,
+                        vendor_price: vals.vendor_price || 0,
+                        a_grade_iw_0_3: vals.a_grade_iw_0_3 || 0,
+                        b_grade_iw_0_3: vals.b_grade_iw_0_3 || 0,
+                        c_grade_iw_0_3: vals.c_grade_iw_0_3 || 0,
+                        a_grade_iw_0_6: vals.a_grade_iw_0_6 || 0,
+                        b_grade_iw_0_6: vals.b_grade_iw_0_6 || 0,
+                        c_grade_iw_0_6: vals.c_grade_iw_0_6 || 0,
+                        d_grade_iw_0_6: vals.d_grade_iw_0_6 || 0,
+                        a_grade_iw_6_11: vals.a_grade_iw_6_11 || 0,
+                        b_grade_iw_6_11: vals.b_grade_iw_6_11 || 0,
+                        c_grade_iw_6_11: vals.c_grade_iw_6_11 || 0,
+                        d_grade_iw_6_11: vals.d_grade_iw_6_11 || 0,
+                        a_grade_oow_11: vals.a_grade_oow_11 || 0,
+                        b_grade_oow_11: vals.b_grade_oow_11 || 0,
+                        c_grade_oow_11: vals.c_grade_oow_11 || 0,
+                        d_grade_oow_11: vals.d_grade_oow_11 || 0,
+                    },
+                    callback(r) {
+                        d.hide();
+                        const result = r.message || {};
+                        frappe.show_alert({
+                            message: result.created
+                                ? __('Buyback price created for {0}', [item_code])
+                                : __('Buyback price updated for {0}', [item_code]),
+                            indicator: 'green',
+                        });
+                        on_success && on_success();
+                    },
+                });
+            },
+        });
+        d.show();
+    };
+
+    // Fetch existing buyback data if available
+    if (existing_data) {
+        _show(existing_data);
+    } else {
+        frappe.call({
+            method: 'ch_item_master.ch_item_master.ready_reckoner_api.get_item_price_detail',
+            args: { item_code },
+            callback(r) {
+                _show((r.message || {}).buyback || {});
+            },
+            error() { _show({}); },
+        });
+    }
+}
+
+
 // ─── Side Drawer ──────────────────────────────────────────────────────────────
 function _open_drawer($wrap, state, item_code) {
     const $drawer = $wrap.find('#chpb-drawer');
@@ -616,6 +780,7 @@ function _open_drawer($wrap, state, item_code) {
         </div>
         <div class="chpb-drawer-tabs">
           <div class="tab active" data-tab="prices">Prices</div>
+          <div class="tab" data-tab="buyback">Buyback</div>
           <div class="tab" data-tab="offers">Offers</div>
           <div class="tab" data-tab="warranty">Warranty</div>
           <div class="tab" data-tab="tags">Tags</div>
@@ -698,6 +863,89 @@ function _render_drawer_tab($drawer, tab, item_code, state) {
                 _load($drawer.closest('.chpb-wrap'), state);
             }));
         $body.append($add);
+
+    } else if (tab === 'buyback') {
+        const bb = detail.buyback;
+        if (!bb) {
+            $body.html(`<div class="chpb-empty">No buyback pricing found for this item.</div>`);
+            $(`<button class="chpb-add-btn">+ Add Buyback Prices</button>`)
+                .on('click', () => _buyback_price_dialog(item_code, () => {
+                    $drawer.data('detail', null);
+                    _open_drawer($drawer.closest('.chpb-wrap'), state, item_code);
+                    _load($drawer.closest('.chpb-wrap'), state);
+                })).appendTo($body);
+        } else {
+            const fmt = (v) => v ? frappe.format(v, { fieldtype: 'Currency' }) : '—';
+
+            // Header card: Market Price & Vendor Price
+            $body.append(`
+              <div class="chpb-price-card" style="background:var(--orange-50,#fff8f0);border-color:var(--orange-200,#ffd9b3)">
+                <div class="card-head">
+                  <span class="channel-label" style="color:var(--orange-600,#e67e22)">Buyback Prices</span>
+                  <a href="/app/buyback-price-master/${bb.name}" target="_blank" style="font-size:11px">Open ↗</a>
+                </div>
+                <div class="chpb-price-row">
+                  ${_pval('Market Price', bb.current_market_price)}
+                  ${_pval('Vendor Price', bb.vendor_price)}
+                </div>
+              </div>`);
+
+            // Grade × Warranty matrix table
+            const matrix_html = `
+              <div style="margin-top:8px;font-weight:600;font-size:12px;color:var(--text-muted);margin-bottom:6px">
+                Grade × Warranty Matrix
+              </div>
+              <table style="width:100%;border-collapse:collapse;font-size:12px;text-align:right">
+                <thead>
+                  <tr style="background:var(--subtle-fg)">
+                    <th style="padding:6px 8px;text-align:left;border:1px solid var(--border-color);font-size:11px">Grade</th>
+                    <th style="padding:6px 8px;border:1px solid var(--border-color);font-size:11px">IW 0-3</th>
+                    <th style="padding:6px 8px;border:1px solid var(--border-color);font-size:11px">IW 0-6</th>
+                    <th style="padding:6px 8px;border:1px solid var(--border-color);font-size:11px">IW 6-11</th>
+                    <th style="padding:6px 8px;border:1px solid var(--border-color);font-size:11px">OOW 11+</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td style="padding:5px 8px;border:1px solid var(--border-color);font-weight:600;text-align:left;background:var(--green-50,#f0fff4)">A</td>
+                    <td style="padding:5px 8px;border:1px solid var(--border-color)">${fmt(bb.a_grade_iw_0_3)}</td>
+                    <td style="padding:5px 8px;border:1px solid var(--border-color)">${fmt(bb.a_grade_iw_0_6)}</td>
+                    <td style="padding:5px 8px;border:1px solid var(--border-color)">${fmt(bb.a_grade_iw_6_11)}</td>
+                    <td style="padding:5px 8px;border:1px solid var(--border-color)">${fmt(bb.a_grade_oow_11)}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding:5px 8px;border:1px solid var(--border-color);font-weight:600;text-align:left;background:var(--blue-50,#e8f4fd)">B</td>
+                    <td style="padding:5px 8px;border:1px solid var(--border-color)">${fmt(bb.b_grade_iw_0_3)}</td>
+                    <td style="padding:5px 8px;border:1px solid var(--border-color)">${fmt(bb.b_grade_iw_0_6)}</td>
+                    <td style="padding:5px 8px;border:1px solid var(--border-color)">${fmt(bb.b_grade_iw_6_11)}</td>
+                    <td style="padding:5px 8px;border:1px solid var(--border-color)">${fmt(bb.b_grade_oow_11)}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding:5px 8px;border:1px solid var(--border-color);font-weight:600;text-align:left;background:var(--yellow-50,#fffbeb)">C</td>
+                    <td style="padding:5px 8px;border:1px solid var(--border-color)">${fmt(bb.c_grade_iw_0_3)}</td>
+                    <td style="padding:5px 8px;border:1px solid var(--border-color)">${fmt(bb.c_grade_iw_0_6)}</td>
+                    <td style="padding:5px 8px;border:1px solid var(--border-color)">${fmt(bb.c_grade_iw_6_11)}</td>
+                    <td style="padding:5px 8px;border:1px solid var(--border-color)">${fmt(bb.c_grade_oow_11)}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding:5px 8px;border:1px solid var(--border-color);font-weight:600;text-align:left;background:var(--red-50,#fff5f5)">D</td>
+                    <td style="padding:5px 8px;border:1px solid var(--border-color);color:var(--text-muted)">—</td>
+                    <td style="padding:5px 8px;border:1px solid var(--border-color)">${fmt(bb.d_grade_iw_0_6)}</td>
+                    <td style="padding:5px 8px;border:1px solid var(--border-color)">${fmt(bb.d_grade_iw_6_11)}</td>
+                    <td style="padding:5px 8px;border:1px solid var(--border-color)">${fmt(bb.d_grade_oow_11)}</td>
+                  </tr>
+                </tbody>
+              </table>`;
+            $body.append(matrix_html);
+
+            // Edit button
+            $(`<button class="chpb-add-btn" style="margin-top:10px">✎ Edit Buyback Prices</button>`)
+                .on('click', () => _buyback_price_dialog(item_code, () => {
+                    $drawer.data('detail', null);
+                    _open_drawer($drawer.closest('.chpb-wrap'), state, item_code);
+                    _load($drawer.closest('.chpb-wrap'), state);
+                }, bb)).appendTo($body);
+        }
 
     } else if (tab === 'offers') {
         const offers = detail.offers || [];
