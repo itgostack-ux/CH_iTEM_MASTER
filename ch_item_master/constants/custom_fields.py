@@ -257,7 +257,7 @@ CUSTOM_FIELDS = {
 			"fieldname": "ch_warranty_section",
 			"label": _("Warranty & Lifecycle"),
 			"fieldtype": "Section Break",
-			"insert_after": "ch_model_id",
+			"insert_after": "ch_item_group_id",
 			"collapsible": 1,
 		},
 		{

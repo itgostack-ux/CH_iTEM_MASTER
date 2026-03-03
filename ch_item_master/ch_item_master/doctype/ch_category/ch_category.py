@@ -17,12 +17,16 @@ class CHCategory(Document):
 		if self.category_name:
 			self.category_name = " ".join(self.category_name.split())
 		if not self.category_id:
-			# Get next ID from sequence
-			last_id = frappe.db.sql("""
-				SELECT COALESCE(MAX(category_id), 0) 
-				FROM `tabCH Category`
-			""")[0][0]
-			self.category_id = (last_id or 0) + 1
+			lock_name = "ch_category_autoname"
+			try:
+				frappe.db.sql("SELECT GET_LOCK(%s, 10)", lock_name)
+				last_id = frappe.db.sql("""
+					SELECT COALESCE(MAX(category_id), 0)
+					FROM `tabCH Category`
+				""")[0][0]
+				self.category_id = (last_id or 0) + 1
+			finally:
+				frappe.db.sql("SELECT RELEASE_LOCK(%s)", lock_name)
 
 	def validate(self):
 		if self.category_name:

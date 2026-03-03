@@ -7,7 +7,7 @@
 
 import frappe
 from frappe import _
-from frappe.utils import now_datetime
+from frappe.utils import now_datetime, flt
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -66,7 +66,7 @@ def validate_ch_item_price(doc, method=None):
 
     changed_fields = []
     for f in _PRICE_FIELDS:
-        if float(doc.get(f) or 0) != float(old.get(f) or 0):
+        if flt(doc.get(f) or 0, 2) != flt(old.get(f) or 0, 2):
             changed_fields.append(f)
 
     if changed_fields:

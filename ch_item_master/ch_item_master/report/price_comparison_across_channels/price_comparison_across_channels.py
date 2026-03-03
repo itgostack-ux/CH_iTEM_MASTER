@@ -86,7 +86,7 @@ def get_data(filters, channels):
             p.mrp,
             p.selling_price
         FROM `tabCH Item Price` p
-        INNER JOIN `tabItem` i ON i.item_code = p.item_code
+        INNER JOIN `tabItem` i ON i.name = p.item_code
         WHERE p.status = 'Active'
           AND {where}
         ORDER BY i.item_name

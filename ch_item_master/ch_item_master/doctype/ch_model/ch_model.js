@@ -111,14 +111,13 @@ frappe.ui.form.on('CH Model', {
 		// Autocomplete get_query for spec_value in child table:
 		// When the user types in the Value field, fetch matching attribute
 		// values for the spec (Item Attribute) of the current row.
-		frm.fields_dict['spec_values'].grid.get_field('spec_value').get_query = function () {
-			let row = frm.cur_grid && frm.cur_grid.doc;
-			let spec = (row && row.spec) || '';
+		frm.set_query('spec_value', 'spec_values', (doc, cdt, cdn) => {
+			let row = locals[cdt][cdn];
 			return {
 				query: 'ch_item_master.ch_item_master.api.get_attribute_values',
-				params: { spec: spec },
+				filters: { spec: row.spec || '' },
 			};
-		};
+		});
 
 		// Model Features: filter feature_group to enabled groups only
 		frm.set_query('feature_group', 'model_features', () => ({

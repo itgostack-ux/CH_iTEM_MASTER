@@ -36,11 +36,16 @@ class CHSubCategory(Document):
 		if self.sub_category_name:
 			self.sub_category_name = " ".join(self.sub_category_name.split())
 		if not self.sub_category_id:
-			last_id = frappe.db.sql("""
-				SELECT COALESCE(MAX(sub_category_id), 0) 
-				FROM `tabCH Sub Category`
-			""")[0][0]
-			self.sub_category_id = (last_id or 0) + 1
+			lock_name = "ch_sub_category_autoname"
+			try:
+				frappe.db.sql("SELECT GET_LOCK(%s, 10)", lock_name)
+				last_id = frappe.db.sql("""
+					SELECT COALESCE(MAX(sub_category_id), 0)
+					FROM `tabCH Sub Category`
+				""")[0][0]
+				self.sub_category_id = (last_id or 0) + 1
+			finally:
+				frappe.db.sql("SELECT RELEASE_LOCK(%s)", lock_name)
 
 	def validate(self):
 		if self.sub_category_name:
@@ -356,7 +361,9 @@ class CHSubCategory(Document):
 				_("Cannot change naming configuration for {0} — items from this sub-category "
 				  "have been used in submitted transactions. To fix item names, use a rename tool or data correction patch."
 				).format(", ".join(frappe.bold(s) for s in changed_naming)),
-				title=_("Naming Order Locked"),				exc=NamingOrderLockedError,			)
+				title=_("Naming Order Locked"),
+				exc=NamingOrderLockedError,
+			)
 
 		# ── Warnings (non-blocking) ──
 		warnings = []

@@ -160,6 +160,12 @@ def get_attribute_values(spec="", txt="", **kwargs):
 
     Used by the Autocomplete get_query on spec_value in CH Model form.
     """
+    # Frappe's get_query passes filters as a dict; extract spec from it
+    if not spec:
+        filters_arg = kwargs.get("filters") or {}
+        if isinstance(filters_arg, str):
+            filters_arg = frappe.parse_json(filters_arg)
+        spec = filters_arg.get("spec", "")
     if not spec:
         return []
 

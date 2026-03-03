@@ -79,8 +79,8 @@ frappe.pages['ch-ready-reckoner'].on_page_load = function (wrapper) {
             padding: 5px 10px; border: 1px solid var(--border-color);
             vertical-align: middle;
         }
-        .chpb-table td.item-code { font-weight: 600; color: var(--blue-600, #2490ef); }
-        .chpb-table td.item-name { max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
+        .chpb-table td.item-code, .chpb-table th.item-code { display: none; }
+        .chpb-table td.item-name { max-width: 320px; overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
         .chpb-table td.price-cell {
             text-align: right; cursor: pointer; position: relative;
             min-width: 70px;
@@ -348,7 +348,7 @@ function _render_table($wrap, state) {
     }
 
     let head = `<thead><tr>
-        <th>Item Code</th>
+        <th class="item-code">Item Code</th>
         <th>Item Name</th>
         <th>Sub Category</th>
         <th>Brand</th>`;
@@ -362,7 +362,7 @@ function _render_table($wrap, state) {
     });
     head += `<th>Offers</th><th>Tags</th><th></th></tr>
     <tr>
-        <th></th><th></th><th></th><th></th>`;
+        <th class="item-code"></th><th></th><th></th><th></th>`;
     channels.forEach(ch => {
         if (buying_set.has(ch)) {
             head += `<th style="font-size:10px">Market</th>
