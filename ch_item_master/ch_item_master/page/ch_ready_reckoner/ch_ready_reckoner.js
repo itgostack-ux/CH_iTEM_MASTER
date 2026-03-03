@@ -14,6 +14,7 @@ frappe.pages['ch-ready-reckoner'].on_page_load = function (wrapper) {
 
     // ── Page-level action buttons ─────────────────────────────────────────
     page.add_action_item(__('Export Excel'), () => chpb_export(state));
+    page.add_action_item(__('Upload Prices'), () => chpb_upload(state));
     page.add_action_item(__('New Price Record'), () =>
         frappe.new_doc('CH Item Price')
     );
@@ -1075,4 +1076,96 @@ function chpb_export(state) {
     const url = `/api/method/ch_item_master.ch_item_master.ready_reckoner_api.export_ready_reckoner?`
         + Object.entries(args).filter(([, v]) => v).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&');
     window.open(url, '_blank');
+}
+
+// ─── Excel upload ─────────────────────────────────────────────────────────────
+function chpb_upload(state) {
+    const d = new frappe.ui.Dialog({
+        title: __('Upload Prices from Excel'),
+        size: 'small',
+        fields: [
+            {
+                fieldtype: 'HTML', fieldname: 'instructions',
+                options: `<div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;line-height:1.5">
+                    <strong>How it works:</strong>
+                    <ol style="padding-left:20px;margin:6px 0">
+                        <li>Export the current grid using <b>Menu → Export Excel</b></li>
+                        <li>Update prices in the exported file</li>
+                        <li>Upload the modified file here</li>
+                    </ol>
+                    <div style="margin-top:6px">
+                        <b>Selling channels</b> (POS, Website, etc.): updates MRP, MOP, Selling Price → CH Item Price<br>
+                        <b>Buyback channel</b>: updates Market Price, Vendor Price, Grade×Warranty → Buyback Price Master
+                    </div>
+                    <div style="margin-top:6px;color:var(--orange-600)">
+                        ⚠ Only rows with changed values are updated. Empty cells are skipped.
+                    </div>
+                </div>`,
+            },
+            {
+                fieldtype: 'Attach', fieldname: 'file',
+                label: 'Excel File (.xlsx)', reqd: 1,
+                options: { restrictions: { allowed_file_types: ['.xlsx'] } },
+            },
+            { fieldtype: 'Section Break' },
+            {
+                fieldtype: 'Date', fieldname: 'effective_from',
+                label: 'Effective From (for new selling prices)',
+                default: frappe.datetime.get_today(),
+                description: 'Applied only when creating new CH Item Price records',
+            },
+        ],
+        primary_action_label: __('Upload & Process'),
+        primary_action(vals) {
+            if (!vals.file) return;
+            d.disable_primary_action();
+            d.set_title(__('Processing…'));
+
+            frappe.call({
+                method: 'ch_item_master.ch_item_master.ready_reckoner_api.upload_ready_reckoner_prices',
+                args: {
+                    file_url: vals.file,
+                    effective_from: vals.effective_from || '',
+                    company: state.filters.company || '',
+                },
+                callback(r) {
+                    d.hide();
+                    const res = r.message || {};
+
+                    const parts = [];
+                    if (res.selling_created) parts.push(`${res.selling_created} selling prices created`);
+                    if (res.selling_updated) parts.push(`${res.selling_updated} selling prices updated`);
+                    if (res.buyback_created) parts.push(`${res.buyback_created} buyback prices created`);
+                    if (res.buyback_updated) parts.push(`${res.buyback_updated} buyback prices updated`);
+                    if (res.skipped) parts.push(`${res.skipped} unchanged (skipped)`);
+
+                    let msg = `<b>Processed ${res.total_rows || 0} items</b>`;
+                    if (parts.length) msg += `<br>${parts.join('<br>')}`;
+
+                    if (res.errors && res.errors.length) {
+                        msg += `<br><br><b style="color:var(--red-500)">${res.errors.length} error(s):</b>`;
+                        msg += `<div style="max-height:200px;overflow-y:auto;font-size:11px;margin-top:4px;
+                                    padding:8px;background:var(--bg-light-gray);border-radius:4px">`;
+                        res.errors.slice(0, 50).forEach(e => { msg += `${e}<br>`; });
+                        if (res.errors.length > 50) msg += `<br>… and ${res.errors.length - 50} more`;
+                        msg += `</div>`;
+                    }
+
+                    frappe.msgprint({
+                        title: __('Upload Complete'),
+                        message: msg,
+                        indicator: (res.errors && res.errors.length) ? 'orange' : 'green',
+                    });
+
+                    // Reload the grid
+                    _load($('.chpb-wrap'), state);
+                },
+                error() {
+                    d.enable_primary_action();
+                    d.set_title(__('Upload Prices from Excel'));
+                },
+            });
+        },
+    });
+    d.show();
 }

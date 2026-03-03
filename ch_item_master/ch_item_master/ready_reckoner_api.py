@@ -973,15 +973,42 @@ def export_ready_reckoner(
     buying_channels = set(data.get("buying_channels", []))
     rows_data = data["items"]
 
+    # ── Build buyback index so we can include grade fields in export ──────
+    buyback_export_index: dict = {}
+    if buying_channels:
+        all_export_items = [r.get("item_code") for r in rows_data if r.get("item_code")]
+        if all_export_items:
+            bpm_rows = frappe.get_all(
+                "Buyback Price Master",
+                filters={"item_code": ("in", all_export_items), "is_active": 1},
+                fields=["item_code", "current_market_price", "vendor_price"] + [
+                    "a_grade_iw_0_3", "b_grade_iw_0_3", "c_grade_iw_0_3",
+                    "a_grade_iw_0_6", "b_grade_iw_0_6", "c_grade_iw_0_6", "d_grade_iw_0_6",
+                    "a_grade_iw_6_11", "b_grade_iw_6_11", "c_grade_iw_6_11", "d_grade_iw_6_11",
+                    "a_grade_oow_11", "b_grade_oow_11", "c_grade_oow_11", "d_grade_oow_11",
+                ],
+            )
+            for bp in bpm_rows:
+                buyback_export_index[bp.item_code] = bp
+
     # Build header row
     base_headers = [
         "Item Code", "Item Name", "Item Group", "Brand",
         "Category", "Sub Category", "Model",
     ]
     price_headers = []
+    # Grade×warranty label map for human-readable headers
+    _GRADE_LABELS = [
+        ("a_grade_iw_0_3", "A IW 0-3"), ("b_grade_iw_0_3", "B IW 0-3"), ("c_grade_iw_0_3", "C IW 0-3"),
+        ("a_grade_iw_0_6", "A IW 0-6"), ("b_grade_iw_0_6", "B IW 0-6"), ("c_grade_iw_0_6", "C IW 0-6"), ("d_grade_iw_0_6", "D IW 0-6"),
+        ("a_grade_iw_6_11", "A IW 6-11"), ("b_grade_iw_6_11", "B IW 6-11"), ("c_grade_iw_6_11", "C IW 6-11"), ("d_grade_iw_6_11", "D IW 6-11"),
+        ("a_grade_oow_11", "A OOW 11+"), ("b_grade_oow_11", "B OOW 11+"), ("c_grade_oow_11", "C OOW 11+"), ("d_grade_oow_11", "D OOW 11+"),
+    ]
     for ch in channels:
         if ch in buying_channels:
             price_headers += [f"{ch} Market Price", f"{ch} Vendor Price"]
+            for _field, label in _GRADE_LABELS:
+                price_headers.append(f"{ch} {label}")
         else:
             price_headers += [f"{ch} MRP", f"{ch} MOP", f"{ch} Selling Price", f"{ch} Status"]
 
@@ -1000,10 +1027,13 @@ def export_ready_reckoner(
         ]
         for ch in channels:
             if ch in buying_channels:
+                bpm = buyback_export_index.get(r.get("item_code"), {})
                 row += [
-                    r.get(f"{ch}__market_price"),
-                    r.get(f"{ch}__vendor_price"),
+                    bpm.get("current_market_price") if bpm else r.get(f"{ch}__market_price"),
+                    bpm.get("vendor_price") if bpm else r.get(f"{ch}__vendor_price"),
                 ]
+                for field, _label in _GRADE_LABELS:
+                    row.append(bpm.get(field) if bpm else None)
             else:
                 row += [
                     r.get(f"{ch}__mrp"),
@@ -1080,3 +1110,232 @@ def save_buyback_price(item_code, current_market_price=0, vendor_price=0, **kwar
         "created": not existing,
         "item_code": item_code,
     }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Bulk upload prices from Ready Reckoner Excel
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Map human-readable header suffixes → field names
+_SELLING_HEADER_MAP = {
+    "MRP": "mrp",
+    "MOP": "mop",
+    "Selling Price": "selling_price",
+}
+
+_BUYBACK_HEADER_MAP = {
+    "Market Price": "current_market_price",
+    "Vendor Price": "vendor_price",
+    "A IW 0-3": "a_grade_iw_0_3",
+    "B IW 0-3": "b_grade_iw_0_3",
+    "C IW 0-3": "c_grade_iw_0_3",
+    "A IW 0-6": "a_grade_iw_0_6",
+    "B IW 0-6": "b_grade_iw_0_6",
+    "C IW 0-6": "c_grade_iw_0_6",
+    "D IW 0-6": "d_grade_iw_0_6",
+    "A IW 6-11": "a_grade_iw_6_11",
+    "B IW 6-11": "b_grade_iw_6_11",
+    "C IW 6-11": "c_grade_iw_6_11",
+    "D IW 6-11": "d_grade_iw_6_11",
+    "A OOW 11+": "a_grade_oow_11",
+    "B OOW 11+": "b_grade_oow_11",
+    "C OOW 11+": "c_grade_oow_11",
+    "D OOW 11+": "d_grade_oow_11",
+}
+
+
+@frappe.whitelist()
+def upload_ready_reckoner_prices(file_url, effective_from=None, company=None):
+    """Bulk update prices from a Ready Reckoner Excel file.
+
+    Accepts the same format exported by export_ready_reckoner().
+    - Selling channel columns (MRP, MOP, Selling Price) → create/update CH Item Price
+    - Buying channel columns (Market Price, Vendor Price, grade fields) → create/update Buyback Price Master
+
+    Returns summary of created, updated, skipped, and errors.
+    """
+    frappe.only_for(["System Manager", "CH Master Manager", "CH Price Manager"])
+
+    import openpyxl
+
+    eff_from = effective_from or nowdate()
+
+    # Read the uploaded file
+    file_doc = frappe.get_doc("File", {"file_url": file_url})
+    file_path = file_doc.get_full_path()
+
+    wb = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
+    ws = wb.active
+
+    rows_iter = ws.iter_rows(values_only=True)
+    headers = next(rows_iter, None)
+    if not headers:
+        frappe.throw(_("Empty file — no header row found."))
+
+    headers = [str(h).strip() if h else "" for h in headers]
+
+    # Find Item Code column
+    try:
+        item_code_idx = headers.index("Item Code")
+    except ValueError:
+        frappe.throw(_("Missing 'Item Code' column in header row."))
+
+    # ── Parse header columns to determine channel → field mappings ────────
+    # Detect buying channels from the database
+    buying_channel_set = set(
+        frappe.get_all("CH Price Channel", filters={"is_buying": 1, "disabled": 0}, pluck="name")
+    )
+
+    # Build column mappings: { col_index: { "channel": ..., "field": ..., "type": "selling"|"buyback" } }
+    col_map = {}
+    for idx, header in enumerate(headers):
+        if not header:
+            continue
+        # Try selling channel headers: "{Channel} MRP", "{Channel} MOP", "{Channel} Selling Price"
+        for suffix, field in _SELLING_HEADER_MAP.items():
+            if header.endswith(f" {suffix}"):
+                channel = header[: -(len(suffix) + 1)]
+                if channel and channel not in buying_channel_set:
+                    col_map[idx] = {"channel": channel, "field": field, "type": "selling"}
+                break
+        # Try buyback channel headers: "{Channel} Market Price", "{Channel} A IW 0-3", etc.
+        for suffix, field in _BUYBACK_HEADER_MAP.items():
+            if header.endswith(f" {suffix}"):
+                channel = header[: -(len(suffix) + 1)]
+                if channel and channel in buying_channel_set:
+                    col_map[idx] = {"channel": channel, "field": field, "type": "buyback"}
+                break
+
+    if not col_map:
+        frappe.throw(_("No editable price columns found in the file. "
+                       "Ensure column headers match the exported format (e.g. 'POS MRP', 'Buyback Market Price')."))
+
+    # ── Process rows ──────────────────────────────────────────────────────
+    result = {
+        "selling_created": 0,
+        "selling_updated": 0,
+        "buyback_created": 0,
+        "buyback_updated": 0,
+        "skipped": 0,
+        "errors": [],
+        "total_rows": 0,
+    }
+
+    for row_num, row in enumerate(rows_iter, start=2):
+        if not row or len(row) <= item_code_idx:
+            continue
+
+        item_code = str(row[item_code_idx] or "").strip()
+        if not item_code:
+            continue
+        if not frappe.db.exists("Item", item_code):
+            result["errors"].append(f"Row {row_num}: Item '{item_code}' not found")
+            continue
+
+        result["total_rows"] += 1
+
+        # ── Collect selling channel data per channel ──────────────────────
+        selling_data: dict = {}  # channel → {mrp, mop, selling_price}
+        buyback_data: dict = {}  # channel → {current_market_price, vendor_price, grade fields...}
+
+        for col_idx, mapping in col_map.items():
+            if col_idx >= len(row):
+                continue
+            raw_val = row[col_idx]
+            if raw_val is None or str(raw_val).strip() == "" or str(raw_val).strip() == "—":
+                continue
+
+            try:
+                val = float(raw_val)
+            except (ValueError, TypeError):
+                result["errors"].append(
+                    f"Row {row_num}, col '{headers[col_idx]}': invalid number '{raw_val}'"
+                )
+                continue
+
+            ch = mapping["channel"]
+            field = mapping["field"]
+            if mapping["type"] == "selling":
+                selling_data.setdefault(ch, {})[field] = val
+            else:
+                buyback_data.setdefault(ch, {})[field] = val
+
+        # ── Upsert CH Item Price per selling channel ──────────────────────
+        for ch, prices in selling_data.items():
+            if not prices.get("selling_price"):
+                # selling_price is required; skip if not provided
+                continue
+            try:
+                existing = frappe.db.get_value(
+                    "CH Item Price",
+                    {"item_code": item_code, "channel": ch, "status": ("in", ["Active", "Scheduled"])},
+                    "name",
+                )
+                if existing:
+                    doc = frappe.get_doc("CH Item Price", existing)
+                    changed = False
+                    for f in ("mrp", "mop", "selling_price"):
+                        new_val = prices.get(f)
+                        if new_val is not None and float(doc.get(f) or 0) != new_val:
+                            doc.set(f, new_val)
+                            changed = True
+                    if changed:
+                        doc.save(ignore_permissions=True)
+                        result["selling_updated"] += 1
+                    else:
+                        result["skipped"] += 1
+                else:
+                    doc = frappe.new_doc("CH Item Price")
+                    doc.item_code = item_code
+                    doc.channel = ch
+                    doc.mrp = prices.get("mrp", 0)
+                    doc.mop = prices.get("mop", 0)
+                    doc.selling_price = prices["selling_price"]
+                    doc.effective_from = eff_from
+                    doc.status = "Active"
+                    if company:
+                        doc.company = company
+                    doc.insert(ignore_permissions=True)
+                    result["selling_created"] += 1
+            except Exception as e:
+                result["errors"].append(f"Row {row_num}, {ch}: {str(e)[:120]}")
+
+        # ── Upsert Buyback Price Master per buying channel ────────────────
+        for _ch, bb_prices in buyback_data.items():
+            if not any(bb_prices.values()):
+                continue
+            try:
+                existing = frappe.db.get_value(
+                    "Buyback Price Master",
+                    {"item_code": item_code, "is_active": 1},
+                    "name",
+                )
+                if existing:
+                    doc = frappe.get_doc("Buyback Price Master", existing)
+                    changed = False
+                    for f, v in bb_prices.items():
+                        if v is not None and float(doc.get(f) or 0) != v:
+                            doc.set(f, v)
+                            changed = True
+                    if changed:
+                        doc.save(ignore_permissions=True)
+                        result["buyback_updated"] += 1
+                    else:
+                        result["skipped"] += 1
+                else:
+                    doc = frappe.new_doc("Buyback Price Master")
+                    doc.item_code = item_code
+                    doc.is_active = 1
+                    doc.current_market_price = bb_prices.get("current_market_price", 0)
+                    doc.vendor_price = bb_prices.get("vendor_price", 0)
+                    for field in BUYBACK_GRADE_FIELDS:
+                        setattr(doc, field, bb_prices.get(field, 0))
+                    doc.insert(ignore_permissions=True)
+                    result["buyback_created"] += 1
+            except Exception as e:
+                result["errors"].append(f"Row {row_num}, Buyback: {str(e)[:120]}")
+
+    frappe.db.commit()
+    wb.close()
+
+    return result
