@@ -1218,6 +1218,17 @@ def create_price_change_batch(
     if not batch_items:
         frappe.throw(_("No changes detected — all values match the current prices."))
 
+    # Reason is mandatory when changing existing prices (not for new prices)
+    has_existing_price_change = any(
+        float(bi.get("old_value") or 0) > 0 for bi in batch_items
+    )
+    if has_existing_price_change and not (reason or "").strip():
+        frappe.throw(
+            _("Please provide a reason for changing existing prices. "
+              "Reason is optional only when setting prices for the first time."),
+            title=_("Reason Required"),
+        )
+
     # Create batch
     batch = frappe.new_doc("CH Price Upload Batch")
     item_name = frappe.db.get_value("Item", item_code, "item_name") or item_code

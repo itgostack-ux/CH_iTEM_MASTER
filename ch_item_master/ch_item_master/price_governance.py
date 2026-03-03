@@ -27,7 +27,8 @@ _BUYBACK_PRICE_FIELDS = {
 }
 
 # Roles allowed to make direct edits (bypass the batch requirement)
-_ADMIN_ROLES = {"System Manager", "Administrator"}
+# NOTE: No admin bypass — all users must go through the batch workflow.
+# Only programmatic bypasses (from_price_batch, from_ready_reckoner, ignore_price_governance) are allowed.
 
 
 def _is_bypassed(doc):
@@ -40,9 +41,9 @@ def _is_bypassed(doc):
 
 
 def _user_is_admin():
-    """Check if current user has admin-level roles."""
+    """Check if current user has admin-level roles (used for logging, not bypass)."""
     user_roles = set(frappe.get_roles(frappe.session.user))
-    return bool(user_roles & _ADMIN_ROLES)
+    return bool(user_roles & {"System Manager", "Administrator"})
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -51,7 +52,7 @@ def _user_is_admin():
 
 def validate_ch_item_price(doc, method=None):
     """Block direct edits to CH Item Price if not from an approved source."""
-    if _is_bypassed(doc) or _user_is_admin():
+    if _is_bypassed(doc):
         return
 
     # Allow new records (creation) — only block price field changes on existing docs
@@ -80,7 +81,7 @@ def validate_ch_item_price(doc, method=None):
 
 def validate_buyback_price(doc, method=None):
     """Block direct edits to Buyback Price Master if not from an approved source."""
-    if _is_bypassed(doc) or _user_is_admin():
+    if _is_bypassed(doc):
         return
 
     if doc.is_new():

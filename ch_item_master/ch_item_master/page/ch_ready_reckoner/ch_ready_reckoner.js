@@ -425,9 +425,24 @@ function _render_table($wrap, state) {
     const $t = $(`<table class="chpb-table">${head}<tbody>${rows}</tbody></table>`);
 
     // ── Click handlers ────────────────────────────────────────────────────
-    $t.find('.price-cell[data-price-name]').on('click', function () {
-        const pname = $(this).data('price-name');
-        frappe.set_route('Form', 'CH Item Price', pname);
+    // Selling price cells WITH existing data → open dialog pre-filled
+    $t.find('.price-cell[data-price-name]').on('click', function (e) {
+        e.stopPropagation();
+        const $cell = $(this);
+        const item = $cell.data('item');
+        const ch   = $cell.data('ch');
+        const $row = $cell.closest('tr');
+        const variant_count = parseInt($row.attr('data-variant-count') || '1');
+        const is_grouped = variant_count > 1;
+
+        // Gather current MRP/MOP/SP from sibling cells in same row+channel
+        const _val = (field) => {
+            const txt = $row.find(`.price-cell[data-ch="${ch}"][data-field="${field}"]`).text().trim();
+            return parseFloat(txt.replace(/[^\d.-]/g, '')) || 0;
+        };
+        const prefill = { mrp: _val('mrp'), mop: _val('mop'), selling_price: _val('selling_price') };
+
+        _quick_price_dialog(item, ch, null, () => _load($wrap, state), is_grouped, variant_count, prefill);
     });
 
     $t.find('.price-cell[data-buyback-name]').on('click', function (e) {
@@ -479,7 +494,7 @@ function _price_cell(val, ch, field, item_code, pname, status) {
         const badge = `<span class="${status}">${status||''}</span>`;
         return `<td class="price-cell has-value status-badge" data-ch="${ch}"
                     data-field="${field}" data-item="${item_code}" data-price-name="${pname}"
-                    title="Click to open price record">${fmt}
+                    title="Click to edit price">${fmt}
                     <span class="edit-hint">✎</span>
                 </td>`;
     }
@@ -519,24 +534,18 @@ function _update_stats($wrap, state) {
 
 
 // ─── Quick price dialog ───────────────────────────────────────────────────────
-function _quick_price_dialog(item_code, prefill_channel, prefill_price_name, on_success, is_grouped, variant_count) {
-    if (prefill_price_name) {
-        // Open the existing record
-        frappe.set_route('Form', 'CH Item Price', prefill_price_name);
-        return;
-    }
-
+function _quick_price_dialog(item_code, prefill_channel, prefill_price_name, on_success, is_grouped, variant_count, prefill_prices) {
+    // prefill_price_name param kept for API compat but ignored — we always open the dialog
     is_grouped = !!is_grouped;
     variant_count = variant_count || 1;
+    const prices = prefill_prices || {};
 
     if (is_grouped) {
-        // Grouped view: always propagate, no need to fetch siblings
         _show_price_dialog(item_code, prefill_channel, on_success, {
             is_grouped: true,
             count: variant_count,
-        });
+        }, prices);
     } else {
-        // Ungrouped view: fetch sibling count to offer optional propagation
         frappe.call({
             method: 'ch_item_master.ch_item_master.ready_reckoner_api.get_sibling_items',
             args: { item_code },
@@ -545,27 +554,30 @@ function _quick_price_dialog(item_code, prefill_channel, prefill_price_name, on_
                 _show_price_dialog(item_code, prefill_channel, on_success, {
                     is_grouped: false,
                     count: info.count || 1,
-                });
+                }, prices);
             },
             error() {
                 _show_price_dialog(item_code, prefill_channel, on_success, {
                     is_grouped: false, count: 1,
-                });
+                }, prices);
             }
         });
     }
 }
 
-function _show_price_dialog(item_code, prefill_channel, on_success, ctx) {
+function _show_price_dialog(item_code, prefill_channel, on_success, ctx, prefill_prices) {
     const is_grouped = ctx.is_grouped;
     const sibling_count = ctx.count;
     const has_siblings = sibling_count > 1;
+    const pp = prefill_prices || {};
+    const is_edit = !!(pp.mrp || pp.mop || pp.selling_price);
 
     const fields = [
         {
             fieldtype: 'Link', fieldname: 'channel', label: 'Channel',
             options: 'CH Price Channel', reqd: 1,
             default: prefill_channel,
+            read_only: is_edit ? 1 : 0,
         },
         { fieldtype: 'Column Break' },
         {
@@ -573,11 +585,13 @@ function _show_price_dialog(item_code, prefill_channel, on_success, ctx) {
             reqd: 1, default: frappe.datetime.get_today(),
         },
         { fieldtype: 'Section Break', label: 'Prices' },
-        { fieldtype: 'Currency', fieldname: 'mrp',           label: 'MRP' },
-        { fieldtype: 'Currency', fieldname: 'mop',           label: 'MOP' },
-        { fieldtype: 'Currency', fieldname: 'selling_price', label: 'Selling Price', reqd: 1 },
+        { fieldtype: 'Currency', fieldname: 'mrp',           label: 'MRP',           default: pp.mrp || '' },
+        { fieldtype: 'Currency', fieldname: 'mop',           label: 'MOP',           default: pp.mop || '' },
+        { fieldtype: 'Currency', fieldname: 'selling_price', label: 'Selling Price', reqd: 1, default: pp.selling_price || '' },
         { fieldtype: 'Section Break' },
-        { fieldtype: 'Small Text', fieldname: 'notes', label: 'Notes / Reason' },
+        { fieldtype: 'Small Text', fieldname: 'notes', label: 'Notes / Reason',
+          reqd: is_edit ? 1 : 0,
+          description: is_edit ? 'Required — explain why this price is being changed' : '' },
     ];
 
     if (is_grouped) {
@@ -605,8 +619,8 @@ function _show_price_dialog(item_code, prefill_channel, on_success, ctx) {
     }
 
     const title = is_grouped
-        ? __('Set Price — {0} ({1} colours)', [item_code, sibling_count])
-        : __('Set Price — {0}', [item_code]);
+        ? __((is_edit ? 'Edit' : 'Set') + ' Price — {0} ({1} colours)', [item_code, sibling_count])
+        : __((is_edit ? 'Edit' : 'Set') + ' Price — {0}', [item_code]);
 
     const d = new frappe.ui.Dialog({
         title: title,
@@ -655,6 +669,7 @@ function _buyback_price_dialog(item_code, on_success, existing_data) {
     // If we have existing data, pre-fill; otherwise fetch from API
     const _show = (data) => {
         const bb = data || {};
+        const bb_has_data = !!(bb.current_market_price || bb.vendor_price || bb.a_grade_iw_0_3);
         const fields = [
             { fieldtype: 'Section Break', label: 'Reference Prices' },
             { fieldtype: 'Currency', fieldname: 'current_market_price', label: 'Current Market Price',
@@ -698,7 +713,9 @@ function _buyback_price_dialog(item_code, on_success, existing_data) {
             { fieldtype: 'Currency', fieldname: 'd_grade_oow_11', label: 'D Grade', default: bb.d_grade_oow_11 || 0 },
 
             { fieldtype: 'Section Break' },
-            { fieldtype: 'Small Text', fieldname: 'reason', label: 'Reason for Change' },
+            { fieldtype: 'Small Text', fieldname: 'reason', label: 'Reason for Change',
+              reqd: bb_has_data ? 1 : 0,
+              description: bb_has_data ? 'Required — explain why these prices are being changed' : '' },
         ];
 
         const d = new frappe.ui.Dialog({
