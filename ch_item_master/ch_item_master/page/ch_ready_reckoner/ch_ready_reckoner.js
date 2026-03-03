@@ -659,10 +659,6 @@ function _buyback_price_dialog(item_code, on_success, existing_data) {
     const _show = (data) => {
         const bb = data || {};
         const fields = [
-            { fieldtype: 'HTML', fieldname: 'buyback_header',
-              options: `<div style="font-size:12px;color:var(--orange-600,#e67e22);font-weight:600;margin-bottom:4px">
-                          Buyback Price Master — ${item_code}
-                        </div>` },
             { fieldtype: 'Section Break', label: 'Reference Prices' },
             { fieldtype: 'Currency', fieldname: 'current_market_price', label: 'Current Market Price',
               reqd: 1, default: bb.current_market_price || 0 },
