@@ -83,18 +83,20 @@ def get_data(filters, channels):
         item_conds.append("i.ch_sub_category = %(sub_category)s")
         vals["sub_category"] = filters["sub_category"]
     if filters.get("manufacturer"):
-        item_conds.append("i.ch_manufacturer = %(manufacturer)s")
+        item_conds.append("m.manufacturer = %(manufacturer)s")
         vals["manufacturer"] = filters["manufacturer"]
 
     item_where = " AND ".join(item_conds)
 
     # Only items that have at least one active price in this company
+    # Manufacturer lives on CH Model, so LEFT JOIN through it
     items = frappe.db.sql("""
         SELECT DISTINCT i.name as item_code, i.item_name,
             i.ch_sub_category as sub_category,
-            i.ch_manufacturer as manufacturer,
+            m.manufacturer as manufacturer,
             i.brand
         FROM `tabItem` i
+        LEFT JOIN `tabCH Model` m ON m.name = i.ch_model
         JOIN `tabCH Item Price` p ON p.item_code = i.name
             AND p.company = %(company)s AND p.status = 'Active'
         WHERE {w}

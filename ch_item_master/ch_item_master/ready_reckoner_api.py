@@ -103,7 +103,7 @@ def get_ready_reckoner_data(
     offset = (int(page) - 1) * int(page_length)
 
     # ── 1. Fetch items matching filters ──────────────────────────────────────
-    item_filters = {"disabled": 0}
+    item_filters = {"disabled": 0, "has_variants": 0}
     if category:
         item_filters["ch_category"] = category
     if sub_category:
@@ -1293,7 +1293,7 @@ _VALID_TAGS = {"EOL", "FAST MOVING", "SLOW MOVING", "NEW", "PROMO FOCUS", "RESTR
 
 
 @frappe.whitelist()
-def upload_ready_reckoner_prices(file_url, effective_from=None, company=None):
+def upload_ready_reckoner_prices(file_url, effective_from=None, company=None, reason=None):
     """Parse a Ready Reckoner Excel and create a CH Price Upload Batch (Draft).
 
     Instead of applying changes directly, this creates a maker/checker batch:
@@ -1464,6 +1464,7 @@ def upload_ready_reckoner_prices(file_url, effective_from=None, company=None):
                         "field_label": label,
                         "old_value": str(old_val),
                         "new_value": str(new_val),
+                        "reason": reason or "",
                     })
             else:
                 existing = buyback_price_index.get(item_code)
@@ -1476,6 +1477,7 @@ def upload_ready_reckoner_prices(file_url, effective_from=None, company=None):
                         "field_label": label,
                         "old_value": str(old_val),
                         "new_value": str(new_val),
+                        "reason": reason or "",
                     })
 
         # ── Tags column ───────────────────────────────────────────────────
@@ -1503,6 +1505,7 @@ def upload_ready_reckoner_prices(file_url, effective_from=None, company=None):
                     "field_label": "Add Tag",
                     "old_value": "",
                     "new_value": tag,
+                    "reason": reason or "",
                 })
 
             # Tags to remove
@@ -1514,6 +1517,7 @@ def upload_ready_reckoner_prices(file_url, effective_from=None, company=None):
                     "field_label": "Remove Tag",
                     "old_value": tag,
                     "new_value": "",
+                    "reason": reason or "",
                 })
 
     if not batch_items:

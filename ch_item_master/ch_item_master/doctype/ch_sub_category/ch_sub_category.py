@@ -45,6 +45,7 @@ class CHSubCategory(Document):
 	def validate(self):
 		if self.sub_category_name:
 			self.sub_category_name = " ".join(self.sub_category_name.split())
+		self._populate_ids()
 		self._auto_fill_hsn_from_item_group()
 		self.validate_unique_name_per_category()
 		self.validate_case_insensitive_duplicate()
@@ -53,6 +54,24 @@ class CHSubCategory(Document):
 		self.validate_name_order_sequential()
 		self.validate_spec_changes_after_items_exist()
 		self.validate_hsn_code()
+
+	def _populate_ids(self):
+		"""Copy numeric IDs from linked master records for API."""
+		self.category_id = 0
+		self.item_group_id = 0
+		if self.category:
+			cat_data = frappe.db.get_value(
+				"CH Category", self.category,
+				["category_id", "item_group"], as_dict=True
+			)
+			if cat_data:
+				self.category_id = cat_data.category_id or 0
+				if not self.item_group:
+					self.item_group = cat_data.item_group
+			if self.item_group:
+				self.item_group_id = frappe.db.get_value(
+					"Item Group", self.item_group, "item_group_id"
+				) or 0
 
 	def _auto_fill_hsn_from_item_group(self):
 		"""Auto-fill HSN from Item Group if not already set.

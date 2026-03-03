@@ -5,7 +5,8 @@
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
-  "manufacturer"
+  "manufacturer",
+  "manufacturer_id"
  ],
  "fields": [
   {
@@ -15,6 +16,15 @@
    "label": "Manufacturer",
    "options": "Manufacturer",
    "reqd": 1
+  },
+  {
+   "fieldname": "manufacturer_id",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Manufacturer ID",
+   "read_only": 1,
+   "fetch_from": "manufacturer.manufacturer_id",
+   "description": "Auto-fetched from Manufacturer"
   }
  ],
  "index_web_pages_for_search": 0,

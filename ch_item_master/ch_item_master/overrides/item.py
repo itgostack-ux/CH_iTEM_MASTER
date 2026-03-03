@@ -318,6 +318,8 @@ def before_save(doc, method=None):
 
     if display_name:
         doc.item_name = display_name
+        # Keep description in sync — replaces hyphenated default set by ERPNext variant creation
+        doc.description = display_name
 
     # Validate generated name is unique (on every save)
     _check_duplicate_item_name(doc)
@@ -436,12 +438,26 @@ def _populate_master_ids(doc):
       - ch_manufacturer_id ← Manufacturer.manufacturer_id (via CH Model.manufacturer)
       - ch_sub_category_id ← CH Sub Category.sub_category_id
       - ch_model_id        ← CH Model.model_id
+      - ch_category_id     ← CH Category.category_id
+      - ch_item_group_id   ← Item Group.item_group_id
     """
     # Reset all IDs first — if links are cleared, IDs should be cleared too
     doc.ch_brand_id = 0
     doc.ch_manufacturer_id = 0
     doc.ch_sub_category_id = 0
     doc.ch_model_id = 0
+    doc.ch_category_id = 0
+    doc.ch_item_group_id = 0
+
+    if doc.ch_category:
+        doc.ch_category_id = frappe.db.get_value(
+            "CH Category", doc.ch_category, "category_id"
+        ) or 0
+
+    if doc.item_group:
+        doc.ch_item_group_id = frappe.db.get_value(
+            "Item Group", doc.item_group, "item_group_id"
+        ) or 0
 
     if doc.ch_sub_category:
         doc.ch_sub_category_id = frappe.db.get_value(

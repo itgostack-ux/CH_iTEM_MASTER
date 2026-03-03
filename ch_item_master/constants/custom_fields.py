@@ -75,9 +75,20 @@ CUSTOM_FIELDS = {
 		},
 	],
 	# ──────────────────────────────────────────────
-	# Item Group: Add disabled for CH master hierarchy
+	# Item Group: Add disabled + integer ID for CH master hierarchy
 	# ──────────────────────────────────────────────
 	"Item Group": [
+		{
+			"fieldname": "item_group_id",
+			"label": _("Item Group ID"),
+			"fieldtype": "Int",
+			"insert_after": "name",
+			"read_only": 1,
+			"no_copy": 1,
+			"in_list_view": 1,
+			"bold": 1,
+			"description": _("Auto-generated sequential ID for mobile/API integration"),
+		},
 		{
 			"fieldname": "ch_disabled",
 			"label": _("Disabled"),
@@ -220,6 +231,24 @@ CUSTOM_FIELDS = {
 			"read_only": 1,
 			"no_copy": 1,
 			"description": _("Copied from CH Model.model_id on save"),
+		},
+		{
+			"fieldname": "ch_category_id",
+			"label": _("Category ID"),
+			"fieldtype": "Int",
+			"insert_after": "ch_model_id",
+			"read_only": 1,
+			"no_copy": 1,
+			"description": _("Copied from CH Category.category_id on save"),
+		},
+		{
+			"fieldname": "ch_item_group_id",
+			"label": _("Item Group ID"),
+			"fieldtype": "Int",
+			"insert_after": "ch_category_id",
+			"read_only": 1,
+			"no_copy": 1,
+			"description": _("Copied from Item Group.item_group_id on save"),
 		},
 		# ──────────────────────────────────────────────
 		# Warranty & Lifecycle

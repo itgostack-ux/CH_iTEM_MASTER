@@ -33,6 +33,8 @@
   "column_break_applied",
   "error_count",
   "applied_at",
+  "alerts_section",
+  "alerts_html",
   "items_section",
   "items",
   "notes_section",
@@ -213,6 +215,17 @@
    "fieldtype": "Datetime",
    "label": "Applied At",
    "read_only": 1
+  },
+  {
+   "fieldname": "alerts_section",
+   "fieldtype": "Section Break",
+   "label": "Price Intelligence",
+   "depends_on": "eval:!doc.__islocal && doc.total_changes > 0"
+  },
+  {
+   "fieldname": "alerts_html",
+   "fieldtype": "HTML",
+   "label": "Alerts"
   },
   {
    "fieldname": "items_section",

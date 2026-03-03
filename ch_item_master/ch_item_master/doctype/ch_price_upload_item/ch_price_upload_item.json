@@ -30,18 +30,18 @@
   {
    "fieldname": "item_code",
    "fieldtype": "Link",
-   "in_list_view": 1,
    "label": "Item Code",
    "options": "Item",
-   "reqd": 1,
-   "columns": 2
+   "reqd": 1
   },
   {
    "fetch_from": "item_code.item_name",
    "fieldname": "item_name",
    "fieldtype": "Data",
+   "in_list_view": 1,
    "label": "Item Name",
-   "read_only": 1
+   "read_only": 1,
+   "columns": 2
   },
   {
    "fieldname": "channel",
@@ -90,9 +90,7 @@
   {
    "fieldname": "reason",
    "fieldtype": "Small Text",
-   "in_list_view": 1,
    "label": "Reason",
-   "columns": 2,
    "description": "Why is this price being changed?"
   },
   {
@@ -112,8 +110,10 @@
   {
    "fieldname": "error_message",
    "fieldtype": "Small Text",
-   "label": "Error",
-   "read_only": 1
+   "in_list_view": 1,
+   "label": "Remark",
+   "read_only": 1,
+   "columns": 2
   },
   {
    "fieldname": "enrichment_section",

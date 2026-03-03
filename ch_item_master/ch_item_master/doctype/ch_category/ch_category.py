@@ -27,8 +27,17 @@ class CHCategory(Document):
 	def validate(self):
 		if self.category_name:
 			self.category_name = " ".join(self.category_name.split())
+		self._populate_ids()
 		self._validate_duplicate_name()
 		self._validate_deactivation()
+
+	def _populate_ids(self):
+		"""Copy numeric IDs from linked master records for API."""
+		self.item_group_id = 0
+		if self.item_group:
+			self.item_group_id = frappe.db.get_value(
+				"Item Group", self.item_group, "item_group_id"
+			) or 0
 
 	def _validate_duplicate_name(self):
 		"""Case-insensitive duplicate check for category_name.

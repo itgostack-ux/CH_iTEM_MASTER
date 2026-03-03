@@ -1,6 +1,6 @@
 {
  "charts": [],
- "content": "[{\"id\":\"Nkh27svWTZ\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Your Shortcuts</b></span>\",\"col\":12}},{\"id\":\"2g4yB1QU_4\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"CH Category\",\"col\":3}},{\"id\":\"q07_OvyUDo\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"CH Sub Category\",\"col\":3}},{\"id\":\"uicVMn_lIE\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"CH Model\",\"col\":3}},{\"id\":\"5MqAt4Pe6n\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Item\",\"col\":3}},{\"id\":\"uRbyCuxnpQ\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"CH Ready Reckoner\",\"col\":3}},{\"id\":\"vRcBpNiURO\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"CH Item Price\",\"col\":3}},{\"id\":\"SjYDw-CKgu\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"CH Item Offer\",\"col\":3}},{\"id\":\"5UfLZrpGij\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"CH Item Commercial Tag\",\"col\":3}},{\"id\":\"abSMRIbTUZ\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"-Mi5DM4AY_\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Masters</b></span>\",\"col\":12}},{\"id\":\"Q1ayLsPD2t\",\"type\":\"card\",\"data\":{\"card_name\":\"Hierarchy\",\"col\":4}},{\"id\":\"rlSQLQ2MWZ\",\"type\":\"card\",\"data\":{\"card_name\":\"Product Catalog\",\"col\":4}},{\"id\":\"Y54ukqvx__\",\"type\":\"card\",\"data\":{\"card_name\":\"Stock\",\"col\":4}},{\"id\":\"s6blNOjazN\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"0KimY7G5RQ\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Pricing</b></span>\",\"col\":12}},{\"id\":\"_WVcvCC-Vc\",\"type\":\"card\",\"data\":{\"card_name\":\"Pricing\",\"col\":4}},{\"id\":\"evDAU0T7a3\",\"type\":\"card\",\"data\":{\"card_name\":\"Channels & Tracking\",\"col\":4}},{\"id\":\"-Vq6rORhlh\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"8nuPS28FYP\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Reports &amp; Analytics</b></span>\",\"col\":12}},{\"id\":\"5Y-wt6aEE0\",\"type\":\"card\",\"data\":{\"card_name\":\"Reports\",\"col\":4}},{\"id\":\"uV_3Kvx_Jz\",\"type\":\"card\",\"data\":{\"card_name\":\"Dashboard\",\"col\":4}}]",
+ "content": "[{\"id\":\"Nkh27svWTZ\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Your Shortcuts</b></span>\",\"col\":12}},{\"id\":\"2g4yB1QU_4\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"CH Category\",\"col\":3}},{\"id\":\"q07_OvyUDo\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"CH Sub Category\",\"col\":3}},{\"id\":\"uicVMn_lIE\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"CH Model\",\"col\":3}},{\"id\":\"5MqAt4Pe6n\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Item\",\"col\":3}},{\"id\":\"uRbyCuxnpQ\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"CH Ready Reckoner\",\"col\":3}},{\"id\":\"vRcBpNiURO\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"CH Item Price\",\"col\":3}},{\"id\":\"SjYDw-CKgu\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"CH Item Offer\",\"col\":3}},{\"id\":\"5UfLZrpGij\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"CH Item Commercial Tag\",\"col\":3}},{\"id\":\"pUb_xR7kQ1\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Price Upload Batches\",\"col\":3}},{\"id\":\"cLg_mN2pY8\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Price Change Log\",\"col\":3}},{\"id\":\"abSMRIbTUZ\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"-Mi5DM4AY_\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Masters</b></span>\",\"col\":12}},{\"id\":\"Q1ayLsPD2t\",\"type\":\"card\",\"data\":{\"card_name\":\"Hierarchy\",\"col\":4}},{\"id\":\"rlSQLQ2MWZ\",\"type\":\"card\",\"data\":{\"card_name\":\"Product Catalog\",\"col\":4}},{\"id\":\"Y54ukqvx__\",\"type\":\"card\",\"data\":{\"card_name\":\"Stock\",\"col\":4}},{\"id\":\"s6blNOjazN\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"0KimY7G5RQ\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Pricing</b></span>\",\"col\":12}},{\"id\":\"_WVcvCC-Vc\",\"type\":\"card\",\"data\":{\"card_name\":\"Pricing\",\"col\":4}},{\"id\":\"evDAU0T7a3\",\"type\":\"card\",\"data\":{\"card_name\":\"Channels & Tracking\",\"col\":4}},{\"id\":\"-Vq6rORhlh\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"8nuPS28FYP\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Reports &amp; Analytics</b></span>\",\"col\":12}},{\"id\":\"5Y-wt6aEE0\",\"type\":\"card\",\"data\":{\"card_name\":\"Reports\",\"col\":4}},{\"id\":\"uV_3Kvx_Jz\",\"type\":\"card\",\"data\":{\"card_name\":\"Dashboard\",\"col\":4}}]",
  "creation": "2026-02-19 00:00:00",
  "custom_blocks": [],
  "docstatus": 0,
@@ -16,7 +16,7 @@
    "hidden": 0,
    "is_query_report": 0,
    "label": "Pricing",
-   "link_count": 4,
+   "link_count": 6,
    "link_type": "DocType",
    "onboard": 0,
    "type": "Card Break"
@@ -49,6 +49,26 @@
    "link_to": "CH Item Commercial Tag",
    "link_type": "DocType",
    "onboard": 1,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Price Upload Batches",
+   "link_count": 0,
+   "link_to": "CH Price Upload Batch",
+   "link_type": "DocType",
+   "onboard": 1,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Price Change Log",
+   "link_count": 0,
+   "link_to": "CH Price Change Log",
+   "link_type": "DocType",
+   "onboard": 0,
    "type": "Link"
   },
   {
@@ -410,6 +430,23 @@
    "format": "{} Tags",
    "label": "CH Item Commercial Tag",
    "link_to": "CH Item Commercial Tag",
+   "type": "DocType"
+  },
+  {
+   "color": "Yellow",
+   "doc_view": "List",
+   "format": "{} Batches",
+   "label": "Price Upload Batches",
+   "link_to": "CH Price Upload Batch",
+   "stats_filter": "{\"status\":\"Pending Approval\"}",
+   "type": "DocType"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "format": "{} Logs",
+   "label": "Price Change Log",
+   "link_to": "CH Price Change Log",
    "type": "DocType"
   }
  ],

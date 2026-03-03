@@ -41,12 +41,38 @@ class CHModel(Document):
 	def validate(self):
 		if self.model_name:
 			self.model_name = " ".join(self.model_name.split())
+		self._populate_ids()
 		self.validate_unique_model()
 		self.validate_manufacturer_allowed()
 		self.validate_brand_belongs_to_manufacturer()
 		self.validate_spec_values()
 		self.validate_variant_specs_have_values()
 		self.validate_deactivation()
+
+	def _populate_ids(self):
+		"""Copy numeric IDs from linked master records for API."""
+		self.brand_id = 0
+		self.manufacturer_id = 0
+		self.sub_category_id = 0
+		self.category_id = 0
+		self.item_group_id = 0
+
+		if self.brand:
+			self.brand_id = frappe.db.get_value("Brand", self.brand, "brand_id") or 0
+		if self.manufacturer:
+			self.manufacturer_id = frappe.db.get_value(
+				"Manufacturer", self.manufacturer, "manufacturer_id"
+			) or 0
+		if self.sub_category:
+			sc_data = frappe.db.get_value(
+				"CH Sub Category", self.sub_category,
+				["sub_category_id", "category_id", "item_group_id"],
+				as_dict=True,
+			)
+			if sc_data:
+				self.sub_category_id = sc_data.sub_category_id or 0
+				self.category_id = sc_data.category_id or 0
+				self.item_group_id = sc_data.item_group_id or 0
 
 	def validate_unique_model(self):
 		"""Ensure model_name is unique per (sub_category + brand).

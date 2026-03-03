@@ -15,6 +15,13 @@
   "brand",
   "model_name",
   "disabled",
+  "api_ids_section",
+  "brand_id",
+  "manufacturer_id",
+  "column_break_api",
+  "sub_category_id",
+  "category_id",
+  "item_group_id",
   "spec_values_section",
   "item_name_preview",
   "spec_values",
@@ -80,6 +87,57 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Disabled"
+  },
+  {
+   "fieldname": "api_ids_section",
+   "fieldtype": "Section Break",
+   "label": "API IDs",
+   "collapsible": 1,
+   "description": "Auto-populated numeric IDs from linked masters (for mobile/API)"
+  },
+  {
+   "fieldname": "brand_id",
+   "fieldtype": "Int",
+   "label": "Brand ID",
+   "read_only": 1,
+   "no_copy": 1,
+   "description": "Copied from Brand.brand_id on save"
+  },
+  {
+   "fieldname": "manufacturer_id",
+   "fieldtype": "Int",
+   "label": "Manufacturer ID",
+   "read_only": 1,
+   "no_copy": 1,
+   "description": "Copied from Manufacturer.manufacturer_id on save"
+  },
+  {
+   "fieldname": "column_break_api",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "sub_category_id",
+   "fieldtype": "Int",
+   "label": "Sub Category ID",
+   "read_only": 1,
+   "no_copy": 1,
+   "description": "Copied from CH Sub Category.sub_category_id on save"
+  },
+  {
+   "fieldname": "category_id",
+   "fieldtype": "Int",
+   "label": "Category ID",
+   "read_only": 1,
+   "no_copy": 1,
+   "description": "Copied from CH Category.category_id (via sub_category) on save"
+  },
+  {
+   "fieldname": "item_group_id",
+   "fieldtype": "Int",
+   "label": "Item Group ID",
+   "read_only": 1,
+   "no_copy": 1,
+   "description": "Copied from Item Group.item_group_id (via category) on save"
   },
   {
    "fieldname": "spec_values_section",

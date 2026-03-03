@@ -10,6 +10,7 @@
   "category_id",
   "category_name",
   "item_group",
+  "item_group_id",
   "disabled"
  ],
  "fields": [
@@ -41,6 +42,14 @@
    "label": "Item Group",
    "options": "Item Group",
    "reqd": 1
+  },
+  {
+   "fieldname": "item_group_id",
+   "fieldtype": "Int",
+   "label": "Item Group ID",
+   "read_only": 1,
+   "no_copy": 1,
+   "description": "Auto-populated from linked Item Group on save"
   },
   {
    "default": "0",

@@ -29,7 +29,7 @@ def before_insert(doc, method=None):
 
 
 def before_save(doc, method=None):
-	"""Validate manufacturers list — no duplicates allowed."""
+	"""Validate manufacturers list and populate manufacturer_id."""
 	# Normalize brand name
 	if doc.brand:
 		doc.brand = " ".join(doc.brand.split())
@@ -45,4 +45,9 @@ def before_save(doc, method=None):
 				title=_("Duplicate Manufacturer"),
 			)
 		seen.add(row.manufacturer)
+
+		# Populate manufacturer_id for API (fetch_from only works on UI)
+		row.manufacturer_id = frappe.db.get_value(
+			"Manufacturer", row.manufacturer, "manufacturer_id"
+		) or 0
 

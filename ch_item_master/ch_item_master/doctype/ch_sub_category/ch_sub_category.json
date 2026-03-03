@@ -11,6 +11,7 @@
   "category",
   "category_id",
   "item_group",
+  "item_group_id",
   "column_break_01",
   "sub_category_name",
   "prefix",
@@ -54,9 +55,8 @@
    "fieldtype": "Int",
    "label": "Category ID",
    "read_only": 1,
-   "fetch_from": "category.category_id",
-   "fetch_if_empty": 1,
-   "description": "Auto-fetched from linked CH Category"
+   "no_copy": 1,
+   "description": "Auto-populated from linked CH Category on save"
   },
   {
    "fetch_from": "category.item_group",
@@ -66,6 +66,14 @@
    "label": "Item Group",
    "options": "Item Group",
    "read_only": 1
+  },
+  {
+   "fieldname": "item_group_id",
+   "fieldtype": "Int",
+   "label": "Item Group ID",
+   "read_only": 1,
+   "no_copy": 1,
+   "description": "Auto-populated from linked Item Group on save"
   },
   {
    "fieldname": "column_break_01",

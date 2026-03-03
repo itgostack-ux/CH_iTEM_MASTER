@@ -51,6 +51,9 @@ doc_events = {
 		"before_insert": "ch_item_master.ch_item_master.overrides.brand.before_insert",
 		"before_save": "ch_item_master.ch_item_master.overrides.brand.before_save",
 	},
+	"Item Group": {
+		"before_insert": "ch_item_master.ch_item_master.overrides.item_group.before_insert",
+	},
 	"Customer": {
 		"before_insert": "ch_item_master.ch_customer_master.overrides.customer.before_insert",
 		"validate": "ch_item_master.ch_customer_master.overrides.customer.validate",

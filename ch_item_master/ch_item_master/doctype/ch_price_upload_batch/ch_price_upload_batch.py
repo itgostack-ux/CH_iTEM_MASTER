@@ -146,16 +146,19 @@ class CHPriceUploadBatch(Document):
 				field = field_map.get(row.field_label)
 				if not field:
 					row.status = "Skipped"
+					row.error_message = f"Unknown field '{row.field_label}'"
 					skipped += 1
 					continue
 				new_val = float(row.new_value or 0)
-				if float(doc.get(field) or 0) != new_val:
+				cur_val = float(doc.get(field) or 0)
+				if cur_val != new_val:
 					doc.set(field, new_val)
 					changed = True
 					row.status = "Applied"
 					applied += 1
 				else:
 					row.status = "Skipped"
+					row.error_message = f"No change — current {row.field_label} is already {cur_val}"
 					skipped += 1
 
 			if changed:
@@ -182,12 +185,14 @@ class CHPriceUploadBatch(Document):
 					applied += 1
 				else:
 					row.status = "Skipped"
+					row.error_message = f"Unknown field '{row.field_label}'"
 					skipped += 1
 
 			if not doc.selling_price:
 				# selling_price is required — skip if not set
 				for row in rows:
 					row.status = "Skipped"
+					row.error_message = "Selling Price is required but not set"
 				return 0, len(rows)
 
 			doc.flags.from_price_batch = True
@@ -218,16 +223,19 @@ class CHPriceUploadBatch(Document):
 			field = row.channel  # channel field stores the actual DB field name for buyback
 			if not field or not hasattr(doc, field):
 				row.status = "Skipped"
+				row.error_message = f"Unknown buyback field '{field or '(empty)'}'"
 				skipped += 1
 				continue
 			new_val = float(row.new_value or 0)
-			if float(doc.get(field) or 0) != new_val:
+			cur_val = float(doc.get(field) or 0)
+			if cur_val != new_val:
 				doc.set(field, new_val)
 				changed = True
 				row.status = "Applied"
 				applied += 1
 			else:
 				row.status = "Skipped"
+				row.error_message = f"No change — current {row.field_label} is already {cur_val}"
 				skipped += 1
 
 		if changed:
@@ -257,6 +265,7 @@ class CHPriceUploadBatch(Document):
 					)
 					if existing:
 						row.status = "Skipped"
+						row.error_message = f"Tag '{tag_name}' already active"
 						skipped += 1
 					else:
 						doc = frappe.new_doc("CH Item Commercial Tag")
@@ -286,6 +295,7 @@ class CHPriceUploadBatch(Document):
 						applied += 1
 					else:
 						row.status = "Skipped"
+						row.error_message = f"Tag '{old_tag}' not found as active — nothing to remove"
 						skipped += 1
 
 				elif old_tag and tag_name and old_tag != tag_name:
@@ -313,6 +323,7 @@ class CHPriceUploadBatch(Document):
 					applied += 1
 				else:
 					row.status = "Skipped"
+					row.error_message = "No tag change detected"
 					skipped += 1
 			except Exception as e:
 				row.status = "Error"

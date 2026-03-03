@@ -1127,6 +1127,11 @@ function chpb_upload(state) {
                 label: 'Excel File (.xlsx)', reqd: 1,
                 options: { restrictions: { allowed_file_types: ['.xlsx'] } },
             },
+            {
+                fieldtype: 'Small Text', fieldname: 'reason',
+                label: 'Reason for Price Changes', reqd: 1,
+                description: 'Explain why these prices are being updated (e.g. "Market correction", "New vendor pricing", "Festival sale")',
+            },
         ],
         primary_action_label: __('Upload & Create Batch'),
         primary_action(vals) {
@@ -1139,6 +1144,7 @@ function chpb_upload(state) {
                 args: {
                     file_url: vals.file,
                     company: state.filters.company || '',
+                    reason: vals.reason || '',
                 },
                 callback(r) {
                     d.hide();
