@@ -65,7 +65,7 @@ doc_events = {
 		"on_submit": "ch_item_master.ch_customer_master.hooks.on_service_request_submit",
 	},
 	"Buyback Request": {
-		"on_submit": "ch_item_master.ch_customer_master.hooks.on_buyback_request_submit",
+		"on_update": "ch_item_master.ch_customer_master.hooks.on_buyback_request_submit",
 	},
 	# Transactions: manual rate-filling removed.
 	# ERPNext natively uses Item Price (fetched by price list) and applies Pricing Rules.

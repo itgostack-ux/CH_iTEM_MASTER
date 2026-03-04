@@ -93,7 +93,7 @@ def validate_buyback_price(doc, method=None):
 
     changed_fields = []
     for f in _BUYBACK_PRICE_FIELDS:
-        if float(doc.get(f) or 0) != float(old.get(f) or 0):
+        if flt(doc.get(f) or 0, 2) != flt(old.get(f) or 0, 2):
             changed_fields.append(f)
 
     if changed_fields:

@@ -50,7 +50,11 @@ def on_service_request_submit(doc, method=None):
 
 
 def on_buyback_request_submit(doc, method=None):
-	"""When a Buyback Request is created, log a visit."""
+	"""When a Buyback Request is created/saved, log a visit (only once)."""
+	# Only log on first save — skip subsequent edits
+	if not doc.is_new() and not doc.has_value_changed("deal_status"):
+		return
+
 	customer = _find_customer_by_mobile(doc.get("mobile_no"))
 	if not customer:
 		return
