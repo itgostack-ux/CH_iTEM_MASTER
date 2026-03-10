@@ -29,6 +29,77 @@ class CHPriceUploadBatch(Document):
 		self.buyback_price_changes = buyback
 		self.tag_changes = tags
 
+	def _validate_price_sanity(self):
+		"""Pre-flight validation before submission — catches errors early.
+
+		For Selling Price changes: simulate the final state (existing values +
+		this batch's changes) and check MRP >= MOP >= Selling Price hierarchy.
+		For Buyback Price changes: ensure no negative values.
+		"""
+		from collections import defaultdict
+
+		# Group selling price rows by (item_code, channel)
+		selling_groups = defaultdict(dict)
+		for row in self.items:
+			if row.change_type == "Selling Price":
+				key = (row.item_code, row.channel)
+				field_map = {"MRP": "mrp", "MOP": "mop", "Selling Price": "selling_price"}
+				field = field_map.get(row.field_label)
+				if field:
+					selling_groups[key][field] = float(row.new_value or 0)
+			elif row.change_type == "Buyback Price":
+				new_val = float(row.new_value or 0)
+				if new_val < 0:
+					frappe.throw(
+						_("Row {0}: {1} cannot be negative ({2})").format(
+							row.idx, row.field_label, new_val
+						),
+						title=_("Invalid Buyback Price"),
+					)
+
+		errors = []
+		for (item_code, channel), new_fields in selling_groups.items():
+			# Fetch the current values so we can simulate the merged state
+			existing = frappe.db.get_value(
+				"CH Item Price",
+				{"item_code": item_code, "channel": channel,
+				 "status": ("in", ["Active", "Scheduled"])},
+				["mrp", "mop", "selling_price"],
+				as_dict=True,
+			) or {}
+
+			mrp = new_fields.get("mrp", float(existing.get("mrp") or 0))
+			mop = new_fields.get("mop", float(existing.get("mop") or 0))
+			sp  = new_fields.get("selling_price", float(existing.get("selling_price") or 0))
+
+			item_name = frappe.db.get_value("Item", item_code, "item_name") or item_code
+
+			if sp <= 0:
+				errors.append(_("{0} ({1}): Selling Price must be > 0").format(item_name, channel))
+			if mrp and mop and mrp < mop:
+				errors.append(
+					_("{0} ({1}): MRP ({2}) cannot be less than MOP ({3})").format(
+						item_name, channel, mrp, mop
+					)
+				)
+			if mop and sp and mop < sp:
+				errors.append(
+					_("{0} ({1}): MOP ({2}) cannot be less than Selling Price ({3})").format(
+						item_name, channel, mop, sp
+					)
+				)
+			if mrp and sp and mrp < sp:
+				errors.append(
+					_("{0} ({1}): MRP ({2}) cannot be less than Selling Price ({3})").format(
+						item_name, channel, mrp, sp
+					)
+				)
+
+		if errors:
+			msg = _("Price hierarchy errors found — please fix before submitting:") + "<br><br>"
+			msg += "<br>".join(errors)
+			frappe.throw(msg, title=_("Invalid Price Hierarchy"))
+
 	# ── Workflow actions (called from JS buttons) ─────────────────────────
 
 	@frappe.whitelist()
@@ -36,9 +107,32 @@ class CHPriceUploadBatch(Document):
 		"""Maker submits the batch for checker review."""
 		if self.status != "Draft":
 			frappe.throw(_("Only Draft batches can be submitted for approval."))
+		self._validate_price_sanity()
 		self.status = "Pending Approval"
+		self.submitted_by = frappe.session.user
+		self.submitted_at = now_datetime()
 		self.save(ignore_permissions=True)
 		frappe.msgprint(_("Batch submitted for approval."), indicator="blue")
+
+	@frappe.whitelist()
+	def revise_batch(self):
+		"""Allow maker to revise a rejected or partially-applied batch.
+
+		Resets status to Draft, clears per-row statuses, and lets the user
+		edit rows (fix prices, remove bad rows) before resubmitting.
+		"""
+		if self.status not in ("Rejected", "Partially Applied"):
+			frappe.throw(_("Only Rejected or Partially Applied batches can be revised."))
+
+		# Reset row-level statuses — keep Applied rows as-is, reset others
+		for row in self.items:
+			if row.status in ("Error", "Skipped", "Pending"):
+				row.status = "Pending"
+				row.error_message = ""
+
+		self.status = "Draft"
+		self.save(ignore_permissions=True)
+		frappe.msgprint(_("Batch reset to Draft — you can now edit and resubmit."), indicator="blue")
 
 	@frappe.whitelist()
 	def approve_and_apply(self):

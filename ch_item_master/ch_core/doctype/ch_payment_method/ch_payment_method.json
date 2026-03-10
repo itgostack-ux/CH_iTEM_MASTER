@@ -1,0 +1,131 @@
+{
+ "actions": [],
+ "autoname": "naming_series:",
+ "creation": "2026-03-05 10:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "payment_method_id",
+  "method_name",
+  "column_break_01",
+  "method_type",
+  "disabled",
+  "requirements_section",
+  "requires_bank_details",
+  "requires_upi_id",
+  "column_break_02",
+  "requires_transaction_proof"
+ ],
+ "fields": [
+  {
+   "default": "CHPM-.#####",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "Series",
+   "options": "CHPM-.#####",
+   "print_hide": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "payment_method_id",
+   "fieldtype": "Int",
+   "label": "Payment Method ID",
+   "read_only": 1,
+   "unique": 1,
+   "no_copy": 1,
+   "in_list_view": 1,
+   "description": "Auto-generated sequential ID for mobile/API integration"
+  },
+  {
+   "fieldname": "method_name",
+   "fieldtype": "Data",
+   "label": "Method Name",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "column_break_01",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "method_type",
+   "fieldtype": "Select",
+   "label": "Method Type",
+   "options": "\nCash\nBank\nUPI\nWallet\nOther",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "disabled",
+   "fieldtype": "Check",
+   "label": "Disabled",
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "requirements_section",
+   "fieldtype": "Section Break",
+   "label": "Field Requirements"
+  },
+  {
+   "default": "0",
+   "fieldname": "requires_bank_details",
+   "fieldtype": "Check",
+   "label": "Requires Bank Details",
+   "description": "Auto-set when Method Type = Bank"
+  },
+  {
+   "default": "0",
+   "fieldname": "requires_upi_id",
+   "fieldtype": "Check",
+   "label": "Requires UPI ID",
+   "description": "Auto-set when Method Type = UPI"
+  },
+  {
+   "fieldname": "column_break_02",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "requires_transaction_proof",
+   "fieldtype": "Check",
+   "label": "Requires Transaction Proof"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-03-05 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "CH Core",
+ "name": "CH Payment Method",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "All"
+  }
+ ],
+ "search_fields": "method_name,method_type",
+ "sort_field": "method_name",
+ "sort_order": "ASC",
+ "states": [],
+ "title_field": "method_name",
+ "show_title_field_in_link": 1
+}

@@ -26,6 +26,7 @@ after_migrate = [
 	"ch_item_master.setup.create_ch_custom_fields",
 	"ch_item_master.setup.setup_channels",
 	"ch_item_master.setup.sync_workspace",
+	"ch_item_master.ch_item_master.backfill_ids.backfill_ids_after_migrate",
 ]
 before_uninstall = "ch_item_master.install.before_uninstall"
 
@@ -81,5 +82,9 @@ doc_events = {
 	"Buyback Price Master": {
 		"validate": "ch_item_master.ch_item_master.price_governance.validate_buyback_price",
 		"on_update": "ch_item_master.ch_item_master.price_governance.log_buyback_price_change",
+	},
+	# ── After Data Import: cascade denormalized IDs ────────────────────────
+	"Data Import": {
+		"on_update_after_submit": "ch_item_master.ch_item_master.backfill_ids.on_data_import_complete",
 	},
 }

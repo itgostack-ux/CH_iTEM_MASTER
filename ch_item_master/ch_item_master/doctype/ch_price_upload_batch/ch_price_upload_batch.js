@@ -67,6 +67,25 @@ frappe.ui.form.on("CH Price Upload Batch", {
 			}
 		}
 
+		// ── Show rejection reason on Rejected batches ───────────────────
+		if (frm.doc.status === 'Rejected' && frm.doc.rejection_reason) {
+			frm.dashboard.set_headline(
+				`<span style="color:var(--red-600)">Rejected: ${frm.doc.rejection_reason}</span>`
+			);
+		}
+
+		// ── Revise: let maker fix and resubmit rejected/partial batches ──
+		if (['Rejected', 'Partially Applied'].includes(frm.doc.status)) {
+			frm.add_custom_button(__('Revise & Resubmit'), () => {
+				frappe.confirm(
+					__('Reset this batch to Draft? You can then edit rows and resubmit for approval.'),
+					() => {
+						frm.call('revise_batch').then(() => frm.reload_doc());
+					}
+				);
+			}, null).addClass('btn-primary');
+		}
+
 		// ── Summary cards ────────────────────────────────────────────────
 		// (rendered via summary fields — no extra HTML needed)
 
@@ -76,9 +95,23 @@ frappe.ui.form.on("CH Price Upload Batch", {
 			_render_price_intelligence(frm);
 		}
 
-		// ── Disable editing on non-Draft batches ─────────────────────────
-		if (frm.doc.status !== 'Draft') {
+		// ── Editability based on status ──────────────────────────────────
+		if (frm.doc.status === 'Draft') {
+			frm.enable_save();
+			// Let maker edit new_value and reason in draft
+			frm.fields_dict.items.grid.update_docfield_property('new_value', 'read_only', 0);
+			frm.fields_dict.items.grid.update_docfield_property('reason', 'read_only', 0);
+
+			// Show rejection reason banner if this is a revised batch
+			if (frm.doc.rejection_reason) {
+				frm.dashboard.set_headline(
+					`<span style="color:var(--red-600)">Rejection Reason: ${frm.doc.rejection_reason}</span>`
+				);
+			}
+		} else {
 			frm.disable_save();
+			frm.fields_dict.items.grid.update_docfield_property('new_value', 'read_only', 1);
+			frm.fields_dict.items.grid.update_docfield_property('reason', 'read_only', 1);
 		}
 	},
 });

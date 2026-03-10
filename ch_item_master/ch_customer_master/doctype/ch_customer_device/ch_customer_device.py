@@ -6,6 +6,18 @@ from frappe.model.document import Document
 
 
 class CHCustomerDevice(Document):
+	def before_insert(self):
+		"""Auto-generate device_id with advisory lock."""
+		if not self.device_id:
+			frappe.db.sql("SELECT GET_LOCK('ch_customer_device_id', 10)")
+			try:
+				last = frappe.db.sql(
+					"SELECT IFNULL(MAX(device_id), 0) FROM `tabCH Customer Device`"
+				)[0][0] or 0
+				self.device_id = last + 1
+			finally:
+				frappe.db.sql("SELECT RELEASE_LOCK('ch_customer_device_id')")
+
 	def validate(self):
 		self.set_item_details()
 		self.set_lifecycle_link()

@@ -1,6 +1,6 @@
 {
  "charts": [],
- "content": "[{\"id\":\"cc_hdr_0\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>CH Core</b></span>\",\"col\":12}},{\"id\":\"cc_para\",\"type\":\"paragraph\",\"data\":{\"text\":\"Congruence Holdings – centralised masters for Items, Customers and Vendors.\",\"col\":12}},{\"id\":\"cc_sp_0\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"cc_hdr_1\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Quick Access</b></span>\",\"col\":12}},{\"id\":\"cc_sc_1\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Item\",\"col\":3}},{\"id\":\"cc_sc_2\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Customer\",\"col\":3}},{\"id\":\"cc_sc_3\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Supplier\",\"col\":3}},{\"id\":\"cc_sc_4\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Customer Intelligence Dashboard\",\"col\":3}}]",
+ "content": "[{\"id\":\"cc_hdr_0\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>CH Core</b></span>\",\"col\":12}},{\"id\":\"cc_para\",\"type\":\"paragraph\",\"data\":{\"text\":\"Congruence Holdings \\u2013 centralised masters for Items, Customers and Vendors.\",\"col\":12}},{\"id\":\"cc_sp_0\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"cc_hdr_1\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Quick Access</b></span>\",\"col\":12}},{\"id\":\"cc_sc_1\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Item\",\"col\":3}},{\"id\":\"cc_sc_2\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Customer\",\"col\":3}},{\"id\":\"cc_sc_3\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Supplier\",\"col\":3}},{\"id\":\"cc_sc_4\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Customer Intelligence Dashboard\",\"col\":3}},{\"id\":\"cc_sp_1\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"cc_hdr_2\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Shared Masters</b></span>\",\"col\":12}},{\"id\":\"cc_card_shared\",\"type\":\"card\",\"data\":{\"card_name\":\"Shared Masters\",\"col\":4}}]",
  "creation": "2026-03-02 10:00:00",
  "custom_blocks": [],
  "docstatus": 0,
@@ -11,7 +11,47 @@
  "idx": 0,
  "is_hidden": 0,
  "label": "CH Core",
- "links": [],
+ "links": [
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Shared Masters",
+   "link_count": 0,
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "CH Store",
+   "link_count": 0,
+   "link_to": "CH Store",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "CH Payment Method",
+   "link_count": 0,
+   "link_to": "CH Payment Method",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "CH OTP Log",
+   "link_count": 0,
+   "link_to": "CH OTP Log",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  }
+ ],
  "modified": "2026-03-02 15:00:00",
  "modified_by": "Administrator",
  "module": "CH Item Master",

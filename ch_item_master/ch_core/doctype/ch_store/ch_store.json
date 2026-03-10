@@ -1,0 +1,176 @@
+{
+ "actions": [],
+ "autoname": "field:store_code",
+ "creation": "2026-03-05 10:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "store_id",
+  "store_code",
+  "store_name",
+  "column_break_01",
+  "company",
+  "warehouse",
+  "disabled",
+  "address_section",
+  "address",
+  "city",
+  "column_break_addr",
+  "state",
+  "pincode",
+  "contact_phone",
+  "capabilities_section",
+  "is_buyback_enabled",
+  "is_service_enabled",
+  "column_break_cap",
+  "is_retail_enabled"
+ ],
+ "fields": [
+  {
+   "fieldname": "store_id",
+   "fieldtype": "Int",
+   "label": "Store ID",
+   "read_only": 1,
+   "unique": 1,
+   "no_copy": 1,
+   "in_list_view": 1,
+   "description": "Auto-generated sequential ID for mobile/API integration"
+  },
+  {
+   "fieldname": "store_code",
+   "fieldtype": "Data",
+   "label": "Store Code",
+   "reqd": 1,
+   "unique": 1,
+   "description": "Short code e.g. GOG-CHN-TNAGAR"
+  },
+  {
+   "fieldname": "store_name",
+   "fieldtype": "Data",
+   "label": "Store Name",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "column_break_01",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "warehouse",
+   "fieldtype": "Link",
+   "label": "Default Warehouse",
+   "options": "Warehouse"
+  },
+  {
+   "default": "0",
+   "fieldname": "disabled",
+   "fieldtype": "Check",
+   "label": "Disabled",
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "address_section",
+   "fieldtype": "Section Break",
+   "label": "Address"
+  },
+  {
+   "fieldname": "address",
+   "fieldtype": "Small Text",
+   "label": "Address"
+  },
+  {
+   "fieldname": "city",
+   "fieldtype": "Data",
+   "label": "City",
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "column_break_addr",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "state",
+   "fieldtype": "Data",
+   "label": "State"
+  },
+  {
+   "fieldname": "pincode",
+   "fieldtype": "Data",
+   "label": "PIN Code"
+  },
+  {
+   "fieldname": "contact_phone",
+   "fieldtype": "Data",
+   "label": "Contact Phone"
+  },
+  {
+   "fieldname": "capabilities_section",
+   "fieldtype": "Section Break",
+   "label": "Store Capabilities"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_buyback_enabled",
+   "fieldtype": "Check",
+   "label": "Buyback Enabled"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_service_enabled",
+   "fieldtype": "Check",
+   "label": "Service Enabled"
+  },
+  {
+   "fieldname": "column_break_cap",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_retail_enabled",
+   "fieldtype": "Check",
+   "label": "Retail Enabled"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-03-05 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "CH Core",
+ "name": "CH Store",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "All"
+  }
+ ],
+ "search_fields": "store_name,company,city",
+ "sort_field": "store_name",
+ "sort_order": "ASC",
+ "states": [],
+ "title_field": "store_name",
+ "show_title_field_in_link": 1
+}

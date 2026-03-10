@@ -8,6 +8,18 @@ from frappe.utils import cint, getdate, today
 
 
 class CHLoyaltyTransaction(Document):
+	def before_insert(self):
+		"""Auto-generate loyalty_txn_id with advisory lock."""
+		if not self.loyalty_txn_id:
+			frappe.db.sql("SELECT GET_LOCK('ch_loyalty_txn_id', 10)")
+			try:
+				last = frappe.db.sql(
+					"SELECT IFNULL(MAX(loyalty_txn_id), 0) FROM `tabCH Loyalty Transaction`"
+				)[0][0] or 0
+				self.loyalty_txn_id = last + 1
+			finally:
+				frappe.db.sql("SELECT RELEASE_LOCK('ch_loyalty_txn_id')")
+
 	def validate(self):
 		self.validate_points()
 		self.set_closing_balance()

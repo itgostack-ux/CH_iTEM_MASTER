@@ -15,6 +15,8 @@
   "uploaded_by",
   "upload_date",
   "approval_section",
+  "submitted_by",
+  "submitted_at",
   "approved_by",
   "approved_at",
   "column_break_approval",
@@ -104,6 +106,19 @@
    "fieldtype": "Section Break",
    "label": "Approval",
    "depends_on": "eval:doc.status !== 'Draft'"
+  },
+  {
+   "fieldname": "submitted_by",
+   "fieldtype": "Link",
+   "label": "Submitted By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "submitted_at",
+   "fieldtype": "Datetime",
+   "label": "Submitted At",
+   "read_only": 1
   },
   {
    "fieldname": "approved_by",

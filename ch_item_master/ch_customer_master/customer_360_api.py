@@ -12,11 +12,12 @@ from frappe.utils import cint, flt, getdate, today
 
 
 @frappe.whitelist()
-def get_customer_360(customer):
+def get_customer_360(customer, company=None):
 	"""Return a comprehensive view of a customer.
 
 	Args:
 		customer: Customer name/id
+		company: (optional) Filter transactions/devices/visits by company
 
 	Returns:
 		dict with keys: profile, kyc, payment_accounts, devices, loyalty,
@@ -31,13 +32,14 @@ def get_customer_360(customer):
 		"profile": _get_profile(cust),
 		"kyc": _get_kyc(cust),
 		"payment_accounts": _get_payment_accounts(cust),
-		"devices": _get_devices(customer),
-		"loyalty": _get_loyalty(customer),
-		"recent_transactions": _get_recent_transactions(customer),
-		"store_visits": _get_store_visits(cust),
+		"devices": _get_devices(customer, company=company),
+		"loyalty": _get_loyalty(customer, company=company),
+		"recent_transactions": _get_recent_transactions(customer, company=company),
+		"store_visits": _get_store_visits(cust, company=company),
 		"segment": _get_segment(cust),
 		"referrals": _get_referrals(customer),
 		"summary": _get_summary(cust),
+		"company_filter": company,
 	}
 
 
@@ -70,11 +72,22 @@ def _get_profile(cust):
 def _get_kyc(cust):
 	"""KYC verification status."""
 	return {
+		"customer_photo": cust.get("ch_customer_photo"),
+		"id_type": cust.get("ch_id_type"),
+		"id_number": cust.get("ch_id_number"),
 		"aadhaar_number": _mask_aadhaar(cust.get("ch_aadhaar_number")),
 		"aadhaar_document": cust.get("ch_aadhaar_document"),
+		"id_front_image": cust.get("ch_id_front_image"),
+		"id_back_image": cust.get("ch_id_back_image"),
 		"kyc_verified": cust.get("ch_kyc_verified"),
 		"kyc_verified_by": cust.get("ch_kyc_verified_by"),
 		"kyc_verified_on": cust.get("ch_kyc_verified_on"),
+		"kyc_source_order": cust.get("ch_kyc_source_order"),
+		"total_kyc_verifications": cust.get("ch_total_kyc_verifications"),
+		"device_photo_front": cust.get("ch_device_photo_front"),
+		"device_photo_back": cust.get("ch_device_photo_back"),
+		"device_photo_screen": cust.get("ch_device_photo_screen"),
+		"device_photo_imei": cust.get("ch_device_photo_imei"),
 	}
 
 
@@ -96,14 +109,18 @@ def _get_payment_accounts(cust):
 	return accounts
 
 
-def _get_devices(customer):
+def _get_devices(customer, company=None):
 	"""All devices associated with this customer."""
 	if not frappe.db.exists("DocType", "CH Customer Device"):
 		return []
 
+	filters = {"customer": customer}
+	if company:
+		filters["company"] = company
+
 	devices = frappe.get_all(
 		"CH Customer Device",
-		filters={"customer": customer},
+		filters=filters,
 		fields=[
 			"name", "serial_no", "item_code", "item_name", "brand",
 			"imei_number", "current_status", "purchase_date",
@@ -124,17 +141,20 @@ def _get_devices(customer):
 	return devices
 
 
-def _get_loyalty(customer):
+def _get_loyalty(customer, company=None):
 	"""Loyalty points summary and recent transactions."""
 	if not frappe.db.exists("DocType", "CH Loyalty Transaction"):
 		return {"balance": 0, "recent": []}
 
+	company_cond = "AND company = %s" if company else ""
+	company_args = [customer, company] if company else [customer]
+
 	# Current balance
 	result = frappe.db.sql(
-		"""SELECT IFNULL(SUM(points), 0) as balance
+		f"""SELECT IFNULL(SUM(points), 0) as balance
 		FROM `tabCH Loyalty Transaction`
-		WHERE customer = %s AND docstatus = 1 AND is_expired = 0""",
-		customer,
+		WHERE customer = %s AND docstatus = 1 AND is_expired = 0 {company_cond}""",
+		company_args,
 		as_dict=True,
 	)
 	balance = cint(result[0].balance) if result else 0
@@ -150,9 +170,13 @@ def _get_loyalty(customer):
 	)
 
 	# Recent transactions
+	loyalty_filters = {"customer": customer, "docstatus": 1}
+	if company:
+		loyalty_filters["company"] = company
+
 	recent = frappe.get_all(
 		"CH Loyalty Transaction",
-		filters={"customer": customer, "docstatus": 1},
+		filters=loyalty_filters,
 		fields=[
 			"name", "transaction_date", "company", "transaction_type",
 			"points", "closing_balance", "remarks",
@@ -168,14 +192,17 @@ def _get_loyalty(customer):
 	}
 
 
-def _get_recent_transactions(customer):
-	"""Recent transactions across all apps."""
+def _get_recent_transactions(customer, company=None):
+	"""Recent transactions across all apps, optionally filtered by company."""
 	transactions = []
 
 	# Sales Invoices
+	si_filters = {"customer": customer, "docstatus": 1}
+	if company:
+		si_filters["company"] = company
 	invoices = frappe.get_all(
 		"Sales Invoice",
-		filters={"customer": customer, "docstatus": 1},
+		filters=si_filters,
 		fields=["name", "posting_date", "company", "grand_total", "status"],
 		order_by="posting_date desc",
 		limit=10,
@@ -186,9 +213,12 @@ def _get_recent_transactions(customer):
 
 	# Service Requests
 	if frappe.db.exists("DocType", "Service Request"):
+		sr_filters = {"customer": customer}
+		if company:
+			sr_filters["company"] = company
 		srs = frappe.get_all(
 			"Service Request",
-			filters={"customer": customer},
+			filters=sr_filters,
 			fields=["name", "creation", "company", "status", "device_item_name"],
 			order_by="creation desc",
 			limit=10,
@@ -198,14 +228,15 @@ def _get_recent_transactions(customer):
 			sr["posting_date"] = sr.pop("creation")
 			transactions.append(sr)
 
-	# Buyback Requests (match by mobile)
-	mobile = frappe.db.get_value("Customer", customer, "mobile_no")
-	if mobile and frappe.db.exists("DocType", "Buyback Request"):
-		mobile_last10 = mobile.strip().replace(" ", "")[-10:]
+	# Buyback Requests — use customer Link field (with mobile fallback)
+	if frappe.db.exists("DocType", "Buyback Request"):
+		bb_filters = {"customer": customer}
+		if company:
+			bb_filters["company"] = company
 		bbs = frappe.get_all(
 			"Buyback Request",
-			filters={"mobile_no": ("like", f"%{mobile_last10}%")},
-			fields=["name", "creation", "item_full_name", "buyback_price", "deal_status", "status"],
+			filters=bb_filters,
+			fields=["name", "creation", "company", "item_full_name", "buyback_price", "deal_status", "status"],
 			order_by="creation desc",
 			limit=10,
 		)
@@ -219,10 +250,12 @@ def _get_recent_transactions(customer):
 	return transactions[:20]
 
 
-def _get_store_visits(cust):
-	"""Store visit history."""
+def _get_store_visits(cust, company=None):
+	"""Store visit history, optionally filtered by company."""
 	visits = []
 	for row in cust.get("ch_stores_visited", []):
+		if company and row.company and row.company != company:
+			continue
 		visits.append({
 			"visit_date": row.visit_date,
 			"store": row.store,
@@ -331,6 +364,26 @@ def merge_customers(primary_customer, duplicate_customer):
 			WHERE customer = %s""",
 			(primary_customer, primary.customer_name, duplicate_customer),
 		)
+
+	# Transfer Buyback Requests (re-link customer field)
+	if frappe.db.exists("DocType", "Buyback Request"):
+		frappe.db.sql(
+			"""UPDATE `tabBuyback Request`
+			SET customer = %s
+			WHERE customer = %s""",
+			(primary_customer, duplicate_customer),
+		)
+		# Also re-link any buybacks matched by duplicate's mobile
+		dup_mobile = (duplicate.mobile_no or "").strip().replace(" ", "").replace("-", "")
+		if dup_mobile:
+			dup_mobile10 = dup_mobile[-10:]
+			frappe.db.sql(
+				"""UPDATE `tabBuyback Request`
+				SET customer = %s
+				WHERE (customer IS NULL OR customer = '')
+				AND mobile_no = %s""",
+				(primary_customer, dup_mobile10),
+			)
 
 	# Copy over missing profile data
 	profile_fields = [

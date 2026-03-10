@@ -93,11 +93,15 @@ def _assign_customer_id(doc):
 	if doc.get("ch_customer_id"):
 		return
 
-	result = frappe.db.sql(
-		"SELECT IFNULL(MAX(ch_customer_id), 0) FROM `tabCustomer`"
-	)
-	next_id = (result[0][0] or 0) + 1
-	doc.ch_customer_id = next_id
+	frappe.db.sql("SELECT GET_LOCK('customer_id_gen', 10)")
+	try:
+		result = frappe.db.sql(
+			"SELECT IFNULL(MAX(ch_customer_id), 0) FROM `tabCustomer`"
+		)
+		next_id = (result[0][0] or 0) + 1
+		doc.ch_customer_id = next_id
+	finally:
+		frappe.db.sql("SELECT RELEASE_LOCK('customer_id_gen')")
 
 
 def _set_kyc_verified_info(doc):

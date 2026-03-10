@@ -5,6 +5,7 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
+  "loyalty_txn_id",
   "naming_series",
   "customer",
   "customer_name",
@@ -24,6 +25,18 @@
   "remarks"
  ],
  "fields": [
+  {
+   "fieldname": "loyalty_txn_id",
+   "fieldtype": "Int",
+   "label": "Transaction ID",
+   "unique": 1,
+   "read_only": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "bold": 1,
+   "no_copy": 1,
+   "description": "Auto-generated numeric ID for API integration"
+  },
   {
    "default": "CH-LT-.YYYY.-",
    "fieldname": "naming_series",

@@ -854,88 +854,6 @@ def get_sibling_items(item_code):
     }
 
 
-@frappe.whitelist()
-def save_price_with_propagation(
-    item_code, channel, mrp=0, mop=0, selling_price=0,
-    effective_from=None, notes="", company="",
-    propagate=1, status="Active",
-):
-    """Create a CH Item Price for item_code and optionally propagate to sibling variants.
-
-    When propagate=1, the same price is created/updated for all siblings that
-    share the same price-affecting specs (e.g. same Network+Size+RAM+Storage but
-    different Colour).
-    """
-    frappe.only_for(["System Manager", "CH Master Manager", "CH Price Manager"])
-
-    propagate = int(propagate)
-    mrp = float(mrp or 0)
-    mop = float(mop or 0)
-    selling_price = float(selling_price or 0)
-    eff_from = effective_from or nowdate()
-
-    if propagate:
-        target_items = _get_sibling_item_codes(item_code)
-    else:
-        target_items = [item_code]
-
-    created = []
-    updated = []
-    skipped = []
-
-    for target in target_items:
-        # Check for existing active price for same item+channel
-        existing = frappe.db.get_value(
-            "CH Item Price",
-            {
-                "item_code": target,
-                "channel": channel,
-                "status": ("in", ["Active", "Scheduled"]),
-            },
-            "name",
-        )
-
-        if existing:
-            # Update existing price
-            doc = frappe.get_doc("CH Item Price", existing)
-            doc.mrp = mrp
-            doc.mop = mop
-            doc.selling_price = selling_price
-            doc.effective_from = eff_from
-            doc.notes = notes or doc.notes
-            if company:
-                doc.company = company
-            doc.flags.from_ready_reckoner = True
-            doc.save(ignore_permissions=True)
-            updated.append(doc.name)
-        else:
-            # Create new price
-            doc = frappe.new_doc("CH Item Price")
-            doc.item_code = target
-            doc.channel = channel
-            doc.mrp = mrp
-            doc.mop = mop
-            doc.selling_price = selling_price
-            doc.effective_from = eff_from
-            doc.status = status
-            doc.notes = notes
-            if company:
-                doc.company = company
-            doc.flags.from_ready_reckoner = True
-            doc.insert(ignore_permissions=True)
-            created.append(doc.name)
-
-    frappe.db.commit()
-
-    return {
-        "created": created,
-        "updated": updated,
-        "skipped": skipped,
-        "total_items": len(target_items),
-        "target_items": target_items,
-    }
-
-
 # ─────────────────────────────────────────────────────────────────────────────
 # Excel export
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1059,7 +977,7 @@ def export_ready_reckoner(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Buyback Price Master — save / update from Ready Reckoner
+# Buyback / Selling batch creation from Ready Reckoner dialogs
 # ─────────────────────────────────────────────────────────────────────────────
 
 BUYBACK_GRADE_FIELDS = [
@@ -1068,56 +986,6 @@ BUYBACK_GRADE_FIELDS = [
     "a_grade_iw_6_11", "b_grade_iw_6_11", "c_grade_iw_6_11", "d_grade_iw_6_11",
     "a_grade_oow_11", "b_grade_oow_11", "c_grade_oow_11", "d_grade_oow_11",
 ]
-
-
-@frappe.whitelist()
-def save_buyback_price(item_code, current_market_price=0, vendor_price=0, **kwargs):
-    """Create or update a Buyback Price Master record from the Ready Reckoner.
-
-    Accepts current_market_price, vendor_price, and all 15 grade×warranty fields.
-    If an active record already exists for this item, it is updated; otherwise a new
-    record is created.
-    """
-    frappe.only_for(["System Manager", "CH Master Manager", "CH Price Manager"])
-
-    current_market_price = float(current_market_price or 0)
-    vendor_price = float(vendor_price or 0)
-
-    existing = frappe.db.get_value(
-        "Buyback Price Master",
-        {"item_code": item_code, "is_active": 1},
-        "name",
-    )
-
-    if existing:
-        doc = frappe.get_doc("Buyback Price Master", existing)
-    else:
-        doc = frappe.new_doc("Buyback Price Master")
-        doc.item_code = item_code
-        doc.is_active = 1
-
-    doc.current_market_price = current_market_price
-    doc.vendor_price = vendor_price
-
-    for field in BUYBACK_GRADE_FIELDS:
-        val = kwargs.get(field)
-        if val is not None:
-            setattr(doc, field, float(val or 0))
-
-    doc.flags.from_ready_reckoner = True
-    doc.save(ignore_permissions=True)
-    frappe.db.commit()
-
-    return {
-        "name": doc.name,
-        "created": not existing,
-        "item_code": item_code,
-    }
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Single-item batch creation from Ready Reckoner dialogs
-# ─────────────────────────────────────────────────────────────────────────────
 
 _BUYBACK_FIELD_LABELS = {
     "current_market_price": "Market Price",

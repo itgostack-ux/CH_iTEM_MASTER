@@ -55,13 +55,17 @@ def on_buyback_request_submit(doc, method=None):
 	if not doc.is_new() and not doc.has_value_changed("deal_status"):
 		return
 
-	customer = _find_customer_by_mobile(doc.get("mobile_no"))
+	# Use the customer Link field directly (auto-linked by buyback_request.py)
+	customer = doc.get("customer")
+	if not customer:
+		# Fallback: try mobile match
+		customer = _find_customer_by_mobile(doc.get("mobile_no"))
 	if not customer:
 		return
 
 	_log_store_visit(
 		customer=customer,
-		company=frappe.defaults.get_defaults().get("company", ""),
+		company=doc.get("company") or frappe.defaults.get_defaults().get("company", ""),
 		visit_type="Buyback",
 		reference_doctype="Buyback Request",
 		reference_name=doc.name,
@@ -114,13 +118,21 @@ def _update_activity_summary(customer):
 			"Service Request", {"customer": customer}
 		) if frappe.db.exists("DocType", "Service Request") else 0
 
-		# Total buybacks (by mobile match)
+		# Total buybacks — use customer Link field if available, fallback to mobile
 		total_buybacks = 0
-		mobile = frappe.db.get_value("Customer", customer, "mobile_no")
-		if mobile and frappe.db.exists("DocType", "Buyback Request"):
+		if frappe.db.exists("DocType", "Buyback Request"):
+			# Primary: count by customer Link (new field)
 			total_buybacks = frappe.db.count(
-				"Buyback Request", {"mobile_no": mobile[-10:]}
+				"Buyback Request", {"customer": customer}
 			)
+			# Fallback: also count by mobile match for older records without customer link
+			if not total_buybacks:
+				mobile = frappe.db.get_value("Customer", customer, "mobile_no")
+				if mobile:
+					mobile10 = mobile.strip().replace(" ", "").replace("-", "")[-10:]
+					total_buybacks = frappe.db.count(
+						"Buyback Request", {"mobile_no": mobile10}
+					)
 
 		# Active devices
 		active_devices = 0
@@ -189,10 +201,21 @@ def _classify_customer_segment(customer, total_purchases, total_services):
 
 
 def _find_customer_by_mobile(mobile):
-	"""Find a Customer by mobile number."""
+	"""Find a Customer by exact mobile number match (last 10 digits)."""
 	if not mobile:
 		return None
 	mobile = mobile.strip().replace(" ", "").replace("-", "")
-	if len(mobile) >= 10:
-		mobile = mobile[-10:]
-	return frappe.db.get_value("Customer", {"mobile_no": ("like", f"%{mobile}%")}, "name")
+	if mobile.startswith("+91"):
+		mobile = mobile[3:]
+	elif mobile.startswith("91") and len(mobile) == 12:
+		mobile = mobile[2:]
+	if len(mobile) < 10:
+		return None
+	mobile10 = mobile[-10:]
+	# Exact match — try bare 10 digits, then +91 prefix, then 91 prefix
+	customer = frappe.db.get_value("Customer", {"mobile_no": mobile10}, "name")
+	if not customer:
+		customer = frappe.db.get_value("Customer", {"mobile_no": f"+91{mobile10}"}, "name")
+	if not customer:
+		customer = frappe.db.get_value("Customer", {"mobile_no": f"91{mobile10}"}, "name")
+	return customer

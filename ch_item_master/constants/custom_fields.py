@@ -117,6 +117,7 @@ CUSTOM_FIELDS = {
 			"options": "CH Category",
 			"insert_after": "ch_item_master_section",
 			"in_standard_filter": 1,
+			"reqd": 1,
 			"read_only_depends_on": "eval:!doc.__islocal",
 		},
 		{
@@ -126,6 +127,7 @@ CUSTOM_FIELDS = {
 			"options": "CH Sub Category",
 			"insert_after": "ch_category",
 			"in_standard_filter": 1,
+			"reqd": 1,
 			"read_only_depends_on": "eval:!doc.__islocal",
 		},
 		{
@@ -140,6 +142,7 @@ CUSTOM_FIELDS = {
 			"options": "CH Model",
 			"insert_after": "ch_column_break_01",
 			"in_standard_filter": 1,
+			"reqd": 1,
 			"read_only_depends_on": "eval:!doc.__islocal",
 		},
 		{
