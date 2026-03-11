@@ -1,0 +1,600 @@
+{
+ "name": "CH Warranty Claim",
+ "module": "CH Item Master",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "engine": "InnoDB",
+ "naming_rule": "By \"Naming Series\" field",
+ "autoname": "naming_series:",
+ "istable": 0,
+ "issingle": 0,
+ "is_submittable": 1,
+ "editable_grid": 1,
+ "track_changes": 1,
+ "title_field": "title",
+ "search_fields": "serial_no,customer,item_code,claim_status",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "field_order": [
+  "naming_series",
+  "claim_id",
+  "title",
+  "claim_date",
+  "company",
+  "reported_at_company",
+  "column_break_basic",
+  "claim_status",
+  "coverage_type",
+  "reported_by",
+  "reported_at_store",
+  "section_device",
+  "serial_no",
+  "imei_number",
+  "item_code",
+  "item_name",
+  "column_break_device",
+  "brand",
+  "customer",
+  "customer_name",
+  "customer_phone",
+  "section_warranty",
+  "sold_plan",
+  "warranty_plan",
+  "plan_type",
+  "warranty_status",
+  "column_break_warranty",
+  "warranty_start_date",
+  "warranty_end_date",
+  "claims_used",
+  "max_claims",
+  "deductible_amount",
+  "section_issue",
+  "issue_category",
+  "issue_description",
+  "section_cost",
+  "estimated_repair_cost",
+  "column_break_cost_split",
+  "gogizmo_share",
+  "gofix_share",
+  "customer_share",
+  "section_approval",
+  "requires_approval",
+  "approval_status",
+  "column_break_approval",
+  "approved_by",
+  "approved_at",
+  "rejection_reason",
+  "section_gofix",
+  "service_request",
+  "service_order",
+  "column_break_gofix",
+  "repair_status",
+  "repair_completion_date",
+  "section_settlement",
+  "gogizmo_invoice",
+  "customer_invoice",
+  "column_break_settlement",
+  "settlement_status",
+  "section_history",
+  "claim_log",
+  "section_notes",
+  "remarks",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "CH-WC-.YYYY.-",
+   "default": "CH-WC-.YYYY.-",
+   "reqd": 1,
+   "hidden": 1
+  },
+  {
+   "fieldname": "claim_id",
+   "fieldtype": "Int",
+   "label": "Claim ID",
+   "read_only": 1,
+   "unique": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "title",
+   "fieldtype": "Data",
+   "label": "Title",
+   "read_only": 1,
+   "hidden": 1
+  },
+  {
+   "fieldname": "claim_date",
+   "fieldtype": "Date",
+   "label": "Claim Date",
+   "default": "Today",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1,
+   "in_standard_filter": 1,
+   "remember_last_selected_value": 1,
+   "description": "Company that sold the device (warranty issuer)"
+  },
+  {
+   "fieldname": "reported_at_company",
+   "fieldtype": "Link",
+   "label": "Reported At (Company)",
+   "options": "Company",
+   "reqd": 1,
+   "description": "Company where customer reported the issue (GoGizmo or GoFix)"
+  },
+  {
+   "fieldname": "column_break_basic",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "claim_status",
+   "fieldtype": "Select",
+   "label": "Claim Status",
+   "options": "Draft\nPending Approval\nApproved\nRejected\nTicket Created\nIn Repair\nRepair Complete\nClosed\nCancelled",
+   "default": "Draft",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "coverage_type",
+   "fieldtype": "Select",
+   "label": "Coverage Type",
+   "options": "\nIn Warranty\nOut of Warranty\nPartial Coverage",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "read_only": 1,
+   "no_copy": 1,
+   "description": "Auto-determined from warranty status"
+  },
+  {
+   "fieldname": "reported_by",
+   "fieldtype": "Link",
+   "label": "Reported By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "reported_at_store",
+   "fieldtype": "Data",
+   "label": "Reported At Store",
+   "description": "Store/location where claim was initiated"
+  },
+  {
+   "fieldname": "section_device",
+   "fieldtype": "Section Break",
+   "label": "Device Information"
+  },
+  {
+   "fieldname": "serial_no",
+   "fieldtype": "Data",
+   "label": "Serial / IMEI",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "imei_number",
+   "fieldtype": "Data",
+   "label": "IMEI Number",
+   "read_only": 1,
+   "description": "Auto-populated from CH Serial Lifecycle"
+  },
+  {
+   "fieldname": "item_code",
+   "fieldtype": "Link",
+   "label": "Item",
+   "options": "Item",
+   "reqd": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "item_name",
+   "fieldtype": "Data",
+   "label": "Item Name",
+   "fetch_from": "item_code.item_name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_device",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "brand",
+   "fieldtype": "Link",
+   "label": "Brand",
+   "options": "Brand",
+   "fetch_from": "item_code.brand",
+   "read_only": 1
+  },
+  {
+   "fieldname": "customer",
+   "fieldtype": "Link",
+   "label": "Customer",
+   "options": "Customer",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "customer_name",
+   "fieldtype": "Data",
+   "label": "Customer Name",
+   "fetch_from": "customer.customer_name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "customer_phone",
+   "fieldtype": "Data",
+   "label": "Customer Phone",
+   "description": "Auto-populated or manually entered"
+  },
+  {
+   "fieldname": "section_warranty",
+   "fieldtype": "Section Break",
+   "label": "Warranty Coverage"
+  },
+  {
+   "fieldname": "sold_plan",
+   "fieldtype": "Link",
+   "label": "Covering Plan (Sold)",
+   "options": "CH Sold Plan",
+   "read_only": 1,
+   "description": "Auto-populated from best active CH Sold Plan"
+  },
+  {
+   "fieldname": "warranty_plan",
+   "fieldtype": "Link",
+   "label": "Warranty Plan",
+   "options": "CH Warranty Plan",
+   "read_only": 1,
+   "description": "Auto-populated from the covering sold plan"
+  },
+  {
+   "fieldname": "plan_type",
+   "fieldtype": "Data",
+   "label": "Plan Type",
+   "read_only": 1,
+   "description": "Own Warranty / Extended Warranty / VAS / Protection Plan"
+  },
+  {
+   "fieldname": "warranty_status",
+   "fieldtype": "Data",
+   "label": "Warranty Status",
+   "read_only": 1,
+   "description": "Under Warranty / Out of Warranty / No Warranty"
+  },
+  {
+   "fieldname": "column_break_warranty",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "warranty_start_date",
+   "fieldtype": "Date",
+   "label": "Warranty Start",
+   "read_only": 1
+  },
+  {
+   "fieldname": "warranty_end_date",
+   "fieldtype": "Date",
+   "label": "Warranty End",
+   "read_only": 1
+  },
+  {
+   "fieldname": "claims_used",
+   "fieldtype": "Int",
+   "label": "Claims Used",
+   "read_only": 1
+  },
+  {
+   "fieldname": "max_claims",
+   "fieldtype": "Int",
+   "label": "Max Claims",
+   "read_only": 1
+  },
+  {
+   "fieldname": "deductible_amount",
+   "fieldtype": "Currency",
+   "label": "Deductible Amount",
+   "read_only": 1,
+   "description": "Amount customer must pay per claim"
+  },
+  {
+   "fieldname": "section_issue",
+   "fieldtype": "Section Break",
+   "label": "Issue Details"
+  },
+  {
+   "fieldname": "issue_category",
+   "fieldtype": "Link",
+   "label": "Issue Category",
+   "options": "Issue Category",
+   "description": "GoFix Issue Category for the repair"
+  },
+  {
+   "fieldname": "issue_description",
+   "fieldtype": "Text",
+   "label": "Issue Description",
+   "reqd": 1,
+   "description": "Describe the problem reported by the customer"
+  },
+  {
+   "fieldname": "section_cost",
+   "fieldtype": "Section Break",
+   "label": "Cost Sharing"
+  },
+  {
+   "fieldname": "estimated_repair_cost",
+   "fieldtype": "Currency",
+   "label": "Estimated Repair Cost",
+   "description": "Total estimated cost of repair"
+  },
+  {
+   "fieldname": "column_break_cost_split",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "gogizmo_share",
+   "fieldtype": "Currency",
+   "label": "GoGizmo Pays",
+   "description": "Amount borne by GoGizmo (in-warranty)"
+  },
+  {
+   "fieldname": "gofix_share",
+   "fieldtype": "Currency",
+   "label": "GoFix Pays",
+   "description": "Amount borne by GoFix (if applicable)"
+  },
+  {
+   "fieldname": "customer_share",
+   "fieldtype": "Currency",
+   "label": "Customer Pays",
+   "description": "Deductible or out-of-warranty amount"
+  },
+  {
+   "fieldname": "section_approval",
+   "fieldtype": "Section Break",
+   "label": "Approval",
+   "depends_on": "eval:doc.requires_approval"
+  },
+  {
+   "fieldname": "requires_approval",
+   "fieldtype": "Check",
+   "label": "Requires GoGizmo Approval",
+   "read_only": 1,
+   "description": "Set automatically when GoGizmo is paying"
+  },
+  {
+   "fieldname": "approval_status",
+   "fieldtype": "Select",
+   "label": "Approval Status",
+   "options": "\nPending\nApproved\nRejected",
+   "read_only": 1,
+   "no_copy": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "column_break_approval",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "approved_by",
+   "fieldtype": "Link",
+   "label": "Approved By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "approved_at",
+   "fieldtype": "Datetime",
+   "label": "Approved At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "rejection_reason",
+   "fieldtype": "Small Text",
+   "label": "Rejection Reason",
+   "depends_on": "eval:doc.approval_status=='Rejected'"
+  },
+  {
+   "fieldname": "section_gofix",
+   "fieldtype": "Section Break",
+   "label": "GoFix Service"
+  },
+  {
+   "fieldname": "service_request",
+   "fieldtype": "Link",
+   "label": "GoFix Service Request",
+   "options": "Service Request",
+   "read_only": 1,
+   "description": "Auto-created GoFix ticket for repair"
+  },
+  {
+   "fieldname": "service_order",
+   "fieldtype": "Link",
+   "label": "Service Order",
+   "options": "Sales Order",
+   "read_only": 1,
+   "description": "GoFix Sales Order (service order) linked to the repair"
+  },
+  {
+   "fieldname": "column_break_gofix",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "repair_status",
+   "fieldtype": "Select",
+   "label": "Repair Status",
+   "options": "\nPending\nIn Progress\nCompleted\nNot Repairable\nCustomer Declined",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "repair_completion_date",
+   "fieldtype": "Date",
+   "label": "Repair Completion Date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_settlement",
+   "fieldtype": "Section Break",
+   "label": "Settlement"
+  },
+  {
+   "fieldname": "gogizmo_invoice",
+   "fieldtype": "Link",
+   "label": "GoGizmo Invoice",
+   "options": "Sales Invoice",
+   "description": "Inter-company invoice: GoFix bills GoGizmo"
+  },
+  {
+   "fieldname": "customer_invoice",
+   "fieldtype": "Link",
+   "label": "Customer Invoice",
+   "options": "Sales Invoice",
+   "description": "Invoice to customer for deductible / out-of-warranty"
+  },
+  {
+   "fieldname": "column_break_settlement",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "settlement_status",
+   "fieldtype": "Select",
+   "label": "Settlement Status",
+   "options": "\nPending\nPartially Settled\nSettled",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "section_history",
+   "fieldtype": "Section Break",
+   "label": "Claim History"
+  },
+  {
+   "fieldname": "claim_log",
+   "fieldtype": "Table",
+   "label": "Claim Log",
+   "options": "CH Warranty Claim Log",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_notes",
+   "fieldtype": "Section Break",
+   "label": "Notes",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "remarks",
+   "fieldtype": "Small Text",
+   "label": "Remarks"
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "options": "CH Warranty Claim",
+   "read_only": 1,
+   "no_copy": 1,
+   "hidden": 1
+  }
+ ],
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1,
+   "export": 1,
+   "import": 1,
+   "share": 1
+  },
+  {
+   "role": "CH Warranty Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1,
+   "export": 1
+  },
+  {
+   "role": "Sales User",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "submit": 1,
+   "export": 1
+  },
+  {
+   "role": "Service Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "submit": 1,
+   "export": 1
+  },
+  {
+   "role": "CH Viewer",
+   "read": 1,
+   "export": 1
+  },
+  {
+   "role": "Sales Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1,
+   "export": 1
+  }
+ ],
+ "links": [
+  {
+   "group": "Device",
+   "link_doctype": "CH Serial Lifecycle",
+   "link_fieldname": "serial_no"
+  },
+  {
+   "group": "Warranty",
+   "link_doctype": "CH Sold Plan",
+   "link_fieldname": "sold_plan"
+  },
+  {
+   "group": "Service",
+   "link_doctype": "Service Request",
+   "link_fieldname": "service_request"
+  }
+ ],
+ "actions": [],
+ "states": [
+  {"title": "Draft", "color": "Grey"},
+  {"title": "Pending Approval", "color": "Orange"},
+  {"title": "Approved", "color": "Blue"},
+  {"title": "Rejected", "color": "Red"},
+  {"title": "Ticket Created", "color": "Purple"},
+  {"title": "In Repair", "color": "Yellow"},
+  {"title": "Repair Complete", "color": "Green"},
+  {"title": "Closed", "color": "Green"},
+  {"title": "Cancelled", "color": "Red"}
+ ],
+ "modified": "2026-03-11 00:00:00.000000",
+ "creation": "2026-03-11 00:00:00.000000"
+}

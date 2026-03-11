@@ -281,3 +281,118 @@ def expire_sold_plans():
 		frappe.logger("ch_item_master").info(
 			f"Auto-expired {len(expired)} sold plans: {expired[:10]}{'...' if len(expired) > 10 else ''}"
 		)
+
+
+# ── Warranty Claim APIs ─────────────────────────────────────────────────────
+
+@frappe.whitelist()
+def initiate_warranty_claim(serial_no, customer, item_code, company,
+                            issue_description, issue_category=None,
+                            reported_at_company=None, reported_at_store=None,
+                            estimated_repair_cost=0, customer_phone=None):
+	"""Initiate a new warranty claim from POS or desk.
+
+	Auto-detects warranty coverage, calculates cost split, and either
+	auto-approves (out-of-warranty) or routes for GoGizmo Head approval.
+
+	Args:
+		serial_no: Serial / IMEI of the device
+		customer: Customer name
+		item_code: Device item_code
+		company: Company that sold the device (warranty issuer)
+		issue_description: What's wrong with the device
+		issue_category: GoFix Issue Category (optional)
+		reported_at_company: Company where reported (GoGizmo or GoFix)
+		reported_at_store: Store location
+		estimated_repair_cost: Estimated cost of repair
+		customer_phone: Customer contact number
+
+	Returns:
+		dict with: claim_name, claim_status, coverage_type, requires_approval,
+		           service_request (if auto-approved)
+	"""
+	if not reported_at_company:
+		reported_at_company = company
+
+	claim = frappe.new_doc("CH Warranty Claim")
+	claim.update({
+		"serial_no": serial_no,
+		"customer": customer,
+		"item_code": item_code,
+		"company": company,
+		"reported_at_company": reported_at_company,
+		"reported_at_store": reported_at_store or "",
+		"issue_description": issue_description,
+		"issue_category": issue_category,
+		"estimated_repair_cost": float(estimated_repair_cost or 0),
+		"customer_phone": customer_phone or "",
+		"claim_date": nowdate(),
+	})
+
+	claim.flags.ignore_permissions = True
+	claim.insert()
+	claim.submit()
+
+	return {
+		"claim_name": claim.name,
+		"claim_status": claim.claim_status,
+		"coverage_type": claim.coverage_type,
+		"warranty_status": claim.warranty_status,
+		"requires_approval": claim.requires_approval,
+		"gogizmo_share": claim.gogizmo_share,
+		"customer_share": claim.customer_share,
+		"deductible_amount": claim.deductible_amount,
+		"service_request": claim.service_request,
+	}
+
+
+@frappe.whitelist()
+def get_device_claim_info(serial_no, company=None):
+	"""Get full device + warranty + claim history for a serial.
+
+	Used by POS claim UI to show all info before initiating a claim.
+
+	Returns:
+		dict with: device_info, warranty_info, existing_claims
+	"""
+	from ch_item_master.ch_item_master.doctype.ch_warranty_claim.ch_warranty_claim import (
+		get_claims_for_serial,
+	)
+
+	# Device info from CH Serial Lifecycle
+	device_info = None
+	lc_name = serial_no
+
+	if not frappe.db.exists("CH Serial Lifecycle", lc_name):
+		lc_name = frappe.db.get_value(
+			"CH Serial Lifecycle", {"imei_number": serial_no}, "name"
+		) or frappe.db.get_value(
+			"CH Serial Lifecycle", {"imei_number_2": serial_no}, "name"
+		)
+
+	if lc_name and frappe.db.exists("CH Serial Lifecycle", lc_name):
+		device_info = frappe.db.get_value(
+			"CH Serial Lifecycle", lc_name,
+			[
+				"name as serial_no", "imei_number", "imei_number_2",
+				"item_code", "item_name", "lifecycle_status",
+				"customer", "customer_name",
+				"sale_date", "sale_document", "sale_rate",
+				"warranty_status", "warranty_plan",
+				"warranty_start_date", "warranty_end_date",
+				"service_count", "last_service_date",
+			],
+			as_dict=True,
+		)
+
+	# Warranty info from CH Sold Plan
+	warranty_info = check_warranty(serial_no, company)
+
+	# Existing claims
+	existing_claims = get_claims_for_serial(lc_name or serial_no)
+
+	return {
+		"device_info": device_info,
+		"warranty_info": warranty_info,
+		"existing_claims": existing_claims,
+	}

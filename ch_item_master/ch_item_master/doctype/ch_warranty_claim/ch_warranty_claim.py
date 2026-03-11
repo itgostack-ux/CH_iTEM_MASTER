@@ -1,0 +1,410 @@
+# Copyright (c) 2026, GoStack and contributors
+# For license information, please see license.txt
+
+"""
+CH Warranty Claim — warranty/service claim lifecycle.
+
+Workflow:
+  Draft → (submit) → Pending Approval (if GoGizmo pays) or Approved (if no approval needed)
+  Pending Approval → Approved / Rejected
+  Approved → Ticket Created (GoFix Service Request auto-created)
+  Ticket Created → In Repair (synced from GoFix)
+  In Repair → Repair Complete
+  Repair Complete → Closed (after settlement)
+  Any → Cancelled (via cancel)
+"""
+
+import frappe
+from frappe import _
+from frappe.model.document import Document
+from frappe.utils import nowdate, now_datetime, getdate, flt
+
+
+# GoGizmo retail company (warranty issuer)
+GOGIZMO_COMPANY = "GoGizmo Retail Pvt Ltd"
+# GoFix service company (repair provider)
+GOFIX_COMPANY = "GoFix Services Pvt Ltd"
+
+
+class CHWarrantyClaim(Document):
+	def autoname(self):
+		if not self.claim_id:
+			max_id = frappe.db.sql(
+				"SELECT IFNULL(MAX(claim_id), 0) FROM `tabCH Warranty Claim`"
+			)[0][0]
+			self.claim_id = int(max_id) + 1
+
+	def validate(self):
+		self._set_title()
+		self._set_reported_by()
+		if not self.claim_status:
+			self.claim_status = "Draft"
+
+	def before_submit(self):
+		self._lookup_warranty_coverage()
+		self._determine_coverage_type()
+		self._calculate_cost_split()
+		self._check_approval_needed()
+
+		if self.requires_approval:
+			self.claim_status = "Pending Approval"
+			self.approval_status = "Pending"
+		else:
+			self.claim_status = "Approved"
+			self.approval_status = ""
+
+		self._log("Submitted", "Draft", self.claim_status,
+		          "Claim submitted. " + (
+		              "Pending GoGizmo Head approval." if self.requires_approval
+		              else "Auto-approved (no GoGizmo share)."
+		          ))
+
+	def on_submit(self):
+		# If auto-approved (out-of-warranty / customer-only), create GoFix ticket
+		if self.claim_status == "Approved":
+			self._create_gofix_ticket()
+
+	def on_cancel(self):
+		old = self.claim_status
+		self.claim_status = "Cancelled"
+		self.db_set("claim_status", "Cancelled")
+		self._log("Cancelled", old, "Cancelled", "Claim cancelled.")
+
+	# ── Public Actions ───────────────────────────────────────────────────
+
+	@frappe.whitelist()
+	def approve(self, remarks=None):
+		"""GoGizmo Head approves the claim → creates GoFix ticket."""
+		if self.docstatus != 1:
+			frappe.throw(_("Claim must be submitted before approval."))
+		if self.claim_status != "Pending Approval":
+			frappe.throw(_("Claim is not pending approval (current: {0}).").format(
+				self.claim_status))
+
+		old = self.claim_status
+		self.approval_status = "Approved"
+		self.approved_by = frappe.session.user
+		self.approved_at = now_datetime()
+		self.claim_status = "Approved"
+
+		self.db_set({
+			"approval_status": "Approved",
+			"approved_by": self.approved_by,
+			"approved_at": self.approved_at,
+			"claim_status": "Approved",
+		})
+
+		self._log("Approved", old, "Approved",
+		          remarks or f"Approved by {frappe.session.user}")
+
+		# Now create GoFix ticket
+		self._create_gofix_ticket()
+
+	@frappe.whitelist()
+	def reject(self, reason=None):
+		"""GoGizmo Head rejects the claim."""
+		if self.docstatus != 1:
+			frappe.throw(_("Claim must be submitted before rejection."))
+		if self.claim_status != "Pending Approval":
+			frappe.throw(_("Claim is not pending approval (current: {0}).").format(
+				self.claim_status))
+
+		old = self.claim_status
+		self.approval_status = "Rejected"
+		self.approved_by = frappe.session.user
+		self.approved_at = now_datetime()
+		self.rejection_reason = reason or ""
+		self.claim_status = "Rejected"
+
+		self.db_set({
+			"approval_status": "Rejected",
+			"approved_by": self.approved_by,
+			"approved_at": self.approved_at,
+			"rejection_reason": self.rejection_reason,
+			"claim_status": "Rejected",
+		})
+
+		self._log("Rejected", old, "Rejected",
+		          reason or f"Rejected by {frappe.session.user}")
+
+	@frappe.whitelist()
+	def mark_repair_complete(self, remarks=None):
+		"""Called when GoFix completes the repair."""
+		if self.claim_status not in ("Ticket Created", "In Repair"):
+			frappe.throw(_("Cannot mark complete — current status: {0}").format(
+				self.claim_status))
+
+		old = self.claim_status
+		self.repair_status = "Completed"
+		self.repair_completion_date = nowdate()
+		self.claim_status = "Repair Complete"
+
+		self.db_set({
+			"repair_status": "Completed",
+			"repair_completion_date": self.repair_completion_date,
+			"claim_status": "Repair Complete",
+		})
+
+		# Record warranty claim usage on the sold plan
+		if self.sold_plan:
+			try:
+				from ch_item_master.ch_item_master.warranty_api import record_warranty_claim
+				record_warranty_claim(
+					serial_no=self.serial_no,
+					service_reference=self.name,
+					company=self.company,
+				)
+			except Exception:
+				pass  # Don't block repair completion if claim recording fails
+
+		self._log("Repair Complete", old, "Repair Complete",
+		          remarks or "Repair completed by GoFix")
+
+	@frappe.whitelist()
+	def close_claim(self, remarks=None):
+		"""Close the claim after settlement."""
+		if self.claim_status not in ("Repair Complete", "Approved", "Rejected"):
+			frappe.throw(_("Cannot close — current status: {0}").format(
+				self.claim_status))
+
+		old = self.claim_status
+		self.claim_status = "Closed"
+		self.settlement_status = "Settled"
+
+		self.db_set({
+			"claim_status": "Closed",
+			"settlement_status": "Settled",
+		})
+
+		self._log("Closed", old, "Closed", remarks or "Claim closed")
+
+	# ── Private Methods ──────────────────────────────────────────────────
+
+	def _set_title(self):
+		self.title = f"{self.serial_no} — {self.customer_name or self.customer}"
+
+	def _set_reported_by(self):
+		if not self.reported_by:
+			self.reported_by = frappe.session.user
+
+	def _lookup_warranty_coverage(self):
+		"""Look up warranty from CH Sold Plan + CH Serial Lifecycle."""
+		from ch_item_master.ch_item_master.doctype.ch_sold_plan.ch_sold_plan import (
+			check_warranty_status,
+		)
+		result = check_warranty_status(self.serial_no, self.company)
+
+		self.warranty_status = result.get("warranty_status", "No Warranty")
+
+		if result.get("warranty_covered") and result.get("covering_plan"):
+			plan = result["covering_plan"]
+			self.sold_plan = plan.get("name")
+			self.warranty_plan = plan.get("warranty_plan")
+			self.plan_type = plan.get("plan_type")
+			self.warranty_start_date = plan.get("start_date")
+			self.warranty_end_date = plan.get("end_date")
+			self.claims_used = plan.get("claims_used", 0)
+			self.max_claims = plan.get("max_claims", 0)
+			self.deductible_amount = flt(plan.get("deductible_amount", 0))
+
+		# Also try enriching from lifecycle
+		lc_name = self.serial_no
+		if not frappe.db.exists("CH Serial Lifecycle", lc_name):
+			lc_name = frappe.db.get_value(
+				"CH Serial Lifecycle", {"imei_number": self.serial_no}, "name"
+			) or frappe.db.get_value(
+				"CH Serial Lifecycle", {"imei_number_2": self.serial_no}, "name"
+			)
+
+		if lc_name and frappe.db.exists("CH Serial Lifecycle", lc_name):
+			lc = frappe.db.get_value(
+				"CH Serial Lifecycle", lc_name,
+				["item_code", "item_name", "imei_number", "customer", "customer_name"],
+				as_dict=True,
+			)
+			if lc:
+				if not self.item_code and lc.item_code:
+					self.item_code = lc.item_code
+				if not self.imei_number and lc.imei_number:
+					self.imei_number = lc.imei_number
+				if not self.customer and lc.customer:
+					self.customer = lc.customer
+
+	def _determine_coverage_type(self):
+		"""Set coverage_type based on warranty lookup."""
+		if self.warranty_status == "Under Warranty":
+			self.coverage_type = "In Warranty"
+		elif self.warranty_status == "Extended":
+			self.coverage_type = "In Warranty"
+		elif self.warranty_status in ("Out of Warranty", "Expired"):
+			self.coverage_type = "Out of Warranty"
+		else:
+			self.coverage_type = "Out of Warranty"
+
+		# If deductible > 0 and in warranty, it's partial
+		if self.coverage_type == "In Warranty" and flt(self.deductible_amount) > 0:
+			self.coverage_type = "Partial Coverage"
+
+	def _calculate_cost_split(self):
+		"""Calculate how much each party pays."""
+		est = flt(self.estimated_repair_cost)
+
+		if self.coverage_type == "In Warranty":
+			# GoGizmo pays everything
+			self.gogizmo_share = est
+			self.gofix_share = 0
+			self.customer_share = 0
+		elif self.coverage_type == "Partial Coverage":
+			# Customer pays deductible, GoGizmo pays the rest
+			self.customer_share = flt(self.deductible_amount)
+			self.gogizmo_share = max(0, est - self.customer_share)
+			self.gofix_share = 0
+		else:
+			# Out of Warranty — customer pays GoFix directly
+			self.gogizmo_share = 0
+			self.gofix_share = 0
+			self.customer_share = est
+
+	def _check_approval_needed(self):
+		"""GoGizmo Head must approve if GoGizmo is paying any amount."""
+		self.requires_approval = 1 if flt(self.gogizmo_share) > 0 else 0
+
+	def _create_gofix_ticket(self):
+		"""Create a GoFix Service Request from this claim."""
+		if self.service_request:
+			return  # Already created
+
+		try:
+			# Get GoFix warehouse (use the reported store's warehouse or default)
+			gofix_warehouse = frappe.db.get_value(
+				"Company", GOFIX_COMPANY, "default_warehouse"
+			) or ""
+
+			sr = frappe.new_doc("Service Request")
+			sr.customer = self.customer
+			sr.customer_name = self.customer_name
+			sr.contact_number = self.customer_phone or ""
+			sr.company = GOFIX_COMPANY
+			sr.device_item = self.item_code
+			sr.serial_no = self.serial_no
+			sr.brand = self.brand
+			sr.source_warehouse = gofix_warehouse
+
+			# Warranty info
+			sr.warranty_status = "Under Warranty" if self.coverage_type in (
+				"In Warranty", "Partial Coverage"
+			) else "Out of Warranty"
+			sr.warranty_plan = self.warranty_plan
+			sr.warranty_plan_name = frappe.db.get_value(
+				"CH Warranty Plan", self.warranty_plan, "plan_name"
+			) if self.warranty_plan else ""
+			sr.warranty_expiry_date = self.warranty_end_date
+			sr.warranty_deductible = flt(self.deductible_amount)
+
+			# Issue details
+			sr.issue_category = self.issue_category
+			sr.issue_description = self.issue_description or ""
+
+			# Estimate
+			sr.estimated_cost = flt(self.estimated_repair_cost)
+
+			# Link back to claim
+			sr.internal_remarks = f"Auto-created from Warranty Claim {self.name}"
+
+			sr.flags.ignore_permissions = True
+			sr.insert()
+			sr.submit()
+
+			# Update claim with SR reference
+			old = self.claim_status
+			self.service_request = sr.name
+			self.claim_status = "Ticket Created"
+			self.repair_status = "Pending"
+
+			self.db_set({
+				"service_request": sr.name,
+				"claim_status": "Ticket Created",
+				"repair_status": "Pending",
+			})
+
+			self._log("Ticket Created", old, "Ticket Created",
+			          f"GoFix Service Request {sr.name} created")
+
+			# Update CH Serial Lifecycle to "In Service"
+			self._update_lifecycle_in_service()
+
+			frappe.msgprint(
+				_("GoFix Service Request {0} created successfully").format(
+					frappe.bold(sr.name)
+				),
+				indicator="green",
+				alert=True,
+			)
+
+		except Exception as e:
+			frappe.log_error(
+				f"Failed to create GoFix ticket for claim {self.name}: {e}",
+				"Warranty Claim - GoFix Ticket Error",
+			)
+			frappe.throw(
+				_("Failed to create GoFix Service Request: {0}").format(str(e))
+			)
+
+	def _update_lifecycle_in_service(self):
+		"""Update CH Serial Lifecycle to In Service status."""
+		if not frappe.db.exists("CH Serial Lifecycle", self.serial_no):
+			return
+
+		try:
+			from ch_item_master.ch_item_master.doctype.ch_serial_lifecycle.ch_serial_lifecycle import (
+				update_lifecycle_status,
+			)
+			update_lifecycle_status(
+				serial_no=self.serial_no,
+				new_status="In Service",
+				company=GOFIX_COMPANY,
+				remarks=f"Warranty Claim {self.name} — sent to GoFix for repair",
+			)
+		except Exception:
+			pass  # Don't block claim flow
+
+	def _log(self, action, from_status, to_status, remarks=""):
+		"""Append a log entry to claim_log child table."""
+		self.append("claim_log", {
+			"log_timestamp": now_datetime(),
+			"action": action,
+			"from_status": from_status,
+			"to_status": to_status,
+			"performed_by": frappe.session.user,
+			"company": self.reported_at_company or self.company,
+			"remarks": remarks,
+		})
+		self.save(ignore_permissions=True)
+
+
+# ── Whitelisted APIs ────────────────────────────────────────────────────────
+
+@frappe.whitelist()
+def get_warranty_claim_status(claim_name):
+	"""Get current status of a warranty claim."""
+	return frappe.db.get_value(
+		"CH Warranty Claim", claim_name,
+		["claim_status", "coverage_type", "approval_status", "repair_status",
+		 "service_request", "settlement_status"],
+		as_dict=True,
+	)
+
+
+@frappe.whitelist()
+def get_claims_for_serial(serial_no):
+	"""Get all warranty claims for a serial number."""
+	return frappe.get_all(
+		"CH Warranty Claim",
+		filters={"serial_no": serial_no, "docstatus": ["!=", 2]},
+		fields=[
+			"name", "claim_date", "claim_status", "coverage_type",
+			"issue_description", "service_request", "repair_status",
+			"gogizmo_share", "customer_share",
+		],
+		order_by="creation desc",
+	)

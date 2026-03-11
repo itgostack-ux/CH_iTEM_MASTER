@@ -62,6 +62,10 @@ doc_events = {
 	"Sales Invoice": {
 		"on_submit": "ch_item_master.ch_customer_master.hooks.on_sales_invoice_submit",
 	},
+	"Purchase Receipt": {
+		"on_submit": "ch_item_master.ch_item_master.overrides.purchase_receipt.on_submit",
+		"on_cancel": "ch_item_master.ch_item_master.overrides.purchase_receipt.on_cancel",
+	},
 	"Service Request": {
 		"on_submit": "ch_item_master.ch_customer_master.hooks.on_service_request_submit",
 	},
