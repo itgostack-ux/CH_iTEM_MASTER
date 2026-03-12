@@ -57,18 +57,18 @@ class CHWarrantyClaim(Document):
 		          "Claim submitted. " + (
 		              "Pending GoGizmo Head approval." if self.requires_approval
 		              else "Auto-approved (no GoGizmo share)."
-		          ))
+		          ), save=False)
 
 	def on_submit(self):
 		# If auto-approved (out-of-warranty / customer-only), create GoFix ticket
 		if self.claim_status == "Approved":
-			self._create_gofix_ticket()
+			self._create_gofix_ticket(from_submit=True)
 
 	def on_cancel(self):
 		old = self.claim_status
 		self.claim_status = "Cancelled"
 		self.db_set("claim_status", "Cancelled")
-		self._log("Cancelled", old, "Cancelled", "Claim cancelled.")
+		self._log("Cancelled", old, "Cancelled", "Claim cancelled.", save=False)
 
 	# ── Public Actions ───────────────────────────────────────────────────
 
@@ -269,15 +269,16 @@ class CHWarrantyClaim(Document):
 		"""GoGizmo Head must approve if GoGizmo is paying any amount."""
 		self.requires_approval = 1 if flt(self.gogizmo_share) > 0 else 0
 
-	def _create_gofix_ticket(self):
+	def _create_gofix_ticket(self, from_submit=False):
 		"""Create a GoFix Service Request from this claim."""
 		if self.service_request:
 			return  # Already created
 
 		try:
-			# Get GoFix warehouse (use the reported store's warehouse or default)
+			# Get GoFix warehouse
 			gofix_warehouse = frappe.db.get_value(
-				"Company", GOFIX_COMPANY, "default_warehouse"
+				"Warehouse", {"company": GOFIX_COMPANY, "is_group": 0},
+				"name", order_by="creation asc"
 			) or ""
 
 			sr = frappe.new_doc("Service Request")
@@ -289,6 +290,7 @@ class CHWarrantyClaim(Document):
 			sr.serial_no = self.serial_no
 			sr.brand = self.brand
 			sr.source_warehouse = gofix_warehouse
+			sr.service_date = nowdate()
 
 			# Warranty info
 			sr.warranty_status = "Under Warranty" if self.coverage_type in (
@@ -311,9 +313,14 @@ class CHWarrantyClaim(Document):
 			# Link back to claim
 			sr.internal_remarks = f"Auto-created from Warranty Claim {self.name}"
 
+			# Fields required for SR submission
+			sr.product_condition_desc = f"Warranty claim: {self.issue_description or 'Device issue reported'}"
+			sr.backup_info = "N/A — warranty claim auto-created"
+
 			sr.flags.ignore_permissions = True
+			sr.flags.skip_warranty_fetch = True
 			sr.insert()
-			sr.submit()
+			# Don't auto-submit — GoFix staff will verify details and submit
 
 			# Update claim with SR reference
 			old = self.claim_status
@@ -328,7 +335,8 @@ class CHWarrantyClaim(Document):
 			})
 
 			self._log("Ticket Created", old, "Ticket Created",
-			          f"GoFix Service Request {sr.name} created")
+			          f"GoFix Service Request {sr.name} created",
+			          save=not from_submit)
 
 			# Update CH Serial Lifecycle to "In Service"
 			self._update_lifecycle_in_service()
@@ -368,8 +376,14 @@ class CHWarrantyClaim(Document):
 		except Exception:
 			pass  # Don't block claim flow
 
-	def _log(self, action, from_status, to_status, remarks=""):
-		"""Append a log entry to claim_log child table."""
+	def _log(self, action, from_status, to_status, remarks="", save=True):
+		"""Append a log entry to claim_log child table.
+
+		Args:
+			save: If False, just append (caller will save).
+			      Set False when called from before_submit/on_submit hooks
+			      since Frappe saves the doc automatically.
+		"""
 		self.append("claim_log", {
 			"log_timestamp": now_datetime(),
 			"action": action,
@@ -379,7 +393,8 @@ class CHWarrantyClaim(Document):
 			"company": self.reported_at_company or self.company,
 			"remarks": remarks,
 		})
-		self.save(ignore_permissions=True)
+		if save:
+			self.save(ignore_permissions=True)
 
 
 # ── Whitelisted APIs ────────────────────────────────────────────────────────

@@ -104,7 +104,7 @@ class CHSerialLifecycle(Document):
 
 @frappe.whitelist()
 def update_lifecycle_status(serial_no, new_status, company=None,
-                            warehouse=None, remarks=None):
+                            warehouse=None, remarks=None, **kwargs):
     """Change lifecycle status of a serial number.
 
     Args:
@@ -113,6 +113,8 @@ def update_lifecycle_status(serial_no, new_status, company=None,
         company: Optional — current company
         warehouse: Optional — current warehouse
         remarks: Optional — reason for change
+        **kwargs: Additional fields to set on the document (e.g. sale_date,
+                  sale_document, sale_rate, customer, customer_name)
     """
     doc = frappe.get_doc("CH Serial Lifecycle", serial_no)
     doc.lifecycle_status = new_status
@@ -122,6 +124,16 @@ def update_lifecycle_status(serial_no, new_status, company=None,
         doc.current_warehouse = warehouse
     if remarks:
         doc.notes = remarks
+
+    # Set any additional fields passed by caller
+    allowed_extra_fields = {
+        "sale_date", "sale_document", "sale_rate", "customer", "customer_name",
+        "buyback_date", "buyback_value", "buyback_grade", "buyback_document",
+    }
+    for key, value in kwargs.items():
+        if key in allowed_extra_fields:
+            doc.set(key, value)
+
     doc.save(ignore_permissions=False)
     frappe.db.commit()
     return {"status": "ok", "serial_no": doc.name, "new_status": doc.lifecycle_status}

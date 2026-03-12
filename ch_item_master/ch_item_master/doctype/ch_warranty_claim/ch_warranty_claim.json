@@ -145,7 +145,8 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "read_only": 1,
-   "no_copy": 1
+   "no_copy": 1,
+   "allow_on_submit": 1
   },
   {
    "fieldname": "coverage_type",
@@ -156,6 +157,7 @@
    "in_standard_filter": 1,
    "read_only": 1,
    "no_copy": 1,
+   "allow_on_submit": 1,
    "description": "Auto-determined from warranty status"
   },
   {
@@ -382,7 +384,8 @@
    "options": "\nPending\nApproved\nRejected",
    "read_only": 1,
    "no_copy": 1,
-   "in_standard_filter": 1
+   "in_standard_filter": 1,
+   "allow_on_submit": 1
   },
   {
    "fieldname": "column_break_approval",
@@ -393,19 +396,22 @@
    "fieldtype": "Link",
    "label": "Approved By",
    "options": "User",
-   "read_only": 1
+   "read_only": 1,
+   "allow_on_submit": 1
   },
   {
    "fieldname": "approved_at",
    "fieldtype": "Datetime",
    "label": "Approved At",
-   "read_only": 1
+   "read_only": 1,
+   "allow_on_submit": 1
   },
   {
    "fieldname": "rejection_reason",
    "fieldtype": "Small Text",
    "label": "Rejection Reason",
-   "depends_on": "eval:doc.approval_status=='Rejected'"
+   "depends_on": "eval:doc.approval_status=='Rejected'",
+   "allow_on_submit": 1
   },
   {
    "fieldname": "section_gofix",
@@ -418,6 +424,7 @@
    "label": "GoFix Service Request",
    "options": "Service Request",
    "read_only": 1,
+   "allow_on_submit": 1,
    "description": "Auto-created GoFix ticket for repair"
   },
   {
@@ -438,13 +445,15 @@
    "label": "Repair Status",
    "options": "\nPending\nIn Progress\nCompleted\nNot Repairable\nCustomer Declined",
    "read_only": 1,
-   "no_copy": 1
+   "no_copy": 1,
+   "allow_on_submit": 1
   },
   {
    "fieldname": "repair_completion_date",
    "fieldtype": "Date",
    "label": "Repair Completion Date",
-   "read_only": 1
+   "read_only": 1,
+   "allow_on_submit": 1
   },
   {
    "fieldname": "section_settlement",
@@ -475,7 +484,8 @@
    "label": "Settlement Status",
    "options": "\nPending\nPartially Settled\nSettled",
    "read_only": 1,
-   "no_copy": 1
+   "no_copy": 1,
+   "allow_on_submit": 1
   },
   {
    "fieldname": "section_history",
@@ -487,7 +497,8 @@
    "fieldtype": "Table",
    "label": "Claim Log",
    "options": "CH Warranty Claim Log",
-   "read_only": 1
+   "read_only": 1,
+   "allow_on_submit": 1
   },
   {
    "fieldname": "section_notes",
