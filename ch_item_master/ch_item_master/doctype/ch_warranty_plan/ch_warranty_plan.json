@@ -58,11 +58,11 @@
    "fieldname": "plan_type",
    "fieldtype": "Select",
    "label": "Plan Type",
-   "options": "Own Warranty\nExtended Warranty\nValue Added Service\nProtection Plan",
+   "options": "Own Warranty\nExtended Warranty\nValue Added Service\nProtection Plan\nPost-Repair Warranty",
    "reqd": 1,
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "description": "Own Warranty = manufacturer/store warranty. Extended = paid extension. VAS = screen protector, data transfer, etc."
+   "description": "Own Warranty = free GoGizmo warranty on new purchase. Extended = paid extension. VAS = screen protector, data transfer, etc. Post-Repair = GoFix warranty issued after repair (depends on service/spare type)."
   },
   {
    "fieldname": "column_break_basic",

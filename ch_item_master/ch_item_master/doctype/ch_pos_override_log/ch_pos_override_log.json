@@ -1,0 +1,236 @@
+{
+ "actions": [],
+ "autoname": "naming_series:",
+ "creation": "2026-03-12 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "pos_invoice",
+  "pos_profile",
+  "column_break_01",
+  "company",
+  "store_warehouse",
+  "item_section",
+  "item_code",
+  "item_name",
+  "serial_no",
+  "column_break_item",
+  "override_type",
+  "original_price",
+  "applied_price",
+  "discount_percent",
+  "discount_amount",
+  "approval_section",
+  "approved_by_manager",
+  "manager_user",
+  "column_break_appr",
+  "override_reason",
+  "user_section",
+  "pos_user",
+  "override_at"
+ ],
+ "fields": [
+  {
+   "default": "CHOVERRIDE-.#####",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "CHOVERRIDE-.#####"
+  },
+  {
+   "fieldname": "pos_invoice",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "POS Invoice",
+   "options": "POS Invoice",
+   "read_only": 1
+  },
+  {
+   "fieldname": "pos_profile",
+   "fieldtype": "Link",
+   "label": "POS Profile",
+   "options": "POS Profile",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_01",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Company",
+   "options": "Company",
+   "read_only": 1
+  },
+  {
+   "fieldname": "store_warehouse",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Store / Warehouse",
+   "options": "Warehouse",
+   "read_only": 1
+  },
+  {
+   "fieldname": "item_section",
+   "fieldtype": "Section Break",
+   "label": "Item & Price Details"
+  },
+  {
+   "fieldname": "item_code",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Item Code",
+   "options": "Item",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "item_code.item_name",
+   "fieldname": "item_name",
+   "fieldtype": "Data",
+   "label": "Item Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "serial_no",
+   "fieldtype": "Data",
+   "label": "Serial No",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_item",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "override_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Override Type",
+   "options": "Rate Override\nDiscount Override\nBelow MOP\nAdditional Discount",
+   "read_only": 1
+  },
+  {
+   "fieldname": "original_price",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Original Price (CH Item Price)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "applied_price",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Applied Price",
+   "read_only": 1
+  },
+  {
+   "fieldname": "discount_percent",
+   "fieldtype": "Percent",
+   "label": "Discount %",
+   "read_only": 1
+  },
+  {
+   "fieldname": "discount_amount",
+   "fieldtype": "Currency",
+   "label": "Discount Amount",
+   "read_only": 1
+  },
+  {
+   "fieldname": "approval_section",
+   "fieldtype": "Section Break",
+   "label": "Approval"
+  },
+  {
+   "default": "0",
+   "fieldname": "approved_by_manager",
+   "fieldtype": "Check",
+   "label": "Approved by Manager",
+   "read_only": 1
+  },
+  {
+   "fieldname": "manager_user",
+   "fieldtype": "Link",
+   "label": "Manager User",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_appr",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "override_reason",
+   "fieldtype": "Small Text",
+   "label": "Override Reason",
+   "read_only": 1
+  },
+  {
+   "fieldname": "user_section",
+   "fieldtype": "Section Break",
+   "label": "User Details"
+  },
+  {
+   "fieldname": "pos_user",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "POS User",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "override_at",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Override At",
+   "read_only": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-03-12 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Ch Item Master",
+ "name": "CH POS Override Log",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 0,
+   "create": 0,
+   "delete": 1,
+   "export": 1
+  },
+  {
+   "role": "CH Master Manager",
+   "read": 1,
+   "write": 0,
+   "create": 0,
+   "export": 1
+  },
+  {
+   "role": "CH Price Manager",
+   "read": 1,
+   "write": 0,
+   "create": 0,
+   "export": 1
+  },
+  {
+   "role": "CH Viewer",
+   "read": 1,
+   "write": 0,
+   "create": 0,
+   "export": 1
+  }
+ ],
+ "sort_field": "override_at",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}

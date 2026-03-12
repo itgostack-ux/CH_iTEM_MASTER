@@ -70,6 +70,22 @@
   "column_break_gofix",
   "repair_status",
   "repair_completion_date",
+  "section_manufacturer",
+  "manufacturer_service_center",
+  "manufacturer_job_id",
+  "column_break_manufacturer",
+  "manufacturer_contact_person",
+  "manufacturer_contact_phone",
+  "section_manufacturer_dates",
+  "handover_date",
+  "expected_return_date",
+  "column_break_mfr_dates",
+  "actual_return_date",
+  "section_manufacturer_details",
+  "accessories_handed_over",
+  "condition_at_handover",
+  "column_break_mfr_condition",
+  "condition_at_return",
   "section_settlement",
   "gogizmo_invoice",
   "customer_invoice",
@@ -140,7 +156,7 @@
    "fieldname": "claim_status",
    "fieldtype": "Select",
    "label": "Claim Status",
-   "options": "Draft\nPending Approval\nApproved\nRejected\nTicket Created\nIn Repair\nRepair Complete\nClosed\nCancelled",
+   "options": "Draft\nPending Approval\nApproved\nRejected\nTicket Created\nSent to Manufacturer\nIn Repair\nRepair Complete\nClosed\nCancelled",
    "default": "Draft",
    "in_list_view": 1,
    "in_standard_filter": 1,
@@ -152,7 +168,7 @@
    "fieldname": "coverage_type",
    "fieldtype": "Select",
    "label": "Coverage Type",
-   "options": "\nIn Warranty\nOut of Warranty\nPartial Coverage",
+   "options": "\nIn Warranty\nOut of Warranty\nPartial Coverage\nManufacturer Warranty",
    "in_list_view": 1,
    "in_standard_filter": 1,
    "read_only": 1,
@@ -443,7 +459,7 @@
    "fieldname": "repair_status",
    "fieldtype": "Select",
    "label": "Repair Status",
-   "options": "\nPending\nIn Progress\nCompleted\nNot Repairable\nCustomer Declined",
+   "options": "\nPending\nIn Progress\nCompleted\nWith Manufacturer\nNot Repairable\nCustomer Declined",
    "read_only": 1,
    "no_copy": 1,
    "allow_on_submit": 1
@@ -454,6 +470,108 @@
    "label": "Repair Completion Date",
    "read_only": 1,
    "allow_on_submit": 1
+  },
+  {
+   "fieldname": "section_manufacturer",
+   "fieldtype": "Section Break",
+   "label": "Manufacturer Service",
+   "depends_on": "eval:doc.coverage_type=='Manufacturer Warranty'",
+   "description": "Tracking details when device is sent to brand/OEM service center"
+  },
+  {
+   "fieldname": "manufacturer_service_center",
+   "fieldtype": "Data",
+   "label": "Service Center",
+   "allow_on_submit": 1,
+   "description": "Authorized service center name (e.g. Samsung Service Center, Andheri)"
+  },
+  {
+   "fieldname": "manufacturer_job_id",
+   "fieldtype": "Data",
+   "label": "Manufacturer Job / Reference ID",
+   "allow_on_submit": 1,
+   "description": "Tracking number given by the service center"
+  },
+  {
+   "fieldname": "column_break_manufacturer",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "manufacturer_contact_person",
+   "fieldtype": "Data",
+   "label": "Contact Person",
+   "allow_on_submit": 1,
+   "description": "Contact person at the service center"
+  },
+  {
+   "fieldname": "manufacturer_contact_phone",
+   "fieldtype": "Data",
+   "label": "Contact Phone",
+   "options": "Phone",
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "section_manufacturer_dates",
+   "fieldtype": "Section Break",
+   "label": "Handover & Return",
+   "depends_on": "eval:doc.coverage_type=='Manufacturer Warranty'"
+  },
+  {
+   "fieldname": "handover_date",
+   "fieldtype": "Date",
+   "label": "Handed Over On",
+   "allow_on_submit": 1,
+   "description": "Date device was given to the service center"
+  },
+  {
+   "fieldname": "expected_return_date",
+   "fieldtype": "Date",
+   "label": "Expected Return Date",
+   "allow_on_submit": 1,
+   "description": "When the service center said device will be ready"
+  },
+  {
+   "fieldname": "column_break_mfr_dates",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "actual_return_date",
+   "fieldtype": "Date",
+   "label": "Actual Return Date",
+   "allow_on_submit": 1,
+   "description": "Date device was collected back from service center"
+  },
+  {
+   "fieldname": "section_manufacturer_details",
+   "fieldtype": "Section Break",
+   "label": "Device Condition & Accessories",
+   "depends_on": "eval:doc.coverage_type=='Manufacturer Warranty'",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "accessories_handed_over",
+   "fieldtype": "Small Text",
+   "label": "Accessories Handed Over",
+   "allow_on_submit": 1,
+   "description": "List accessories given with the device (charger, box, earphones, etc.)"
+  },
+  {
+   "fieldname": "condition_at_handover",
+   "fieldtype": "Small Text",
+   "label": "Device Condition at Handover",
+   "allow_on_submit": 1,
+   "description": "Note any scratches, dents, screen condition, etc."
+  },
+  {
+   "fieldname": "column_break_mfr_condition",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "condition_at_return",
+   "fieldtype": "Small Text",
+   "label": "Device Condition at Return",
+   "allow_on_submit": 1,
+   "description": "Condition when received back — note any new issues or report from manufacturer"
   },
   {
    "fieldname": "section_settlement",
@@ -601,6 +719,7 @@
   {"title": "Approved", "color": "Blue"},
   {"title": "Rejected", "color": "Red"},
   {"title": "Ticket Created", "color": "Purple"},
+  {"title": "Sent to Manufacturer", "color": "Blue"},
   {"title": "In Repair", "color": "Yellow"},
   {"title": "Repair Complete", "color": "Green"},
   {"title": "Closed", "color": "Green"},

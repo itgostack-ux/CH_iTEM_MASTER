@@ -1,0 +1,356 @@
+{
+ "actions": [],
+ "autoname": "naming_series:",
+ "creation": "2026-03-12 00:00:00.000000",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "voucher_type",
+  "voucher_code",
+  "column_break_basic",
+  "company",
+  "status",
+  "section_value",
+  "original_amount",
+  "balance",
+  "currency",
+  "column_break_value",
+  "issued_to",
+  "issued_to_name",
+  "phone",
+  "section_validity",
+  "valid_from",
+  "valid_upto",
+  "column_break_validity",
+  "issued_date",
+  "issued_by",
+  "section_source",
+  "source_type",
+  "source_document",
+  "column_break_source",
+  "reason",
+  "section_restrictions",
+  "min_order_amount",
+  "max_discount_amount",
+  "single_use",
+  "column_break_restrict",
+  "applicable_channel",
+  "applicable_item_group",
+  "section_transactions",
+  "transactions",
+  "section_amended",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "default": "CHVCH-.#####",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "Series",
+   "options": "CHVCH-.#####"
+  },
+  {
+   "fieldname": "voucher_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Voucher Type",
+   "options": "Gift Card\nStore Credit\nPromo Voucher\nReturn Credit",
+   "reqd": 1
+  },
+  {
+   "fieldname": "voucher_code",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Voucher Code",
+   "unique": 1,
+   "read_only": 1,
+   "bold": 1,
+   "description": "Auto-generated unique code for redemption"
+  },
+  {
+   "fieldname": "column_break_basic",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1,
+   "remember_last_selected_value": 1
+  },
+  {
+   "default": "Active",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Draft\nActive\nPartially Used\nFully Used\nExpired\nCancelled",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_value",
+   "fieldtype": "Section Break",
+   "label": "Value"
+  },
+  {
+   "fieldname": "original_amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Original Amount",
+   "reqd": 1,
+   "non_negative": 1
+  },
+  {
+   "fieldname": "balance",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Balance",
+   "read_only": 1,
+   "bold": 1
+  },
+  {
+   "default": "INR",
+   "fieldname": "currency",
+   "fieldtype": "Link",
+   "label": "Currency",
+   "options": "Currency"
+  },
+  {
+   "fieldname": "column_break_value",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "issued_to",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Issued To (Customer)",
+   "options": "Customer",
+   "description": "Leave blank for bearer vouchers"
+  },
+  {
+   "fetch_from": "issued_to.customer_name",
+   "fieldname": "issued_to_name",
+   "fieldtype": "Data",
+   "label": "Customer Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "phone",
+   "fieldtype": "Data",
+   "label": "Phone",
+   "options": "Phone",
+   "description": "For SMS/WhatsApp delivery of voucher code"
+  },
+  {
+   "fieldname": "section_validity",
+   "fieldtype": "Section Break",
+   "label": "Validity"
+  },
+  {
+   "fieldname": "valid_from",
+   "fieldtype": "Date",
+   "label": "Valid From",
+   "reqd": 1
+  },
+  {
+   "fieldname": "valid_upto",
+   "fieldtype": "Date",
+   "label": "Valid Upto",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_validity",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "issued_date",
+   "fieldtype": "Datetime",
+   "label": "Issued At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "issued_by",
+   "fieldtype": "Link",
+   "label": "Issued By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_source",
+   "fieldtype": "Section Break",
+   "label": "Source"
+  },
+  {
+   "fieldname": "source_type",
+   "fieldtype": "Select",
+   "label": "Source Type",
+   "options": "\nManual\nReturn\nPromotion\nCompensation\nPurchase"
+  },
+  {
+   "fieldname": "source_document",
+   "fieldtype": "Dynamic Link",
+   "label": "Source Document",
+   "options": "source_doctype"
+  },
+  {
+   "fieldname": "column_break_source",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "reason",
+   "fieldtype": "Small Text",
+   "label": "Reason / Notes"
+  },
+  {
+   "fieldname": "section_restrictions",
+   "fieldtype": "Section Break",
+   "label": "Restrictions",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "min_order_amount",
+   "fieldtype": "Currency",
+   "label": "Min Order Amount",
+   "description": "Minimum cart value to redeem",
+   "default": "0"
+  },
+  {
+   "fieldname": "max_discount_amount",
+   "fieldtype": "Currency",
+   "label": "Max Discount Amount",
+   "description": "Cap on how much can be redeemed in one transaction. 0 = full balance.",
+   "default": "0"
+  },
+  {
+   "default": "0",
+   "fieldname": "single_use",
+   "fieldtype": "Check",
+   "label": "Single Use Only",
+   "description": "If checked, entire balance must be used at once"
+  },
+  {
+   "fieldname": "column_break_restrict",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "applicable_channel",
+   "fieldtype": "Link",
+   "label": "Applicable Channel",
+   "options": "CH Price Channel",
+   "description": "Leave blank for all channels"
+  },
+  {
+   "fieldname": "applicable_item_group",
+   "fieldtype": "Link",
+   "label": "Applicable Item Group",
+   "options": "Item Group",
+   "description": "Leave blank for all items"
+  },
+  {
+   "fieldname": "section_transactions",
+   "fieldtype": "Section Break",
+   "label": "Transaction History"
+  },
+  {
+   "fieldname": "transactions",
+   "fieldtype": "Table",
+   "label": "Transactions",
+   "options": "CH Voucher Transaction",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_amended",
+   "fieldtype": "Section Break",
+   "hidden": 1
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "hidden": 1,
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "CH Voucher",
+   "print_hide": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "source_doctype",
+   "fieldtype": "Link",
+   "hidden": 1,
+   "label": "Source DocType",
+   "options": "DocType"
+  }
+ ],
+ "links": [
+  {
+   "group": "Transactions",
+   "link_doctype": "POS Invoice",
+   "link_fieldname": "custom_ch_voucher"
+  }
+ ],
+ "modified": "2026-03-12 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "CH Item Master",
+ "name": "CH Voucher",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "import": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "role": "CH Master Manager",
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "role": "CH Price Manager",
+   "write": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "role": "Sales User",
+   "write": 0
+  },
+  {
+   "export": 1,
+   "read": 1,
+   "role": "CH Viewer"
+  }
+ ],
+ "search_fields": "voucher_code,voucher_type,issued_to,status",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "voucher_code",
+ "track_changes": 1
+}

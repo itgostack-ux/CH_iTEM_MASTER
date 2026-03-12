@@ -60,8 +60,11 @@ class CHWarrantyClaim(Document):
 		          ), save=False)
 
 	def on_submit(self):
-		# If auto-approved (out-of-warranty / customer-only), create GoFix ticket
-		if self.claim_status == "Approved":
+		if self.coverage_type == "Manufacturer Warranty":
+			# Device goes to manufacturer, not GoFix
+			self._send_to_manufacturer(from_submit=True)
+		elif self.claim_status == "Approved":
+			# Create GoFix ticket immediately
 			self._create_gofix_ticket(from_submit=True)
 
 	def on_cancel(self):
@@ -129,8 +132,8 @@ class CHWarrantyClaim(Document):
 
 	@frappe.whitelist()
 	def mark_repair_complete(self, remarks=None):
-		"""Called when GoFix completes the repair."""
-		if self.claim_status not in ("Ticket Created", "In Repair"):
+		"""Called when GoFix completes the repair, or device returned from manufacturer."""
+		if self.claim_status not in ("Ticket Created", "In Repair", "Sent to Manufacturer"):
 			frappe.throw(_("Cannot mark complete — current status: {0}").format(
 				self.claim_status))
 
@@ -139,11 +142,19 @@ class CHWarrantyClaim(Document):
 		self.repair_completion_date = nowdate()
 		self.claim_status = "Repair Complete"
 
-		self.db_set({
+		# If returning from manufacturer, set actual return date
+		if old == "Sent to Manufacturer" and not self.actual_return_date:
+			self.actual_return_date = nowdate()
+
+		update_fields = {
 			"repair_status": "Completed",
 			"repair_completion_date": self.repair_completion_date,
 			"claim_status": "Repair Complete",
-		})
+		}
+		if self.actual_return_date:
+			update_fields["actual_return_date"] = self.actual_return_date
+
+		self.db_set(update_fields)
 
 		# Record warranty claim usage on the sold plan
 		if self.sold_plan:
@@ -154,16 +165,20 @@ class CHWarrantyClaim(Document):
 					service_reference=self.name,
 					company=self.company,
 				)
-			except Exception:
-				pass  # Don't block repair completion if claim recording fails
+			except Exception as e:
+				frappe.log_error(
+					f"Failed to record warranty claim for {self.name}: {e}",
+					"Warranty Claim - Record Claim Error",
+				)
 
 		self._log("Repair Complete", old, "Repair Complete",
-		          remarks or "Repair completed by GoFix")
+		          remarks or ("Device returned from manufacturer" if old == "Sent to Manufacturer"
+		                      else "Repair completed by GoFix"))
 
 	@frappe.whitelist()
 	def close_claim(self, remarks=None):
 		"""Close the claim after settlement."""
-		if self.claim_status not in ("Repair Complete", "Approved", "Rejected"):
+		if self.claim_status not in ("Repair Complete", "Approved", "Rejected", "Sent to Manufacturer"):
 			frappe.throw(_("Cannot close — current status: {0}").format(
 				self.claim_status))
 
@@ -207,6 +222,17 @@ class CHWarrantyClaim(Document):
 			self.max_claims = plan.get("max_claims", 0)
 			self.deductible_amount = flt(plan.get("deductible_amount", 0))
 
+		# If no sold plan covers device, check manufacturer warranty from Serial No
+		if not result.get("warranty_covered"):
+			sn_name = self.serial_no
+			if frappe.db.exists("Serial No", sn_name):
+				mfr_expiry = frappe.db.get_value("Serial No", sn_name, "warranty_expiry_date")
+				if mfr_expiry and getdate(mfr_expiry) >= getdate(nowdate()):
+					self.warranty_status = "Under Warranty"
+					self.warranty_end_date = mfr_expiry
+					# Mark as manufacturer warranty (no sold plan, brand/OEM covers it)
+					self.flags.is_manufacturer_warranty = True
+
 		# Also try enriching from lifecycle
 		lc_name = self.serial_no
 		if not frappe.db.exists("CH Serial Lifecycle", lc_name):
@@ -232,7 +258,10 @@ class CHWarrantyClaim(Document):
 
 	def _determine_coverage_type(self):
 		"""Set coverage_type based on warranty lookup."""
-		if self.warranty_status == "Under Warranty":
+		if getattr(self.flags, "is_manufacturer_warranty", False):
+			# Device under OEM/brand warranty — GoGizmo facilitates, manufacturer repairs
+			self.coverage_type = "Manufacturer Warranty"
+		elif self.warranty_status == "Under Warranty":
 			self.coverage_type = "In Warranty"
 		elif self.warranty_status == "Extended":
 			self.coverage_type = "In Warranty"
@@ -249,7 +278,12 @@ class CHWarrantyClaim(Document):
 		"""Calculate how much each party pays."""
 		est = flt(self.estimated_repair_cost)
 
-		if self.coverage_type == "In Warranty":
+		if self.coverage_type == "Manufacturer Warranty":
+			# Manufacturer covers repair — no cost to GoGizmo or customer
+			self.gogizmo_share = 0
+			self.gofix_share = 0
+			self.customer_share = 0
+		elif self.coverage_type == "In Warranty":
 			# GoGizmo pays everything
 			self.gogizmo_share = est
 			self.gofix_share = 0
@@ -266,8 +300,17 @@ class CHWarrantyClaim(Document):
 			self.customer_share = est
 
 	def _check_approval_needed(self):
-		"""GoGizmo Head must approve if GoGizmo is paying any amount."""
-		self.requires_approval = 1 if flt(self.gogizmo_share) > 0 else 0
+		"""GoGizmo Head must approve if GoGizmo is paying any amount.
+
+		Post-Repair Warranty: GoFix handles directly, skip approval.
+		Manufacturer Warranty: Manufacturer covers, no GoGizmo approval needed.
+		"""
+		if self.plan_type == "Post-Repair Warranty":
+			self.requires_approval = 0
+		elif self.coverage_type == "Manufacturer Warranty":
+			self.requires_approval = 0
+		else:
+			self.requires_approval = 1 if flt(self.gogizmo_share) > 0 else 0
 
 	def _create_gofix_ticket(self, from_submit=False):
 		"""Create a GoFix Service Request from this claim."""
@@ -358,6 +401,46 @@ class CHWarrantyClaim(Document):
 				_("Failed to create GoFix Service Request: {0}").format(str(e))
 			)
 
+	def _send_to_manufacturer(self, from_submit=False):
+		"""Route claim to manufacturer — device goes to OEM for warranty repair."""
+		old = self.claim_status
+		self.claim_status = "Sent to Manufacturer"
+		self.repair_status = "With Manufacturer"
+		self.handover_date = self.handover_date or nowdate()
+
+		self.db_set({
+			"claim_status": "Sent to Manufacturer",
+			"repair_status": "With Manufacturer",
+			"handover_date": self.handover_date,
+		})
+
+		brand = self.brand or frappe.db.get_value("Item", self.item_code, "brand") or "manufacturer"
+		self._log("Sent to Manufacturer", old, "Sent to Manufacturer",
+		          f"Device sent to {brand} for warranty repair on behalf of customer",
+		          save=not from_submit)
+
+		# Update lifecycle
+		self._update_lifecycle_in_service()
+
+		frappe.msgprint(
+			_("Device sent to {0} for manufacturer warranty repair").format(
+				frappe.bold(brand)
+			),
+			indicator="blue",
+			alert=True,
+		)
+
+	@frappe.whitelist()
+	def send_to_manufacturer(self, remarks=None):
+		"""Manually send device to manufacturer (if not auto-routed on submit)."""
+		if self.docstatus != 1:
+			frappe.throw(_("Claim must be submitted first."))
+		if self.claim_status not in ("Approved", "Pending Approval"):
+			frappe.throw(_("Cannot send to manufacturer — current status: {0}").format(
+				self.claim_status))
+
+		self._send_to_manufacturer()
+
 	def _update_lifecycle_in_service(self):
 		"""Update CH Serial Lifecycle to In Service status."""
 		if not frappe.db.exists("CH Serial Lifecycle", self.serial_no):
@@ -373,8 +456,11 @@ class CHWarrantyClaim(Document):
 				company=GOFIX_COMPANY,
 				remarks=f"Warranty Claim {self.name} — sent to GoFix for repair",
 			)
-		except Exception:
-			pass  # Don't block claim flow
+		except Exception as e:
+			frappe.log_error(
+				f"Failed to update lifecycle to In Service for {self.serial_no}: {e}",
+				"Warranty Claim - Lifecycle Update Error",
+			)
 
 	def _log(self, action, from_status, to_status, remarks="", save=True):
 		"""Append a log entry to claim_log child table.

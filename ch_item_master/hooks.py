@@ -35,6 +35,9 @@ scheduler_events = {
 	"daily_long": [
 		"ch_item_master.ch_item_master.scheduled_tasks.auto_expire_records",
 		"ch_item_master.ch_customer_master.doctype.ch_loyalty_transaction.ch_loyalty_transaction.expire_loyalty_points",
+		"ch_item_master.ch_item_master.commercial_api.run_channel_parity_check",
+		"ch_item_master.ch_item_master.commercial_api.run_tag_auto_repricing",
+		"ch_item_master.ch_item_master.voucher_api.expire_vouchers",
 	],
 }
 

@@ -60,7 +60,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Tag",
-   "options": "EOL\nFAST MOVING\nSLOW MOVING\nNEW\nPROMO FOCUS\nRESTRICTED",
+   "options": "EOL\nFAST MOVING\nSLOW MOVING\nNEW\nPROMO FOCUS\nRESTRICTED\nCLEARANCE\nDEAD STOCK",
    "reqd": 1
   },
   {

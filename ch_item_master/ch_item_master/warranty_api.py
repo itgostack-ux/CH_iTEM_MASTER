@@ -192,10 +192,11 @@ def record_warranty_claim(serial_no, service_reference=None, company=None):
 			title=_("No Warranty Coverage"),
 		)
 
-	# Prefer Own Warranty > Extended > VAS > Protection
+	# Prefer Own Warranty > Extended > VAS > Protection > Post-Repair
 	priority = {
 		"Own Warranty": 1, "Extended Warranty": 2,
 		"Value Added Service": 3, "Protection Plan": 4,
+		"Post-Repair Warranty": 5,
 	}
 	valid_plans.sort(key=lambda p: priority.get(p.get("plan_type"), 99))
 
@@ -281,6 +282,262 @@ def expire_sold_plans():
 		frappe.logger("ch_item_master").info(
 			f"Auto-expired {len(expired)} sold plans: {expired[:10]}{'...' if len(expired) > 10 else ''}"
 		)
+
+
+# ── Customer Warranty Dashboard ──────────────────────────────────────────────
+
+@frappe.whitelist()
+def get_customer_warranty_dashboard(identifier, company=None):
+	"""Full customer warranty dashboard — search by phone, IMEI, or serial.
+
+	Used by POS to give the store exec a complete view of a customer's warranty
+	portfolio, like an insurance agent's policy dashboard.
+
+	Args:
+		identifier: Phone number, IMEI, or serial number.
+		company: Optional company filter.
+
+	Returns:
+		dict with: customer, devices[], each device has plans[] and claims[].
+		Plans are tagged with status: active/expired/exhausted/eligible.
+	"""
+	from ch_item_master.ch_item_master.doctype.ch_warranty_claim.ch_warranty_claim import (
+		get_claims_for_serial,
+	)
+
+	customer = None
+	customer_name = ""
+	customer_phone = ""
+	search_type = None  # "phone", "serial", "imei"
+
+	identifier = (identifier or "").strip()
+	if not identifier:
+		frappe.throw(_("Enter a phone number, IMEI, or serial number"))
+
+	# ── Detect search type and find customer ─────────────────────────
+	# Phone: 10+ digits (Indian phone)
+	digits_only = "".join(c for c in identifier if c.isdigit())
+	is_phone = len(digits_only) >= 10 and len(digits_only) <= 13 and not identifier.startswith("MO/")
+
+	if is_phone:
+		search_type = "phone"
+		# Search by mobile_no on Customer (exact or last 10 digits)
+		phone_suffix = digits_only[-10:]
+		customer = frappe.db.get_value(
+			"Customer", {"mobile_no": ["like", f"%{phone_suffix}"]}, "name"
+		)
+		if not customer:
+			# Try ch_alternate_phone
+			customer = frappe.db.get_value(
+				"Customer", {"ch_alternate_phone": ["like", f"%{phone_suffix}"]}, "name"
+			)
+		if not customer:
+			# Try Contact → Dynamic Link → Customer
+			contact = frappe.db.sql("""
+				SELECT dl.link_name
+				FROM `tabDynamic Link` dl
+				JOIN `tabContact` c ON c.name = dl.parent
+				WHERE dl.link_doctype = 'Customer'
+				  AND c.mobile_no LIKE %s
+				LIMIT 1
+			""", (f"%{phone_suffix}",))
+			if contact:
+				customer = contact[0][0]
+
+		if not customer:
+			return {
+				"found": False,
+				"search_type": "phone",
+				"message": _("No customer found with phone number {0}").format(identifier),
+				"customer": None,
+				"devices": [],
+			}
+	else:
+		search_type = "serial"
+		# Try CH Serial Lifecycle first
+		lc_name = None
+		if frappe.db.exists("CH Serial Lifecycle", identifier):
+			lc_name = identifier
+		else:
+			lc_name = frappe.db.get_value(
+				"CH Serial Lifecycle", {"imei_number": identifier}, "name"
+			) or frappe.db.get_value(
+				"CH Serial Lifecycle", {"imei_number_2": identifier}, "name"
+			)
+
+		if lc_name:
+			customer = frappe.db.get_value("CH Serial Lifecycle", lc_name, "customer")
+
+		# Fallback: ERPNext Serial No
+		if not customer and frappe.db.exists("Serial No", identifier):
+			customer = frappe.db.get_value("Serial No", identifier, "customer")
+			if not customer:
+				cd = _get_customer_from_serial(identifier)
+				if cd:
+					customer = cd.get("customer")
+
+		# Fallback: check CH Sold Plan
+		if not customer:
+			customer = frappe.db.get_value(
+				"CH Sold Plan",
+				{"serial_no": identifier, "docstatus": 1},
+				"customer",
+			)
+
+		if not customer:
+			# Return the single device lookup as before
+			return {
+				"found": False,
+				"search_type": "serial",
+				"message": _("No customer found for device {0}").format(identifier),
+				"customer": None,
+				"devices": [],
+			}
+
+	# ── Get customer info ────────────────────────────────────────────
+	cust_data = frappe.db.get_value(
+		"Customer", customer,
+		["name", "customer_name", "mobile_no", "ch_alternate_phone"],
+		as_dict=True,
+	)
+	if cust_data:
+		customer_name = cust_data.customer_name
+		customer_phone = cust_data.mobile_no or cust_data.ch_alternate_phone or ""
+
+	# ── Get ALL devices for this customer ────────────────────────────
+	devices = []
+	seen_serials = set()
+
+	# From CH Serial Lifecycle
+	lc_devices = frappe.get_all(
+		"CH Serial Lifecycle",
+		filters={"customer": customer},
+		fields=[
+			"name as serial_no", "imei_number", "imei_number_2",
+			"item_code", "item_name", "lifecycle_status",
+			"sale_date", "warranty_status",
+			"warranty_start_date", "warranty_end_date",
+		],
+		order_by="sale_date desc",
+	)
+	for d in lc_devices:
+		d["source"] = "lifecycle"
+		seen_serials.add(d["serial_no"])
+		devices.append(d)
+
+	# From CH Sold Plan (may have devices not in lifecycle)
+	sp_serials = frappe.db.sql("""
+		SELECT DISTINCT serial_no FROM `tabCH Sold Plan`
+		WHERE customer = %s AND docstatus = 1 AND serial_no IS NOT NULL AND serial_no != ''
+	""", customer, as_dict=True)
+	for row in sp_serials:
+		sn = row["serial_no"]
+		if sn in seen_serials:
+			continue
+		# Get device info from Serial No
+		sn_data = None
+		if frappe.db.exists("Serial No", sn):
+			sn_data = frappe.db.get_value(
+				"Serial No", sn,
+				["name", "item_code", "item_name", "status", "warranty_expiry_date"],
+				as_dict=True,
+			)
+		devices.append({
+			"serial_no": sn,
+			"imei_number": sn,
+			"imei_number_2": "",
+			"item_code": (sn_data or {}).get("item_code", ""),
+			"item_name": (sn_data or {}).get("item_name", ""),
+			"lifecycle_status": (sn_data or {}).get("status", ""),
+			"sale_date": "",
+			"warranty_status": "",
+			"warranty_start_date": "",
+			"warranty_end_date": (sn_data or {}).get("warranty_expiry_date", ""),
+			"source": "sold_plan",
+		})
+		seen_serials.add(sn)
+
+	# ── For each device, get ALL sold plans + claims ─────────────────
+	today = getdate(nowdate())
+	for dev in devices:
+		sn = dev["serial_no"]
+
+		# Get all sold plans (Active + Expired + Claimed)
+		all_plans = frappe.get_all(
+			"CH Sold Plan",
+			filters={"serial_no": sn, "customer": customer, "docstatus": 1},
+			fields=[
+				"name", "warranty_plan", "plan_title", "plan_type",
+				"start_date", "end_date", "claims_used", "max_claims",
+				"deductible_amount", "status", "plan_price",
+			],
+			order_by="start_date desc",
+		)
+
+		for plan in all_plans:
+			# Compute display status
+			if plan.status in ("Void", "Cancelled"):
+				plan["display_status"] = "void"
+			elif plan.end_date and today > getdate(plan.end_date):
+				plan["display_status"] = "expired"
+			elif plan.max_claims and plan.max_claims > 0 and (plan.claims_used or 0) >= plan.max_claims:
+				plan["display_status"] = "exhausted"
+			elif plan.status == "Active":
+				plan["display_status"] = "active"
+			else:
+				plan["display_status"] = plan.status.lower() if plan.status else "unknown"
+
+			# Days remaining
+			if plan.end_date and plan["display_status"] == "active":
+				plan["days_remaining"] = (getdate(plan.end_date) - today).days
+			else:
+				plan["days_remaining"] = 0
+
+			# Claims remaining
+			if plan.max_claims and plan.max_claims > 0:
+				plan["claims_remaining"] = max(0, plan.max_claims - (plan.claims_used or 0))
+			else:
+				plan["claims_remaining"] = -1  # unlimited
+
+		dev["plans"] = all_plans
+		dev["active_plans"] = [p for p in all_plans if p["display_status"] == "active"]
+		dev["has_active_warranty"] = any(
+			p["display_status"] == "active" for p in all_plans
+		)
+
+		# Manufacturer warranty from Serial No.warranty_expiry_date
+		mfr_expiry = None
+		if frappe.db.exists("Serial No", sn):
+			mfr_expiry = frappe.db.get_value("Serial No", sn, "warranty_expiry_date")
+		if mfr_expiry:
+			dev["manufacturer_warranty_end"] = str(mfr_expiry)
+			dev["manufacturer_warranty_active"] = getdate(mfr_expiry) >= today
+		else:
+			dev["manufacturer_warranty_end"] = ""
+			dev["manufacturer_warranty_active"] = False
+
+		# Get claims
+		dev["claims"] = get_claims_for_serial(sn)
+
+	# ── Summary stats ────────────────────────────────────────────────
+	total_plans = sum(len(d.get("plans", [])) for d in devices)
+	active_plans = sum(len(d.get("active_plans", [])) for d in devices)
+	total_devices = len(devices)
+
+	return {
+		"found": True,
+		"search_type": search_type,
+		"customer": customer,
+		"customer_name": customer_name,
+		"customer_phone": customer_phone,
+		"devices": devices,
+		"summary": {
+			"total_devices": total_devices,
+			"total_plans": total_plans,
+			"active_plans": active_plans,
+			"expired_plans": total_plans - active_plans,
+		},
+	}
 
 
 # ── Warranty Claim APIs ─────────────────────────────────────────────────────

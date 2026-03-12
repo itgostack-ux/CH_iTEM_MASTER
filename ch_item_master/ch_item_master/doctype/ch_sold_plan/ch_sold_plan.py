@@ -284,7 +284,11 @@ def check_warranty_status(serial_no, company=None):
 		}
 
 	# Prefer "Own Warranty" > "Extended Warranty" > others
-	priority = {"Own Warranty": 1, "Extended Warranty": 2, "Value Added Service": 3, "Protection Plan": 4}
+	priority = {
+		"Own Warranty": 1, "Extended Warranty": 2,
+		"Value Added Service": 3, "Protection Plan": 4,
+		"Post-Repair Warranty": 5,
+	}
 	valid_plans.sort(key=lambda p: priority.get(p.get("plan_type"), 99))
 
 	return {

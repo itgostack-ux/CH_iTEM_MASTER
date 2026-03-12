@@ -1,0 +1,230 @@
+{
+ "actions": [],
+ "creation": "2026-03-12 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "general_section",
+  "company",
+  "column_break_gen",
+  "enabled",
+  "discount_control_section",
+  "max_discount_without_approval",
+  "column_break_disc",
+  "allow_below_mop_for_tags",
+  "discount_limits_section",
+  "discount_limits",
+  "channel_parity_section",
+  "enable_channel_parity_check",
+  "channel_parity_threshold",
+  "column_break_parity",
+  "parity_check_frequency",
+  "parity_alert_role",
+  "override_control_section",
+  "log_all_pos_overrides",
+  "column_break_override",
+  "require_manager_pin_above",
+  "tag_automation_section",
+  "enable_tag_auto_pricing",
+  "slow_moving_days",
+  "column_break_tag",
+  "dead_stock_days",
+  "eol_auto_markdown_percent"
+ ],
+ "fields": [
+  {
+   "fieldname": "general_section",
+   "fieldtype": "Section Break",
+   "label": "General"
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1,
+   "description": "Company these commercial policies apply to"
+  },
+  {
+   "fieldname": "column_break_gen",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "label": "Enabled"
+  },
+  {
+   "fieldname": "discount_control_section",
+   "fieldtype": "Section Break",
+   "label": "Discount Control"
+  },
+  {
+   "default": "10",
+   "fieldname": "max_discount_without_approval",
+   "fieldtype": "Percent",
+   "label": "Max Discount % Without Approval",
+   "description": "POS discounts above this % require manager PIN. 0 = no limit."
+  },
+  {
+   "fieldname": "column_break_disc",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "allow_below_mop_for_tags",
+   "fieldtype": "Small Text",
+   "label": "Allow Below MOP for Tags",
+   "description": "Comma-separated tag names: EOL, Clearance. Items with these tags can be sold below MOP."
+  },
+  {
+   "fieldname": "discount_limits_section",
+   "fieldtype": "Section Break",
+   "label": "Role-Based Discount Limits"
+  },
+  {
+   "fieldname": "discount_limits",
+   "fieldtype": "Table",
+   "label": "Discount Limits",
+   "options": "CH Discount Limit",
+   "description": "Per-role maximum discount allowed at POS"
+  },
+  {
+   "fieldname": "channel_parity_section",
+   "fieldtype": "Section Break",
+   "label": "Channel Parity"
+  },
+  {
+   "default": "0",
+   "fieldname": "enable_channel_parity_check",
+   "fieldtype": "Check",
+   "label": "Enable Channel Parity Check"
+  },
+  {
+   "default": "5",
+   "fieldname": "channel_parity_threshold",
+   "fieldtype": "Percent",
+   "label": "Channel Price Divergence Threshold %",
+   "description": "Alert when price across channels differs by more than this %",
+   "depends_on": "enable_channel_parity_check"
+  },
+  {
+   "fieldname": "column_break_parity",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Daily",
+   "fieldname": "parity_check_frequency",
+   "fieldtype": "Select",
+   "label": "Check Frequency",
+   "options": "Daily\nWeekly",
+   "depends_on": "enable_channel_parity_check"
+  },
+  {
+   "default": "CH Price Manager",
+   "fieldname": "parity_alert_role",
+   "fieldtype": "Link",
+   "label": "Alert Role",
+   "options": "Role",
+   "depends_on": "enable_channel_parity_check"
+  },
+  {
+   "fieldname": "override_control_section",
+   "fieldtype": "Section Break",
+   "label": "POS Override Control"
+  },
+  {
+   "default": "1",
+   "fieldname": "log_all_pos_overrides",
+   "fieldtype": "Check",
+   "label": "Log All POS Price Overrides",
+   "description": "Create a CH POS Override Log whenever POS rate differs from CH Item Price"
+  },
+  {
+   "fieldname": "column_break_override",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "15",
+   "fieldname": "require_manager_pin_above",
+   "fieldtype": "Percent",
+   "label": "Require Manager PIN Above %",
+   "description": "POS must enter manager PIN for discounts above this %. 0 = disabled."
+  },
+  {
+   "fieldname": "tag_automation_section",
+   "fieldtype": "Section Break",
+   "label": "Tag-Based Automation",
+   "collapsible": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "enable_tag_auto_pricing",
+   "fieldtype": "Check",
+   "label": "Enable Tag-Based Auto Pricing"
+  },
+  {
+   "default": "90",
+   "fieldname": "slow_moving_days",
+   "fieldtype": "Int",
+   "label": "Slow Moving Days",
+   "description": "Items with no sales for this many days get flagged Slow Moving",
+   "depends_on": "enable_tag_auto_pricing"
+  },
+  {
+   "fieldname": "column_break_tag",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "180",
+   "fieldname": "dead_stock_days",
+   "fieldtype": "Int",
+   "label": "Dead Stock Days",
+   "description": "Items with no sales for this many days get flagged Dead Stock",
+   "depends_on": "enable_tag_auto_pricing"
+  },
+  {
+   "default": "20",
+   "fieldname": "eol_auto_markdown_percent",
+   "fieldtype": "Percent",
+   "label": "EOL Auto Markdown %",
+   "description": "Suggested markdown % for EOL-tagged items",
+   "depends_on": "enable_tag_auto_pricing"
+  }
+ ],
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-03-12 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Ch Item Master",
+ "name": "CH Commercial Policy",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1
+  },
+  {
+   "role": "CH Master Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1
+  },
+  {
+   "role": "CH Price Manager",
+   "read": 1,
+   "write": 0
+  },
+  {
+   "role": "CH Viewer",
+   "read": 1,
+   "write": 0
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}
