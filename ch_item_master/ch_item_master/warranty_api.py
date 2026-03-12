@@ -352,6 +352,10 @@ def get_device_claim_info(serial_no, company=None):
 
 	Used by POS claim UI to show all info before initiating a claim.
 
+	Lookup order:
+	  1. CH Serial Lifecycle — by name, imei_number, imei_number_2
+	  2. Serial No (ERPNext) — fallback when no lifecycle record
+
 	Returns:
 		dict with: device_info, warranty_info, existing_claims
 	"""
@@ -359,10 +363,11 @@ def get_device_claim_info(serial_no, company=None):
 		get_claims_for_serial,
 	)
 
-	# Device info from CH Serial Lifecycle
 	device_info = None
 	lc_name = serial_no
+	source = None  # "lifecycle" or "serial_no"
 
+	# ── Pass 1: CH Serial Lifecycle ──────────────────────────────────
 	if not frappe.db.exists("CH Serial Lifecycle", lc_name):
 		lc_name = frappe.db.get_value(
 			"CH Serial Lifecycle", {"imei_number": serial_no}, "name"
@@ -384,15 +389,109 @@ def get_device_claim_info(serial_no, company=None):
 			],
 			as_dict=True,
 		)
+		source = "lifecycle"
 
-	# Warranty info from CH Sold Plan
-	warranty_info = check_warranty(serial_no, company)
+	# ── Pass 2: ERPNext Serial No fallback ───────────────────────────
+	if not device_info:
+		sn_name = serial_no
+		if not frappe.db.exists("Serial No", sn_name):
+			# Try searching by serial_no field patterns
+			sn_name = None
 
-	# Existing claims
+		if sn_name and frappe.db.exists("Serial No", sn_name):
+			sn_data = frappe.db.get_value(
+				"Serial No", sn_name,
+				["name", "item_code", "item_name", "company", "warehouse",
+				 "status", "warranty_expiry_date", "brand", "customer"],
+				as_dict=True,
+			)
+			if sn_data:
+				device_info = {
+					"serial_no": sn_data.name,
+					"imei_number": sn_data.name,  # Serial name is often the IMEI
+					"imei_number_2": "",
+					"item_code": sn_data.item_code,
+					"item_name": sn_data.item_name or frappe.db.get_value(
+						"Item", sn_data.item_code, "item_name"),
+					"lifecycle_status": sn_data.status or "Active",
+					"customer": sn_data.customer or "",
+					"customer_name": "",
+					"sale_date": "",
+					"sale_document": "",
+					"sale_rate": 0,
+					"warranty_status": "",
+					"warranty_plan": "",
+					"warranty_start_date": "",
+					"warranty_end_date": sn_data.warranty_expiry_date or "",
+					"service_count": 0,
+					"last_service_date": "",
+					"source": "serial_no",
+				}
+				# Try to get customer from the last Delivery Note
+				customer_data = _get_customer_from_serial(sn_name)
+				if customer_data:
+					device_info["customer"] = customer_data.get("customer") or device_info["customer"]
+					device_info["customer_name"] = customer_data.get("customer_name", "")
+					device_info["sale_date"] = customer_data.get("sale_date", "")
+					device_info["sale_document"] = customer_data.get("sale_document", "")
+
+				source = "serial_no"
+
+	# ── Warranty info from CH Sold Plan ──────────────────────────────
+	lookup_serial = (device_info or {}).get("serial_no", serial_no)
+	warranty_info = check_warranty(lookup_serial, company)
+
+	# ── Existing claims ──────────────────────────────────────────────
 	existing_claims = get_claims_for_serial(lc_name or serial_no)
 
 	return {
 		"device_info": device_info,
 		"warranty_info": warranty_info,
 		"existing_claims": existing_claims,
+		"source": source,
 	}
+
+
+def _get_customer_from_serial(serial_no):
+	"""Try to find customer info from delivery/sales linked to a Serial No."""
+	# Check Serial and Batch Entry → parent bundle → voucher
+	sbe = frappe.db.sql("""
+		SELECT sbb.voucher_type, sbb.voucher_no
+		FROM `tabSerial and Batch Entry` sbe
+		JOIN `tabSerial and Batch Bundle` sbb ON sbb.name = sbe.parent
+		WHERE sbe.serial_no = %s
+		  AND sbb.voucher_type IN ('Delivery Note', 'Sales Invoice')
+		  AND sbb.docstatus = 1
+		ORDER BY sbb.creation DESC LIMIT 1
+	""", serial_no, as_dict=True)
+
+	if sbe:
+		voucher = sbe[0]
+		if voucher.voucher_type == "Delivery Note":
+			data = frappe.db.get_value("Delivery Note", voucher.voucher_no,
+				["customer", "customer_name", "posting_date"], as_dict=True)
+			if data:
+				return {
+					"customer": data.customer,
+					"customer_name": data.customer_name,
+					"sale_date": str(data.posting_date),
+					"sale_document": voucher.voucher_no,
+				}
+		elif voucher.voucher_type == "Sales Invoice":
+			data = frappe.db.get_value("Sales Invoice", voucher.voucher_no,
+				["customer", "customer_name", "posting_date"], as_dict=True)
+			if data:
+				return {
+					"customer": data.customer,
+					"customer_name": data.customer_name,
+					"sale_date": str(data.posting_date),
+					"sale_document": voucher.voucher_no,
+				}
+
+	# Fallback: check if Serial No has a customer field directly
+	customer = frappe.db.get_value("Serial No", serial_no, "customer")
+	if customer:
+		customer_name = frappe.db.get_value("Customer", customer, "customer_name") or ""
+		return {"customer": customer, "customer_name": customer_name, "sale_date": "", "sale_document": ""}
+
+	return None
