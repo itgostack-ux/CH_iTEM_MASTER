@@ -231,6 +231,20 @@ def redeem_voucher(voucher_code, amount, pos_invoice=None, reference_doctype=Non
 		reference_doc=pos_invoice,
 	)
 
+	# Audit
+	try:
+		from ch_pos.audit import log_business_event
+		log_business_event(
+			event_type="Voucher Redemption",
+			ref_doctype="CH Voucher", ref_name=voucher.name,
+			before=f"Balance ₹{balance}",
+			after=f"Balance ₹{new_balance}",
+			remarks=f"Redeemed ₹{redeem_amount} at {pos_invoice or 'counter'}",
+			company=voucher.company,
+		)
+	except Exception:
+		frappe.log_error(frappe.get_traceback(), f"Audit log failed for voucher redeem {voucher.name}")
+
 	return {
 		"success": True,
 		"redeemed_amount": redeem_amount,

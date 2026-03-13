@@ -146,6 +146,20 @@ def write_off(receivable_name, amount=None, journal_entry=None, remarks=None):
 	doc.save(ignore_permissions=True)
 	frappe.db.commit()
 
+	# Audit
+	try:
+		from ch_pos.audit import log_business_event
+		log_business_event(
+			event_type="Scheme Write-Off",
+			ref_doctype="CH Scheme Receivable", ref_name=doc.name,
+			before=f"Outstanding ₹{outstanding}",
+			after=f"Write-off ₹{amount}",
+			remarks=remarks or "Manual write-off",
+			company=doc.company,
+		)
+	except Exception:
+		frappe.log_error(frappe.get_traceback(), f"Audit log failed for write_off {doc.name}")
+
 	return {"status": doc.status, "outstanding": doc.outstanding_amount}
 
 
