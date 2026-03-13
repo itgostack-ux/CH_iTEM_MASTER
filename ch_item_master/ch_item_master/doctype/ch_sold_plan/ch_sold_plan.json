@@ -91,6 +91,15 @@
    "read_only": 1
   },
   {
+   "fieldname": "customer_phone",
+   "fieldtype": "Data",
+   "label": "Customer Phone",
+   "options": "Phone",
+   "fetch_from": "customer.mobile_no",
+   "fetch_if_empty": 1,
+   "read_only": 1
+  },
+  {
    "fieldname": "status",
    "fieldtype": "Select",
    "label": "Status",
@@ -308,14 +317,19 @@
  ],
  "links": [
   {
-   "group": "Plan",
-   "link_doctype": "CH Warranty Plan",
-   "link_fieldname": "warranty_plan"
+   "group": "Claims",
+   "link_doctype": "CH Warranty Claim",
+   "link_fieldname": "sold_plan"
   },
   {
    "group": "Device",
-   "link_doctype": "CH Serial Lifecycle",
-   "link_fieldname": "serial_no"
+   "link_doctype": "CH Customer Device",
+   "link_fieldname": "active_warranty_plan"
+  },
+  {
+   "group": "VAS",
+   "link_doctype": "CH Customer Device VAS",
+   "link_fieldname": "plan"
   }
  ],
  "actions": [],

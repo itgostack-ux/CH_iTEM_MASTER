@@ -24,6 +24,10 @@
   "log_all_pos_overrides",
   "column_break_override",
   "require_manager_pin_above",
+  "return_policy_section",
+  "return_policy_days",
+  "column_break_return",
+  "return_policy_alert_role",
   "tag_automation_section",
   "enable_tag_auto_pricing",
   "slow_moving_days",
@@ -150,6 +154,29 @@
    "fieldtype": "Percent",
    "label": "Require Manager PIN Above %",
    "description": "POS must enter manager PIN for discounts above this %. 0 = disabled."
+  },
+  {
+   "fieldname": "return_policy_section",
+   "fieldtype": "Section Break",
+   "label": "Return Policy"
+  },
+  {
+   "default": "7",
+   "fieldname": "return_policy_days",
+   "fieldtype": "Int",
+   "label": "Return Window (Days)",
+   "description": "Number of days from invoice date within which returns are allowed without exception approval. 0 = no limit."
+  },
+  {
+   "fieldname": "column_break_return",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "return_policy_alert_role",
+   "fieldtype": "Link",
+   "label": "Return Policy Alert Role",
+   "options": "Role",
+   "description": "Role to notify when a return beyond policy is attempted"
   },
   {
    "fieldname": "tag_automation_section",

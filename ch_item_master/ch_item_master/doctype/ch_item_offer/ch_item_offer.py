@@ -4,7 +4,7 @@
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import get_datetime, now_datetime
+from frappe.utils import get_datetime, now_datetime, flt
 
 from ch_item_master.ch_item_master.exceptions import (
 	InvalidOfferError,
@@ -19,6 +19,8 @@ class CHItemOffer(Document):
 		self._validate_targets()
 		self._validate_channel_active()
 		self._validate_no_duplicate_active_offer()
+		self._validate_combo()
+		self._validate_attachment()
 		self._auto_set_status()
 
 	def _validate_channel_active(self):
@@ -37,6 +39,13 @@ class CHItemOffer(Document):
 
 	def _validate_targets(self):
 		"""Ensure correct targeting fields are filled based on offer_level and apply_on."""
+		# Attachment/Freebie use trigger_item + reward_item, not item_code
+		if self.offer_type in ("Attachment", "Freebie"):
+			return
+		# Combo uses combo_items table, not item_code
+		if self.offer_type == "Combo":
+			return
+
 		offer_level = self.get("offer_level") or "Item"
 		apply_on = self.get("apply_on") or "Item Code"
 
@@ -76,6 +85,9 @@ class CHItemOffer(Document):
 
 	def _validate_value(self):
 		"""Validate offer value based on value_type."""
+		# Combo/Freebie may have value=0 (combo_price or free item instead)
+		if self.offer_type in ("Combo", "Freebie"):
+			return
 		if (self.value or 0) <= 0:
 			frappe.throw(
 				_("Offer value must be greater than zero"),
@@ -194,6 +206,7 @@ class CHItemOffer(Document):
 		self._auto_set_status()
 		self.save()
 		self._sync_to_erp_pricing_rule()
+		self._sync_additional_companies()
 		frappe.msgprint(
 			_("{0} approved — Pricing Rule created/updated in ERPNext").format(self.name),
 			indicator="green",
@@ -220,8 +233,63 @@ class CHItemOffer(Document):
 		Supports:
 		- Item-level offers: apply_on = Item Code / Item Group / Brand
 		- Bill-level offers: apply_on = Transaction, apply_discount_on = Grand Total / Net Total
+		- Attachment/Freebie: product discount with free_item
+		- Combo: handled at POS level (no single Pricing Rule equivalent)
 		"""
-		# Map offer value type → ERPNext rate_or_discount
+		# Combo offers are resolved at POS cart level — no ERPNext Pricing Rule
+		if self.offer_type == "Combo":
+			return
+
+		erp_pr = self.get("erp_pricing_rule")
+		if erp_pr and frappe.db.exists("Pricing Rule", erp_pr):
+			pr = frappe.get_doc("Pricing Rule", erp_pr)
+			pr.items = []
+			pr.item_groups = []
+			pr.brands = []
+		else:
+			pr = frappe.new_doc("Pricing Rule")
+			pr.selling = 1
+
+		self._populate_pricing_rule(pr)
+
+		pr.flags.ignore_permissions = True
+		pr.flags.ignore_validate_update_after_submit = True
+		pr.save()
+
+		frappe.db.set_value(
+			"CH Item Offer", self.name, "erp_pricing_rule", pr.name, update_modified=False
+		)
+
+	def _sync_additional_companies(self):
+		"""Create a Pricing Rule in each additional company for cross-company offers."""
+		if not self.get("additional_companies"):
+			return
+
+		for row in self.additional_companies:
+			if row.company == self.company:
+				continue
+
+			# Check if a Pricing Rule already exists for this offer + company
+			existing = frappe.db.get_value(
+				"Pricing Rule",
+				{"rule_description": ["like", f"CH Offer: {self.offer_name}%"], "company": row.company, "disable": 0},
+				"name",
+			)
+			if existing:
+				pr = frappe.get_doc("Pricing Rule", existing)
+				pr.items = []
+				pr.item_groups = []
+				pr.brands = []
+			else:
+				pr = frappe.new_doc("Pricing Rule")
+				pr.selling = 1
+
+			self._populate_pricing_rule(pr, override_company=row.company)
+			pr.flags.ignore_permissions = True
+			pr.save()
+
+	def _populate_pricing_rule(self, pr, override_company=None):
+		"""Populate a Pricing Rule doc from this offer's fields."""
 		if self.value_type == "Amount":
 			rate_or_discount = "Discount Amount"
 		elif self.value_type == "Price Override":
@@ -233,39 +301,38 @@ class CHItemOffer(Document):
 		if self.channel:
 			price_list = frappe.db.get_value("CH Price Channel", self.channel, "price_list")
 
-		erp_pr = self.get("erp_pricing_rule")
-		if erp_pr and frappe.db.exists("Pricing Rule", erp_pr):
-			pr = frappe.get_doc("Pricing Rule", erp_pr)
-			# Clear existing child tables so they are rebuilt
-			pr.items = []
-			pr.item_groups = []
-			pr.brands = []
-		else:
-			pr = frappe.new_doc("Pricing Rule")
-			pr.selling  = 1
-			pr.price_or_product_discount = "Price"
-
 		offer_level = self.get("offer_level") or "Item"
 		apply_on = self.get("apply_on") or "Item Code"
 
-		if offer_level == "Bill":
-			# Bill-level / Transaction-level offer
+		# --- Attachment / Freebie: uses product discount ---
+		if self.offer_type in ("Attachment", "Freebie"):
+			pr.price_or_product_discount = "Product"
+			pr.apply_on = "Item Code"
+			pr.append("items", {"item_code": self.trigger_item})
+			pr.free_item = self.reward_item
+			pr.free_qty = self.reward_qty or 1
+			pr.free_item_rate = flt(self.reward_price) if self.offer_type == "Attachment" else 0
+			pr.same_item = 0
+		elif offer_level == "Bill":
+			pr.price_or_product_discount = "Price"
 			pr.apply_on = "Transaction"
 			pr.apply_discount_on = self.get("apply_discount_on") or "Grand Total"
 		elif apply_on == "Item Group":
+			pr.price_or_product_discount = "Price"
 			pr.apply_on = "Item Group"
 			pr.append("item_groups", {"item_group": self.get("target_item_group")})
 		elif apply_on == "Brand":
+			pr.price_or_product_discount = "Price"
 			pr.apply_on = "Brand"
 			pr.append("brands", {"brand": self.get("target_brand")})
 		else:
+			pr.price_or_product_discount = "Price"
 			pr.apply_on = "Item Code"
 			pr.append("items", {"item_code": self.item_code})
 
 		pr.title             = self.offer_name or self.name
-		pr.company           = self.company or ""
+		pr.company           = override_company or self.company or ""
 		pr.disable           = 0
-		pr.rate_or_discount  = rate_or_discount
 		pr.valid_from        = self.start_date
 		pr.valid_upto        = self.end_date
 		pr.priority          = int(self.priority or 1)
@@ -277,17 +344,42 @@ class CHItemOffer(Document):
 			+ (f"Bank: {self.bank_name} {self.card_type or ''}" if self.bank_name else "")
 		)
 
-		if rate_or_discount == "Discount Percentage":
-			pr.discount_percentage = self.value
-		elif rate_or_discount == "Discount Amount":
-			pr.discount_amount = self.value
-		else:
-			pr.rate = self.value
+		# Price discount fields (not for Attachment/Freebie)
+		if self.offer_type not in ("Attachment", "Freebie"):
+			pr.rate_or_discount = rate_or_discount
+			if rate_or_discount == "Discount Percentage":
+				pr.discount_percentage = self.value
+			elif rate_or_discount == "Discount Amount":
+				pr.discount_amount = self.value
+			else:
+				pr.rate = self.value
 
-		pr.flags.ignore_permissions = True
-		pr.flags.ignore_validate_update_after_submit = True
-		pr.save()
+	def _validate_combo(self):
+		"""Validate combo offer has required items."""
+		if self.offer_type != "Combo":
+			return
+		if not self.get("combo_items") or len(self.combo_items) < 2:
+			frappe.throw(
+				_("Combo offers require at least 2 items in the Combo Items table"),
+				title=_("Invalid Combo"),
+			)
 
-		frappe.db.set_value(
-			"CH Item Offer", self.name, "erp_pricing_rule", pr.name, update_modified=False
-		)
+	def _validate_attachment(self):
+		"""Validate attachment / freebie offers have trigger + reward items."""
+		if self.offer_type not in ("Attachment", "Freebie"):
+			return
+		if not self.trigger_item:
+			frappe.throw(
+				_("Trigger Item is required for {0} offers").format(self.offer_type),
+				title=_("Missing Trigger Item"),
+			)
+		if not self.reward_item:
+			frappe.throw(
+				_("Reward Item is required for {0} offers").format(self.offer_type),
+				title=_("Missing Reward Item"),
+			)
+		if self.trigger_item == self.reward_item:
+			frappe.throw(
+				_("Trigger Item and Reward Item cannot be the same"),
+				title=_("Invalid Attachment Offer"),
+			)

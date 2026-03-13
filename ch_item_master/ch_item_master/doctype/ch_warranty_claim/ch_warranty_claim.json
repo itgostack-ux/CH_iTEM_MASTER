@@ -256,7 +256,9 @@
    "fieldname": "customer_phone",
    "fieldtype": "Data",
    "label": "Customer Phone",
-   "description": "Auto-populated or manually entered"
+   "description": "Auto-populated or manually entered",
+   "fetch_from": "customer.mobile_no",
+   "fetch_if_empty": 1
   },
   {
    "fieldname": "section_warranty",
@@ -571,7 +573,7 @@
    "fieldtype": "Small Text",
    "label": "Device Condition at Return",
    "allow_on_submit": 1,
-   "description": "Condition when received back — note any new issues or report from manufacturer"
+   "description": "Condition when received back \u2014 note any new issues or report from manufacturer"
   },
   {
    "fieldname": "section_settlement",
@@ -695,35 +697,49 @@
    "export": 1
   }
  ],
- "links": [
-  {
-   "group": "Device",
-   "link_doctype": "CH Serial Lifecycle",
-   "link_fieldname": "serial_no"
-  },
-  {
-   "group": "Warranty",
-   "link_doctype": "CH Sold Plan",
-   "link_fieldname": "sold_plan"
-  },
-  {
-   "group": "Service",
-   "link_doctype": "Service Request",
-   "link_fieldname": "service_request"
-  }
- ],
+ "links": [],
  "actions": [],
  "states": [
-  {"title": "Draft", "color": "Grey"},
-  {"title": "Pending Approval", "color": "Orange"},
-  {"title": "Approved", "color": "Blue"},
-  {"title": "Rejected", "color": "Red"},
-  {"title": "Ticket Created", "color": "Purple"},
-  {"title": "Sent to Manufacturer", "color": "Blue"},
-  {"title": "In Repair", "color": "Yellow"},
-  {"title": "Repair Complete", "color": "Green"},
-  {"title": "Closed", "color": "Green"},
-  {"title": "Cancelled", "color": "Red"}
+  {
+   "title": "Draft",
+   "color": "Grey"
+  },
+  {
+   "title": "Pending Approval",
+   "color": "Orange"
+  },
+  {
+   "title": "Approved",
+   "color": "Blue"
+  },
+  {
+   "title": "Rejected",
+   "color": "Red"
+  },
+  {
+   "title": "Ticket Created",
+   "color": "Purple"
+  },
+  {
+   "title": "Sent to Manufacturer",
+   "color": "Blue"
+  },
+  {
+   "title": "In Repair",
+   "color": "Yellow"
+  },
+  {
+   "title": "Repair Complete",
+   "color": "Green"
+  },
+  {
+   "title": "Closed",
+   "color": "Green"
+  },
+  {
+   "title": "Cancelled",
+   "color": "Red"
+  }
  ],
  "modified": "2026-03-11 00:00:00.000000",
  "creation": "2026-03-11 00:00:00.000000"

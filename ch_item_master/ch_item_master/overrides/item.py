@@ -314,6 +314,11 @@ def before_save(doc, method=None):
         model=doc.ch_model,
         spec_values=spec_values,
     )
+
+    # Append item type suffix (Refurbished, Pre-Owned, etc.) to keep names unique
+    if display_name and doc.ch_item_type:
+        display_name = f"{display_name} {doc.ch_item_type}"
+
     doc.ch_display_name = display_name
 
     if display_name:
@@ -423,6 +428,11 @@ def _set_item_name(doc):
         model=doc.ch_model,
         spec_values=[],  # Template has no spec values
     )
+
+    # Append item type suffix (Refurbished, Pre-Owned, etc.) to keep names unique
+    if generated and doc.ch_item_type:
+        generated = f"{generated} {doc.ch_item_type}"
+
     if generated:
         doc.item_name = generated
         # ch_display_name is set by before_save which runs immediately after

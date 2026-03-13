@@ -16,6 +16,7 @@
   "ch_model",
   "section_status",
   "lifecycle_status",
+  "stock_condition",
   "sub_status",
   "column_break_status",
   "current_company",
@@ -131,6 +132,16 @@
    "reqd": 1,
    "default": "Received"
   },
+    {
+     "fieldname": "stock_condition",
+     "fieldtype": "Select",
+     "label": "Stock Condition",
+     "options": "\nFresh\nRefurbished\nOpen Box\nDemo\nRepaired\nCustomer Return\nInward",
+     "in_list_view": 1,
+     "in_standard_filter": 1,
+     "default": "Fresh",
+     "description": "Physical condition classification for stock."
+    },
   {
    "fieldname": "sub_status",
    "fieldtype": "Select",

@@ -96,4 +96,15 @@ frappe.ui.form.on('CH Item Offer', {
 			frappe.show_alert({message: __('Value capped at 100%'), indicator: 'orange'});
 		}
 	},
+
+	offer_type(frm) {
+		// Auto-set value_type for special offer types
+		if (frm.doc.offer_type === 'Combo') {
+			frm.set_value('offer_level', 'Bill');
+		}
+		if (frm.doc.offer_type === 'Freebie') {
+			frm.set_value('value_type', 'Amount');
+			frm.set_value('value', 0);
+		}
+	},
 });

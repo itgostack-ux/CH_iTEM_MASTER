@@ -30,6 +30,11 @@ after_migrate = [
 ]
 before_uninstall = "ch_item_master.install.before_uninstall"
 
+# Dashboard overrides
+override_doctype_dashboards = {
+	"Customer": "ch_item_master.ch_item_master.overrides.customer_dashboard.get_data",
+}
+
 # Scheduled Tasks
 scheduler_events = {
 	"daily_long": [
@@ -38,6 +43,9 @@ scheduler_events = {
 		"ch_item_master.ch_item_master.commercial_api.run_channel_parity_check",
 		"ch_item_master.ch_item_master.commercial_api.run_tag_auto_repricing",
 		"ch_item_master.ch_item_master.voucher_api.expire_vouchers",
+	],
+	"hourly": [
+		"ch_item_master.ch_item_master.exception_api.expire_stale_exceptions",
 	],
 }
 
@@ -64,6 +72,9 @@ doc_events = {
 	},
 	"Sales Invoice": {
 		"on_submit": "ch_item_master.ch_customer_master.hooks.on_sales_invoice_submit",
+	},
+	"POS Invoice": {
+		"on_submit": "ch_item_master.ch_item_master.doctype.ch_scheme_receivable.ch_scheme_receivable.create_from_pos_invoice",
 	},
 	"Purchase Receipt": {
 		"on_submit": "ch_item_master.ch_item_master.overrides.purchase_receipt.on_submit",

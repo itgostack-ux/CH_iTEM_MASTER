@@ -66,7 +66,7 @@
    "fieldname": "purpose",
    "fieldtype": "Select",
    "label": "Purpose",
-   "options": "\nBuyback Confirmation\nService Delivery\nHigh Value Sale\nExchange Confirmation",
+   "options": "\nBuyback Confirmation\nService Delivery\nHigh Value Sale\nExchange Confirmation\nDiscount Override\nExchange Value Override\nFree Accessory\nManager Override\nBelow Margin Sale\nOld Stock Clearance\nDamaged Open Box\nSerial Substitution\nWarranty Giveaway\nService Discount\nSwap Outside Window\nReturn Beyond Policy\nReplacement Without Finance",
    "reqd": 1,
    "in_list_view": 1,
    "in_standard_filter": 1

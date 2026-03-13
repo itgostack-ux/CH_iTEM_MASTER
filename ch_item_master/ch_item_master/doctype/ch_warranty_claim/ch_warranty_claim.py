@@ -304,6 +304,7 @@ class CHWarrantyClaim(Document):
 
 		Post-Repair Warranty: GoFix handles directly, skip approval.
 		Manufacturer Warranty: Manufacturer covers, no GoGizmo approval needed.
+		Also auto-flags swaps outside warranty window (#11) and warranty giveaways (#9).
 		"""
 		if self.plan_type == "Post-Repair Warranty":
 			self.requires_approval = 0
@@ -311,6 +312,47 @@ class CHWarrantyClaim(Document):
 			self.requires_approval = 0
 		else:
 			self.requires_approval = 1 if flt(self.gogizmo_share) > 0 else 0
+
+		# #11: Auto-flag swap outside warranty window
+		if (self.warranty_end_date
+				and getdate(self.claim_date or nowdate()) > getdate(self.warranty_end_date)):
+			self.requires_approval = 1
+			self._create_exception_request(
+				"Swap Outside Window",
+				f"Claim raised on {self.claim_date or nowdate()} "
+				f"but warranty expired on {self.warranty_end_date}",
+			)
+
+		# #9: Warranty giveaway — when GoGizmo bears cost
+		if flt(self.gogizmo_share) > 0:
+			self._create_exception_request(
+				"Warranty Giveaway",
+				f"GoGizmo bearing ₹{self.gogizmo_share} for {self.coverage_type}",
+				requested_value=flt(self.gogizmo_share),
+				original_value=flt(self.estimated_repair_cost),
+			)
+
+	def _create_exception_request(self, exception_type, reason,
+	                               requested_value=0, original_value=0):
+		"""Helper: create a CH Exception Request linked to this warranty claim."""
+		if not frappe.db.exists("CH Exception Type", exception_type):
+			return
+		try:
+			from ch_item_master.ch_item_master.exception_api import raise_exception
+			raise_exception(
+				exception_type=exception_type,
+				company=self.company,
+				reason=reason,
+				requested_value=flt(requested_value),
+				original_value=flt(original_value),
+				reference_doctype="CH Warranty Claim",
+				reference_name=self.name,
+				item_code=self.item_code,
+				serial_no=self.serial_no,
+				customer=self.customer,
+			)
+		except Exception:
+			frappe.log_error(f"Exception request creation failed for {self.name}")
 
 	def _create_gofix_ticket(self, from_submit=False):
 		"""Create a GoFix Service Request from this claim."""

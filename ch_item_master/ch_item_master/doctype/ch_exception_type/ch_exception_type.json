@@ -1,0 +1,163 @@
+{
+ "actions": [],
+ "creation": "2026-03-12 10:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "exception_type",
+  "column_break_01",
+  "enabled",
+  "config_section",
+  "requires_otp",
+  "requires_ho_approval",
+  "column_break_cfg",
+  "approval_level",
+  "max_value_without_approval",
+  "validity_section",
+  "validity_minutes",
+  "column_break_val",
+  "max_occurrences_per_day",
+  "applicable_section",
+  "applicable_to_ggr",
+  "applicable_to_gfs",
+  "column_break_app",
+  "alert_role"
+ ],
+ "fields": [
+  {
+   "fieldname": "exception_type",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Exception Type",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "column_break_01",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "label": "Enabled"
+  },
+  {
+   "fieldname": "config_section",
+   "fieldtype": "Section Break",
+   "label": "Approval Configuration"
+  },
+  {
+   "default": "1",
+   "fieldname": "requires_otp",
+   "fieldtype": "Check",
+   "label": "Requires OTP"
+  },
+  {
+   "default": "0",
+   "fieldname": "requires_ho_approval",
+   "fieldtype": "Check",
+   "label": "Requires HO Approval"
+  },
+  {
+   "fieldname": "column_break_cfg",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Store Manager",
+   "fieldname": "approval_level",
+   "fieldtype": "Select",
+   "label": "Approval Level",
+   "options": "Store Manager\nArea Manager\nRegional Head\nHO Finance\nCOO\nMD"
+  },
+  {
+   "default": "0",
+   "fieldname": "max_value_without_approval",
+   "fieldtype": "Currency",
+   "label": "Max Value Without Approval"
+  },
+  {
+   "fieldname": "validity_section",
+   "fieldtype": "Section Break",
+   "label": "Limits"
+  },
+  {
+   "default": "30",
+   "fieldname": "validity_minutes",
+   "fieldtype": "Int",
+   "label": "Approval Validity (Minutes)",
+   "description": "How long the approval remains valid after granted"
+  },
+  {
+   "fieldname": "column_break_val",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "max_occurrences_per_day",
+   "fieldtype": "Int",
+   "label": "Max Occurrences Per Day Per Store",
+   "description": "0 = unlimited"
+  },
+  {
+   "fieldname": "applicable_section",
+   "fieldtype": "Section Break",
+   "label": "Applicability"
+  },
+  {
+   "default": "1",
+   "fieldname": "applicable_to_ggr",
+   "fieldtype": "Check",
+   "label": "Applicable to GoGizmo Retail"
+  },
+  {
+   "default": "0",
+   "fieldname": "applicable_to_gfs",
+   "fieldtype": "Check",
+   "label": "Applicable to GoFix Services"
+  },
+  {
+   "fieldname": "column_break_app",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "alert_role",
+   "fieldtype": "Link",
+   "label": "Alert Role",
+   "options": "Role",
+   "description": "Role to notify when this exception is raised"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "istable": 0,
+ "links": [],
+ "modified": "2026-03-12 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "CH Item Master",
+ "name": "CH Exception Type",
+ "naming_rule": "By fieldname",
+ "autoname": "field:exception_type",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "Sales Manager"
+  }
+ ],
+ "sort_field": "exception_type",
+ "sort_order": "ASC",
+ "states": [],
+ "track_changes": 1
+}

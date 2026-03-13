@@ -1,6 +1,6 @@
 {
  "charts": [],
- "content": "[{\"id\":\"Nkh27svWTZ\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Your Shortcuts</b></span>\",\"col\":12}},{\"id\":\"2g4yB1QU_4\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"CH Category\",\"col\":3}},{\"id\":\"q07_OvyUDo\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"CH Sub Category\",\"col\":3}},{\"id\":\"uicVMn_lIE\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"CH Model\",\"col\":3}},{\"id\":\"5MqAt4Pe6n\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Item\",\"col\":3}},{\"id\":\"uRbyCuxnpQ\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"CH Ready Reckoner\",\"col\":3}},{\"id\":\"vRcBpNiURO\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"CH Item Price\",\"col\":3}},{\"id\":\"SjYDw-CKgu\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"CH Item Offer\",\"col\":3}},{\"id\":\"5UfLZrpGij\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"CH Item Commercial Tag\",\"col\":3}},{\"id\":\"pUb_xR7kQ1\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Price Upload Batches\",\"col\":3}},{\"id\":\"cLg_mN2pY8\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Price Change Log\",\"col\":3}},{\"id\":\"cC_policy01\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Commercial Policy\",\"col\":3}},{\"id\":\"cC_ovrlog1\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"POS Override Log\",\"col\":3}},{\"id\":\"abSMRIbTUZ\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"-Mi5DM4AY_\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Masters</b></span>\",\"col\":12}},{\"id\":\"Q1ayLsPD2t\",\"type\":\"card\",\"data\":{\"card_name\":\"Hierarchy\",\"col\":4}},{\"id\":\"rlSQLQ2MWZ\",\"type\":\"card\",\"data\":{\"card_name\":\"Product Catalog\",\"col\":4}},{\"id\":\"Y54ukqvx__\",\"type\":\"card\",\"data\":{\"card_name\":\"Stock\",\"col\":4}},{\"id\":\"s6blNOjazN\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"0KimY7G5RQ\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Pricing</b></span>\",\"col\":12}},{\"id\":\"_WVcvCC-Vc\",\"type\":\"card\",\"data\":{\"card_name\":\"Pricing\",\"col\":4}},{\"id\":\"evDAU0T7a3\",\"type\":\"card\",\"data\":{\"card_name\":\"Channels & Tracking\",\"col\":4}},{\"id\":\"cC_govcard\",\"type\":\"card\",\"data\":{\"card_name\":\"Commercial Control\",\"col\":4}},{\"id\":\"-Vq6rORhlh\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"8nuPS28FYP\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Reports &amp; Analytics</b></span>\",\"col\":12}},{\"id\":\"5Y-wt6aEE0\",\"type\":\"card\",\"data\":{\"card_name\":\"Reports\",\"col\":4}},{\"id\":\"uV_3Kvx_Jz\",\"type\":\"card\",\"data\":{\"card_name\":\"Dashboard\",\"col\":4}}]",
+ "content": "[{\"id\":\"Nkh27svWTZ\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Your Shortcuts</b></span>\",\"col\":12}},{\"id\":\"2g4yB1QU_4\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"CH Category\",\"col\":3}},{\"id\":\"q07_OvyUDo\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"CH Sub Category\",\"col\":3}},{\"id\":\"uicVMn_lIE\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"CH Model\",\"col\":3}},{\"id\":\"5MqAt4Pe6n\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Item\",\"col\":3}},{\"id\":\"uRbyCuxnpQ\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"CH Ready Reckoner\",\"col\":3}},{\"id\":\"vRcBpNiURO\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"CH Item Price\",\"col\":3}},{\"id\":\"SjYDw-CKgu\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"CH Item Offer\",\"col\":3}},{\"id\":\"5UfLZrpGij\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"CH Item Commercial Tag\",\"col\":3}},{\"id\":\"pUb_xR7kQ1\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Price Upload Batches\",\"col\":3}},{\"id\":\"cLg_mN2pY8\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Price Change Log\",\"col\":3}},{\"id\":\"cC_policy01\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Commercial Policy\",\"col\":3}},{\"id\":\"cC_ovrlog1\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"POS Override Log\",\"col\":3}},{\"id\":\"cC_discrsn\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Discount Reasons\",\"col\":3}},{\"id\":\"abSMRIbTUZ\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"-Mi5DM4AY_\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Masters</b></span>\",\"col\":12}},{\"id\":\"Q1ayLsPD2t\",\"type\":\"card\",\"data\":{\"card_name\":\"Hierarchy\",\"col\":4}},{\"id\":\"rlSQLQ2MWZ\",\"type\":\"card\",\"data\":{\"card_name\":\"Product Catalog\",\"col\":4}},{\"id\":\"Y54ukqvx__\",\"type\":\"card\",\"data\":{\"card_name\":\"Stock\",\"col\":4}},{\"id\":\"s6blNOjazN\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"0KimY7G5RQ\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Pricing</b></span>\",\"col\":12}},{\"id\":\"_WVcvCC-Vc\",\"type\":\"card\",\"data\":{\"card_name\":\"Pricing\",\"col\":4}},{\"id\":\"evDAU0T7a3\",\"type\":\"card\",\"data\":{\"card_name\":\"Channels & Tracking\",\"col\":4}},{\"id\":\"cC_govcard\",\"type\":\"card\",\"data\":{\"card_name\":\"Commercial Control\",\"col\":4}},{\"id\":\"-Vq6rORhlh\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"8nuPS28FYP\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Reports &amp; Analytics</b></span>\",\"col\":12}},{\"id\":\"5Y-wt6aEE0\",\"type\":\"card\",\"data\":{\"card_name\":\"Reports\",\"col\":4}},{\"id\":\"uV_3Kvx_Jz\",\"type\":\"card\",\"data\":{\"card_name\":\"Dashboard\",\"col\":4}}]",
  "creation": "2026-02-19 00:00:00",
  "custom_blocks": [],
  "docstatus": 0,
@@ -115,7 +115,7 @@
    "hidden": 0,
    "is_query_report": 0,
    "label": "Commercial Control",
-   "link_count": 3,
+   "link_count": 4,
    "link_type": "DocType",
    "onboard": 0,
    "type": "Card Break"
@@ -126,6 +126,16 @@
    "label": "CH Commercial Policy",
    "link_count": 0,
    "link_to": "CH Commercial Policy",
+   "link_type": "DocType",
+   "onboard": 1,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "CH Discount Reason",
+   "link_count": 0,
+   "link_to": "CH Discount Reason",
    "link_type": "DocType",
    "onboard": 1,
    "type": "Link"
@@ -394,9 +404,19 @@
    "link_type": "DocType",
    "onboard": 1,
    "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "CH Warranty Claim",
+   "link_count": 0,
+   "link_to": "CH Warranty Claim",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
   }
  ],
- "modified": "2026-02-26 13:52:26.672527",
+ "modified": "2026-03-13 00:11:11.427537",
  "modified_by": "Administrator",
  "module": "CH Item Master",
  "name": "CH Item Master",
@@ -406,7 +426,7 @@
  "public": 1,
  "quick_lists": [],
  "roles": [],
- "sequence_id": 20.0,
+ "sequence_id": 2.1,
  "shortcuts": [
   {
    "color": "Green",
@@ -501,6 +521,14 @@
    "format": "{} Overrides",
    "label": "POS Override Log",
    "link_to": "CH POS Override Log",
+   "type": "DocType"
+  },
+  {
+   "color": "Cyan",
+   "doc_view": "List",
+   "format": "{} Reasons",
+   "label": "Discount Reasons",
+   "link_to": "CH Discount Reason",
    "type": "DocType"
   }
  ],

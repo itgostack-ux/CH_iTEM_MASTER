@@ -146,7 +146,9 @@
    "fieldtype": "Data",
    "label": "Phone",
    "options": "Phone",
-   "description": "For SMS/WhatsApp delivery of voucher code"
+   "description": "For SMS/WhatsApp delivery of voucher code",
+   "fetch_from": "issued_to.mobile_no",
+   "fetch_if_empty": 1
   },
   {
    "fieldname": "section_validity",
@@ -288,13 +290,7 @@
    "options": "DocType"
   }
  ],
- "links": [
-  {
-   "group": "Transactions",
-   "link_doctype": "POS Invoice",
-   "link_fieldname": "custom_ch_voucher"
-  }
- ],
+ "links": [],
  "modified": "2026-03-12 00:00:00.000000",
  "modified_by": "Administrator",
  "module": "CH Item Master",

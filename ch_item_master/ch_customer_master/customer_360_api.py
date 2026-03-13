@@ -23,6 +23,7 @@ def get_customer_360(customer, company=None):
 		dict with keys: profile, kyc, payment_accounts, devices, loyalty,
 		recent_transactions, store_visits, segment, referrals
 	"""
+	frappe.has_permission("Customer", "read", customer, throw=True)
 	if not frappe.db.exists("Customer", customer):
 		frappe.throw(_("Customer {0} does not exist").format(customer))
 
@@ -39,6 +40,13 @@ def get_customer_360(customer, company=None):
 		"segment": _get_segment(cust),
 		"referrals": _get_referrals(customer),
 		"summary": _get_summary(cust),
+		"sold_plans": _get_sold_plans(customer, company=company),
+		"vouchers": _get_vouchers(customer),
+		"coupon_usage": _get_coupon_usage(customer, company=company),
+		"refunds": _get_refunds(customer, company=company),
+		"claims_and_escalations": _get_claims_and_escalations(customer, company=company),
+		"communications": _get_communications(customer),
+		"feedback": _get_feedback(cust),
 		"company_filter": company,
 	}
 
@@ -66,6 +74,7 @@ def _get_profile(cust):
 		"primary_address": cust.primary_address,
 		"gstin": cust.get("gstin"),
 		"pan": cust.get("pan"),
+		"relationship_executive": cust.get("ch_relationship_executive"),
 	}
 
 
@@ -130,13 +139,30 @@ def _get_devices(customer, company=None):
 		order_by="purchase_date desc",
 	)
 
-	# Enrich with VAS plans
+	# Enrich with VAS plans and lifecycle logs
 	for device in devices:
 		device["vas_plans"] = frappe.get_all(
 			"CH Customer Device VAS",
 			filters={"parent": device.name},
 			fields=["plan_name", "status", "valid_from", "valid_to", "claims_used", "max_claims"],
 		)
+		# Lifecycle history from CH Serial Lifecycle
+		if device.get("serial_no") and frappe.db.exists("DocType", "CH Serial Lifecycle"):
+			lifecycle_name = frappe.db.get_value(
+				"CH Serial Lifecycle", {"serial_no": device.serial_no}, "name"
+			)
+			if lifecycle_name:
+				device["lifecycle_logs"] = frappe.get_all(
+					"CH Serial Lifecycle Log",
+					filters={"parent": lifecycle_name},
+					fields=["log_timestamp", "from_status", "to_status", "changed_by", "company", "warehouse", "remarks"],
+					order_by="log_timestamp desc",
+					limit=20,
+				)
+			else:
+				device["lifecycle_logs"] = []
+		else:
+			device["lifecycle_logs"] = []
 
 	return devices
 
@@ -310,6 +336,165 @@ def _get_summary(cust):
 		"last_visit_date": cust.get("ch_last_visit_date"),
 		"last_visit_store": cust.get("ch_last_visit_store"),
 	}
+
+
+def _get_sold_plans(customer, company=None):
+	"""Warranty and AMC / care plans from CH Sold Plan."""
+	if not frappe.db.exists("DocType", "CH Sold Plan"):
+		return []
+
+	filters = {"customer": customer, "docstatus": 1}
+	if company:
+		filters["company"] = company
+
+	return frappe.get_all(
+		"CH Sold Plan",
+		filters=filters,
+		fields=[
+			"name", "plan_name", "plan_type", "item_code", "item_name",
+			"serial_no", "start_date", "end_date", "status",
+			"sales_invoice", "company",
+		],
+		order_by="end_date desc",
+		limit=30,
+	)
+
+
+def _get_vouchers(customer):
+	"""Vouchers issued to this customer."""
+	if not frappe.db.exists("DocType", "CH Voucher"):
+		return []
+
+	return frappe.get_all(
+		"CH Voucher",
+		filters={"issued_to": customer, "docstatus": 1},
+		fields=[
+			"name", "voucher_code", "voucher_type", "original_amount",
+			"balance", "status", "valid_from", "valid_upto",
+			"source_type", "issued_date",
+		],
+		order_by="issued_date desc",
+		limit=20,
+	)
+
+
+def _get_coupon_usage(customer, company=None):
+	"""Invoices where this customer used a coupon code."""
+	company_cond = "AND pi.company = %(company)s" if company else ""
+	params = {"customer": customer}
+	if company:
+		params["company"] = company
+
+	return frappe.db.sql(
+		f"""SELECT pi.name, pi.posting_date, pi.coupon_code, pi.grand_total, pi.status
+		FROM `tabPOS Invoice` pi
+		WHERE pi.customer = %(customer)s AND pi.docstatus = 1
+		  AND pi.coupon_code IS NOT NULL AND pi.coupon_code != ''
+		  {company_cond}
+		ORDER BY pi.posting_date DESC LIMIT 20""",
+		params,
+		as_dict=True,
+	)
+
+
+def _get_refunds(customer, company=None):
+	"""Return/refund invoices."""
+	company_cond = "AND company = %(company)s" if company else ""
+	params = {"customer": customer}
+	if company:
+		params["company"] = company
+
+	# POS returns
+	returns = frappe.db.sql(
+		f"""SELECT name, posting_date, grand_total, return_against, status, 'POS Invoice' as doctype
+		FROM `tabPOS Invoice`
+		WHERE customer = %(customer)s AND docstatus = 1 AND is_return = 1
+		  {company_cond}
+		ORDER BY posting_date DESC LIMIT 20""",
+		params,
+		as_dict=True,
+	)
+
+	# Sales Invoice returns (non-POS)
+	si_returns = frappe.db.sql(
+		f"""SELECT name, posting_date, grand_total, return_against, status, 'Sales Invoice' as doctype
+		FROM `tabSales Invoice`
+		WHERE customer = %(customer)s AND docstatus = 1 AND is_return = 1
+		  {company_cond}
+		ORDER BY posting_date DESC LIMIT 10""",
+		params,
+		as_dict=True,
+	)
+
+	all_returns = returns + si_returns
+	all_returns.sort(key=lambda x: str(x.get("posting_date", "")), reverse=True)
+	return all_returns[:20]
+
+
+def _get_claims_and_escalations(customer, company=None):
+	"""Warranty claims and exception requests for this customer."""
+	result = {"warranty_claims": [], "exception_requests": []}
+
+	if frappe.db.exists("DocType", "CH Warranty Claim"):
+		wc_filters = {"customer": customer}
+		if company:
+			wc_filters["company"] = company
+		result["warranty_claims"] = frappe.get_all(
+			"CH Warranty Claim",
+			filters=wc_filters,
+			fields=[
+				"name", "claim_date", "item_name", "brand", "serial_no",
+				"coverage_type", "claim_status", "issue_category",
+				"repair_status", "company",
+			],
+			order_by="claim_date desc",
+			limit=20,
+		)
+
+	if frappe.db.exists("DocType", "CH Exception Request"):
+		er_filters = {"customer": customer}
+		result["exception_requests"] = frappe.get_all(
+			"CH Exception Request",
+			filters=er_filters,
+			fields=[
+				"name", "creation", "exception_type", "status",
+				"reference_doctype", "reference_name", "requested_by",
+			],
+			order_by="creation desc",
+			limit=20,
+		)
+
+	return result
+
+
+def _get_communications(customer):
+	"""Recent communications (emails, SMS, WhatsApp) linked to this customer."""
+	return frappe.db.sql(
+		"""SELECT c.name, c.communication_date, c.communication_type,
+		       c.subject, c.sender, c.recipients, c.status
+		FROM `tabCommunication` c
+		JOIN `tabCommunication Link` cl ON cl.parent = c.name
+		WHERE cl.link_doctype = 'Customer' AND cl.link_name = %(customer)s
+		ORDER BY c.communication_date DESC LIMIT 20""",
+		{"customer": customer},
+		as_dict=True,
+	)
+
+
+def _get_feedback(cust):
+	"""Customer feedback entries."""
+	feedback = []
+	for row in cust.get("ch_feedback", []):
+		feedback.append({
+			"feedback_date": row.feedback_date,
+			"feedback_type": row.feedback_type,
+			"rating": row.rating,
+			"comments": row.comments,
+			"reference_doctype": row.reference_doctype,
+			"reference_name": row.reference_name,
+			"collected_by": row.collected_by,
+		})
+	return feedback
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────

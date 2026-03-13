@@ -71,12 +71,11 @@ frappe.ui.form.on('Item', {
             frm.fields_dict['ch_spec_values'].grid.df.cannot_delete_rows = 1;
         }
 
-        // For template items (has_variants=1), make item_code read-only
-        // since it's auto-generated
-        if (frm.is_new() && frm.doc.ch_model) {
+        // item_code is always auto-generated — keep it read-only
+        if (frm.is_new()) {
             frm.set_df_property('item_code', 'read_only', 1);
             frm.set_df_property('item_code', 'description',
-                'Auto-generated when saved');
+                'Auto-generated on save from Model / Sub-Category');
         }
     },
 

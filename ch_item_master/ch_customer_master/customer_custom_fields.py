@@ -490,5 +490,35 @@ CUSTOMER_CUSTOM_FIELDS = {
 			"options": "CH Customer Store Visit",
 			"insert_after": "ch_visits_section",
 		},
+		# ── Relationship Executive ──
+		{
+			"fieldname": "ch_relationship_section",
+			"label": _("Relationship Management"),
+			"fieldtype": "Section Break",
+			"insert_after": "ch_stores_visited",
+		},
+		{
+			"fieldname": "ch_relationship_executive",
+			"label": _("Relationship Executive"),
+			"fieldtype": "Link",
+			"options": "Employee",
+			"insert_after": "ch_relationship_section",
+			"description": _("Primary staff assigned for CRM follow-up and customer retention"),
+		},
+		# ── Customer Feedback ──
+		{
+			"fieldname": "ch_feedback_section",
+			"label": _("Feedback & Reviews"),
+			"fieldtype": "Section Break",
+			"insert_after": "ch_relationship_executive",
+			"collapsible": 1,
+		},
+		{
+			"fieldname": "ch_feedback",
+			"label": _("Feedback"),
+			"fieldtype": "Table",
+			"options": "CH Customer Feedback",
+			"insert_after": "ch_feedback_section",
+		},
 	],
 }

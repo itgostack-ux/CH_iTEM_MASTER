@@ -73,7 +73,6 @@ def issue_voucher(voucher_type, amount, company, customer=None, phone=None,
 	# Activate immediately
 	voucher.status = "Active"
 	voucher.save(ignore_permissions=True)
-	frappe.db.commit()
 
 	return {
 		"name": voucher.name,
@@ -221,7 +220,6 @@ def redeem_voucher(voucher_code, amount, pos_invoice=None, reference_doctype=Non
 
 	voucher.balance = new_balance
 	voucher.save(ignore_permissions=True)
-	frappe.db.commit()
 
 	return {
 		"success": True,
@@ -276,7 +274,6 @@ def refund_voucher(voucher_code, amount, pos_invoice=None, reason=None):
 
 	voucher.balance = new_balance
 	voucher.save(ignore_permissions=True)
-	frappe.db.commit()
 
 	return {
 		"success": True,
@@ -321,7 +318,6 @@ def topup_voucher(voucher_code, amount, reason=None):
 	voucher.balance = new_balance
 	voucher.original_amount = new_original
 	voucher.save(ignore_permissions=True)
-	frappe.db.commit()
 
 	return {"success": True, "new_balance": new_balance}
 
@@ -330,7 +326,7 @@ def topup_voucher(voucher_code, amount, reason=None):
 # Balance Check
 # ─────────────────────────────────────────────────────────────────────────────
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def check_balance(voucher_code):
 	"""Check voucher balance (can be called by customer via website/app).
 

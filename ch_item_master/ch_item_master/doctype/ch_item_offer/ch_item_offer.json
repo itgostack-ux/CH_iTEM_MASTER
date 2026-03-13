@@ -41,7 +41,20 @@
   "payment_mode",
   "notes_section",
   "notes",
-  "erp_pricing_rule"
+  "erp_pricing_rule",
+  "cross_company_section",
+  "additional_companies",
+  "combo_section",
+  "combo_items",
+  "combo_price",
+  "attachment_section",
+  "trigger_item",
+  "trigger_item_name",
+  "column_break_attach",
+  "reward_item",
+  "reward_item_name",
+  "reward_price",
+  "reward_qty"
  ],
  "fields": [
   {
@@ -164,7 +177,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Offer Type",
-   "options": "Flat Discount\nPrice Override\nBank Offer\nBrand Offer\nCashback\nBundle",
+   "options": "Flat Discount\nPrice Override\nBank Offer\nBrand Offer\nCashback\nBundle\nCombo\nAttachment\nFreebie",
    "reqd": 1
   },
   {
@@ -292,10 +305,101 @@
    "hidden": 1,
    "read_only": 1,
    "description": "ERPNext Pricing Rule synced when this offer is approved"
+  },
+  {
+   "fieldname": "cross_company_section",
+   "fieldtype": "Section Break",
+   "label": "Cross-Company",
+   "collapsible": 1,
+   "description": "Apply this offer in additional companies (besides the primary company above)"
+  },
+  {
+   "fieldname": "additional_companies",
+   "fieldtype": "Table",
+   "label": "Additional Companies",
+   "options": "CH Offer Company",
+   "description": "Leave empty if this offer applies only to the primary company"
+  },
+  {
+   "fieldname": "combo_section",
+   "fieldtype": "Section Break",
+   "label": "Combo Details",
+   "depends_on": "eval:doc.offer_type=='Combo'",
+   "description": "Define items that must be in the cart to trigger this combo offer"
+  },
+  {
+   "fieldname": "combo_items",
+   "fieldtype": "Table",
+   "label": "Combo Items",
+   "options": "CH Offer Combo Item",
+   "depends_on": "eval:doc.offer_type=='Combo'",
+   "mandatory_depends_on": "eval:doc.offer_type=='Combo'"
+  },
+  {
+   "fieldname": "combo_price",
+   "fieldtype": "Currency",
+   "label": "Combo Price",
+   "depends_on": "eval:doc.offer_type=='Combo'",
+   "description": "Fixed price for the entire combo (0 = use value field as discount instead)"
+  },
+  {
+   "fieldname": "attachment_section",
+   "fieldtype": "Section Break",
+   "label": "Attachment Offer Details",
+   "depends_on": "eval:in_list(['Attachment','Freebie'], doc.offer_type)",
+   "description": "Buy trigger item → get reward item at special price (or free)"
+  },
+  {
+   "fieldname": "trigger_item",
+   "fieldtype": "Link",
+   "label": "Trigger Item",
+   "options": "Item",
+   "depends_on": "eval:in_list(['Attachment','Freebie'], doc.offer_type)",
+   "mandatory_depends_on": "eval:in_list(['Attachment','Freebie'], doc.offer_type)"
+  },
+  {
+   "fetch_from": "trigger_item.item_name",
+   "fieldname": "trigger_item_name",
+   "fieldtype": "Data",
+   "label": "Trigger Item Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_attach",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "reward_item",
+   "fieldtype": "Link",
+   "label": "Reward Item",
+   "options": "Item",
+   "depends_on": "eval:in_list(['Attachment','Freebie'], doc.offer_type)",
+   "mandatory_depends_on": "eval:in_list(['Attachment','Freebie'], doc.offer_type)"
+  },
+  {
+   "fetch_from": "reward_item.item_name",
+   "fieldname": "reward_item_name",
+   "fieldtype": "Data",
+   "label": "Reward Item Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "reward_price",
+   "fieldtype": "Currency",
+   "label": "Reward Price",
+   "depends_on": "eval:doc.offer_type=='Attachment'",
+   "description": "Special price for the reward item (0 for Freebie offers)"
+  },
+  {
+   "default": "1",
+   "fieldname": "reward_qty",
+   "fieldtype": "Int",
+   "label": "Reward Qty",
+   "depends_on": "eval:in_list(['Attachment','Freebie'], doc.offer_type)"
   }
  ],
  "links": [],
- "modified": "2026-02-23 00:00:00.000000",
+ "modified": "2026-03-12 00:00:00.000000",
  "modified_by": "Administrator",
  "module": "Ch Item Master",
  "name": "CH Item Offer",

@@ -107,7 +107,7 @@ CUSTOM_FIELDS = {
 			"fieldname": "ch_item_master_section",
 			"label": _("CH Item Master"),
 			"fieldtype": "Section Break",
-			"insert_after": "item_group",
+			"insert_after": "naming_series",
 			"collapsible": 0,
 		},
 		{

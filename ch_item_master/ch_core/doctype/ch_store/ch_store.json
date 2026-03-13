@@ -11,7 +11,11 @@
   "column_break_01",
   "company",
   "warehouse",
+  "pos_profile",
   "disabled",
+  "territory_section",
+  "territory",
+  "branch",
   "address_section",
   "address",
   "city",
@@ -72,11 +76,35 @@
    "options": "Warehouse"
   },
   {
+   "fieldname": "pos_profile",
+   "fieldtype": "Link",
+   "label": "POS Profile",
+   "options": "POS Profile",
+   "description": "Default POS Profile for this store"
+  },
+  {
    "default": "0",
    "fieldname": "disabled",
    "fieldtype": "Check",
    "label": "Disabled",
    "in_standard_filter": 1
+  },
+  {
+   "fieldname": "territory_section",
+   "fieldtype": "Section Break",
+   "label": "Territory"
+  },
+  {
+   "fieldname": "territory",
+   "fieldtype": "Link",
+   "label": "Territory",
+   "options": "Territory"
+  },
+  {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "label": "Branch",
+   "options": "Branch"
   },
   {
    "fieldname": "address_section",
@@ -143,7 +171,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-03-05 10:00:00.000000",
+ "modified": "2026-03-12 10:00:00.000000",
  "modified_by": "Administrator",
  "module": "CH Core",
  "name": "CH Store",
