@@ -47,6 +47,9 @@ scheduler_events = {
 	"hourly": [
 		"ch_item_master.ch_item_master.exception_api.expire_stale_exceptions",
 	],
+	"weekly": [
+		"ch_item_master.ch_item_master.ch_item_master.doctype.ch_scheme_receivable.ch_scheme_receivable.run_scheduled_dunning",
+	],
 }
 
 # Document Events

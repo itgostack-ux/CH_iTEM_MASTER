@@ -12,7 +12,7 @@ Lifecycle:  Pending → Claimed → Partially Received → Settled
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import flt, nowdate, getdate
+from frappe.utils import flt, nowdate, getdate, date_diff
 
 
 class CHSchemeReceivable(Document):
@@ -147,6 +147,93 @@ def write_off(receivable_name, amount=None, journal_entry=None, remarks=None):
 	frappe.db.commit()
 
 	return {"status": doc.status, "outstanding": doc.outstanding_amount}
+
+
+# ── Dunning ──────────────────────────────────────────────────────────────────
+
+@frappe.whitelist()
+def send_dunning_notice(receivable_name):
+	"""Send a dunning email to the party for an overdue scheme receivable.
+
+	Updates last_dunning_date after sending.
+	"""
+	doc = frappe.get_doc("CH Scheme Receivable", receivable_name)
+	if doc.docstatus != 1:
+		frappe.throw(_("Can only send dunning for submitted receivables"))
+	if doc.status in ("Settled", "Written Off", "Cancelled"):
+		frappe.throw(_("Receivable is already {0}").format(doc.status))
+
+	outstanding = flt(doc.outstanding_amount)
+	if outstanding <= 0:
+		frappe.throw(_("No outstanding amount on {0}").format(receivable_name))
+
+	due_date = doc.due_date or doc.claim_date
+	days_overdue = date_diff(nowdate(), str(due_date)) if due_date else 0
+
+	party_email = frappe.db.get_value("Contact", {"company_name": doc.party}, "email_id")
+	if not party_email:
+		frappe.msgprint(
+			_("No email found for party '{0}'. Dunning not sent.").format(doc.party),
+			indicator="orange",
+		)
+		return {"sent_to": None, "days_overdue": days_overdue}
+
+	company_name = frappe.db.get_value("Company", doc.company, "company_name") or doc.company
+	subject = _("Payment Due: {0} Claim #{1}").format(doc.scheme_type or "Scheme", receivable_name)
+	message = (
+		f"Dear {doc.party},\n\n"
+		f"This is a reminder that the following claim is outstanding:\n\n"
+		f"  Receivable  : {receivable_name}\n"
+		f"  Scheme Type : {doc.scheme_type or 'N/A'}\n"
+		f"  Claim Amount: ₹{flt(doc.claim_amount):,.2f}\n"
+		f"  Received    : ₹{flt(doc.received_amount):,.2f}\n"
+		f"  Outstanding : ₹{outstanding:,.2f}\n"
+		f"  Due Date    : {due_date or 'Not set'}\n"
+		f"  Days Overdue: {days_overdue}\n\n"
+		f"Please arrange payment and share the UTR/reference.\n\n"
+		f"Regards,\n{company_name}"
+	)
+
+	frappe.sendmail(
+		recipients=[party_email],
+		subject=subject,
+		message=message,
+		reference_doctype="CH Scheme Receivable",
+		reference_name=receivable_name,
+	)
+
+	doc.db_set("last_dunning_date", nowdate(), update_modified=False)
+	return {"sent_to": party_email, "days_overdue": days_overdue}
+
+
+def run_scheduled_dunning():
+	"""Weekly scheduled job — send dunning notices for all overdue receivables.
+
+	Sends only if last dunning was > 7 days ago (or never sent).
+	"""
+	overdue = frappe.db.sql("""
+		SELECT name
+		FROM `tabCH Scheme Receivable`
+		WHERE docstatus = 1
+		  AND status NOT IN ('Settled', 'Written Off', 'Cancelled')
+		  AND outstanding_amount > 0
+		  AND due_date < CURDATE()
+		  AND (last_dunning_date IS NULL
+		       OR last_dunning_date < DATE_SUB(CURDATE(), INTERVAL 7 DAY))
+	""", as_dict=True)
+
+	sent = 0
+	for row in overdue:
+		try:
+			result = send_dunning_notice(row.name)
+			if result and result.get("sent_to"):
+				sent += 1
+		except Exception:
+			frappe.log_error(frappe.get_traceback(), f"Dunning failed: {row.name}")
+
+	frappe.logger("ch_item_master").info(
+		f"Dunning scheduled job: {sent}/{len(overdue)} notices sent"
+	)
 
 
 @frappe.whitelist()

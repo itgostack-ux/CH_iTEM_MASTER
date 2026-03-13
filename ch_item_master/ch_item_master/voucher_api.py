@@ -221,6 +221,16 @@ def redeem_voucher(voucher_code, amount, pos_invoice=None, reference_doctype=Non
 	voucher.balance = new_balance
 	voucher.save(ignore_permissions=True)
 
+	# Post GL entry to reduce gift card liability (if account configured)
+	_post_voucher_gl(
+		voucher_name=voucher.name,
+		company=voucher.company,
+		amount=redeem_amount,
+		transaction_type="Redeem",
+		posting_date=frappe.utils.nowdate(),
+		reference_doc=pos_invoice,
+	)
+
 	return {
 		"success": True,
 		"redeemed_amount": redeem_amount,
@@ -449,4 +459,92 @@ def expire_vouchers():
 		frappe.db.commit()
 		frappe.logger("ch_item_master").info(
 			f"Voucher expiry: {len(expired)} voucher(s) expired"
+		)
+
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Gift Card GL Entry helper
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def _post_voucher_gl(voucher_name, company, amount, transaction_type,
+                     posting_date, reference_doc=None):
+	"""Post a Journal Entry to record gift card liability movement.
+
+	Requires `custom_gift_card_account` to be configured on the Company.
+	If not configured, logs a warning and skips silently.
+
+	Transaction types:
+	  Issue  – Credit gift card liability (obligation created when card sold)
+	  Redeem – Debit gift card liability (obligation fulfilled on redemption)
+	  Expiry – Debit gift card liability (forfeited, moved to other income)
+	"""
+	gift_card_account = frappe.db.get_value(
+		"Company", company, "custom_gift_card_account"
+	)
+	if not gift_card_account:
+		frappe.logger("ch_item_master").warning(
+			f"Voucher GL skipped for {voucher_name}: "
+			f"custom_gift_card_account not configured on Company {company}"
+		)
+		return
+
+	default_income_account = frappe.db.get_value(
+		"Company", company, "default_income_account"
+	)
+	if not default_income_account:
+		frappe.logger("ch_item_master").warning(
+			f"Voucher GL skipped for {voucher_name}: default_income_account not set"
+		)
+		return
+
+	# Build balanced Journal Entry
+	if transaction_type == "Issue":
+		# Cash already recorded by sale — credit liability to recognise obligation
+		debit_account = default_income_account   # deferred revenue / contra
+		credit_account = gift_card_account
+		remarks = f"Gift card issued: {voucher_name}"
+	elif transaction_type == "Redeem":
+		# Obligation fulfilled — debit (extinguish) liability
+		debit_account = gift_card_account
+		credit_account = default_income_account  # Now earned
+		remarks = f"Gift card redeemed: {voucher_name} at {reference_doc or 'counter'}"
+	elif transaction_type == "Expiry":
+		# Forfeited balance — transfer to income
+		debit_account = gift_card_account
+		credit_account = default_income_account
+		remarks = f"Gift card expired: {voucher_name}"
+	else:
+		return
+
+	try:
+		je = frappe.new_doc("Journal Entry")
+		je.company = company
+		je.posting_date = posting_date
+		je.voucher_type = "Journal Entry"
+		je.user_remark = remarks
+		je.cheque_no = voucher_name
+		je.cheque_date = posting_date
+		je.append("accounts", {
+			"account": debit_account,
+			"debit_in_account_currency": flt(amount),
+			"credit_in_account_currency": 0,
+			"reference_type": "CH Voucher",
+			"reference_name": voucher_name,
+		})
+		je.append("accounts", {
+			"account": credit_account,
+			"debit_in_account_currency": 0,
+			"credit_in_account_currency": flt(amount),
+			"reference_type": "CH Voucher",
+			"reference_name": voucher_name,
+		})
+		je.flags.ignore_permissions = True
+		je.save()
+		je.submit()
+	except Exception:
+		frappe.log_error(
+			frappe.get_traceback(),
+			f"Voucher GL Entry failed for {voucher_name}",
 		)
