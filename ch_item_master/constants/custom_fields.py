@@ -294,6 +294,15 @@ CUSTOM_FIELDS = {
 			"description": _("Active = available for sale/purchase. End of Life = no new orders, service only. Discontinued = fully retired."),
 		},
 		{
+			"fieldname": "ch_item_type",
+			"label": _("Item Type"),
+			"fieldtype": "Select",
+			"options": "\nNew\nRefurbished\nPre-Owned\nDisplay\nDemo",
+			"insert_after": "ch_lifecycle_status",
+			"in_standard_filter": 1,
+			"description": _("Type of item condition: New, Refurbished, Pre-Owned, Display/Demo."),
+		},
+		{
 			"fieldname": "ch_minimum_selling_price",
 			"label": _("Minimum Selling Price (MSP)"),
 			"fieldtype": "Currency",

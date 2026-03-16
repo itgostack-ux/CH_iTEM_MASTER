@@ -58,7 +58,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Voucher Type",
-   "options": "Gift Card\nStore Credit\nPromo Voucher\nReturn Credit",
+   "options": "Gift Card\nStore Credit\nPromo Voucher\nReturn Credit\nVAS Voucher",
    "reqd": 1
   },
   {
