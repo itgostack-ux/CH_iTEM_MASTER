@@ -23,7 +23,7 @@ def auto_expire_records():
 	now = now_datetime()
 
 	# ── CH Item Price: Expire past-due, Activate scheduled ──
-	expired_prices = frappe.db.sql("""
+	frappe.db.sql("""
 		UPDATE `tabCH Item Price`
 		SET status = 'Expired', modified = NOW()
 		WHERE status IN ('Active', 'Scheduled')
@@ -31,7 +31,7 @@ def auto_expire_records():
 		  AND effective_to < %s
 	""", (str(today),))
 
-	activated_prices = frappe.db.sql("""
+	frappe.db.sql("""
 		UPDATE `tabCH Item Price`
 		SET status = 'Active', modified = NOW()
 		WHERE status = 'Scheduled'

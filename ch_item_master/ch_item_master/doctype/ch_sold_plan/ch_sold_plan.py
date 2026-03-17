@@ -16,6 +16,8 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import nowdate, getdate, add_months
 
+from buyback.utils import validate_indian_phone
+
 from ch_item_master.ch_item_master.exceptions import (
 	WarrantyExpiredError,
 	MaxClaimsReachedError,
@@ -33,6 +35,8 @@ class CHSoldPlan(Document):
 			self.sold_plan_id = int(max_id) + 1
 
 	def validate(self):
+		if self.customer_phone:
+			self.customer_phone = validate_indian_phone(self.customer_phone, "Customer Phone")
 		self._validate_dates()
 		self._validate_plan_active()
 		self._validate_duplicate()

@@ -372,18 +372,9 @@ def generate_items_from_model(model):
 
     if not spec_selectors:
         frappe.throw(
-            _("No variant specifications found for this model's sub-category. "
+            _("No variant specifications with values found for this model. "
               "Items without variant specs should be created directly from the Item list."),
             title=_("No Variant Specs"))
-
-    # Check every variant spec has at least one value
-    empty_specs = [s["spec"] for s in spec_selectors if not s["values"]]
-    if empty_specs:
-        frappe.throw(
-            _("These variant specs have no values defined in the model: {0}. "
-              "Add values in the Spec Values table first.").format(
-                ", ".join(frappe.bold(s) for s in empty_specs)),
-            title=_("Missing Spec Values"))
 
     # ── 2. Find or create the template item ─────────────────────────────────
     template_code = frappe.db.get_value(

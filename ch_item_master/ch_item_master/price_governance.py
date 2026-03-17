@@ -40,12 +40,6 @@ def _is_bypassed(doc):
     )
 
 
-def _user_is_admin():
-    """Check if current user has admin-level roles (used for logging, not bypass)."""
-    user_roles = set(frappe.get_roles(frappe.session.user))
-    return bool(user_roles & {"System Manager", "Administrator"})
-
-
 # ─────────────────────────────────────────────────────────────────────────────
 # Validate hooks — block direct edits
 # ─────────────────────────────────────────────────────────────────────────────

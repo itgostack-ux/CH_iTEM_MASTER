@@ -6,6 +6,8 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import now_datetime, add_to_date, getdate, flt
 
+from buyback.utils import validate_indian_phone
+
 
 class CHExceptionRequest(Document):
 	def before_insert(self):
@@ -27,6 +29,8 @@ class CHExceptionRequest(Document):
 			) or ""
 
 	def validate(self):
+		if self.customer_phone:
+			self.customer_phone = validate_indian_phone(self.customer_phone, "Customer Phone")
 		self._validate_exception_type()
 		self._check_daily_limit()
 

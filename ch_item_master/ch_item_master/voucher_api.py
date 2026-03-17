@@ -36,6 +36,8 @@ def issue_voucher(voucher_type, amount, company, customer=None, phone=None,
 	"""
 	from datetime import timedelta
 
+	frappe.has_permission("CH Voucher", "create", throw=True)
+
 	amount = flt(amount)
 	if amount <= 0:
 		frappe.throw(_("Voucher amount must be greater than zero"))
@@ -191,6 +193,8 @@ def redeem_voucher(voucher_code, amount, pos_invoice=None, reference_doctype=Non
 	if amount <= 0:
 		frappe.throw(_("Redemption amount must be greater than zero"))
 
+	frappe.has_permission("CH Voucher", "write", throw=True)
+
 	voucher = frappe.get_doc("CH Voucher", {"voucher_code": voucher_code})
 	if not voucher:
 		frappe.throw(_("Voucher not found"))
@@ -275,6 +279,8 @@ def refund_voucher(voucher_code, amount, pos_invoice=None, reason=None):
 	if amount <= 0:
 		frappe.throw(_("Refund amount must be greater than zero"))
 
+	frappe.has_permission("CH Voucher", "write", throw=True)
+
 	voucher = frappe.get_doc("CH Voucher", {"voucher_code": voucher_code})
 	if not voucher:
 		frappe.throw(_("Voucher not found"))
@@ -320,6 +326,8 @@ def topup_voucher(voucher_code, amount, reason=None):
 	amount = flt(amount)
 	if amount <= 0:
 		frappe.throw(_("Top-up amount must be greater than zero"))
+
+	frappe.has_permission("CH Voucher", "write", throw=True)
 
 	voucher = frappe.get_doc("CH Voucher", {"voucher_code": voucher_code})
 	if not voucher:

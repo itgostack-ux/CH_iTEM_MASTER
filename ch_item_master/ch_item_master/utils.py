@@ -101,8 +101,9 @@ def _get_spec_selectors(sub_category, model, grouped=None):
     if grouped is None:
         grouped = _group_model_spec_values(model)
     return [
-        {"spec": row.spec, "values": grouped.get(row.spec, [])}
+        {"spec": row.spec, "values": vals}
         for row in variant_specs
+        if (vals := grouped.get(row.spec, []))
     ]
 
 

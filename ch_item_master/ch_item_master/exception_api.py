@@ -25,6 +25,8 @@ def raise_exception(exception_type, company, reason, requested_value=0,
 	if not etype.enabled:
 		frappe.throw(_("Exception type {0} is disabled").format(exception_type))
 
+	frappe.has_permission("CH Exception Request", "create", throw=True)
+
 	exc = frappe.new_doc("CH Exception Request")
 	exc.exception_type = exception_type
 	exc.company = company
@@ -82,6 +84,9 @@ def approve_exception(exception_name, approver_user=None, channel=None,
 	exc = frappe.get_doc("CH Exception Request", exception_name)
 	if exc.status != "Pending":
 		frappe.throw(_("Exception {0} is already {1}").format(exception_name, exc.status))
+
+	frappe.has_permission("CH Exception Request", "write", throw=True)
+
 	if exc.docstatus == 1:
 		frappe.throw(_("Exception {0} is already submitted").format(exception_name))
 
@@ -124,6 +129,8 @@ def reject_exception(exception_name, reason=None):
 	exc = frappe.get_doc("CH Exception Request", exception_name)
 	if exc.status != "Pending":
 		frappe.throw(_("Exception {0} is already {1}").format(exception_name, exc.status))
+
+	frappe.has_permission("CH Exception Request", "write", throw=True)
 
 	exc.reject(reason=reason)
 	return {"name": exc.name, "status": "Rejected"}

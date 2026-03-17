@@ -131,6 +131,8 @@ def issue_warranty_plan(warranty_plan, customer, item_code, serial_no=None,
 	if not start_date:
 		start_date = nowdate()
 
+	frappe.has_permission("CH Sold Plan", "create", throw=True)
+
 	plan = frappe.get_doc("CH Warranty Plan", warranty_plan)
 
 	if not company:
@@ -570,6 +572,8 @@ def initiate_warranty_claim(serial_no, customer, item_code, company,
 	"""
 	if not reported_at_company:
 		reported_at_company = company
+
+	frappe.has_permission("CH Warranty Claim", "create", throw=True)
 
 	claim = frappe.new_doc("CH Warranty Claim")
 	claim.update({

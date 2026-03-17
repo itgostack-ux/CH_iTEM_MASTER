@@ -19,6 +19,8 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import nowdate, now_datetime, getdate, flt
 
+from buyback.utils import validate_indian_phone
+
 
 # GoGizmo retail company (warranty issuer)
 GOGIZMO_COMPANY = "GoGizmo Retail Pvt Ltd"
@@ -35,6 +37,8 @@ class CHWarrantyClaim(Document):
 			self.claim_id = int(max_id) + 1
 
 	def validate(self):
+		if self.customer_phone:
+			self.customer_phone = validate_indian_phone(self.customer_phone, "Customer Phone")
 		self._set_title()
 		self._set_reported_by()
 		if not self.claim_status:
