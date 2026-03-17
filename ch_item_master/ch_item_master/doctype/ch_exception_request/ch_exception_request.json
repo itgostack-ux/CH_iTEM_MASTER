@@ -174,13 +174,15 @@
    "fieldname": "requested_value",
    "fieldtype": "Currency",
    "label": "Requested Value",
-   "description": "The discount %, override amount, or concession value"
+   "description": "The discount %, override amount, or concession value",
+   "non_negative": 1
   },
   {
    "fieldname": "original_value",
    "fieldtype": "Currency",
    "label": "Original Value",
-   "description": "The original price, standard rate, or policy limit"
+   "description": "The original price, standard rate, or policy limit",
+   "non_negative": 1
   },
   {
    "fieldname": "approval_section",

@@ -6,8 +6,14 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import now_datetime, add_to_date
 
+from buyback.utils import validate_indian_phone
+
 
 class CHOTPLog(Document):
+    def validate(self):
+        if self.mobile_no:
+            self.mobile_no = validate_indian_phone(self.mobile_no, "Mobile No")
+
     def before_insert(self):
         """Auto-assign sequential integer ID using advisory lock."""
         frappe.db.sql("SELECT GET_LOCK('ch_otp_log_id', 10)")

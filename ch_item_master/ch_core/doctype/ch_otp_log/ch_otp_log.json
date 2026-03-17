@@ -48,6 +48,7 @@
   {
    "fieldname": "mobile_no",
    "fieldtype": "Data",
+   "options": "Phone",
    "label": "Mobile No",
    "reqd": 1,
    "in_list_view": 1

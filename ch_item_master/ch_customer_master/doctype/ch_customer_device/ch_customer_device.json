@@ -295,12 +295,7 @@
   }
  ],
  "index_web_pages_for_search": 1,
- "links": [
-  {
-   "link_doctype": "Service Request",
-   "link_fieldname": "device_serial"
-  }
- ],
+ "links": [],
  "modified": "2026-03-02 10:00:00.000000",
  "modified_by": "Administrator",
  "module": "CH Customer Master",
