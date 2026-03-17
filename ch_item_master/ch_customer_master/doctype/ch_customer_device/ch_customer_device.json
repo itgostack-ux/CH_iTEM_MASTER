@@ -276,8 +276,8 @@
   {
    "fieldname": "buyback_request",
    "fieldtype": "Link",
-   "label": "Buyback Request",
-   "options": "Buyback Request"
+   "label": "Buyback Assessment",
+   "options": "Buyback Assessment"
   },
   {
    "fieldname": "column_break_buyback",

@@ -316,8 +316,8 @@ def before_save(doc, method=None):
     )
 
     # Append item type suffix (Refurbished, Pre-Owned, etc.) to keep names unique
-    if display_name and doc.ch_item_type:
-        display_name = f"{display_name} {doc.ch_item_type}"
+    if display_name and doc.get("ch_item_type"):
+        display_name = f"{display_name} {doc.get('ch_item_type')}"
 
     doc.ch_display_name = display_name
 
@@ -430,8 +430,8 @@ def _set_item_name(doc):
     )
 
     # Append item type suffix (Refurbished, Pre-Owned, etc.) to keep names unique
-    if generated and doc.ch_item_type:
-        generated = f"{generated} {doc.ch_item_type}"
+    if generated and doc.get("ch_item_type"):
+        generated = f"{generated} {doc.get('ch_item_type')}"
 
     if generated:
         doc.item_name = generated

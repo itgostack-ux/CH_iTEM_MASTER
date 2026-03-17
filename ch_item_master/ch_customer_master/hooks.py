@@ -49,8 +49,8 @@ def on_service_request_submit(doc, method=None):
 	_update_activity_summary(doc.customer)
 
 
-def on_buyback_request_submit(doc, method=None):
-	"""When a Buyback Request is created/saved, log a visit (only once)."""
+def on_buyback_assessment_update(doc, method=None):
+	"""When a Buyback Assessment is created/saved, log a visit (only once)."""
 	# Only log on first save — skip subsequent edits
 	if not doc.is_new() and not doc.has_value_changed("deal_status"):
 		return
@@ -67,7 +67,7 @@ def on_buyback_request_submit(doc, method=None):
 		customer=customer,
 		company=doc.get("company") or frappe.defaults.get_defaults().get("company", ""),
 		visit_type="Buyback",
-		reference_doctype="Buyback Request",
+		reference_doctype="Buyback Assessment",
 		reference_name=doc.name,
 		staff=doc.owner,
 	)

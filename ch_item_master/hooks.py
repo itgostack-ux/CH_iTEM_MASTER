@@ -48,7 +48,7 @@ scheduler_events = {
 		"ch_item_master.ch_item_master.exception_api.expire_stale_exceptions",
 	],
 	"weekly": [
-		"ch_item_master.ch_item_master.ch_item_master.doctype.ch_scheme_receivable.ch_scheme_receivable.run_scheduled_dunning",
+		"ch_item_master.ch_item_master.doctype.ch_scheme_receivable.ch_scheme_receivable.run_scheduled_dunning",
 	],
 }
 
@@ -86,8 +86,8 @@ doc_events = {
 	"Service Request": {
 		"on_submit": "ch_item_master.ch_customer_master.hooks.on_service_request_submit",
 	},
-	"Buyback Request": {
-		"on_update": "ch_item_master.ch_customer_master.hooks.on_buyback_request_submit",
+	"Buyback Assessment": {
+		"on_update": "ch_item_master.ch_customer_master.hooks.on_buyback_assessment_update",
 	},
 	# Transactions: manual rate-filling removed.
 	# ERPNext natively uses Item Price (fetched by price list) and applies Pricing Rules.
