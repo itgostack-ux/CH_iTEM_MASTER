@@ -56,10 +56,19 @@ CUSTOM_FIELDS = {
 			"in_list_view": 1,
 		},
 		{
+			"fieldname": "ch_parent_brand",
+			"label": _("Parent Brand"),
+			"fieldtype": "Link",
+			"options": "Brand",
+			"insert_after": "ch_disabled",
+			"in_list_view": 1,
+			"description": _("If this is a sub-brand/alias (e.g. Galaxy is a sub-brand of Samsung), set the parent here. Sub-brands are hidden from kiosk but included in model search."),
+		},
+		{
 			"fieldname": "ch_manufacturers_section",
 			"label": _("Manufacturers"),
 			"fieldtype": "Section Break",
-			"insert_after": "ch_disabled",
+			"insert_after": "ch_parent_brand",
 			"description": _("List all manufacturers that produce items under this brand. "
 			                  "E.g. Apple brand may be manufactured by Apple Inc. (OEM) "
 			                  "and also by third-party accessory makers."),

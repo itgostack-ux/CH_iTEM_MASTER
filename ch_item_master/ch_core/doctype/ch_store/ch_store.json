@@ -27,7 +27,9 @@
   "is_buyback_enabled",
   "is_service_enabled",
   "column_break_cap",
-  "is_retail_enabled"
+  "is_retail_enabled",
+  "users_section",
+  "store_users"
  ],
  "fields": [
   {
@@ -167,6 +169,17 @@
    "fieldname": "is_retail_enabled",
    "fieldtype": "Check",
    "label": "Retail Enabled"
+  },
+  {
+   "fieldname": "users_section",
+   "fieldtype": "Section Break",
+   "label": "Store Users"
+  },
+  {
+   "fieldname": "store_users",
+   "fieldtype": "Table",
+   "label": "Store Users",
+   "options": "CH Store User"
   }
  ],
  "index_web_pages_for_search": 1,
