@@ -36,6 +36,7 @@ def before_save(doc, method=None):
 
 	# Validate no duplicate manufacturers in the child table
 	seen = set()
+	manufacturers = []
 	for row in (doc.get("ch_manufacturers") or []):
 		if row.manufacturer in seen:
 			frappe.throw(
@@ -45,9 +46,18 @@ def before_save(doc, method=None):
 				title=_("Duplicate Manufacturer"),
 			)
 		seen.add(row.manufacturer)
+		manufacturers.append(row.manufacturer)
 
-		# Populate manufacturer_id for API (fetch_from only works on UI)
-		row.manufacturer_id = frappe.db.get_value(
-			"Manufacturer", row.manufacturer, "manufacturer_id"
-		) or 0
+	# Batch-fetch manufacturer_ids in one query instead of N+1
+	if manufacturers:
+		mfr_ids = {
+			r.name: r.manufacturer_id
+			for r in frappe.get_all(
+				"Manufacturer",
+				filters={"name": ("in", manufacturers)},
+				fields=["name", "manufacturer_id"],
+			)
+		}
+		for row in doc.get("ch_manufacturers") or []:
+			row.manufacturer_id = mfr_ids.get(row.manufacturer, 0) or 0
 

@@ -15,6 +15,7 @@ Works with ERPNext's native variant system:
 
 import frappe
 from frappe import _
+from frappe.utils import cint
 
 from ch_item_master.ch_item_master.api import generate_item_name
 from ch_item_master.ch_item_master.utils import (
@@ -443,7 +444,9 @@ def _populate_master_ids(doc):
     """Copy numeric IDs from linked master records into the Item.
 
     Runs on every save so that IDs stay in sync if the linked model/sub-category
-    changes.  Fields populated:
+    changes.  Uses a single JOIN query instead of 6 separate lookups.
+
+    Fields populated:
       - ch_brand_id       ← Brand.brand_id (via CH Model.brand)
       - ch_manufacturer_id ← Manufacturer.manufacturer_id (via CH Model.manufacturer)
       - ch_sub_category_id ← CH Sub Category.sub_category_id
@@ -459,36 +462,33 @@ def _populate_master_ids(doc):
     doc.ch_category_id = 0
     doc.ch_item_group_id = 0
 
-    if doc.ch_category:
-        doc.ch_category_id = frappe.db.get_value(
-            "CH Category", doc.ch_category, "category_id"
-        ) or 0
+    row = frappe.db.sql("""
+        SELECT
+            cat.category_id     AS category_id,
+            ig.item_group_id    AS item_group_id,
+            sc.sub_category_id  AS sub_category_id,
+            m.model_id          AS model_id,
+            b.brand_id          AS brand_id,
+            mfr.manufacturer_id AS manufacturer_id
+        FROM (SELECT 1) AS dummy
+        LEFT JOIN `tabCH Category`      cat ON cat.name = %(category)s
+        LEFT JOIN `tabItem Group`        ig ON ig.name  = %(item_group)s
+        LEFT JOIN `tabCH Sub Category`   sc ON sc.name  = %(sub_category)s
+        LEFT JOIN `tabCH Model`           m ON m.name   = %(model)s
+        LEFT JOIN `tabBrand`              b ON b.name   = m.brand
+        LEFT JOIN `tabManufacturer`     mfr ON mfr.name = m.manufacturer
+    """, {
+        "category": doc.ch_category or "",
+        "item_group": doc.item_group or "",
+        "sub_category": doc.ch_sub_category or "",
+        "model": doc.ch_model or "",
+    }, as_dict=True)
 
-    if doc.item_group:
-        doc.ch_item_group_id = frappe.db.get_value(
-            "Item Group", doc.item_group, "item_group_id"
-        ) or 0
-
-    if doc.ch_sub_category:
-        doc.ch_sub_category_id = frappe.db.get_value(
-            "CH Sub Category", doc.ch_sub_category, "sub_category_id"
-        ) or 0
-
-    if doc.ch_model:
-        model_data = frappe.db.get_value(
-            "CH Model", doc.ch_model,
-            ["model_id", "brand", "manufacturer"],
-            as_dict=True,
-        )
-        if model_data:
-            doc.ch_model_id = model_data.model_id or 0
-
-            if model_data.brand:
-                doc.ch_brand_id = frappe.db.get_value(
-                    "Brand", model_data.brand, "brand_id"
-                ) or 0
-
-            if model_data.manufacturer:
-                doc.ch_manufacturer_id = frappe.db.get_value(
-                    "Manufacturer", model_data.manufacturer, "manufacturer_id"
-                ) or 0
+    if row:
+        r = row[0]
+        doc.ch_category_id = cint(r.category_id)
+        doc.ch_item_group_id = cint(r.item_group_id)
+        doc.ch_sub_category_id = cint(r.sub_category_id)
+        doc.ch_model_id = cint(r.model_id)
+        doc.ch_brand_id = cint(r.brand_id)
+        doc.ch_manufacturer_id = cint(r.manufacturer_id)
