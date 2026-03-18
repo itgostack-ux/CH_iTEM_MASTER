@@ -1,0 +1,224 @@
+{
+ "charts": [],
+ "content": "[{\"id\":\"ss_hdr_short\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Quick Links</b></span>\",\"col\":12}},{\"id\":\"ss_sc_circ\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Supplier Scheme Circular\",\"col\":3}},{\"id\":\"ss_sc_ach\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Scheme Achievement Ledger\",\"col\":3}},{\"id\":\"ss_sc_clm\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Scheme Claim Summary\",\"col\":3}},{\"id\":\"ss_sc_set\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Scheme Settlement\",\"col\":3}},{\"id\":\"ss_spacer1\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"ss_hdr_mstr\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Scheme Management</b></span>\",\"col\":12}},{\"id\":\"ss_card_sch\",\"type\":\"card\",\"data\":{\"card_name\":\"Schemes\",\"col\":4}},{\"id\":\"ss_card_clm\",\"type\":\"card\",\"data\":{\"card_name\":\"Claims & Settlement\",\"col\":4}},{\"id\":\"ss_spacer2\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"ss_hdr_rpt\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Reports</b></span>\",\"col\":12}},{\"id\":\"ss_card_rpt\",\"type\":\"card\",\"data\":{\"card_name\":\"Reports\",\"col\":6}},{\"id\":\"ss_card_alr\",\"type\":\"card\",\"data\":{\"card_name\":\"Alerts\",\"col\":6}}]",
+ "creation": "2026-03-18 10:00:00.000000",
+ "custom_blocks": [],
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "for_user": "",
+ "hide_custom": 0,
+ "icon": "file",
+ "idx": 0,
+ "is_hidden": 0,
+ "label": "Supplier Scheme Management",
+ "links": [
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Schemes",
+   "link_count": 2,
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Supplier Scheme Circular",
+   "link_count": 0,
+   "link_to": "Supplier Scheme Circular",
+   "link_type": "DocType",
+   "onboard": 1,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Scheme Achievement Ledger",
+   "link_count": 0,
+   "link_to": "Scheme Achievement Ledger",
+   "link_type": "DocType",
+   "onboard": 1,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Claims & Settlement",
+   "link_count": 2,
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Scheme Claim Summary",
+   "link_count": 0,
+   "link_to": "Scheme Claim Summary",
+   "link_type": "DocType",
+   "onboard": 1,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Scheme Settlement",
+   "link_count": 0,
+   "link_to": "Scheme Settlement",
+   "link_type": "DocType",
+   "onboard": 1,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Reports",
+   "link_count": 6,
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "Scheme Achievement Report",
+   "link_count": 0,
+   "link_to": "Scheme Achievement Report",
+   "link_type": "Report",
+   "onboard": 1,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "Brand Claim Tracker",
+   "link_count": 0,
+   "link_to": "Brand Claim Tracker",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "Store Contribution",
+   "link_count": 0,
+   "link_to": "Store Contribution",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "Claim vs Received",
+   "link_count": 0,
+   "link_to": "Claim vs Received",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "TDS Deduction",
+   "link_count": 0,
+   "link_to": "TDS Deduction",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "Price Drop Impact",
+   "link_count": 0,
+   "link_to": "Price Drop Impact",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Alerts",
+   "link_count": 3,
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "Expiring Schemes",
+   "link_count": 0,
+   "link_to": "Expiring Schemes",
+   "link_type": "Report",
+   "onboard": 1,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "Missed Claim Alert",
+   "link_count": 0,
+   "link_to": "Missed Claim Alert",
+   "link_type": "Report",
+   "onboard": 1,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "Pending Compliance",
+   "link_count": 0,
+   "link_to": "Pending Compliance",
+   "link_type": "Report",
+   "onboard": 1,
+   "type": "Link"
+  }
+ ],
+ "modified": "2026-03-18 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Supplier Scheme",
+ "name": "Supplier Scheme Management",
+ "owner": "Administrator",
+ "parent_page": "",
+ "public": 1,
+ "restrict_to_domain": "",
+ "roles": [],
+ "sequence_id": 30,
+ "shortcuts": [
+  {
+   "color": "Blue",
+   "doc_view": "List",
+   "label": "Supplier Scheme Circular",
+   "link_to": "Supplier Scheme Circular",
+   "stats_filter": "{\"status\":\"Active\"}",
+   "type": "DocType"
+  },
+  {
+   "color": "Green",
+   "doc_view": "List",
+   "label": "Scheme Achievement Ledger",
+   "link_to": "Scheme Achievement Ledger",
+   "type": "DocType"
+  },
+  {
+   "color": "Orange",
+   "doc_view": "List",
+   "label": "Scheme Claim Summary",
+   "link_to": "Scheme Claim Summary",
+   "type": "DocType"
+  },
+  {
+   "color": "",
+   "doc_view": "List",
+   "label": "Scheme Settlement",
+   "link_to": "Scheme Settlement",
+   "type": "DocType"
+  }
+ ],
+ "title": "Supplier Scheme Management"
+}

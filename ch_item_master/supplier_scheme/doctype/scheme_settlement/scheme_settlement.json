@@ -1,0 +1,256 @@
+{
+ "actions": [],
+ "autoname": "naming_series:",
+ "creation": "2026-03-18 10:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "scheme",
+  "scheme_name",
+  "claim_summary",
+  "column_break_ref",
+  "settlement_type",
+  "status",
+  "section_credit_note",
+  "supplier_credit_note_number",
+  "credit_note_date",
+  "column_break_cn",
+  "supplier_invoice",
+  "section_amounts",
+  "claim_amount",
+  "tds_deducted",
+  "column_break_amounts",
+  "received_amount",
+  "pending_amount",
+  "section_accounting",
+  "journal_entry",
+  "payment_entry",
+  "column_break_acct",
+  "accrual_journal_entry",
+  "section_remarks",
+  "remarks",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "default": "SSET-.YYYY.-.#####",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "Series",
+   "options": "SSET-.YYYY.-.#####",
+   "print_hide": 1
+  },
+  {
+   "fieldname": "scheme",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Scheme",
+   "options": "Supplier Scheme Circular",
+   "reqd": 1
+  },
+  {
+   "fieldname": "scheme_name",
+   "fieldtype": "Data",
+   "label": "Scheme Name",
+   "fetch_from": "scheme.scheme_name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "claim_summary",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Claim Summary",
+   "options": "Scheme Claim Summary"
+  },
+  {
+   "fieldname": "column_break_ref",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Credit Note",
+   "fieldname": "settlement_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Settlement Type",
+   "options": "Credit Note\nCash\nAdjustment",
+   "reqd": 1
+  },
+  {
+   "default": "Pending",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Pending\nPartially Received\nSettled\nCancelled",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_credit_note",
+   "fieldtype": "Section Break",
+   "label": "Credit Note Details",
+   "depends_on": "eval:doc.settlement_type=='Credit Note'"
+  },
+  {
+   "fieldname": "supplier_credit_note_number",
+   "fieldtype": "Data",
+   "label": "Supplier CN Number"
+  },
+  {
+   "fieldname": "credit_note_date",
+   "fieldtype": "Date",
+   "label": "CN Date"
+  },
+  {
+   "fieldname": "column_break_cn",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "supplier_invoice",
+   "fieldtype": "Link",
+   "label": "Purchase Invoice (CN)",
+   "options": "Purchase Invoice",
+   "description": "ERPNext Purchase Invoice created as credit note"
+  },
+  {
+   "fieldname": "section_amounts",
+   "fieldtype": "Section Break",
+   "label": "Amounts"
+  },
+  {
+   "default": "0",
+   "fieldname": "claim_amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Claim Amount (₹)",
+   "reqd": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "tds_deducted",
+   "fieldtype": "Currency",
+   "label": "TDS Deducted (₹)"
+  },
+  {
+   "fieldname": "column_break_amounts",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "received_amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Received Amount (₹)"
+  },
+  {
+   "default": "0",
+   "fieldname": "pending_amount",
+   "fieldtype": "Currency",
+   "label": "Pending Amount (₹)",
+   "read_only": 1,
+   "bold": 1
+  },
+  {
+   "fieldname": "section_accounting",
+   "fieldtype": "Section Break",
+   "label": "Accounting Entries"
+  },
+  {
+   "fieldname": "journal_entry",
+   "fieldtype": "Link",
+   "label": "Settlement JE",
+   "options": "Journal Entry"
+  },
+  {
+   "fieldname": "payment_entry",
+   "fieldtype": "Link",
+   "label": "Payment Entry",
+   "options": "Payment Entry"
+  },
+  {
+   "fieldname": "column_break_acct",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "accrual_journal_entry",
+   "fieldtype": "Link",
+   "label": "Accrual JE",
+   "options": "Journal Entry",
+   "description": "Journal Entry for accrual booking"
+  },
+  {
+   "fieldname": "section_remarks",
+   "fieldtype": "Section Break",
+   "label": "Remarks"
+  },
+  {
+   "fieldname": "remarks",
+   "fieldtype": "Small Text",
+   "label": "Remarks"
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Scheme Settlement",
+   "print_hide": 1,
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2026-03-18 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Supplier Scheme",
+ "name": "Scheme Settlement",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "cancel": 1,
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "cancel": 1,
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Accounts Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "role": "Accounts User"
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [
+  {"color": "orange", "title": "Pending"},
+  {"color": "yellow", "title": "Partially Received"},
+  {"color": "green", "title": "Settled"},
+  {"color": "red", "title": "Cancelled"}
+ ],
+ "track_changes": 1
+}

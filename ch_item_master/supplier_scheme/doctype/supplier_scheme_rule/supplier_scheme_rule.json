@@ -1,0 +1,97 @@
+{
+ "actions": [],
+ "creation": "2026-03-18 10:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "editable_grid": 1,
+ "istable": 1,
+ "field_order": [
+  "rule_name",
+  "rule_type",
+  "achievement_basis",
+  "column_break_rule",
+  "payout_basis",
+  "stackable",
+  "notes",
+  "section_details",
+  "details"
+ ],
+ "fields": [
+  {
+   "fieldname": "rule_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Rule Name",
+   "reqd": 1,
+   "columns": 2
+  },
+  {
+   "default": "Quantity Slab",
+   "fieldname": "rule_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Rule Type",
+   "options": "Quantity Slab\nFocus Model Add-on\nEOL Scheme\nSeries Scheme\nRRP Band Scheme",
+   "reqd": 1,
+   "columns": 2
+  },
+  {
+   "default": "Invoice Date",
+   "fieldname": "achievement_basis",
+   "fieldtype": "Select",
+   "label": "Achievement Basis",
+   "options": "Invoice Date\nSell-out Date\nWarranty Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_rule",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Per Unit",
+   "fieldname": "payout_basis",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Payout Basis",
+   "options": "Per Unit\nSlab Based\nAdditional Margin",
+   "reqd": 1,
+   "columns": 2
+  },
+  {
+   "default": "0",
+   "fieldname": "stackable",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Stackable",
+   "description": "Can this rule's payout be stacked with other rules?"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes"
+  },
+  {
+   "fieldname": "section_details",
+   "fieldtype": "Section Break",
+   "label": "Rule Line Items"
+  },
+  {
+   "fieldname": "details",
+   "fieldtype": "Table",
+   "label": "Details",
+   "options": "Scheme Rule Detail"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-03-18 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Supplier Scheme",
+ "name": "Supplier Scheme Rule",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "creation",
+ "sort_order": "ASC",
+ "states": [],
+ "track_changes": 0
+}

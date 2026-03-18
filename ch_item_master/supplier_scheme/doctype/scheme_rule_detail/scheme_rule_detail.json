@@ -1,0 +1,162 @@
+{
+ "actions": [],
+ "creation": "2026-03-18 10:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "editable_grid": 1,
+ "istable": 1,
+ "field_order": [
+  "item_code",
+  "item_group",
+  "model",
+  "series",
+  "column_break_item",
+  "qty_from",
+  "qty_to",
+  "payout_per_unit",
+  "additional_payout",
+  "column_break_pricing",
+  "rrp_from",
+  "rrp_to",
+  "applicable_from_date",
+  "applicable_to_date",
+  "column_break_flags",
+  "include_in_slab",
+  "eligible_for_payout",
+  "exclusion_flag",
+  "remarks"
+ ],
+ "fields": [
+  {
+   "fieldname": "item_code",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Item",
+   "options": "Item",
+   "columns": 2
+  },
+  {
+   "fieldname": "item_group",
+   "fieldtype": "Link",
+   "label": "Item Group",
+   "options": "Item Group"
+  },
+  {
+   "fieldname": "model",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Model",
+   "options": "CH Model",
+   "columns": 2
+  },
+  {
+   "fieldname": "series",
+   "fieldtype": "Data",
+   "label": "Series",
+   "description": "Model series/family (e.g. Galaxy S, iPhone 16)"
+  },
+  {
+   "fieldname": "column_break_item",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "qty_from",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Qty From",
+   "columns": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "qty_to",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Qty To",
+   "columns": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "payout_per_unit",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Payout / Unit (₹)",
+   "columns": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "additional_payout",
+   "fieldtype": "Currency",
+   "label": "Additional Payout (₹)",
+   "description": "Extra payout on top of base (for focus/add-on rules)"
+  },
+  {
+   "fieldname": "column_break_pricing",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "rrp_from",
+   "fieldtype": "Currency",
+   "label": "RRP From (₹)"
+  },
+  {
+   "default": "0",
+   "fieldname": "rrp_to",
+   "fieldtype": "Currency",
+   "label": "RRP To (₹)"
+  },
+  {
+   "fieldname": "applicable_from_date",
+   "fieldtype": "Date",
+   "label": "Applicable From"
+  },
+  {
+   "fieldname": "applicable_to_date",
+   "fieldtype": "Date",
+   "label": "Applicable To"
+  },
+  {
+   "fieldname": "column_break_flags",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "include_in_slab",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Include in Slab"
+  },
+  {
+   "default": "1",
+   "fieldname": "eligible_for_payout",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Eligible for Payout"
+  },
+  {
+   "default": "0",
+   "fieldname": "exclusion_flag",
+   "fieldtype": "Check",
+   "label": "Excluded",
+   "description": "Mark to explicitly exclude from scheme"
+  },
+  {
+   "fieldname": "remarks",
+   "fieldtype": "Small Text",
+   "label": "Remarks"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-03-18 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Supplier Scheme",
+ "name": "Scheme Rule Detail",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "creation",
+ "sort_order": "ASC",
+ "states": [],
+ "track_changes": 0
+}

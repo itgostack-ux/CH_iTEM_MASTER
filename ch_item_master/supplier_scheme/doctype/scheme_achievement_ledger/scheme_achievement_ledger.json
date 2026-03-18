@@ -1,0 +1,300 @@
+{
+ "actions": [],
+ "autoname": "naming_series:",
+ "creation": "2026-03-18 10:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "scheme",
+  "scheme_name",
+  "rule_idx",
+  "rule_name",
+  "column_break_ref",
+  "invoice_type",
+  "invoice",
+  "invoice_date",
+  "store",
+  "company",
+  "section_item",
+  "item_code",
+  "item_name",
+  "model",
+  "brand",
+  "column_break_serial",
+  "serial_no",
+  "qty",
+  "price_at_sale",
+  "section_compliance",
+  "warranty_registered",
+  "crm_updated",
+  "demo_unit",
+  "column_break_eligibility",
+  "eligible_for_slab",
+  "eligible_for_payout",
+  "rejection_reason",
+  "section_customer",
+  "customer",
+  "customer_name",
+  "column_break_payout",
+  "computed_payout",
+  "is_reversed"
+ ],
+ "fields": [
+  {
+   "default": "SAL-.YYYY.-.######",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "Series",
+   "options": "SAL-.YYYY.-.######",
+   "print_hide": 1
+  },
+  {
+   "fieldname": "scheme",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Scheme",
+   "options": "Supplier Scheme Circular",
+   "reqd": 1
+  },
+  {
+   "fieldname": "scheme_name",
+   "fieldtype": "Data",
+   "label": "Scheme Name",
+   "fetch_from": "scheme.scheme_name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "rule_idx",
+   "fieldtype": "Int",
+   "label": "Rule Index",
+   "description": "Row idx of the rule in the scheme's rules table"
+  },
+  {
+   "fieldname": "rule_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Rule Name"
+  },
+  {
+   "fieldname": "column_break_ref",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "POS Invoice",
+   "fieldname": "invoice_type",
+   "fieldtype": "Link",
+   "label": "Invoice Type",
+   "options": "DocType",
+   "hidden": 1
+  },
+  {
+   "fieldname": "invoice",
+   "fieldtype": "Dynamic Link",
+   "in_list_view": 1,
+   "label": "Invoice",
+   "options": "invoice_type",
+   "reqd": 1,
+   "description": "POS Invoice or Sales Invoice"
+  },
+  {
+   "fieldname": "invoice_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Invoice Date"
+  },
+  {
+   "fieldname": "store",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Store",
+   "options": "Warehouse"
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Company",
+   "options": "Company"
+  },
+  {
+   "fieldname": "section_item",
+   "fieldtype": "Section Break",
+   "label": "Item Details"
+  },
+  {
+   "fieldname": "item_code",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Item",
+   "options": "Item",
+   "reqd": 1
+  },
+  {
+   "fieldname": "item_name",
+   "fieldtype": "Data",
+   "label": "Item Name",
+   "fetch_from": "item_code.item_name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "model",
+   "fieldtype": "Link",
+   "label": "Model",
+   "options": "CH Model"
+  },
+  {
+   "fieldname": "brand",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Brand",
+   "options": "Brand"
+  },
+  {
+   "fieldname": "column_break_serial",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "serial_no",
+   "fieldtype": "Data",
+   "label": "Serial No / IMEI",
+   "description": "For duplicate prevention"
+  },
+  {
+   "default": "1",
+   "fieldname": "qty",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Qty"
+  },
+  {
+   "default": "0",
+   "fieldname": "price_at_sale",
+   "fieldtype": "Currency",
+   "label": "Sale Price (₹)"
+  },
+  {
+   "fieldname": "section_compliance",
+   "fieldtype": "Section Break",
+   "label": "Compliance"
+  },
+  {
+   "default": "0",
+   "fieldname": "warranty_registered",
+   "fieldtype": "Check",
+   "label": "Warranty Registered"
+  },
+  {
+   "default": "0",
+   "fieldname": "crm_updated",
+   "fieldtype": "Check",
+   "label": "CRM Updated"
+  },
+  {
+   "default": "0",
+   "fieldname": "demo_unit",
+   "fieldtype": "Check",
+   "label": "Demo Unit"
+  },
+  {
+   "fieldname": "column_break_eligibility",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "eligible_for_slab",
+   "fieldtype": "Check",
+   "label": "Eligible for Slab"
+  },
+  {
+   "default": "1",
+   "fieldname": "eligible_for_payout",
+   "fieldtype": "Check",
+   "label": "Eligible for Payout"
+  },
+  {
+   "fieldname": "rejection_reason",
+   "fieldtype": "Small Text",
+   "label": "Rejection Reason"
+  },
+  {
+   "fieldname": "section_customer",
+   "fieldtype": "Section Break",
+   "label": "Customer"
+  },
+  {
+   "fieldname": "customer",
+   "fieldtype": "Link",
+   "label": "Customer",
+   "options": "Customer"
+  },
+  {
+   "fieldname": "customer_name",
+   "fieldtype": "Data",
+   "label": "Customer Name",
+   "fetch_from": "customer.customer_name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_payout",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "computed_payout",
+   "fieldtype": "Currency",
+   "label": "Computed Payout (₹)",
+   "read_only": 1,
+   "description": "Calculated by the slab/payout engine"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_reversed",
+   "fieldtype": "Check",
+   "label": "Reversed",
+   "read_only": 1,
+   "description": "Set when the original invoice is returned/cancelled"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-03-18 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Supplier Scheme",
+ "name": "Scheme Achievement Ledger",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "export": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "write": 1
+  },
+  {
+   "export": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Accounts Manager",
+   "write": 1
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "role": "Accounts User"
+  },
+  {
+   "read": 1,
+   "role": "Sales User"
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "track_changes": 1
+}

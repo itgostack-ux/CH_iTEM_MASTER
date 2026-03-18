@@ -1,0 +1,266 @@
+{
+ "actions": [],
+ "autoname": "naming_series:",
+ "creation": "2026-03-18 10:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "scheme",
+  "scheme_name",
+  "brand",
+  "column_break_ref",
+  "period_from",
+  "period_to",
+  "claim_status",
+  "section_qty",
+  "total_qty",
+  "eligible_qty",
+  "slab_achieved",
+  "column_break_qty",
+  "slab_description",
+  "section_payout",
+  "base_payout",
+  "additional_payout",
+  "total_payout",
+  "column_break_payout",
+  "tds_percent",
+  "tds_amount",
+  "net_claim",
+  "section_notes",
+  "computation_log",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "default": "SSCL-.YYYY.-.#####",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "Series",
+   "options": "SSCL-.YYYY.-.#####",
+   "print_hide": 1
+  },
+  {
+   "fieldname": "scheme",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Scheme",
+   "options": "Supplier Scheme Circular",
+   "reqd": 1
+  },
+  {
+   "fieldname": "scheme_name",
+   "fieldtype": "Data",
+   "label": "Scheme Name",
+   "fetch_from": "scheme.scheme_name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "brand",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Brand",
+   "options": "Brand",
+   "fetch_from": "scheme.brand",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_ref",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "period_from",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Period From",
+   "reqd": 1
+  },
+  {
+   "fieldname": "period_to",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Period To",
+   "reqd": 1
+  },
+  {
+   "default": "Draft",
+   "fieldname": "claim_status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Claim Status",
+   "options": "Draft\nLocked\nClaim Ready\nClaim Raised\nSettled",
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_qty",
+   "fieldtype": "Section Break",
+   "label": "Achievement"
+  },
+  {
+   "default": "0",
+   "fieldname": "total_qty",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Total Qty"
+  },
+  {
+   "default": "0",
+   "fieldname": "eligible_qty",
+   "fieldtype": "Float",
+   "label": "Eligible Qty"
+  },
+  {
+   "fieldname": "slab_achieved",
+   "fieldtype": "Data",
+   "label": "Slab Achieved",
+   "description": "e.g. '81-100 units' — the matching slab range"
+  },
+  {
+   "fieldname": "column_break_qty",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "slab_description",
+   "fieldtype": "Small Text",
+   "label": "Slab Breakdown",
+   "read_only": 1,
+   "description": "Detailed slab computation log"
+  },
+  {
+   "fieldname": "section_payout",
+   "fieldtype": "Section Break",
+   "label": "Payout"
+  },
+  {
+   "default": "0",
+   "fieldname": "base_payout",
+   "fieldtype": "Currency",
+   "label": "Base Payout (₹)"
+  },
+  {
+   "default": "0",
+   "fieldname": "additional_payout",
+   "fieldtype": "Currency",
+   "label": "Additional Payout (₹)"
+  },
+  {
+   "default": "0",
+   "fieldname": "total_payout",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Total Payout (₹)",
+   "bold": 1
+  },
+  {
+   "fieldname": "column_break_payout",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "tds_percent",
+   "fieldtype": "Percent",
+   "label": "TDS %"
+  },
+  {
+   "default": "0",
+   "fieldname": "tds_amount",
+   "fieldtype": "Currency",
+   "label": "TDS Amount (₹)"
+  },
+  {
+   "default": "0",
+   "fieldname": "net_claim",
+   "fieldtype": "Currency",
+   "label": "Net Claim (₹)",
+   "bold": 1,
+   "description": "Total Payout minus TDS"
+  },
+  {
+   "fieldname": "section_notes",
+   "fieldtype": "Section Break",
+   "label": "Computation Details",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "computation_log",
+   "fieldtype": "Code",
+   "label": "Computation Log",
+   "options": "JSON",
+   "read_only": 1,
+   "description": "Full audit trail of claim computation"
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Scheme Claim Summary",
+   "print_hide": 1,
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "is_submittable": 1,
+ "links": [
+  {
+   "group": "Settlement",
+   "link_doctype": "Scheme Settlement",
+   "link_fieldname": "claim_summary"
+  }
+ ],
+ "modified": "2026-03-18 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Supplier Scheme",
+ "name": "Scheme Claim Summary",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "cancel": 1,
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "cancel": 1,
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Accounts Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "role": "Accounts User",
+   "write": 1
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [
+  {"color": "orange", "title": "Draft"},
+  {"color": "yellow", "title": "Locked"},
+  {"color": "blue", "title": "Claim Ready"},
+  {"color": "purple", "title": "Claim Raised"},
+  {"color": "green", "title": "Settled"}
+ ],
+ "track_changes": 1
+}

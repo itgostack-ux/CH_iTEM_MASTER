@@ -1,0 +1,321 @@
+{
+ "actions": [],
+ "autoname": "naming_series:",
+ "creation": "2026-03-18 10:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "scheme_name",
+  "circular_number",
+  "brand",
+  "column_break_basic",
+  "supplier",
+  "distributor",
+  "status",
+  "section_dates",
+  "issue_date",
+  "valid_from",
+  "column_break_dates",
+  "valid_to",
+  "days_remaining",
+  "section_settlement",
+  "settlement_type",
+  "tds_applicable",
+  "column_break_tax",
+  "tds_percent",
+  "section_description",
+  "description",
+  "column_break_attach",
+  "circular_attachment",
+  "section_rules",
+  "rules",
+  "section_totals",
+  "total_eligible_qty",
+  "total_claim_amount",
+  "column_break_totals",
+  "total_settled_amount",
+  "total_pending_amount",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "default": "SSC-.YYYY.-.#####",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "Series",
+   "options": "SSC-.YYYY.-.#####",
+   "print_hide": 1
+  },
+  {
+   "fieldname": "scheme_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Scheme Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "circular_number",
+   "fieldtype": "Data",
+   "label": "Circular Number",
+   "description": "Supplier/brand reference number on the circular"
+  },
+  {
+   "fieldname": "brand",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Brand",
+   "options": "Brand",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_basic",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "supplier",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Supplier",
+   "options": "Supplier"
+  },
+  {
+   "fieldname": "distributor",
+   "fieldtype": "Link",
+   "label": "Distributor",
+   "options": "Supplier",
+   "description": "Distributor through whom claim is settled"
+  },
+  {
+   "default": "Draft",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Draft\nActive\nClosed\nCancelled",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_dates",
+   "fieldtype": "Section Break",
+   "label": "Scheme Period"
+  },
+  {
+   "fieldname": "issue_date",
+   "fieldtype": "Date",
+   "label": "Issue Date",
+   "default": "Today"
+  },
+  {
+   "fieldname": "valid_from",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Valid From",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_dates",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "valid_to",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Valid To",
+   "reqd": 1
+  },
+  {
+   "fieldname": "days_remaining",
+   "fieldtype": "Int",
+   "label": "Days Remaining",
+   "read_only": 1,
+   "description": "Auto-calculated"
+  },
+  {
+   "fieldname": "section_settlement",
+   "fieldtype": "Section Break",
+   "label": "Settlement & Tax"
+  },
+  {
+   "default": "Credit Note",
+   "fieldname": "settlement_type",
+   "fieldtype": "Select",
+   "label": "Settlement Type",
+   "options": "Credit Note\nCash\nAdjustment",
+   "reqd": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "tds_applicable",
+   "fieldtype": "Check",
+   "label": "TDS Applicable"
+  },
+  {
+   "fieldname": "column_break_tax",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "10",
+   "depends_on": "tds_applicable",
+   "fieldname": "tds_percent",
+   "fieldtype": "Percent",
+   "label": "TDS %"
+  },
+  {
+   "fieldname": "section_description",
+   "fieldtype": "Section Break",
+   "label": "Details"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Text Editor",
+   "label": "Description"
+  },
+  {
+   "fieldname": "column_break_attach",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "circular_attachment",
+   "fieldtype": "Attach",
+   "label": "Circular Document"
+  },
+  {
+   "fieldname": "section_rules",
+   "fieldtype": "Section Break",
+   "label": "Scheme Rules"
+  },
+  {
+   "fieldname": "rules",
+   "fieldtype": "Table",
+   "label": "Rules",
+   "options": "Supplier Scheme Rule"
+  },
+  {
+   "fieldname": "section_totals",
+   "fieldtype": "Section Break",
+   "label": "Scheme Totals",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "total_eligible_qty",
+   "fieldtype": "Float",
+   "label": "Total Eligible Qty",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "total_claim_amount",
+   "fieldtype": "Currency",
+   "label": "Total Claim Amount",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_totals",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "total_settled_amount",
+   "fieldtype": "Currency",
+   "label": "Total Settled",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "total_pending_amount",
+   "fieldtype": "Currency",
+   "label": "Total Pending",
+   "read_only": 1
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Supplier Scheme Circular",
+   "print_hide": 1,
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "is_submittable": 1,
+ "links": [
+  {
+   "group": "Achievement",
+   "link_doctype": "Scheme Achievement Ledger",
+   "link_fieldname": "scheme"
+  },
+  {
+   "group": "Claims",
+   "link_doctype": "Scheme Claim Summary",
+   "link_fieldname": "scheme"
+  },
+  {
+   "group": "Settlement",
+   "link_doctype": "Scheme Settlement",
+   "link_fieldname": "scheme"
+  }
+ ],
+ "modified": "2026-03-18 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Supplier Scheme",
+ "name": "Supplier Scheme Circular",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "cancel": 1,
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "cancel": 1,
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Accounts Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Accounts User",
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "Sales User"
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [
+  {"color": "orange", "title": "Draft"},
+  {"color": "blue", "title": "Active"},
+  {"color": "gray", "title": "Closed"},
+  {"color": "red", "title": "Cancelled"}
+ ],
+ "title_field": "scheme_name",
+ "track_changes": 1
+}
