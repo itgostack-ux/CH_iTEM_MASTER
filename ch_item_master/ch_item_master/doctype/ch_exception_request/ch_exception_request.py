@@ -13,7 +13,8 @@ class CHExceptionRequest(Document):
 	def before_insert(self):
 		self.raised_at = now_datetime()
 		self.requested_by = self.requested_by or frappe.session.user
-		self.ip_address = frappe.local.request.remote_addr if frappe.local.request else ""
+		request = getattr(frappe.local, "request", None)
+		self.ip_address = request.remote_addr if request else ""
 
 		if self.requested_by:
 			self.requested_by_name = frappe.db.get_value(
