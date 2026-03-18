@@ -6,6 +6,8 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import nowdate, now_datetime, getdate, flt, random_string
 
+from buyback.utils import validate_indian_phone
+
 
 class CHVoucher(Document):
 	def before_insert(self):
@@ -19,6 +21,8 @@ class CHVoucher(Document):
 		self.status = "Draft"
 
 	def validate(self):
+		if self.phone:
+			self.phone = validate_indian_phone(self.phone, "Phone")
 		self._validate_amounts()
 		self._validate_dates()
 		self._auto_set_status()

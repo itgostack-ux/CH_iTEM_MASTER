@@ -39,6 +39,10 @@ class CHWarrantyClaim(Document):
 	def validate(self):
 		if self.customer_phone:
 			self.customer_phone = validate_indian_phone(self.customer_phone, "Customer Phone")
+		if self.manufacturer_contact_phone:
+			self.manufacturer_contact_phone = validate_indian_phone(
+				self.manufacturer_contact_phone, "Manufacturer Contact Phone"
+			)
 		self._set_title()
 		self._set_reported_by()
 		if not self.claim_status:

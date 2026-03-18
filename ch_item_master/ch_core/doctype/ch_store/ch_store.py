@@ -1,6 +1,8 @@
 import frappe
 from frappe.model.document import Document
 
+from buyback.utils import validate_indian_phone
+
 
 class CHStore(Document):
     def before_insert(self):
@@ -17,6 +19,9 @@ class CHStore(Document):
     def validate(self):
         if self.store_code:
             self.store_code = self.store_code.strip().upper()
+
+        if self.contact_phone:
+            self.contact_phone = validate_indian_phone(self.contact_phone, "Contact Phone")
 
         if self.pincode and len(self.pincode.strip()) != 6:
             frappe.throw(

@@ -38,26 +38,17 @@ def validate(doc, method=None):
 
 
 def _validate_phone_format(doc):
-	"""Validate mobile_no is a 10-digit Indian phone number."""
-	mobile = doc.get("mobile_no")
-	if not mobile:
-		return
+	"""Validate all phone fields are valid 10-digit Indian numbers."""
+	from buyback.utils import validate_indian_phone
 
-	# Normalize: strip spaces, dashes, country code
-	clean = mobile.strip().replace(" ", "").replace("-", "")
-	if clean.startswith("+91"):
-		clean = clean[3:]
-	elif clean.startswith("91") and len(clean) == 12:
-		clean = clean[2:]
-
-	if not clean.isdigit() or len(clean) != 10:
-		frappe.throw(
-			_("Mobile number must be a valid 10-digit number. Got: {0}").format(mobile),
-			title=_("Invalid Phone Number"),
-		)
-
-	# Store normalized form
-	doc.mobile_no = clean
+	for field, label in (
+		("mobile_no", "Mobile Number"),
+		("ch_alternate_phone", "Alternate Phone"),
+		("ch_whatsapp_number", "WhatsApp Number"),
+	):
+		val = doc.get(field)
+		if val:
+			doc.set(field, validate_indian_phone(val, label))
 
 
 def _check_phone_dedup(doc):
