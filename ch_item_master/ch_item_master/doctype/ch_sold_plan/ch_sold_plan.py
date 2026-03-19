@@ -14,7 +14,7 @@ Lifecycle:
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import nowdate, getdate, add_months
+from frappe.utils import nowdate, getdate, add_months, flt
 
 from buyback.utils import validate_indian_phone
 
@@ -45,6 +45,7 @@ class CHSoldPlan(Document):
 
 	def on_submit(self):
 		self._sync_to_serial_lifecycle()
+		self._send_welcome_notification()
 
 	def on_cancel(self):
 		self.status = "Cancelled"
@@ -119,6 +120,46 @@ class CHSoldPlan(Document):
 		if not self.sold_by:
 			self.sold_by = frappe.session.user
 
+	def _send_welcome_notification(self):
+		"""Send a welcome message to the customer after plan activation.
+
+		Uses Frappe's Notification Log so it appears in the customer portal
+		and optionally triggers email/SMS via Notification rules.
+		"""
+		try:
+			customer_email = frappe.db.get_value("Customer", self.customer, "email_id")
+			if not customer_email:
+				return
+
+			subject = _("Welcome to {0}!").format(self.plan_title or self.warranty_plan)
+			message = _(
+				"Dear {customer},\n\n"
+				"Your {plan} is now active.\n"
+				"Coverage: {start} to {end}\n"
+				"Claims allowed: {claims}\n"
+				"Deductible: ₹{deductible}\n\n"
+				"Thank you for choosing GoGizmo!"
+			).format(
+				customer=self.customer_name or self.customer,
+				plan=self.plan_title or self.warranty_plan,
+				start=self.start_date,
+				end=self.end_date,
+				claims=self.max_claims or _("Unlimited"),
+				deductible=flt(self.deductible_amount),
+			)
+
+			frappe.sendmail(
+				recipients=[customer_email],
+				subject=subject,
+				message=message,
+				now=True,
+			)
+		except Exception:
+			frappe.log_error(
+				frappe.get_traceback(),
+				f"Welcome notification failed for Sold Plan {self.name}",
+			)
+
 	def _sync_to_serial_lifecycle(self):
 		"""Update CH Serial Lifecycle with warranty info on submit."""
 		if not self.serial_no:
@@ -171,15 +212,16 @@ class CHSoldPlan(Document):
 
 	# ── Public methods ───────────────────────────────────────────────────────
 
-	def record_claim(self, service_reference=None):
+	def record_claim(self, service_reference=None, claim_cost=0):
 		"""Increment claims_used. Called by GoFix when a service order is created under warranty.
 
 		Args:
 			service_reference: Optional reference to the service document.
+			claim_cost: Cost of this claim (for value-cap tracking).
 
 		Raises:
 			WarrantyExpiredError: If plan has expired.
-			MaxClaimsReachedError: If max_claims limit reached.
+			MaxClaimsReachedError: If max_claims limit reached or per-year limit exceeded.
 		"""
 		today = getdate(nowdate())
 
@@ -194,10 +236,11 @@ class CHSoldPlan(Document):
 				title=_("Warranty Expired"),
 			)
 
+		# ── Lifetime claim limit ──────────────────────────────────────────
 		if self.max_claims and self.max_claims > 0:
 			if (self.claims_used or 0) >= self.max_claims:
 				frappe.throw(
-					_("Maximum claims ({0}) reached for plan {1}").format(
+					_("Maximum lifetime claims ({0}) reached for plan {1}").format(
 						self.max_claims,
 						frappe.bold(self.plan_title or self.warranty_plan),
 					),
@@ -205,8 +248,43 @@ class CHSoldPlan(Document):
 					title=_("Claims Exhausted"),
 				)
 
+		# ── Per-year claim limit ──────────────────────────────────────────
+		if self.claims_per_year and self.claims_per_year > 0 and self.start_date:
+			claims_this_year = self._count_claims_current_year()
+			if claims_this_year >= self.claims_per_year:
+				frappe.throw(
+					_("Annual claim limit ({0} per year) reached for plan {1}. "
+					  "Claims reset on anniversary date.").format(
+						self.claims_per_year,
+						frappe.bold(self.plan_title or self.warranty_plan),
+					),
+					exc=MaxClaimsReachedError,
+					title=_("Annual Claims Exhausted"),
+				)
+
+		# ── Value cap check ───────────────────────────────────────────────
+		claim_cost = flt(claim_cost)
+		if (self.max_coverage_value and flt(self.max_coverage_value) > 0
+				and claim_cost > 0):
+			new_total = flt(self.total_claimed_value) + claim_cost
+			if new_total > flt(self.max_coverage_value):
+				frappe.throw(
+					_("This claim (₹{0}) would exceed the coverage cap of ₹{1}. "
+					  "Already claimed: ₹{2}.").format(
+						claim_cost,
+						self.max_coverage_value,
+						self.total_claimed_value or 0,
+					),
+					title=_("Coverage Cap Exceeded"),
+				)
+
 		self.claims_used = (self.claims_used or 0) + 1
 		self.db_set("claims_used", self.claims_used)
+
+		# Track cumulative claim value
+		if claim_cost > 0:
+			self.total_claimed_value = flt(self.total_claimed_value) + claim_cost
+			self.db_set("total_claimed_value", self.total_claimed_value)
 
 		# Check if claims now exhausted
 		if self.max_claims and self.max_claims > 0 and self.claims_used >= self.max_claims:
@@ -219,6 +297,34 @@ class CHSoldPlan(Document):
 			),
 			indicator="green",
 		)
+
+	def _count_claims_current_year(self):
+		"""Count warranty claims in the current anniversary year.
+
+		Anniversary year runs from start_date anniversary to next anniversary.
+		Example: start_date=2025-06-15 → year 1 is 15 Jun 2025 – 14 Jun 2026.
+		"""
+		today = getdate(nowdate())
+		start = getdate(self.start_date)
+
+		# Calculate current anniversary window
+		# Find which anniversary year we're in
+		years_elapsed = today.year - start.year
+		anniversary_this_year = start.replace(year=start.year + years_elapsed)
+		if today < anniversary_this_year:
+			years_elapsed -= 1
+			anniversary_this_year = start.replace(year=start.year + years_elapsed)
+
+		year_start = anniversary_this_year
+		year_end = add_months(year_start, 12)
+
+		count = frappe.db.count("CH Warranty Claim", {
+			"sold_plan": self.name,
+			"docstatus": 1,
+			"claim_status": ["not in", ["Cancelled", "Rejected"]],
+			"creation": ["between", [str(year_start), str(year_end)]],
+		})
+		return count
 
 
 # ── Whitelisted API ────────────────────────────────────────────────────────

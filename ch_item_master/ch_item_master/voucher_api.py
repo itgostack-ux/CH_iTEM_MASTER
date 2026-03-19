@@ -17,11 +17,12 @@ from frappe.utils import flt, getdate, nowdate, now_datetime, cint
 def issue_voucher(voucher_type, amount, company, customer=None, phone=None,
                   valid_days=365, source_type=None, source_document=None,
                   reason=None, single_use=0, min_order_amount=0,
-                  max_discount_amount=0, applicable_channel=None):
-	"""Issue a new voucher (Gift Card / Store Credit / Promo Voucher / Return Credit).
+                  max_discount_amount=0, applicable_channel=None,
+                  applicable_item_group=None, sold_plan=None):
+	"""Issue a new voucher (Gift Card / Store Credit / Promo Voucher / Return Credit / VAS Voucher).
 
 	Args:
-		voucher_type: Gift Card | Store Credit | Promo Voucher | Return Credit
+		voucher_type: Gift Card | Store Credit | Promo Voucher | Return Credit | VAS Voucher
 		amount: Face value
 		company: Company
 		customer: Optional customer link
@@ -30,6 +31,8 @@ def issue_voucher(voucher_type, amount, company, customer=None, phone=None,
 		source_type: Manual | Return | Promotion | Compensation | Purchase
 		source_document: Link to source doc (Sales Invoice, etc.)
 		reason: Free text note
+		applicable_item_group: Item Group restriction for redemption
+		sold_plan: CH Sold Plan that triggered this voucher (for VAS)
 
 	Returns:
 		dict with voucher_code, name, balance
@@ -60,6 +63,8 @@ def issue_voucher(voucher_type, amount, company, customer=None, phone=None,
 		"min_order_amount": flt(min_order_amount),
 		"max_discount_amount": flt(max_discount_amount),
 		"applicable_channel": applicable_channel,
+		"applicable_item_group": applicable_item_group,
+		"sold_plan": sold_plan,
 	})
 	voucher.insert(ignore_permissions=True)
 
@@ -201,6 +206,13 @@ def redeem_voucher(voucher_code, amount, pos_invoice=None, reference_doctype=Non
 
 	if voucher.status not in ("Active", "Partially Used"):
 		frappe.throw(_("Voucher is {0} and cannot be redeemed").format(voucher.status))
+
+	# Enforce item group restriction (e.g. VAS vouchers → Accessories only)
+	if voucher.applicable_item_group:
+		allowed_group = voucher.applicable_item_group
+		# If caller passes cart_items, validate item groups; otherwise log a warning
+		if pos_invoice:
+			_validate_voucher_item_groups(pos_invoice, allowed_group)
 
 	balance = flt(voucher.balance)
 	if balance <= 0:
@@ -569,4 +581,47 @@ def _post_voucher_gl(voucher_name, company, amount, transaction_type,
 		frappe.log_error(
 			frappe.get_traceback(),
 			f"Voucher GL Entry failed for {voucher_name}",
+		)
+
+
+def _validate_voucher_item_groups(pos_invoice, allowed_group):
+	"""Validate that all items in the POS Invoice belong to the allowed item group.
+
+	Throws if any line item falls outside the allowed group hierarchy.
+	"""
+	items = frappe.db.get_all(
+		"POS Invoice Item",
+		filters={"parent": pos_invoice},
+		fields=["item_code", "item_group"],
+	)
+	if not items:
+		return
+
+	# Build set of allowed groups (include sub-groups of allowed_group)
+	allowed_groups = set()
+	allowed_groups.add(allowed_group)
+	sub_groups = frappe.get_all(
+		"Item Group",
+		filters={"lft": [">=", 0]},
+		fields=["name", "lft", "rgt"],
+	)
+	parent_lft_rgt = frappe.db.get_value("Item Group", allowed_group, ["lft", "rgt"])
+	if parent_lft_rgt:
+		plft, prgt = parent_lft_rgt
+		for sg in sub_groups:
+			if sg.lft >= plft and sg.rgt <= prgt:
+				allowed_groups.add(sg.name)
+
+	violating = [
+		i.item_code for i in items
+		if i.item_group and i.item_group not in allowed_groups
+	]
+
+	if violating:
+		frappe.throw(
+			_("Voucher is restricted to {0}. These items are not eligible: {1}").format(
+				frappe.bold(allowed_group),
+				", ".join(frappe.bold(v) for v in violating[:5]),
+			),
+			title=_("Voucher Restriction"),
 		)

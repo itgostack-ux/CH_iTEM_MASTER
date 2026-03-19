@@ -65,6 +65,22 @@
    "description": "Own Warranty = free GoGizmo warranty on new purchase. Extended = paid extension. VAS = screen protector, data transfer, etc. Post-Repair = GoFix warranty issued after repair (depends on service/spare type)."
   },
   {
+   "fieldname": "coverage_scope",
+   "fieldtype": "Select",
+   "label": "Coverage Scope",
+   "options": "Full Device\nScreen Only\nBattery Only\nAccessories Only",
+   "default": "Full Device",
+   "depends_on": "eval:doc.plan_type=='Protection Plan'",
+   "description": "What is specifically covered under this protection plan."
+  },
+  {
+   "fieldname": "purchase_window_hours",
+   "fieldtype": "Int",
+   "label": "Purchase Window (Hours)",
+   "default": "24",
+   "description": "Hours after device sale within which this plan must be purchased. 0 = no restriction. Post-Repair plans always exempt."
+  },
+  {
    "fieldname": "column_break_basic",
    "fieldtype": "Column Break"
   },
@@ -136,8 +152,14 @@
   {
    "fieldname": "max_claims",
    "fieldtype": "Int",
-   "label": "Max Claims",
-   "description": "Maximum number of claims allowed under this plan. 0 = unlimited."
+   "label": "Max Claims (Lifetime)",
+   "description": "Maximum claims allowed over the plan lifetime. 0 = unlimited."
+  },
+  {
+   "fieldname": "claims_per_year",
+   "fieldtype": "Int",
+   "label": "Claims Per Year",
+   "description": "Maximum claims per policy year (anniversary-based). 0 = no annual limit. Takes precedence over lifetime max if both are set."
   },
   {
    "fieldname": "deductible_amount",

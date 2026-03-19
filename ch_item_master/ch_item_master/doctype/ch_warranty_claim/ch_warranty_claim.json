@@ -350,6 +350,62 @@
    "description": "Describe the problem reported by the customer"
   },
   {
+   "fieldname": "section_evidence",
+   "fieldtype": "Section Break",
+   "label": "Device Evidence"
+  },
+  {
+   "fieldname": "device_images",
+   "fieldtype": "Attach Image",
+   "label": "Device Images",
+   "description": "Photos of device condition at claim time (front, back, sides)"
+  },
+  {
+   "fieldname": "column_break_evidence",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "supporting_documents",
+   "fieldtype": "Attach",
+   "label": "Supporting Documents",
+   "description": "Purchase invoice, previous repair receipts, etc."
+  },
+  {
+   "fieldname": "section_processing_fee",
+   "fieldtype": "Section Break",
+   "label": "Processing Fee"
+  },
+  {
+   "fieldname": "processing_fee_status",
+   "fieldtype": "Select",
+   "label": "Processing Fee Status",
+   "options": "Not Required\nPending\nPaid\nWaived",
+   "default": "Not Required",
+   "read_only": 1,
+   "no_copy": 1,
+   "allow_on_submit": 1,
+   "description": "Must be Paid or Waived before repair can start"
+  },
+  {
+   "fieldname": "processing_fee_amount",
+   "fieldtype": "Currency",
+   "label": "Processing Fee Amount",
+   "allow_on_submit": 1,
+   "description": "Fee customer must pay before repair begins"
+  },
+  {
+   "fieldname": "column_break_processing_fee",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "processing_fee_invoice",
+   "fieldtype": "Link",
+   "label": "Processing Fee Invoice",
+   "options": "Sales Invoice",
+   "allow_on_submit": 1,
+   "description": "Invoice for processing fee collection"
+  },
+  {
    "fieldname": "section_cost",
    "fieldtype": "Section Break",
    "label": "Cost Sharing"
@@ -606,6 +662,37 @@
    "read_only": 1,
    "no_copy": 1,
    "allow_on_submit": 1
+  },
+  {
+   "fieldname": "section_claim_costs",
+   "fieldtype": "Section Break",
+   "label": "Claim Cost Summary"
+  },
+  {
+   "fieldname": "logistics_cost",
+   "fieldtype": "Currency",
+   "label": "Logistics Cost",
+   "allow_on_submit": 1,
+   "description": "Pickup and delivery charges"
+  },
+  {
+   "fieldname": "third_party_repair_cost",
+   "fieldtype": "Currency",
+   "label": "Third-Party Repair Cost",
+   "allow_on_submit": 1,
+   "description": "External service center charges"
+  },
+  {
+   "fieldname": "column_break_claim_costs",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "total_claim_cost",
+   "fieldtype": "Currency",
+   "label": "Total Claim Cost",
+   "read_only": 1,
+   "allow_on_submit": 1,
+   "description": "Sum of repair cost + logistics + third-party charges"
   },
   {
    "fieldname": "section_history",

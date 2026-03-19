@@ -191,12 +191,21 @@ class CHWarrantyClaim(Document):
 				self.claim_status))
 
 		old = self.claim_status
+
+		# ── Calculate total claim cost ────────────────────────────────────
+		self.total_claim_cost = (
+			flt(self.estimated_repair_cost)
+			+ flt(self.logistics_cost)
+			+ flt(self.third_party_repair_cost)
+		)
+
 		self.claim_status = "Closed"
 		self.settlement_status = "Settled"
 
 		self.db_set({
 			"claim_status": "Closed",
 			"settlement_status": "Settled",
+			"total_claim_cost": self.total_claim_cost,
 		})
 
 		self._log("Closed", old, "Closed", remarks or "Claim closed")
@@ -366,6 +375,17 @@ class CHWarrantyClaim(Document):
 		"""Create a GoFix Service Request from this claim."""
 		if self.service_request:
 			return  # Already created
+
+		# ── Processing fee gate ───────────────────────────────────────────
+		# If a processing fee is required, it must be paid/waived before repair starts.
+		if (self.processing_fee_status == "Pending"
+				and flt(self.processing_fee_amount) > 0):
+			frappe.throw(
+				_("Processing fee of ₹{0} must be paid or waived before creating "
+				  "a repair ticket. Update Processing Fee Status first.").format(
+					self.processing_fee_amount),
+				title=_("Processing Fee Pending"),
+			)
 
 		try:
 			# Get GoFix warehouse

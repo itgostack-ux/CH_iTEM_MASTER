@@ -186,9 +186,8 @@
    "fieldname": "max_claims",
    "fieldtype": "Int",
    "label": "Max Claims",
-   "fetch_from": "warranty_plan.max_claims",
    "read_only": 1,
-   "description": "0 = unlimited."
+   "description": "Snapshot from plan master at purchase time. 0 = unlimited."
   },
   {
    "fieldname": "claims_used",
@@ -202,8 +201,8 @@
    "fieldname": "deductible_amount",
    "fieldtype": "Currency",
    "label": "Deductible per Claim",
-   "fetch_from": "warranty_plan.deductible_amount",
-   "read_only": 1
+   "read_only": 1,
+   "description": "Snapshot from plan master at purchase time."
   },
   {
    "fieldname": "section_transaction",
@@ -242,6 +241,42 @@
    "label": "Plan Price",
    "read_only": 1,
    "description": "Actual price charged to the customer for this plan."
+  },
+  {
+   "fieldname": "section_value_cap",
+   "fieldtype": "Section Break",
+   "label": "Value Cap & Tracking"
+  },
+  {
+   "fieldname": "device_purchase_price",
+   "fieldtype": "Currency",
+   "label": "Device Purchase Price",
+   "description": "Original device sale price at plan purchase time. Used as ceiling for total claim value."
+  },
+  {
+   "fieldname": "max_coverage_value",
+   "fieldtype": "Currency",
+   "label": "Max Coverage Value",
+   "description": "Maximum total claim value this plan will cover. 0 = no value cap (count-based only). Typically set to device_purchase_price."
+  },
+  {
+   "fieldname": "column_break_value_cap",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "total_claimed_value",
+   "fieldtype": "Currency",
+   "label": "Total Claimed Value",
+   "default": "0",
+   "read_only": 1,
+   "description": "Running total of claim costs charged against this plan."
+  },
+  {
+   "fieldname": "claims_per_year",
+   "fieldtype": "Int",
+   "label": "Claims Per Year",
+   "read_only": 1,
+   "description": "Snapshot from plan master. Annual claim limit (anniversary-based)."
   },
   {
    "fieldname": "section_notes",

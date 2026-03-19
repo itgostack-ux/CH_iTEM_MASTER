@@ -155,6 +155,9 @@ def issue_warranty_plan(warranty_plan, customer, item_code, serial_no=None,
 		"sales_invoice": sales_invoice,
 		"sales_order": sales_order,
 		"plan_price": plan_price or plan.price,
+		"max_claims": plan.max_claims or 0,
+		"deductible_amount": plan.deductible_amount or 0,
+		"claims_per_year": plan.claims_per_year or 0,
 	})
 
 	doc.insert(ignore_permissions=True)
