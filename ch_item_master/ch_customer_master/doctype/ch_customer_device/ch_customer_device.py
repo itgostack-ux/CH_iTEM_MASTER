@@ -69,11 +69,12 @@ class CHCustomerDevice(Document):
 		"""
 		existing = frappe.db.get_value(
 			"CH Customer Device",
-			{"serial_no": serial_no, "customer": customer},
+			{"serial_no": serial_no},
 			"name",
 		)
 		if existing:
 			doc = frappe.get_doc("CH Customer Device", existing)
+			doc.customer = customer
 			doc.update(kwargs)
 			doc.save(ignore_permissions=True)
 			return doc

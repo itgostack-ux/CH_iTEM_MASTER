@@ -11,6 +11,9 @@
   "category_name",
   "item_group",
   "item_group_id",
+  "column_break_mgr",
+  "category_manager",
+  "category_manager_name",
   "disabled"
  ],
  "fields": [
@@ -52,6 +55,25 @@
    "description": "Auto-populated from linked Item Group on save"
   },
   {
+   "fieldname": "column_break_mgr",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "category_manager",
+   "fieldtype": "Link",
+   "label": "Category Manager",
+   "options": "User",
+   "in_list_view": 1,
+   "description": "Employee responsible for approving free sales in this category"
+  },
+  {
+   "fieldname": "category_manager_name",
+   "fieldtype": "Data",
+   "label": "Manager Name",
+   "fetch_from": "category_manager.full_name",
+   "read_only": 1
+  },
+  {
    "default": "0",
    "fieldname": "disabled",
    "fieldtype": "Check",
@@ -61,7 +83,7 @@
   }
  ],
  "links": [],
- "modified": "2026-02-19 00:00:00.000000",
+ "modified": "2026-03-20 10:00:00.000000",
  "modified_by": "Administrator",
  "module": "CH Item Master",
  "name": "CH Category",

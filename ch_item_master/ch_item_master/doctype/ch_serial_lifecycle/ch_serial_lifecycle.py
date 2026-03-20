@@ -19,9 +19,9 @@ from frappe.utils import nowdate, now_datetime, getdate
 VALID_TRANSITIONS = {
     "": ["Received"],
     "Received": ["In Stock", "Returned", "Scrapped"],
-    "In Stock": ["Displayed", "Sold", "In Service", "Scrapped", "Lost"],
+    "In Stock": ["Displayed", "Sold", "In Service", "Buyback", "Scrapped", "Lost"],
     "Displayed": ["In Stock", "Sold", "Scrapped", "Lost"],
-    "Sold": ["Returned", "In Service"],
+    "Sold": ["Returned", "In Service", "Buyback"],
     "Returned": ["In Stock", "In Service", "Refurbished", "Buyback", "Scrapped"],
     "In Service": ["In Stock", "Refurbished", "Scrapped", "Returned"],
     "Refurbished": ["In Stock", "Buyback", "Scrapped"],
