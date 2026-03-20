@@ -25,7 +25,7 @@ VALID_TRANSITIONS = {
     "Returned": ["In Stock", "In Service", "Refurbished", "Buyback", "Scrapped"],
     "In Service": ["In Stock", "Refurbished", "Scrapped", "Returned"],
     "Refurbished": ["In Stock", "Buyback", "Scrapped"],
-    "Buyback": ["In Stock", "In Service", "Refurbished", "Scrapped"],
+    "Buyback": ["In Stock", "Sold", "In Service", "Refurbished", "Scrapped"],
     "Scrapped": [],
     "Lost": [],
 }
