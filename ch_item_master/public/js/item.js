@@ -297,15 +297,11 @@ function _load_property_spec_options(frm, cdt, cdn) {
             if (grid_row.grid_form) {
                 const ff = grid_row.grid_form.fields_dict['spec_value'];
                 if (ff) {
-                    // set_data() updates awesomplete.list
+                    // set_data() sets both awesomplete.list AND _data so
+                    // get_data() returns the values on the next input/focus event.
                     if (ff.set_data) ff.set_data(values);
                     // Also store on df.options so re-renders keep the list
                     ff.df.options = values.join('\n');
-                    // minChars=0 → all values appear on click (no typing needed)
-                    if (ff.awesomplete) {
-                        ff.awesomplete.list = values;
-                        ff.awesomplete.minChars = 0;
-                    }
                 }
             }
 
@@ -315,10 +311,6 @@ function _load_property_spec_options(frm, cdt, cdn) {
             if (inline_field) {
                 if (inline_field.set_data) inline_field.set_data(values);
                 inline_field.df.options = values.join('\n');
-                if (inline_field.awesomplete) {
-                    inline_field.awesomplete.list = values;
-                    inline_field.awesomplete.minChars = 0;
-                }
             }
         },
     });

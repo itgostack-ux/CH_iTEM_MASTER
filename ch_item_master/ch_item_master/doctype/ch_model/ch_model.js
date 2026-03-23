@@ -105,14 +105,16 @@ ch_model._load_spec_value_options = function (frm, cdt, cdn) {
 			let field = gf.fields_dict['spec_value'];
 			if (!field) return;
 
-			// Store on the docfield so it survives re-renders
+			// Store on the docfield so it survives re-renders (set_options()
+			// reads df.options when the field is re-created)
 			field.df.options = values.join('\n');
 
-			// Set the live awesomplete instance directly
-			if (field.awesomplete) {
-				field.awesomplete.list = values;
-				// minChars=0 → all values appear immediately on focus/click
-				field.awesomplete.minChars = 0;
+			// set_data() sets both awesomplete.list AND the internal _data cache.
+			// _data is what get_data() returns on the 'input' event fired by focus.
+			// If only awesomplete.list is set directly, _data stays [] and the
+			// input-event handler overwrites the list with empty on every focus.
+			if (field.set_data) {
+				field.set_data(values);
 			}
 		},
 	});
@@ -144,16 +146,11 @@ frappe.ui.form.on('CH Model', {
 			};
 		};
 
-		// spec_value autocomplete: server-side fallback for typed search.
-		// The primary UX path is _load_spec_value_options (all values on click);
-		// this query fires when the user types and the static list doesn't match.
-		frm.set_query('spec_value', 'spec_values', (doc, cdt, cdn) => {
-			let row = locals[cdt][cdn];
-			return {
-				query: 'ch_item_master.ch_item_master.api.get_attribute_values',
-				filters: { spec: row.spec || '' },
-			};
-		});
+		// spec_value options are injected via _load_spec_value_options called
+		// from form_render / spec events. No set_query here — Frappe's
+		// execute_query_if_exists does NOT forward `filters`, only `params`,
+		// so a set_query with filters would fire the server with no spec arg
+		// and wipe the pre-loaded list with an empty result.
 
 		// Model Features: filter feature_group to enabled groups only
 		frm.set_query('feature_group', 'model_features', () => ({
