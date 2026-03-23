@@ -329,13 +329,31 @@ def get_property_spec_values(model, spec):
     Used by the ch_spec_values child table to offer autocomplete options
     restricted to model-mapped values for the selected spec.
 
+    Falls back to ALL Item Attribute Values for the spec when the model
+    has no specific values defined (so the dropdown is never empty).
+
     Returns: list of value strings, e.g. ['Dual SIM', 'Single SIM']
     """
     if not model or not spec:
         return []
 
     grouped = _group_model_spec_values(model)
-    return grouped.get(spec, [])
+    values = grouped.get(spec, [])
+
+    if not values:
+        # Fallback: return all attribute values for this spec so the
+        # dropdown is always populated even if the model hasn't defined
+        # specific values yet.
+        rows = frappe.get_all(
+            "Item Attribute Value",
+            filters={"parent": spec},
+            fields=["attribute_value"],
+            order_by="attribute_value asc",
+            limit_page_length=100,
+        )
+        values = [r.attribute_value for r in rows]
+
+    return values
 
 
 # ───────────────────────────────────────────────────────────────────────────────

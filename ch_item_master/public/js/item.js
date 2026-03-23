@@ -285,6 +285,7 @@ function _load_property_spec_options(frm, cdt, cdn) {
         args: { model: frm.doc.ch_model, spec: row.spec },
         callback(r) {
             const values = r.message || [];
+            if (!values.length) return;
 
             const grid = frm.fields_dict['ch_spec_values'] &&
                 frm.fields_dict['ch_spec_values'].grid;
@@ -292,19 +293,32 @@ function _load_property_spec_options(frm, cdt, cdn) {
             const grid_row = grid.grid_rows_by_docname[cdn];
             if (!grid_row) return;
 
-            // Set on the edit-dialog field (grid_form) using set_data()
-            // which directly updates awesomplete.list
+            // ── Edit-dialog field (grid_form) ──────────────────────────
             if (grid_row.grid_form) {
                 const ff = grid_row.grid_form.fields_dict['spec_value'];
-                if (ff && ff.set_data) {
-                    ff.set_data(values);
+                if (ff) {
+                    // set_data() updates awesomplete.list
+                    if (ff.set_data) ff.set_data(values);
+                    // Also store on df.options so re-renders keep the list
+                    ff.df.options = values.join('\n');
+                    // minChars=0 → all values appear on click (no typing needed)
+                    if (ff.awesomplete) {
+                        ff.awesomplete.list = values;
+                        ff.awesomplete.minChars = 0;
+                    }
                 }
             }
 
-            // Also set on the inline grid field
-            const inline_field = grid_row.on_grid_fields_dict['spec_value'];
-            if (inline_field && inline_field.set_data) {
-                inline_field.set_data(values);
+            // ── Inline grid field ──────────────────────────────────────
+            const inline_field = grid_row.on_grid_fields_dict &&
+                grid_row.on_grid_fields_dict['spec_value'];
+            if (inline_field) {
+                if (inline_field.set_data) inline_field.set_data(values);
+                inline_field.df.options = values.join('\n');
+                if (inline_field.awesomplete) {
+                    inline_field.awesomplete.list = values;
+                    inline_field.awesomplete.minChars = 0;
+                }
             }
         },
     });
