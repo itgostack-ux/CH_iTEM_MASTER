@@ -71,11 +71,29 @@ frappe.ui.form.on('Item', {
             frm.fields_dict['ch_spec_values'].grid.df.cannot_delete_rows = 1;
         }
 
-        // item_code is always auto-generated — keep it read-only
-        if (frm.is_new()) {
+        // item_code and item_name are auto-generated server-side for CH items.
+        // We suppress their reqd flag and pre-fill placeholders so Frappe's
+        // mandatory check never blocks the save silently (beep with no dialog).
+        if (frm.is_new() && frm.doc.ch_model) {
             frm.set_df_property('item_code', 'read_only', 1);
+            frm.set_df_property('item_code', 'reqd', 0);
             frm.set_df_property('item_code', 'description',
                 'Auto-generated on save from Model / Sub-Category');
+            if (!frm.doc.item_code) {
+                frm.doc.item_code = '__autoname';
+            }
+            // item_name is also mandatory in ERPNext core — suppress it;
+            // the server will generate the real name on before_insert.
+            frm.set_df_property('item_name', 'reqd', 0);
+            if (!frm.doc.item_name) {
+                frm.doc.item_name = '__autoname';
+            }
+            // stock_uom defaults to 'Nos' if not set — suppress mandatory beep
+            frm.set_df_property('stock_uom', 'reqd', 0);
+            if (!frm.doc.stock_uom) {
+                frm.doc.stock_uom = 'Nos';
+                frm.refresh_field('stock_uom');
+            }
         }
     },
 
@@ -122,11 +140,16 @@ frappe.ui.form.on('Item', {
         }
     },
 
-    // Prevent client-side mandatory error for item_code;
-    // the real code is generated server-side in before_insert.
+    // Ensure item_code and item_name are set to '__autoname' before save
+    // so the server's before_insert hook can replace them with the real values.
     before_save(frm) {
-        if (frm.is_new() && frm.doc.ch_sub_category && !frm.doc.item_code) {
-            frm.doc.item_code = '__autoname';
+        if (frm.is_new() && frm.doc.ch_sub_category) {
+            if (!frm.doc.item_code || frm.doc.item_code === '__autoname') {
+                frm.doc.item_code = '__autoname';
+            }
+            if (!frm.doc.item_name || frm.doc.item_name === '__autoname') {
+                frm.doc.item_name = '__autoname';
+            }
         }
     },
 
@@ -192,6 +215,20 @@ frappe.ui.form.on('Item', {
                 });
 
                 frm.refresh_fields();
+
+                // Re-apply mandatory suppression after model load
+                // (refresh fires before ch_model callback on new docs)
+                if (frm.is_new()) {
+                    frm.set_df_property('item_code', 'reqd', 0);
+                    frm.set_df_property('item_name', 'reqd', 0);
+                    frm.set_df_property('stock_uom', 'reqd', 0);
+                    if (!frm.doc.item_code) frm.doc.item_code = '__autoname';
+                    if (!frm.doc.item_name) frm.doc.item_name = '__autoname';
+                    if (!frm.doc.stock_uom) {
+                        frm.doc.stock_uom = 'Nos';
+                        frm.refresh_field('stock_uom');
+                    }
+                }
 
                 if (d.hsn_code) {
                     frm.set_intro(
