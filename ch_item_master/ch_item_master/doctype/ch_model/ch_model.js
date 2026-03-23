@@ -172,14 +172,13 @@ frappe.ui.form.on('CH Model', {
 	},
 
 	// ── Client-side validation — fires BEFORE check_mandatory ────────────────
-	// This means our dialog appears over any open row editor instead of hiding
-	// behind it. Setting frappe.validated=false stops the save cleanly.
 	validate(frm) {
-		// Close any open row editor first so our dialog is visible
-		let grid = frm.fields_dict['spec_values'] && frm.fields_dict['spec_values'].grid;
-		if (grid && grid.grid_form && grid.grid_form.wrapper && grid.grid_form.wrapper.is(':visible')) {
-			grid.grid_form.hide();
-		}
+		// frappe.ui.form.close_grid_form() closes the edit-row dialog AND calls
+		// frappe.dom.unfreeze() — without this, the "dark grid-form" freeze
+		// overlay stays active and our msgprint dialog appears hidden behind it
+		// (the user hears the OS "beep" from a click on the frozen page but
+		// sees no dialog).  When no row editor is open this is a no-op.
+		frappe.ui.form.close_grid_form();
 
 		// Check top-level mandatory fields
 		let missing = [];
@@ -196,7 +195,9 @@ frappe.ui.form.on('CH Model', {
 				indicator: 'red',
 			});
 			frappe.validated = false;
-			return;
+			// Return a resolved Promise so script_manager does NOT fall through
+			// to frappe.after_server_call() (which would wait for in-flight AJAX)
+			return Promise.resolve();
 		}
 
 		// Check spec rows: each row with a Specification must have a Value
@@ -212,6 +213,7 @@ frappe.ui.form.on('CH Model', {
 			});
 			frappe.validated = false;
 		}
+		return Promise.resolve();
 	},
 
 	sub_category(frm) {
