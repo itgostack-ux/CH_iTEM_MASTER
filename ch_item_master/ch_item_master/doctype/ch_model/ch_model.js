@@ -69,6 +69,7 @@ ch_model._apply_manufacturer_filter = function (frm) {
 // Helper: refresh allowed brands for the selected manufacturer
 // ─────────────────────────────────────────────────────────────────────────────
 ch_model._refresh_allowed_brands = function (frm) {
+
 	if (!frm.doc.manufacturer) {
 		frm._allowed_brands = [];
 		return;
@@ -78,6 +79,41 @@ ch_model._refresh_allowed_brands = function (frm) {
 		args: { manufacturer: frm.doc.manufacturer },
 		callback(r) {
 			frm._allowed_brands = r.message || [];
+		},
+	});
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Helper: pre-populate spec_value dropdown with all allowed values for a spec.
+// Called from form_render (row dialog opened) and spec change event.
+// Sets awesomplete.list + minChars=0 so ALL values appear on click.
+// ─────────────────────────────────────────────────────────────────────────────
+ch_model._load_spec_value_options = function (frm, cdt, cdn) {
+	let row = frappe.get_doc(cdt, cdn);
+	if (!row || !row.spec) return;
+
+	frappe.call({
+		method: 'ch_item_master.ch_item_master.api.get_attribute_values',
+		args: { spec: row.spec },
+		callback(r) {
+			let values = r.message || [];
+			if (!values.length) return;
+
+			// Apply to the currently open grid-form dialog for this row
+			let gf = frm.cur_grid && frm.cur_grid.grid_form;
+			if (!gf || !gf.fields_dict) return;
+			let field = gf.fields_dict['spec_value'];
+			if (!field) return;
+
+			// Store on the docfield so it survives re-renders
+			field.df.options = values.join('\n');
+
+			// Set the live awesomplete instance directly
+			if (field.awesomplete) {
+				field.awesomplete.list = values;
+				// minChars=0 → all values appear immediately on focus/click
+				field.awesomplete.minChars = 0;
+			}
 		},
 	});
 };
@@ -108,9 +144,9 @@ frappe.ui.form.on('CH Model', {
 			};
 		};
 
-		// Autocomplete get_query for spec_value in child table:
-		// When the user types in the Value field, fetch matching attribute
-		// values for the spec (Item Attribute) of the current row.
+		// spec_value autocomplete: server-side fallback for typed search.
+		// The primary UX path is _load_spec_value_options (all values on click);
+		// this query fires when the user types and the static list doesn't match.
 		frm.set_query('spec_value', 'spec_values', (doc, cdt, cdn) => {
 			let row = locals[cdt][cdn];
 			return {
@@ -343,17 +379,19 @@ frappe.ui.form.on('CH Model', {
 // CH Model Spec Value child table events
 // ─────────────────────────────────────────────────────────────────────────────
 frappe.ui.form.on('CH Model Spec Value', {
-	// Row dialog opened: hook the Awesomplete dropdown to show a
-	// "+ Create a new [Spec] value" entry at the bottom — exactly like
-	// Frappe's native Link field does.
+	// Row dialog opened: pre-populate spec_value with all allowed values so
+	// clicking the field immediately shows a dropdown (no typing required).
 	form_render(frm, cdt, cdn) {
 		let row = frappe.get_doc(cdt, cdn);
 		if (!row || !row.spec) return;
 
+		// Pre-load all attribute values → fills the dropdown on click
+		ch_model._load_spec_value_options(frm, cdt, cdn);
+
 		let gf = frm.cur_grid && frm.cur_grid.grid_form;
 		if (!gf) return;
 		let field = gf.fields_dict['spec_value'];
-		if (!field || !field.awesomplete) return;
+		if (!field) return;
 
 		let spec = row.spec;
 		let url = `/app/item-attribute/${encodeURIComponent(spec)}`;
@@ -383,9 +421,11 @@ frappe.ui.form.on('CH Model Spec Value', {
 		});
 	},
 
-	// Spec changed → clear spec_value so user must re-select
+	// Spec changed → clear spec_value and reload the allowed value dropdown
 	spec(frm, cdt, cdn) {
 		frappe.model.set_value(cdt, cdn, 'spec_value', '');
+		// Small delay so the field re-renders before we inject the new list
+		setTimeout(() => ch_model._load_spec_value_options(frm, cdt, cdn), 100);
 	},
 
 	// Spec value changed → update preview
