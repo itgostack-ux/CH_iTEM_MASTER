@@ -20,8 +20,7 @@
    "fieldname": "spec_value",
    "fieldtype": "Autocomplete",
    "in_list_view": 1,
-   "label": "Value",
-   "reqd": 1
+   "label": "Value"
   }
  ],
  "index_web_pages_for_search": 0,

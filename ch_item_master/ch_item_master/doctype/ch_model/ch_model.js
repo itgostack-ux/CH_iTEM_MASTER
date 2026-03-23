@@ -59,7 +59,9 @@ ch_model._apply_manufacturer_filter = function (frm) {
 		callback(r) {
 			let allowed = r.message || [];
 			frm.set_query('manufacturer', () => ({
-				filters: allowed.length ? { name: ['in', allowed] } : { name: 'DISABLED' },
+				// If no manufacturers are configured for the sub-category,
+				// fall back to all (no restriction rather than showing nothing).
+				filters: allowed.length ? { name: ['in', allowed] } : {},
 			}));
 		},
 	});
@@ -167,6 +169,49 @@ frappe.ui.form.on('CH Model', {
 				},
 			};
 		});
+	},
+
+	// ── Client-side validation — fires BEFORE check_mandatory ────────────────
+	// This means our dialog appears over any open row editor instead of hiding
+	// behind it. Setting frappe.validated=false stops the save cleanly.
+	validate(frm) {
+		// Close any open row editor first so our dialog is visible
+		let grid = frm.fields_dict['spec_values'] && frm.fields_dict['spec_values'].grid;
+		if (grid && grid.grid_form && grid.grid_form.wrapper && grid.grid_form.wrapper.is(':visible')) {
+			grid.grid_form.hide();
+		}
+
+		// Check top-level mandatory fields
+		let missing = [];
+		if (!frm.doc.sub_category) missing.push(__('Sub Category'));
+		if (!frm.doc.manufacturer) missing.push(__('Manufacturer'));
+		if (!frm.doc.brand) missing.push(__('Brand'));
+		if (!frm.doc.model_name) missing.push(__('Model Name'));
+
+		if (missing.length) {
+			frappe.msgprint({
+				title: __('Missing Required Fields'),
+				message: __('Please fill the following fields before saving:') +
+					'<br><ul><li>' + missing.join('</li><li>') + '</li></ul>',
+				indicator: 'red',
+			});
+			frappe.validated = false;
+			return;
+		}
+
+		// Check spec rows: each row with a Specification must have a Value
+		let incomplete_specs = (frm.doc.spec_values || []).filter(r => r.spec && !r.spec_value);
+		if (incomplete_specs.length) {
+			let specs = [...new Set(incomplete_specs.map(r => r.spec))];
+			frappe.msgprint({
+				title: __('Missing Spec Values'),
+				message: __('Please fill a Value for each Specification row. Missing values for:') +
+					'<br><ul><li>' + specs.join('</li><li>') + '</li></ul>' +
+					'<br>' + __('Add at least one value per specification (e.g. Colour: Black).'),
+				indicator: 'orange',
+			});
+			frappe.validated = false;
+		}
 	},
 
 	sub_category(frm) {
