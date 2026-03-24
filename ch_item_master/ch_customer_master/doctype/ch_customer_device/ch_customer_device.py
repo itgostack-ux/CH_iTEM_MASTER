@@ -25,15 +25,33 @@ class CHCustomerDevice(Document):
 
 	def set_item_details(self):
 		"""Auto-populate item details from serial / item."""
-		if self.serial_no and not self.imei_number:
+		if self.serial_no:
 			serial_doc = frappe.get_cached_doc("Serial No", self.serial_no)
 			if not self.item_code:
 				self.item_code = serial_doc.item_code
+			if not self.imei_number and serial_doc.serial_no:
+				self.imei_number = serial_doc.serial_no
 
 		if self.item_code:
 			item = frappe.get_cached_doc("Item", self.item_code)
 			self.item_name = item.item_name
 			self.brand = item.brand
+
+			# Auto-fill Colour and Storage from Item Variant Attributes
+			attrs = frappe.db.get_all(
+				"Item Variant Attribute",
+				filters={"parent": self.item_code, "attribute": ["in", ["Colour", "Storage", "RAM"]]},
+				fields=["attribute", "attribute_value"],
+			)
+			attr_map = {a.attribute: a.attribute_value for a in attrs if a.attribute_value}
+			if attr_map.get("Colour"):
+				self.color = attr_map["Colour"]
+			if attr_map.get("Storage"):
+				self.storage_capacity = attr_map["Storage"]
+
+			# Auto-fill default warranty months from Item if not yet set
+			if not self.warranty_months and item.ch_default_warranty_months:
+				self.warranty_months = item.ch_default_warranty_months
 
 	def set_lifecycle_link(self):
 		"""Link to CH Serial Lifecycle if it exists."""

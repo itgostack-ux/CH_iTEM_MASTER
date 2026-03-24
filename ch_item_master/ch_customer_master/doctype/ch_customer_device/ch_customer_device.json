@@ -143,12 +143,14 @@
   {
    "fieldname": "color",
    "fieldtype": "Data",
-   "label": "Color"
+   "label": "Color",
+   "read_only": 1
   },
   {
    "fieldname": "storage_capacity",
    "fieldtype": "Data",
-   "label": "Storage Capacity"
+   "label": "Storage Capacity",
+   "read_only": 1
   },
   {
    "fieldname": "status_section",
