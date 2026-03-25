@@ -13,7 +13,7 @@ Usage from GoFix:
 
 import frappe
 from frappe import _
-from frappe.utils import nowdate, getdate, add_months
+from frappe.utils import nowdate, getdate, add_months, flt
 
 
 # ── Warranty Lookup ──────────────────────────────────────────────────────────
@@ -102,6 +102,53 @@ def get_applicable_plans(item_code=None, item_group=None, channel=None,
 		company=company,
 		brand=brand,
 	)
+
+
+# ── VAS Category Validation ─────────────────────────────────────────────────
+
+@frappe.whitelist()
+def validate_vas_category(serial_no, warranty_plan):
+	"""Validate that a VAS plan's category restriction matches the device's category.
+
+	Used by POS when manual IMEI is entered to ensure laptop plans aren't sold for phones, etc.
+
+	Returns:
+		dict: valid (bool), item_code, category, message
+	"""
+	if not serial_no or not warranty_plan:
+		return {"valid": False, "message": _("Serial number and warranty plan are required")}
+
+	# Look up item from Serial No
+	item_code = frappe.db.get_value("Serial No", serial_no, "item_code")
+	if not item_code:
+		# Serial not found — allow anyway (truly external device)
+		return {"valid": True, "item_code": None, "category": None,
+		        "message": _("Serial not found in system — no category restriction applied")}
+
+	# Get category of the item
+	category = frappe.db.get_value("Item", item_code, "ch_category")
+
+	# Get plan's applicable categories
+	plan_categories = frappe.get_all(
+		"CH Warranty Plan Category",
+		filters={"parent": warranty_plan},
+		pluck="category",
+	)
+
+	if not plan_categories:
+		# No category restriction on this plan
+		return {"valid": True, "item_code": item_code, "category": category}
+
+	if not category:
+		return {"valid": False, "item_code": item_code, "category": None,
+		        "message": _("Device has no category set — cannot verify eligibility")}
+
+	if category not in plan_categories:
+		return {"valid": False, "item_code": item_code, "category": category,
+		        "message": _("This plan is for {0} only, but the device is {1}").format(
+		            ", ".join(plan_categories), category)}
+
+	return {"valid": True, "item_code": item_code, "category": category}
 
 
 # ── Plan Issuance ────────────────────────────────────────────────────────────
@@ -221,6 +268,119 @@ def record_warranty_claim(serial_no, service_reference=None, company=None):
 # ── MSP Validation ──────────────────────────────────────────────────────────
 
 @frappe.whitelist()
+def validate_claim(sold_plan_name, issue_type=None, estimate_amount=0):
+	"""Pre-validate whether a claim is eligible under a sold plan.
+
+	Checks expiry, claim count limits, annual limits, value caps,
+	and per-issue coverage rules (from CH Coverage Rule child table).
+
+	Args:
+		sold_plan_name: CH Sold Plan name
+		issue_type: Issue Category name (optional — for coverage rule lookup)
+		estimate_amount: Estimated repair cost
+
+	Returns:
+		dict with: eligible (bool), covered_amount, customer_payable,
+		           deductible, coverage_percent, reason
+	"""
+	estimate_amount = flt(estimate_amount)
+
+	if not frappe.db.exists("CH Sold Plan", sold_plan_name):
+		return {"eligible": False, "reason": _("Sold Plan {0} not found").format(sold_plan_name)}
+
+	sp = frappe.get_doc("CH Sold Plan", sold_plan_name)
+
+	# ── Basic eligibility ─────────────────────────────────────────────
+	if sp.docstatus != 1:
+		return {"eligible": False, "reason": _("Plan is not submitted")}
+
+	if sp.status != "Active":
+		return {"eligible": False, "reason": _("Plan status is {0}").format(sp.status)}
+
+	today = getdate(nowdate())
+	if sp.end_date and today > getdate(sp.end_date):
+		return {"eligible": False, "reason": _("Plan expired on {0}").format(sp.end_date)}
+
+	# ── Lifetime claim count ──────────────────────────────────────────
+	if sp.max_claims and sp.max_claims > 0:
+		if (sp.claims_used or 0) >= sp.max_claims:
+			return {"eligible": False,
+			        "reason": _("All {0} claims exhausted").format(sp.max_claims)}
+
+	# ── Annual claim limit ────────────────────────────────────────────
+	if sp.claims_per_year and sp.claims_per_year > 0:
+		year_claims = sp._count_claims_current_year()
+		if year_claims >= sp.claims_per_year:
+			return {"eligible": False,
+			        "reason": _("Annual limit of {0} claims reached").format(sp.claims_per_year)}
+
+	# ── Value cap ─────────────────────────────────────────────────────
+	if sp.max_coverage_value and sp.max_coverage_value > 0:
+		remaining_value = sp.max_coverage_value - flt(sp.total_claimed_value)
+		if remaining_value <= 0:
+			return {"eligible": False,
+			        "reason": _("Coverage value fully consumed")}
+
+	# ── Coverage rules lookup ─────────────────────────────────────────
+	coverage_percent = 100
+	deductible = flt(sp.deductible_amount)
+	rule_match = None
+
+	if issue_type and sp.warranty_plan:
+		plan = frappe.get_doc("CH Warranty Plan", sp.warranty_plan)
+		for rule in (plan.coverage_rules or []):
+			if rule.issue_type == issue_type:
+				rule_match = rule
+				break
+
+		if rule_match:
+			if not rule_match.covered:
+				return {"eligible": False,
+				        "reason": _("Issue type '{0}' is not covered under this plan").format(issue_type)}
+
+			coverage_percent = flt(rule_match.coverage_percent) or 100
+			if rule_match.deductible_override is not None and flt(rule_match.deductible_override) > 0:
+				deductible = flt(rule_match.deductible_override)
+
+			# Per-issue claim limit
+			if rule_match.max_claim_per_issue and rule_match.max_claim_per_issue > 0:
+				issue_claims = frappe.db.count("CH Warranty Claim", {
+					"sold_plan": sold_plan_name,
+					"issue_category": issue_type,
+					"docstatus": 1,
+					"claim_status": ["not in", ["Cancelled", "Rejected"]],
+				})
+				if issue_claims >= rule_match.max_claim_per_issue:
+					return {"eligible": False,
+					        "reason": _("Max {0} claims for '{1}' already used").format(
+					            rule_match.max_claim_per_issue, issue_type)}
+
+	# ── Calculate amounts ─────────────────────────────────────────────
+	covered_before_deductible = estimate_amount * (coverage_percent / 100)
+	covered_amount = max(0, covered_before_deductible - deductible)
+	customer_payable = estimate_amount - covered_amount
+
+	# Cap at remaining coverage value
+	if sp.max_coverage_value and sp.max_coverage_value > 0:
+		remaining_value = sp.max_coverage_value - flt(sp.total_claimed_value)
+		if covered_amount > remaining_value:
+			covered_amount = remaining_value
+			customer_payable = estimate_amount - covered_amount
+
+	return {
+		"eligible": True,
+		"covered_amount": covered_amount,
+		"customer_payable": customer_payable,
+		"deductible": deductible,
+		"coverage_percent": coverage_percent,
+		"rule_match": rule_match.issue_type if rule_match else None,
+		"reason": _("Claim eligible"),
+	}
+
+
+# ── MSP Validation ──────────────────────────────────────────────────────────
+
+@frappe.whitelist()
 def validate_msp(item_code, selling_rate):
 	"""Check if a selling rate meets the Minimum Selling Price for an item.
 
@@ -282,6 +442,22 @@ def expire_sold_plans():
 	for name in expired:
 		frappe.db.set_value("CH Sold Plan", name, "status", "Expired", update_modified=False)
 
+	# Log expiry events to VAS ledger
+	if expired:
+		try:
+			from ch_item_master.ch_item_master.doctype.ch_vas_ledger.ch_vas_ledger import log_vas_event
+			for name in expired:
+				log_vas_event(
+					sold_plan=name,
+					event_type="Plan Expired",
+					remarks="Auto-expired by scheduled task",
+				)
+		except Exception:
+			frappe.log_error(
+				frappe.get_traceback(),
+				"VAS Ledger expiry logging failed",
+			)
+
 	if expired:
 		frappe.db.commit()
 		frappe.logger("ch_item_master").info(
@@ -313,6 +489,7 @@ def get_customer_warranty_dashboard(identifier, company=None):
 	customer = None
 	customer_name = ""
 	customer_phone = ""
+	customer_email = ""
 	search_type = None  # "phone", "serial", "imei"
 
 	identifier = (identifier or "").strip()
@@ -402,12 +579,13 @@ def get_customer_warranty_dashboard(identifier, company=None):
 	# ── Get customer info ────────────────────────────────────────────
 	cust_data = frappe.db.get_value(
 		"Customer", customer,
-		["name", "customer_name", "mobile_no", "ch_alternate_phone"],
+		["name", "customer_name", "mobile_no", "ch_alternate_phone", "email_id"],
 		as_dict=True,
 	)
 	if cust_data:
 		customer_name = cust_data.customer_name
 		customer_phone = cust_data.mobile_no or cust_data.ch_alternate_phone or ""
+		customer_email = cust_data.email_id or ""
 
 	# ── Get ALL devices for this customer ────────────────────────────
 	devices = []
@@ -529,13 +707,57 @@ def get_customer_warranty_dashboard(identifier, company=None):
 	active_plans = sum(len(d.get("active_plans", [])) for d in devices)
 	total_devices = len(devices)
 
+	# ── Unlinked plans (no serial_no) ────────────────────────────────
+	unlinked_plans_raw = frappe.get_all(
+		"CH Sold Plan",
+		filters={
+			"customer": customer,
+			"docstatus": 1,
+			"serial_no": ["in", [None, ""]],
+		},
+		fields=[
+			"name", "warranty_plan", "plan_title", "plan_type",
+			"start_date", "end_date", "claims_used", "max_claims",
+			"deductible_amount", "status", "plan_price",
+		],
+		order_by="start_date desc",
+	)
+	unlinked_plans = []
+	for plan in unlinked_plans_raw:
+		if plan.status in ("Void", "Cancelled"):
+			plan["display_status"] = "void"
+		elif plan.end_date and today > getdate(plan.end_date):
+			plan["display_status"] = "expired"
+		elif plan.max_claims and plan.max_claims > 0 and (plan.claims_used or 0) >= plan.max_claims:
+			plan["display_status"] = "exhausted"
+		elif plan.status == "Active":
+			plan["display_status"] = "active"
+		else:
+			plan["display_status"] = plan.status.lower() if plan.status else "unknown"
+
+		if plan.end_date and plan["display_status"] == "active":
+			plan["days_remaining"] = (getdate(plan.end_date) - today).days
+		else:
+			plan["days_remaining"] = 0
+
+		if plan.max_claims and plan.max_claims > 0:
+			plan["claims_remaining"] = max(0, plan.max_claims - (plan.claims_used or 0))
+		else:
+			plan["claims_remaining"] = -1
+		unlinked_plans.append(plan)
+
+	total_plans += len(unlinked_plans)
+	active_plans += sum(1 for p in unlinked_plans if p["display_status"] == "active")
+
 	return {
 		"found": True,
 		"search_type": search_type,
 		"customer": customer,
 		"customer_name": customer_name,
 		"customer_phone": customer_phone,
+		"customer_email": customer_email,
 		"devices": devices,
+		"unlinked_plans": unlinked_plans,
 		"summary": {
 			"total_devices": total_devices,
 			"total_plans": total_plans,
@@ -550,8 +772,10 @@ def get_customer_warranty_dashboard(identifier, company=None):
 @frappe.whitelist()
 def initiate_warranty_claim(serial_no, customer, item_code, company,
                             issue_description, issue_category=None,
+                            issue_categories=None,
                             reported_at_company=None, reported_at_store=None,
-                            estimated_repair_cost=0, customer_phone=None):
+                            estimated_repair_cost=0, customer_phone=None,
+                            customer_email=None, sold_plan=None):
 	"""Initiate a new warranty claim from POS or desk.
 
 	Auto-detects warranty coverage, calculates cost split, and either
@@ -563,11 +787,13 @@ def initiate_warranty_claim(serial_no, customer, item_code, company,
 		item_code: Device item_code
 		company: Company that sold the device (warranty issuer)
 		issue_description: What's wrong with the device
-		issue_category: GoFix Issue Category (optional)
+		issue_category: GoFix Issue Category (optional, legacy)
+		issue_categories: Comma-separated list of Issue Category names
 		reported_at_company: Company where reported (GoGizmo or GoFix)
 		reported_at_store: Store location
 		estimated_repair_cost: Estimated cost of repair
 		customer_phone: Customer contact number
+		customer_email: Customer email address
 
 	Returns:
 		dict with: claim_name, claim_status, coverage_type, requires_approval,
@@ -590,8 +816,25 @@ def initiate_warranty_claim(serial_no, customer, item_code, company,
 		"issue_category": issue_category,
 		"estimated_repair_cost": float(estimated_repair_cost or 0),
 		"customer_phone": customer_phone or "",
+		"customer_email": customer_email or "",
 		"claim_date": nowdate(),
 	})
+
+	# Pre-set sold_plan if user selected a specific plan
+	if sold_plan:
+		claim.sold_plan = sold_plan
+
+	# Add issue categories (Table MultiSelect)
+	if issue_categories:
+		import json as _json
+		cats = issue_categories
+		if isinstance(cats, str):
+			try:
+				cats = _json.loads(cats)
+			except (ValueError, TypeError):
+				cats = [c.strip() for c in cats.split(",") if c.strip()]
+		for cat in cats:
+			claim.append("issue_categories", {"issue_category": cat})
 
 	claim.flags.ignore_permissions = True
 	claim.insert()

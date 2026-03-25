@@ -1,0 +1,125 @@
+{
+ "name": "CH VAS Ledger",
+ "module": "CH Item Master",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "engine": "InnoDB",
+ "naming_rule": "Autoincrement",
+ "autoname": "autoincrement",
+ "istable": 0,
+ "issingle": 0,
+ "is_submittable": 0,
+ "editable_grid": 0,
+ "track_changes": 0,
+ "in_create": 1,
+ "allow_rename": 0,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "fields": [
+  {
+   "fieldname": "sold_plan",
+   "fieldtype": "Link",
+   "label": "Sold Plan",
+   "options": "CH Sold Plan",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "event_type",
+   "fieldtype": "Select",
+   "label": "Event",
+   "options": "Plan Activated\nClaim Used\nVoucher Issued\nVoucher Redeemed\nPlan Expired\nPlan Voided\nPlan Cancelled",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "claim_amount",
+   "fieldtype": "Currency",
+   "label": "Amount",
+   "in_list_view": 1,
+   "description": "Claim cost, voucher value, or plan price depending on event"
+  },
+  {
+   "fieldname": "remaining_claims",
+   "fieldtype": "Int",
+   "label": "Remaining Claims",
+   "read_only": 1,
+   "description": "Snapshot after this event. 0 = plan fully consumed or unlimited."
+  },
+  {
+   "fieldname": "remaining_value",
+   "fieldtype": "Currency",
+   "label": "Remaining Value",
+   "read_only": 1,
+   "description": "Remaining coverage value after this event."
+  },
+  {
+   "fieldname": "section_reference",
+   "fieldtype": "Section Break",
+   "label": "Reference"
+  },
+  {
+   "fieldname": "reference_doctype",
+   "fieldtype": "Link",
+   "label": "Reference DocType",
+   "options": "DocType",
+   "read_only": 1
+  },
+  {
+   "fieldname": "reference_name",
+   "fieldtype": "Dynamic Link",
+   "label": "Reference Name",
+   "options": "reference_doctype",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "column_break_ref",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "remarks",
+   "fieldtype": "Small Text",
+   "label": "Remarks"
+  }
+ ],
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 0,
+   "create": 0,
+   "delete": 1,
+   "export": 1,
+   "share": 1
+  },
+  {
+   "role": "CH Warranty Manager",
+   "read": 1,
+   "export": 1
+  },
+  {
+   "role": "CH Viewer",
+   "read": 1,
+   "export": 1
+  }
+ ],
+ "links": [
+  {
+   "group": "Membership",
+   "link_doctype": "CH Sold Plan",
+   "link_fieldname": "name"
+  }
+ ],
+ "actions": [],
+ "creation": "2026-03-29 00:00:00.000000",
+ "modified": "2026-03-29 00:00:00.000000",
+ "modified_by": "Administrator",
+ "owner": "Administrator"
+}

@@ -84,8 +84,12 @@ class CHWarrantyClaim(Document):
 	# ── Public Actions ───────────────────────────────────────────────────
 
 	@frappe.whitelist()
-	def approve(self, remarks=None):
-		"""GoGizmo Head approves the claim → creates GoFix ticket."""
+	def approve(self, remarks=None, approved_amount=None):
+		"""GoGizmo Head approves the claim → creates GoFix ticket.
+
+		Supports partial approval: if approved_amount < gogizmo_share,
+		the difference is shifted to customer_share.
+		"""
 		if self.docstatus != 1:
 			frappe.throw(_("Claim must be submitted before approval."))
 		if self.claim_status != "Pending Approval":
@@ -98,15 +102,37 @@ class CHWarrantyClaim(Document):
 		self.approved_at = now_datetime()
 		self.claim_status = "Approved"
 
+		# Partial approval: recalculate shares
+		if approved_amount is not None:
+			approved_amt = flt(approved_amount)
+			if approved_amt < 0:
+				frappe.throw(_("Approved amount cannot be negative."))
+			if approved_amt > flt(self.gogizmo_share):
+				approved_amt = flt(self.gogizmo_share)
+			self.approved_amount = approved_amt
+			# Shift the difference to customer
+			reduction = flt(self.gogizmo_share) - approved_amt
+			self.gogizmo_share = approved_amt
+			self.customer_share = flt(self.customer_share) + reduction
+		else:
+			self.approved_amount = flt(self.gogizmo_share)
+
 		self.db_set({
 			"approval_status": "Approved",
 			"approved_by": self.approved_by,
 			"approved_at": self.approved_at,
+			"approved_amount": self.approved_amount,
+			"gogizmo_share": self.gogizmo_share,
+			"customer_share": self.customer_share,
 			"claim_status": "Approved",
 		})
 
+		partial_note = ""
+		if approved_amount is not None and flt(approved_amount) < flt(self.estimated_repair_cost):
+			partial_note = f" (partial: ₹{flt(approved_amount)} of ₹{flt(self.estimated_repair_cost)})"
+
 		self._log("Approved", old, "Approved",
-		          remarks or f"Approved by {frappe.session.user}")
+		          (remarks or f"Approved by {frappe.session.user}") + partial_note)
 
 		# Now create GoFix ticket
 		self._create_gofix_ticket()
@@ -210,6 +236,24 @@ class CHWarrantyClaim(Document):
 
 		self._log("Closed", old, "Closed", remarks or "Claim closed")
 
+		# Log to VAS ledger
+		if self.sold_plan:
+			try:
+				from ch_item_master.ch_item_master.doctype.ch_vas_ledger.ch_vas_ledger import log_vas_event
+				log_vas_event(
+					sold_plan=self.sold_plan,
+					event_type="Claim Used",
+					claim_amount=flt(self.total_claim_cost),
+					reference_doctype="CH Warranty Claim",
+					reference_name=self.name,
+					remarks=f"Claim closed — {self.issue_description or ''}",
+				)
+			except Exception:
+				frappe.log_error(
+					frappe.get_traceback(),
+					f"VAS Ledger log failed for claim {self.name}",
+				)
+
 	# ── Private Methods ──────────────────────────────────────────────────
 
 	def _set_title(self):
@@ -220,10 +264,32 @@ class CHWarrantyClaim(Document):
 			self.reported_by = frappe.session.user
 
 	def _lookup_warranty_coverage(self):
-		"""Look up warranty from CH Sold Plan + CH Serial Lifecycle."""
+		"""Look up warranty from CH Sold Plan + CH Serial Lifecycle.
+
+		If sold_plan is pre-set (e.g. user selected a specific plan from POS),
+		use that plan directly instead of auto-detecting.
+		"""
 		from ch_item_master.ch_item_master.doctype.ch_sold_plan.ch_sold_plan import (
 			check_warranty_status,
 		)
+
+		# If a specific sold plan was selected, use it directly
+		if self.sold_plan:
+			try:
+				sp = frappe.get_doc("CH Sold Plan", self.sold_plan)
+				if sp.status == "Active" and sp.docstatus == 1:
+					self.warranty_status = "Under Warranty"
+					self.warranty_plan = sp.warranty_plan
+					self.plan_type = sp.plan_type
+					self.warranty_start_date = sp.start_date
+					self.warranty_end_date = sp.end_date
+					self.claims_used = sp.claims_used or 0
+					self.max_claims = sp.max_claims or 0
+					self.deductible_amount = flt(sp.deductible_amount)
+					return
+			except frappe.DoesNotExistError:
+				pass  # Fall through to auto-detection
+
 		result = check_warranty_status(self.serial_no, self.company)
 
 		self.warranty_status = result.get("warranty_status", "No Warranty")

@@ -194,7 +194,6 @@ class CHWarrantyPlan(Document):
 			if existing:
 				frappe.db.set_value("Item Price", existing, {
 					"price_list_rate": self.price,
-					"company": self.company or "",
 				})
 			else:
 				ip = frappe.new_doc("Item Price")
@@ -202,7 +201,6 @@ class CHWarrantyPlan(Document):
 				ip.price_list = price_list
 				ip.price_list_rate = self.price
 				ip.selling = 1
-				ip.company = self.company or ""
 				ip.currency = frappe.get_value("Price List", price_list, "currency") or "INR"
 				ip.note = f"Warranty Plan: {self.plan_name}"
 				ip.flags.ignore_permissions = True

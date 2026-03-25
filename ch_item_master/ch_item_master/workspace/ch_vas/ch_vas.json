@@ -1,0 +1,166 @@
+{
+ "charts": [],
+ "content": "[{\"id\":\"vas_hdr_0\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>VAS & Warranty</b></span>\",\"col\":12}},{\"id\":\"vas_para\",\"type\":\"paragraph\",\"data\":{\"text\":\"Value Added Services — warranty plans, sold plans, claims, vouchers and ledger.\",\"col\":12}},{\"id\":\"vas_sp_0\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"vas_hdr_1\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Quick Access</b></span>\",\"col\":12}},{\"id\":\"vas_sc_plans\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Warranty Plans\",\"col\":3}},{\"id\":\"vas_sc_sold\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Sold Plans\",\"col\":3}},{\"id\":\"vas_sc_claims\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Warranty Claims\",\"col\":3}},{\"id\":\"vas_sc_vouchers\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Vouchers\",\"col\":3}},{\"id\":\"vas_sp_1\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"vas_hdr_2\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Masters & Config</b></span>\",\"col\":12}},{\"id\":\"vas_card_masters\",\"type\":\"card\",\"data\":{\"card_name\":\"Plan Masters\",\"col\":4}},{\"id\":\"vas_card_ops\",\"type\":\"card\",\"data\":{\"card_name\":\"Operations\",\"col\":4}},{\"id\":\"vas_card_audit\",\"type\":\"card\",\"data\":{\"card_name\":\"Audit & Ledger\",\"col\":4}}]",
+ "creation": "2026-03-29 10:00:00",
+ "custom_blocks": [],
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "for_user": "",
+ "hide_custom": 0,
+ "icon": "shield",
+ "idx": 0,
+ "is_hidden": 0,
+ "label": "CH VAS",
+ "links": [
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Plan Masters",
+   "link_count": 0,
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "CH Warranty Plan",
+   "link_count": 0,
+   "link_to": "CH Warranty Plan",
+   "link_type": "DocType",
+   "onboard": 1,
+   "type": "Link",
+   "description": "VAS plan catalog — coverage, pricing, rules"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "CH Sold Plan",
+   "link_count": 0,
+   "link_to": "CH Sold Plan",
+   "link_type": "DocType",
+   "onboard": 1,
+   "type": "Link",
+   "description": "Plans issued to customers (memberships)"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "CH Customer Device",
+   "link_count": 0,
+   "link_to": "CH Customer Device",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link",
+   "description": "Devices registered to customers"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Operations",
+   "link_count": 0,
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "CH Warranty Claim",
+   "link_count": 0,
+   "link_to": "CH Warranty Claim",
+   "link_type": "DocType",
+   "onboard": 1,
+   "type": "Link",
+   "description": "Warranty & VAS claims lifecycle"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "CH Voucher",
+   "link_count": 0,
+   "link_to": "CH Voucher",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link",
+   "description": "Gift cards, store credits, promo vouchers"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "CH Serial Lifecycle",
+   "link_count": 0,
+   "link_to": "CH Serial Lifecycle",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link",
+   "description": "Full device lifecycle tracking"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Audit & Ledger",
+   "link_count": 0,
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "CH VAS Ledger",
+   "link_count": 0,
+   "link_to": "CH VAS Ledger",
+   "link_type": "DocType",
+   "onboard": 1,
+   "type": "Link",
+   "description": "Audit trail of all VAS events"
+  }
+ ],
+ "modified": "2026-03-29 10:00:00",
+ "modified_by": "Administrator",
+ "module": "CH Item Master",
+ "name": "CH VAS",
+ "number_cards": [],
+ "owner": "Administrator",
+ "parent_page": "CH Core",
+ "public": 1,
+ "restrict_to_domain": "",
+ "roles": [],
+ "sequence_id": 10,
+ "shortcuts": [
+  {
+   "color": "Green",
+   "doc_view": "List",
+   "label": "Warranty Plans",
+   "link_to": "CH Warranty Plan",
+   "stats_filter": "{\"status\": \"Active\"}",
+   "type": "DocType"
+  },
+  {
+   "color": "Blue",
+   "doc_view": "List",
+   "label": "Sold Plans",
+   "link_to": "CH Sold Plan",
+   "stats_filter": "{\"status\": \"Active\", \"docstatus\": 1}",
+   "type": "DocType"
+  },
+  {
+   "color": "Orange",
+   "doc_view": "List",
+   "label": "Warranty Claims",
+   "link_to": "CH Warranty Claim",
+   "stats_filter": "{\"claim_status\": [\"not in\", [\"Closed\", \"Cancelled\"]]}",
+   "type": "DocType"
+  },
+  {
+   "color": "Yellow",
+   "doc_view": "List",
+   "label": "Vouchers",
+   "link_to": "CH Voucher",
+   "stats_filter": "{\"status\": \"Active\"}",
+   "type": "DocType"
+  }
+ ],
+ "title": "CH VAS"
+}

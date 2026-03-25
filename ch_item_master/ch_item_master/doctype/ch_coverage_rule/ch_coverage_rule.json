@@ -1,0 +1,56 @@
+{
+ "name": "CH Coverage Rule",
+ "module": "CH Item Master",
+ "doctype": "DocType",
+ "istable": 1,
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "fields": [
+  {
+   "fieldname": "issue_type",
+   "fieldtype": "Link",
+   "label": "Issue Type",
+   "options": "Issue Category",
+   "in_list_view": 1,
+   "reqd": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "covered",
+   "fieldtype": "Check",
+   "label": "Covered",
+   "default": "1",
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "coverage_percent",
+   "fieldtype": "Percent",
+   "label": "Coverage %",
+   "default": "100",
+   "in_list_view": 1,
+   "columns": 1,
+   "description": "Percentage of repair cost covered by plan. 100 = full coverage."
+  },
+  {
+   "fieldname": "max_claim_per_issue",
+   "fieldtype": "Int",
+   "label": "Max Claims (This Issue)",
+   "default": "0",
+   "in_list_view": 1,
+   "columns": 1,
+   "description": "0 = unlimited (subject to plan-level limits)"
+  },
+  {
+   "fieldname": "deductible_override",
+   "fieldtype": "Currency",
+   "label": "Deductible Override",
+   "in_list_view": 1,
+   "columns": 1,
+   "description": "Override plan-level deductible for this issue type. Leave blank to use plan default."
+  }
+ ],
+ "permissions": [],
+ "sort_field": "idx",
+ "sort_order": "ASC"
+}

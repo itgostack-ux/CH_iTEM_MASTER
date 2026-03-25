@@ -217,6 +217,13 @@
    "description": "Item Groups this plan can be attached to. Leave blank = all."
   },
   {
+   "fieldname": "applicable_categories",
+   "fieldtype": "Table MultiSelect",
+   "label": "Applicable Categories",
+   "options": "CH Warranty Plan Category",
+   "description": "CH Categories this plan applies to (e.g. Mobiles, Laptops). Leave blank = all categories."
+  },
+  {
    "fieldname": "column_break_applicability",
    "fieldtype": "Column Break"
   },
@@ -249,6 +256,19 @@
    "fieldname": "internal_notes",
    "fieldtype": "Small Text",
    "label": "Internal Notes"
+  },
+  {
+   "fieldname": "section_coverage_rules",
+   "fieldtype": "Section Break",
+   "label": "Coverage Rules",
+   "collapsible": 1,
+   "description": "Per-issue-type coverage matrix. Leave empty = all issues covered equally at plan-level settings."
+  },
+  {
+   "fieldname": "coverage_rules",
+   "fieldtype": "Table",
+   "label": "Coverage Rules",
+   "options": "CH Coverage Rule"
   }
  ],
  "permissions": [

@@ -1,0 +1,58 @@
+{
+ "name": "CH Claim Media",
+ "module": "CH Item Master",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "istable": 1,
+ "issingle": 0,
+ "editable_grid": 1,
+ "track_changes": 0,
+ "fields": [
+  {
+   "fieldname": "stage",
+   "fieldtype": "Select",
+   "label": "Stage",
+   "options": "Customer Upload\nPickup\nDiagnosis\nRepair\nDelivery",
+   "reqd": 1,
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "image",
+   "fieldtype": "Attach Image",
+   "label": "Image",
+   "reqd": 1,
+   "in_list_view": 1,
+   "columns": 4
+  },
+  {
+   "fieldname": "caption",
+   "fieldtype": "Data",
+   "label": "Caption",
+   "in_list_view": 1,
+   "columns": 3
+  },
+  {
+   "fieldname": "uploaded_by",
+   "fieldtype": "Link",
+   "label": "Uploaded By",
+   "options": "User",
+   "read_only": 1,
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "uploaded_at",
+   "fieldtype": "Datetime",
+   "label": "Uploaded At",
+   "read_only": 1,
+   "default": "Now"
+  }
+ ],
+ "permissions": [],
+ "actions": [],
+ "creation": "2026-03-29 00:00:00.000000",
+ "modified": "2026-03-29 00:00:00.000000",
+ "modified_by": "Administrator",
+ "owner": "Administrator"
+}

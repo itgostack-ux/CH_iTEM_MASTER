@@ -100,6 +100,12 @@ def sync_workspace():
             "filename": "ch_vendor_master.json",
             "label": "CH Vendor Master",
         },
+        {
+            "module": "ch_item_master",
+            "subfolder": os.path.join("ch_item_master", "workspace", "ch_vas"),
+            "filename": "ch_vas.json",
+            "label": "CH VAS",
+        },
     ]
 
     for ws_def in workspaces:

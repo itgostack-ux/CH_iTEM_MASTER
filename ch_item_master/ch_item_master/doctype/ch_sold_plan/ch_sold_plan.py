@@ -39,6 +39,7 @@ class CHSoldPlan(Document):
 			self.customer_phone = validate_indian_phone(self.customer_phone, "Customer Phone")
 		self._validate_dates()
 		self._validate_plan_active()
+		self._validate_category()
 		self._validate_duplicate()
 		self._auto_compute_end_date()
 		self._set_sold_by()
@@ -46,11 +47,13 @@ class CHSoldPlan(Document):
 	def on_submit(self):
 		self._sync_to_serial_lifecycle()
 		self._send_welcome_notification()
+		self._log_vas_event("Plan Activated")
 
 	def on_cancel(self):
 		self.status = "Cancelled"
 		self.db_set("status", "Cancelled")
 		self._clear_serial_lifecycle()
+		self._log_vas_event("Plan Cancelled")
 
 	def _validate_dates(self):
 		"""Start date must be before end date."""
@@ -74,6 +77,35 @@ class CHSoldPlan(Document):
 					frappe.bold(self.warranty_plan), plan_status
 				),
 				title=_("Inactive Plan"),
+			)
+
+	def _validate_category(self):
+		"""Ensure device category matches plan's applicable categories."""
+		if not self.warranty_plan or not self.item_code:
+			return
+		plan_categories = frappe.get_all(
+			"CH Warranty Plan Category",
+			filters={"parent": self.warranty_plan},
+			pluck="category",
+		)
+		if not plan_categories:
+			return  # no restriction
+		device_category = frappe.db.get_value("Item", self.item_code, "ch_category")
+		if not device_category:
+			frappe.throw(
+				_("Device {0} has no category set — cannot verify VAS eligibility.").format(
+					frappe.bold(self.item_code)),
+				title=_("Missing Category"),
+			)
+		if device_category not in plan_categories:
+			frappe.throw(
+				_("Plan {0} is restricted to {1}, but device {2} belongs to {3}.").format(
+					frappe.bold(self.warranty_plan),
+					frappe.bold(", ".join(plan_categories)),
+					frappe.bold(self.item_code),
+					frappe.bold(device_category),
+				),
+				title=_("Category Mismatch"),
 			)
 
 	def _validate_duplicate(self):
@@ -325,6 +357,25 @@ class CHSoldPlan(Document):
 			"creation": ["between", [str(year_start), str(year_end)]],
 		})
 		return count
+
+	def _log_vas_event(self, event_type, claim_amount=0,
+	                   reference_doctype=None, reference_name=None):
+		"""Write an entry to CH VAS Ledger for audit."""
+		try:
+			from ch_item_master.ch_item_master.doctype.ch_vas_ledger.ch_vas_ledger import log_vas_event
+			log_vas_event(
+				sold_plan=self.name,
+				event_type=event_type,
+				claim_amount=claim_amount,
+				reference_doctype=reference_doctype,
+				reference_name=reference_name,
+				remarks=f"{event_type} — {self.plan_title or self.warranty_plan}",
+			)
+		except Exception:
+			frappe.log_error(
+				frappe.get_traceback(),
+				f"VAS Ledger log failed for {self.name} ({event_type})",
+			)
 
 
 # ── Whitelisted API ────────────────────────────────────────────────────────

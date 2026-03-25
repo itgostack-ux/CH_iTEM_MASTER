@@ -129,6 +129,7 @@ def update_lifecycle_status(serial_no, new_status, company=None,
     allowed_extra_fields = {
         "sale_date", "sale_document", "sale_rate", "customer", "customer_name",
         "buyback_date", "buyback_value", "buyback_grade", "buyback_document",
+        "stock_condition",
     }
     for key, value in kwargs.items():
         if key in allowed_extra_fields:

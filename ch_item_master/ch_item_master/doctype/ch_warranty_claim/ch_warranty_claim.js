@@ -63,10 +63,28 @@ function _setup_action_buttons(frm) {
 	// Approve / Reject buttons (for GoGizmo Head)
 	if (frm.doc.claim_status === "Pending Approval") {
 		frm.add_custom_button(__("Approve"), () => {
+			const gogizmo_amt = frm.doc.gogizmo_share || 0;
 			frappe.prompt(
-				{ fieldtype: "Small Text", fieldname: "remarks", label: "Approval Remarks" },
+				[
+					{
+						fieldtype: "Currency",
+						fieldname: "approved_amount",
+						label: __("Approved Amount (GoGizmo Pays)"),
+						default: gogizmo_amt,
+						description: __("Estimated: ₹{0}. Reduce for partial approval — difference shifts to customer.", [gogizmo_amt]),
+						reqd: 1,
+					},
+					{
+						fieldtype: "Small Text",
+						fieldname: "remarks",
+						label: __("Approval Remarks"),
+					},
+				],
 				(values) => {
-					frm.call("approve", { remarks: values.remarks }).then(() => frm.reload_doc());
+					frm.call("approve", {
+						remarks: values.remarks,
+						approved_amount: values.approved_amount,
+					}).then(() => frm.reload_doc());
 				},
 				__("Approve Warranty Claim")
 			);
