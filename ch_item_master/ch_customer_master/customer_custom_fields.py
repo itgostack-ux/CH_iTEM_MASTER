@@ -24,6 +24,19 @@ CUSTOMER_CUSTOM_FIELDS = {
 			"no_copy": 1,
 			"description": _("Auto-generated numeric ID for API / mobile / POS integration"),
 		},
+		{
+			"fieldname": "ch_membership_id",
+			"label": _("Membership ID"),
+			"fieldtype": "Data",
+			"insert_after": "ch_customer_id",
+			"unique": 1,
+			"read_only": 1,
+			"bold": 1,
+			"no_copy": 1,
+			"in_list_view": 1,
+			"in_standard_filter": 1,
+			"description": _("Customer-facing membership ID (e.g. GG-10045). Printed on invoices and plan certificates."),
+		},
 		# ══════════════════════════════════════════════
 		# Tab: CH Profile
 		# ══════════════════════════════════════════════
@@ -78,6 +91,14 @@ CUSTOMER_CUSTOM_FIELDS = {
 			"options": "Phone",
 			"insert_after": "ch_alternate_phone",
 			"description": _("For Gallabox WhatsApp integration"),
+		},
+		{
+			"fieldname": "ch_previous_phones",
+			"label": _("Previous Phone Numbers"),
+			"fieldtype": "Small Text",
+			"insert_after": "ch_whatsapp_number",
+			"read_only": 1,
+			"description": _("Audit log of previous phone numbers (auto-populated on change)"),
 		},
 		{
 			"fieldname": "ch_customer_image",
@@ -424,6 +445,15 @@ CUSTOMER_CUSTOM_FIELDS = {
 			"read_only": 1,
 			"default": "0",
 			"description": _("Devices currently owned (Sold status in lifecycle)"),
+		},
+		{
+			"fieldname": "ch_active_plans_count",
+			"label": _("Active Plans"),
+			"fieldtype": "Int",
+			"insert_after": "ch_active_devices",
+			"read_only": 1,
+			"default": "0",
+			"description": _("Number of active warranty/VAS plans"),
 		},
 		{
 			"fieldname": "ch_loyalty_points_balance",

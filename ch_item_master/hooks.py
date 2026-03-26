@@ -17,7 +17,7 @@ add_to_apps_screen = [
 ]
 
 app_include_js = "public/js/item_quick_entry.js"
-doctype_js = {"Item": "public/js/item.js"}
+doctype_js = {"Item": "public/js/item.js", "Customer": "public/js/customer.js"}
 
 # Installation / Migration
 after_install = "ch_item_master.install.after_install"
@@ -93,6 +93,11 @@ doc_events = {
 	},
 	"Buyback Assessment": {
 		"on_update": "ch_item_master.ch_customer_master.hooks.on_buyback_assessment_update",
+	},
+	"CH Sold Plan": {
+		"on_submit": "ch_item_master.ch_customer_master.hooks.on_sold_plan_change",
+		"on_cancel": "ch_item_master.ch_customer_master.hooks.on_sold_plan_change",
+		"on_update": "ch_item_master.ch_customer_master.hooks.on_sold_plan_change",
 	},
 	# Transactions: manual rate-filling removed.
 	# ERPNext natively uses Item Price (fetched by price list) and applies Pricing Rules.

@@ -153,6 +153,14 @@ def _update_activity_summary(customer):
 			)
 			loyalty_balance = cint(result[0][0]) if result else 0
 
+		# Active sold plans
+		active_plans = 0
+		if frappe.db.exists("DocType", "CH Sold Plan"):
+			active_plans = frappe.db.count(
+				"CH Sold Plan",
+				{"customer": customer, "docstatus": 1, "status": "Active"},
+			)
+
 		# Update Customer
 		frappe.db.set_value(
 			"Customer",
@@ -163,6 +171,7 @@ def _update_activity_summary(customer):
 				"ch_total_buybacks": cint(total_buybacks),
 				"ch_active_devices": cint(active_devices),
 				"ch_loyalty_points_balance": cint(loyalty_balance),
+				"ch_active_plans_count": cint(active_plans),
 			},
 			update_modified=False,
 		)
@@ -175,6 +184,12 @@ def _update_activity_summary(customer):
 			title=f"CH Activity Summary Error: {customer}",
 			message=frappe.get_traceback(),
 		)
+
+
+def on_sold_plan_change(doc, method=None):
+	"""When a CH Sold Plan is submitted/cancelled/status-changed, sync active plans count."""
+	if doc.customer:
+		_update_activity_summary(doc.customer)
 
 
 def _classify_customer_segment(customer, total_purchases, total_services):
