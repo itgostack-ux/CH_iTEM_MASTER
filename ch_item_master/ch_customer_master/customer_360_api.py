@@ -386,10 +386,10 @@ def _get_coupon_usage(customer, company=None):
 		params["company"] = company
 
 	return frappe.db.sql(
-		f"""SELECT pi.name, pi.posting_date, pi.coupon_code, pi.grand_total, pi.status
-		FROM `tabPOS Invoice` pi
+		f"""SELECT pi.name, pi.posting_date, pi.custom_coupon_code AS coupon_code, pi.grand_total, pi.status
+		FROM `tabSales Invoice` pi
 		WHERE pi.customer = %(customer)s AND pi.docstatus = 1
-		  AND pi.coupon_code IS NOT NULL AND pi.coupon_code != ''
+		  AND pi.custom_coupon_code IS NOT NULL AND pi.custom_coupon_code != ''
 		  {company_cond}
 		ORDER BY pi.posting_date DESC LIMIT 20""",
 		params,

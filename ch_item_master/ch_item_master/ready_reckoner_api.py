@@ -1310,7 +1310,7 @@ def upload_ready_reckoner_prices(file_url, effective_from=None, company=None, re
                 continue
 
             try:
-                new_val = float(raw_val)
+                new_val = float(str(raw_val).replace(",", "").strip())
             except (ValueError, TypeError):
                 parse_errors.append(
                     f"Row {row_num}, col '{headers[col_idx]}': invalid number '{raw_val}'"

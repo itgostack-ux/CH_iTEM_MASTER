@@ -7,6 +7,15 @@ from frappe.model.document import Document
 from frappe.utils import now_datetime, nowdate, getdate
 
 
+def _safe_float(val):
+	"""Convert a value to float, stripping commas and whitespace (e.g. '60,000' → 60000.0)."""
+	if not val:
+		return 0.0
+	if isinstance(val, (int, float)):
+		return float(val)
+	return float(str(val).replace(",", "").strip() or 0)
+
+
 class CHPriceUploadBatch(Document):
 	"""Maker / Checker price-upload batch.
 
@@ -46,9 +55,9 @@ class CHPriceUploadBatch(Document):
 				field_map = {"MRP": "mrp", "MOP": "mop", "Selling Price": "selling_price"}
 				field = field_map.get(row.field_label)
 				if field:
-					selling_groups[key][field] = float(row.new_value or 0)
+					selling_groups[key][field] = _safe_float(row.new_value)
 			elif row.change_type == "Buyback Price":
-				new_val = float(row.new_value or 0)
+				new_val = _safe_float(row.new_value)
 				if new_val < 0:
 					frappe.throw(
 						_("Row {0}: {1} cannot be negative ({2})").format(
@@ -68,9 +77,9 @@ class CHPriceUploadBatch(Document):
 				as_dict=True,
 			) or {}
 
-			mrp = new_fields.get("mrp", float(existing.get("mrp") or 0))
-			mop = new_fields.get("mop", float(existing.get("mop") or 0))
-			sp  = new_fields.get("selling_price", float(existing.get("selling_price") or 0))
+			mrp = new_fields.get("mrp", _safe_float(existing.get("mrp")))
+			mop = new_fields.get("mop", _safe_float(existing.get("mop")))
+			sp  = new_fields.get("selling_price", _safe_float(existing.get("selling_price")))
 
 			item_name = frappe.db.get_value("Item", item_code, "item_name") or item_code
 
@@ -243,8 +252,8 @@ class CHPriceUploadBatch(Document):
 					row.error_message = f"Unknown field '{row.field_label}'"
 					skipped += 1
 					continue
-				new_val = float(row.new_value or 0)
-				cur_val = float(doc.get(field) or 0)
+				new_val = _safe_float(row.new_value)
+				cur_val = _safe_float(doc.get(field))
 				if cur_val != new_val:
 					doc.set(field, new_val)
 					changed = True
@@ -274,7 +283,7 @@ class CHPriceUploadBatch(Document):
 				}
 				field = field_map.get(row.field_label)
 				if field:
-					doc.set(field, float(row.new_value or 0))
+					doc.set(field, _safe_float(row.new_value))
 					row.status = "Applied"
 					applied += 1
 				else:
@@ -320,8 +329,8 @@ class CHPriceUploadBatch(Document):
 				row.error_message = f"Unknown buyback field '{field or '(empty)'}'"
 				skipped += 1
 				continue
-			new_val = float(row.new_value or 0)
-			cur_val = float(doc.get(field) or 0)
+			new_val = _safe_float(row.new_value)
+			cur_val = _safe_float(doc.get(field))
 			if cur_val != new_val:
 				doc.set(field, new_val)
 				changed = True
