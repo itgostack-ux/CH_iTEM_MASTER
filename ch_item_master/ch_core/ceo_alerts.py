@@ -70,7 +70,7 @@ def _create_alert(alert_type, severity, store, message, expiry_hours=24):
 def _check_low_conversion(store, today, settings):
 	threshold = cint(settings.low_conversion_threshold) or 40
 
-	tokens = frappe.db.count("CH Kiosk Token", filters={
+	tokens = frappe.db.count("POS Kiosk Token", filters={
 		"pos_profile": store,
 		"creation": [">=", today],
 	})

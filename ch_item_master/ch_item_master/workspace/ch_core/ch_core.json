@@ -1,6 +1,6 @@
 {
  "charts": [],
- "content": "[{\"id\":\"cc_hdr_0\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>CH Core</b></span>\",\"col\":12}},{\"id\":\"cc_para\",\"type\":\"paragraph\",\"data\":{\"text\":\"Congruence Holdings \\u2013 centralised masters for Items, Customers and Vendors.\",\"col\":12}},{\"id\":\"cc_sp_0\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"cc_hdr_1\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Quick Access</b></span>\",\"col\":12}},{\"id\":\"cc_sc_1\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Item\",\"col\":3}},{\"id\":\"cc_sc_2\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Customer\",\"col\":3}},{\"id\":\"cc_sc_3\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Supplier\",\"col\":3}},{\"id\":\"cc_sc_4\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Customer Intelligence Dashboard\",\"col\":3}},{\"id\":\"cc_sp_1\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"cc_hdr_2\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Shared Masters</b></span>\",\"col\":12}},{\"id\":\"cc_card_shared\",\"type\":\"card\",\"data\":{\"card_name\":\"Shared Masters\",\"col\":4}},{\"id\":\"cc_card_exception\",\"type\":\"card\",\"data\":{\"card_name\":\"Exception Approval\",\"col\":4}},{\"id\":\"cc_sp_2\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"cc_hdr_fin\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Finance & Compliance</b></span>\",\"col\":12}},{\"id\":\"sc_audit_log\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Business Audit Log\",\"col\":4}},{\"id\":\"sc_scheme_recv\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Scheme Receivables\",\"col\":4}},{\"id\":\"sc_voucher\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Vouchers\",\"col\":4}},{\"id\":\"cc_sp_3\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"cc_card_audit\",\"type\":\"card\",\"data\":{\"card_name\":\"Audit & Receivables\",\"col\":4}},{\"id\":\"cc_card_fin_reports\",\"type\":\"card\",\"data\":{\"card_name\":\"Finance Reports\",\"col\":4}}]",
+ "content": "[{\"id\":\"cc_hdr_0\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>CH Core</b></span>\",\"col\":12}},{\"id\":\"cc_para\",\"type\":\"paragraph\",\"data\":{\"text\":\"Congruence Holdings \\u2013 centralised masters for Items, Customers and Vendors.\",\"col\":12}},{\"id\":\"cc_sp_0\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"cc_hdr_1\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Quick Access</b></span>\",\"col\":12}},{\"id\":\"cc_sc_1\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Item\",\"col\":3}},{\"id\":\"cc_sc_2\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Customer\",\"col\":3}},{\"id\":\"cc_sc_3\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Supplier\",\"col\":3}},{\"id\":\"cc_sc_4\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Customer Intelligence Dashboard\",\"col\":3}},{\"id\":\"cc_sp_1\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"cc_hdr_2\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Shared Masters</b></span>\",\"col\":12}},{\"id\":\"cc_card_shared\",\"type\":\"card\",\"data\":{\"card_name\":\"Shared Masters\",\"col\":4}},{\"id\":\"cc_card_exception\",\"type\":\"card\",\"data\":{\"card_name\":\"Exception Approval\",\"col\":4}},{\"id\":\"cc_sp_2\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"cc_hdr_fin\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Finance & Compliance</b></span>\",\"col\":12}},{\"id\":\"sc_audit_log\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Business Audit Log\",\"col\":4}},{\"id\":\"sc_scheme_recv\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Scheme Receivables\",\"col\":4}},{\"id\":\"sc_voucher\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Vouchers\",\"col\":4}},{\"id\":\"cc_sp_3\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"cc_card_audit\",\"type\":\"card\",\"data\":{\"card_name\":\"Audit & Receivables\",\"col\":4}},{\"id\":\"cc_card_fin_reports\",\"type\":\"card\",\"data\":{\"card_name\":\"Finance Reports\",\"col\":4}},{\"id\":\"cc_sp_4\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"cc_hdr_ceo\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>CEO Dashboard</b></span>\",\"col\":12}},{\"id\":\"cc_sc_ceo\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"CEO Command Center\",\"col\":4}},{\"id\":\"cc_card_ceo\",\"type\":\"card\",\"data\":{\"card_name\":\"CEO Dashboard\",\"col\":4}}]",
  "creation": "2026-03-02 10:00:00",
  "custom_blocks": [],
  "docstatus": 0,
@@ -137,6 +137,45 @@
    "link_type": "Report",
    "onboard": 0,
    "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "CEO Dashboard",
+   "link_count": 0,
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "CEO Command Center",
+   "link_count": 0,
+   "link_to": "ceo-command-center",
+   "link_type": "Page",
+   "onboard": 1,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "CH CEO Alert",
+   "link_count": 0,
+   "link_to": "CH CEO Alert",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "CH CEO Dashboard Settings",
+   "link_count": 0,
+   "link_to": "CH CEO Dashboard Settings",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
   }
  ],
  "modified": "2026-03-17 10:00:00.000000",
@@ -181,6 +220,14 @@
    "doc_view": "",
    "label": "Customer Intelligence Dashboard",
    "link_to": "ch-customer-dashboard",
+   "stats_filter": "",
+   "type": "Page"
+  },
+  {
+   "color": "Red",
+   "doc_view": "",
+   "label": "CEO Command Center",
+   "link_to": "ceo-command-center",
    "stats_filter": "",
    "type": "Page"
   },

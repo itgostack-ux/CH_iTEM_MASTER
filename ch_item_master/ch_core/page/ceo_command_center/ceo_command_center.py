@@ -122,7 +122,7 @@ def _get_summary_kpis(ctx):
 	# Footfall (Tokens)
 	tokens = frappe.db.sql("""
 		SELECT COUNT(*) as cnt
-		FROM `tabCH Kiosk Token` t
+		FROM `tabPOS Kiosk Token` t
 		WHERE t.creation BETWEEN %(from_date)s AND %(to_date)s
 	""", ctx, as_dict=1)
 	kpis["footfall"] = cint(tokens[0].cnt) if tokens else 0
@@ -137,7 +137,7 @@ def _get_conversion_data(ctx):
 	"""Conversion funnel data: tokens → invoices."""
 	hourly = frappe.db.sql("""
 		SELECT HOUR(t.creation) as hr, COUNT(*) as tokens
-		FROM `tabCH Kiosk Token` t
+		FROM `tabPOS Kiosk Token` t
 		WHERE DATE(t.creation) BETWEEN %(from_date)s AND %(to_date)s
 		GROUP BY HOUR(t.creation)
 		ORDER BY hr
