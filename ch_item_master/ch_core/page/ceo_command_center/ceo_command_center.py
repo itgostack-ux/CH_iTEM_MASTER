@@ -51,7 +51,10 @@ def _build_conditions(company=None, store=None, period="today"):
 		sql_parts.append("AND si.company = %(company)s")
 		conditions["company"] = company
 	if store:
-		sql_parts.append("AND si.pos_profile IN (SELECT name FROM `tabPOS Profile` WHERE warehouse = %(store)s)")
+		if frappe.db.exists("POS Profile", store):
+			sql_parts.append("AND si.pos_profile = %(store)s")
+		else:
+			sql_parts.append("AND si.pos_profile IN (SELECT name FROM `tabPOS Profile` WHERE warehouse = %(store)s)")
 		conditions["store"] = store
 
 	conditions["sql_and"] = " ".join(sql_parts)
@@ -86,6 +89,86 @@ def get_command_center_data(company=None, store=None, period="today"):
 
 	frappe.cache.set_value(cache_key, json.dumps(data, default=str), expires_in_sec=300)
 	return data
+
+
+@frappe.whitelist()
+def get_store_drilldown(store, company=None, period="today"):
+	"""Detailed KPI snapshot for a single POS Profile (store)."""
+	frappe.has_permission("Sales Invoice", throw=True)
+	if not store:
+		frappe.throw(_("Store is required"))
+
+	ctx = _build_conditions(company=company, store=store, period=period)
+
+	# Revenue / invoice counters
+	bill_data = frappe.db.sql("""
+		SELECT
+			COALESCE(SUM(si.grand_total), 0) AS revenue,
+			COUNT(*) AS invoice_count,
+			AVG(si.grand_total) AS avg_bill_value
+		FROM `tabSales Invoice` si
+		WHERE si.docstatus = 1
+			AND si.posting_date BETWEEN %(from_date)s AND %(to_date)s
+			{sql_and}
+	""".format(**ctx), ctx, as_dict=1)
+
+	# Walk-ins/footfall from POS Kiosk Token
+	footfall_data = frappe.db.sql("""
+		SELECT COUNT(*) AS footfall
+		FROM `tabPOS Kiosk Token` t
+		WHERE DATE(t.creation) BETWEEN %(from_date)s AND %(to_date)s
+			AND t.pos_profile = %(store)s
+	""", ctx, as_dict=1)
+
+	# Discount leakage (% of discounted lines)
+	discount_data = frappe.db.sql("""
+		SELECT
+			COUNT(*) AS total_items,
+			SUM(CASE WHEN sii.discount_percentage > 0 THEN 1 ELSE 0 END) AS discounted_items
+		FROM `tabSales Invoice Item` sii
+		JOIN `tabSales Invoice` si ON si.name = sii.parent
+		WHERE si.docstatus = 1
+			AND si.posting_date BETWEEN %(from_date)s AND %(to_date)s
+			{sql_and}
+	""".format(**ctx), ctx, as_dict=1)
+
+	# Active repair load for this store (via warehouse -> source_warehouse)
+	repair_filters = {
+		"decision": ["in", ["Accepted", "In Service"]],
+		"docstatus": 1,
+	}
+	warehouse = frappe.db.get_value("POS Profile", store, "warehouse")
+	if warehouse:
+		repair_filters["source_warehouse"] = warehouse
+
+	open_repairs = frappe.db.count("Service Request", filters=repair_filters)
+
+	revenue = (bill_data[0].revenue if bill_data else 0) or 0
+	invoice_count = (bill_data[0].invoice_count if bill_data else 0) or 0
+	avg_bill_value = (bill_data[0].avg_bill_value if bill_data else 0) or 0
+	footfall = (footfall_data[0].footfall if footfall_data else 0) or 0
+
+	total_items = (discount_data[0].total_items if discount_data else 0) or 0
+	discounted_items = (discount_data[0].discounted_items if discount_data else 0) or 0
+
+	attach = _get_attach_data(ctx)
+
+	return {
+		"store": store,
+		"company": company,
+		"period": period,
+		"summary": {
+			"revenue": flt(revenue),
+			"invoice_count": cint(invoice_count),
+			"avg_bill_value": flt(avg_bill_value),
+			"footfall": cint(footfall),
+			"conversion_pct": flt(invoice_count / footfall * 100, 1) if footfall else 0,
+			"warranty_attach_pct": flt(attach.get("warranty_rate", 0)),
+			"accessory_attach_pct": flt(attach.get("accessory_rate", 0)),
+			"discount_override_pct": flt(discounted_items / total_items * 100, 1) if total_items else 0,
+			"open_repairs": cint(open_repairs),
+		},
+	}
 
 
 # ---------------------------------------------------------------------------

@@ -55,6 +55,9 @@ scheduler_events = {
 		"*/30 * * * *": [
 			"ch_item_master.ch_core.ceo_alerts.check_ceo_alerts",
 		],
+		"0 9 * * *": [
+			"ch_item_master.ch_core.ceo_alerts.send_ceo_daily_digest",
+		],
 	},
 }
 

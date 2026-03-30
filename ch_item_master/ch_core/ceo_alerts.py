@@ -143,3 +143,67 @@ def _check_high_discount(store, today, settings):
 			f"Discount override rate at {rate}% ({data[0].disc_items}/{data[0].total_items} items). Threshold: {threshold}%",
 			cint(settings.alert_expiry_hours) or 24
 		)
+
+
+def send_ceo_daily_digest():
+	"""Send daily CEO KPI digest email at 9 AM."""
+	from ch_item_master.ch_core.page.ceo_command_center.ceo_command_center import get_command_center_data
+
+	try:
+		data = get_command_center_data(period="today")
+	except Exception:
+		frappe.log_error(frappe.get_traceback(), "CEO Daily Digest: data load failed")
+		return
+
+	summary = data.get("summary", {})
+	attach = data.get("attach", {})
+	alerts = data.get("alerts", [])[:5]
+
+	recipients = _get_ceo_digest_recipients()
+	if not recipients:
+		return
+
+	alert_lines = "".join([
+		f"<li><b>{frappe.utils.escape_html(a.get('alert_type') or 'Alert')}</b>"
+		f" ({frappe.utils.escape_html(a.get('store') or 'All Stores')}): "
+		f"{frappe.utils.escape_html(a.get('message') or '')}</li>"
+		for a in alerts
+	]) or "<li>No active alerts</li>"
+
+	message = f"""
+		<h3>CEO Daily Digest - {nowdate()}</h3>
+		<p><b>Revenue:</b> {frappe.utils.fmt_money(summary.get('revenue') or 0)}</p>
+		<p><b>Invoices:</b> {summary.get('invoice_count') or 0}</p>
+		<p><b>Footfall:</b> {summary.get('footfall') or 0}</p>
+		<p><b>Conversion:</b> {summary.get('conversion_pct') or 0}%</p>
+		<p><b>Warranty Attach:</b> {attach.get('warranty_rate') or 0}%</p>
+		<p><b>Accessory Attach:</b> {attach.get('accessory_rate') or 0}%</p>
+		<p><b>Top Alerts:</b></p>
+		<ul>{alert_lines}</ul>
+	"""
+
+	try:
+		frappe.sendmail(
+			recipients=recipients,
+			subject=f"CEO Daily Digest | {nowdate()}",
+			message=message,
+			now=False,
+		)
+	except frappe.OutgoingEmailError:
+		frappe.log_error(
+			"Default outgoing email account is not configured.",
+			"CEO Daily Digest: email skipped",
+		)
+
+
+def _get_ceo_digest_recipients():
+	roles = ["CEO", "COO", "System Manager"]
+	users = set()
+	for role in roles:
+		rows = frappe.get_all("Has Role", filters={"role": role, "parenttype": "User"}, pluck="parent")
+		for user in rows:
+			if user and user not in ("Administrator", "Guest"):
+				email = frappe.db.get_value("User", user, "email")
+				if email:
+					users.add(email)
+	return sorted(users)
