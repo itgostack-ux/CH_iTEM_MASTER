@@ -83,6 +83,7 @@ def get_command_center_data(company=None, store=None, period="today"):
 		"leakage": _get_leakage_data(ctx),
 		"repairs": _get_repair_data(ctx),
 		"stores": _get_store_rankings(ctx),
+		"scorecards": _get_store_scorecards(company=company, period=period),
 		"alerts": _get_active_alerts(),
 		"hourly_trend": _get_hourly_trend(ctx),
 	}
@@ -329,6 +330,118 @@ def _get_store_rankings(ctx):
 		"bottom_5": list(reversed(stores[-5:])) if len(stores) > 5 else [],
 		"all": stores
 	}
+
+
+def _normalized(actual, target):
+	"""Normalize actual against target and cap at 1.0."""
+	actual = flt(actual)
+	target = flt(target)
+	if target <= 0:
+		return 0
+	return min(actual / target, 1)
+
+
+def _get_scorecard_settings():
+	"""Return scorecard weights and thresholds from settings or defaults."""
+	defaults = frappe._dict(
+		conversion_weight=25,
+		gocare_attach_weight=20,
+		revenue_vs_target_weight=20,
+		discount_control_weight=15,
+		repair_tat_weight=10,
+		session_discipline_weight=10,
+		low_conversion_threshold=40,
+		low_gocare_attach_threshold=25,
+		high_discount_threshold=8,
+	)
+	try:
+		settings = frappe.get_cached_doc("CH CEO Dashboard Settings")
+		for key in defaults.keys():
+			if settings.get(key) is None:
+				settings.set(key, defaults.get(key))
+		return settings
+	except Exception:
+		return defaults
+
+
+@frappe.whitelist()
+def get_store_scorecards(company=None, period="today"):
+	"""Return weighted health scorecards for POS stores."""
+	frappe.has_permission("Sales Invoice", throw=True)
+	return _get_store_scorecards(company=company, period=period)
+
+
+def _get_store_scorecards(company=None, period="today"):
+	"""Internal helper to calculate store scorecards."""
+	settings = _get_scorecard_settings()
+	stores = frappe.get_all("POS Profile", filters={"disabled": 0}, pluck="name")
+	if not stores:
+		return []
+
+	rows = []
+	for store in stores:
+		try:
+			d = get_store_drilldown(store=store, company=company, period=period)
+			s = d.get("summary", {})
+			rows.append({
+				"store": store,
+				"summary": s,
+			})
+		except Exception:
+			continue
+
+	if not rows:
+		return []
+
+	revenue_target = flt(sum(flt(r["summary"].get("revenue", 0)) for r in rows) / len(rows)) or 1
+	conv_target = cint(settings.get("low_conversion_threshold")) or 40
+	attach_target = cint(settings.get("low_gocare_attach_threshold")) or 25
+	disc_target = cint(settings.get("high_discount_threshold")) or 8
+
+	total_weight = (
+		(cint(settings.get("conversion_weight")) or 25)
+		+ (cint(settings.get("gocare_attach_weight")) or 20)
+		+ (cint(settings.get("revenue_vs_target_weight")) or 20)
+		+ (cint(settings.get("discount_control_weight")) or 15)
+		+ (cint(settings.get("repair_tat_weight")) or 10)
+		+ (cint(settings.get("session_discipline_weight")) or 10)
+	)
+
+	result = []
+	for row in rows:
+		s = row["summary"]
+		conv_norm = _normalized(s.get("conversion_pct", 0), conv_target)
+		attach_norm = _normalized(s.get("warranty_attach_pct", 0), attach_target)
+		revenue_norm = _normalized(s.get("revenue", 0), revenue_target)
+		discount_norm = max(0, 1 - (flt(s.get("discount_override_pct", 0)) / max(disc_target, 1)))
+		repair_norm = 1 if cint(s.get("open_repairs", 0)) <= 5 else flt(5 / max(cint(s.get("open_repairs", 0)), 1))
+		session_norm = 1
+
+		score_weighted = (
+			conv_norm * (cint(settings.get("conversion_weight")) or 25)
+			+ attach_norm * (cint(settings.get("gocare_attach_weight")) or 20)
+			+ revenue_norm * (cint(settings.get("revenue_vs_target_weight")) or 20)
+			+ discount_norm * (cint(settings.get("discount_control_weight")) or 15)
+			+ repair_norm * (cint(settings.get("repair_tat_weight")) or 10)
+			+ session_norm * (cint(settings.get("session_discipline_weight")) or 10)
+		)
+
+		result.append({
+			"store": row["store"],
+			"score": flt((score_weighted / max(total_weight, 1)) * 100, 1),
+			"summary": s,
+			"components": {
+				"conversion_norm": flt(conv_norm, 3),
+				"attach_norm": flt(attach_norm, 3),
+				"revenue_norm": flt(revenue_norm, 3),
+				"discount_norm": flt(discount_norm, 3),
+				"repair_norm": flt(repair_norm, 3),
+				"session_norm": flt(session_norm, 3),
+			},
+		})
+
+	result.sort(key=lambda d: d.get("score", 0), reverse=True)
+	return result
 
 
 def _get_active_alerts():
