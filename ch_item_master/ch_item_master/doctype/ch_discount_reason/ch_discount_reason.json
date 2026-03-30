@@ -6,6 +6,7 @@
  "engine": "InnoDB",
  "field_order": [
   "reason_name",
+  "parent_reason",
   "enabled",
   "column_break_01",
   "company",
@@ -26,6 +27,13 @@
    "reqd": 1,
    "unique": 1,
    "in_list_view": 1
+  },
+  {
+   "fieldname": "parent_reason",
+   "fieldtype": "Link",
+   "label": "Parent Reason",
+   "options": "CH Discount Reason",
+   "description": "Group reason under a parent (e.g., Price Match \u2192 Amazon, Flipkart)"
   },
   {
    "fieldname": "enabled",
@@ -65,7 +73,7 @@
    "fieldtype": "Float",
    "label": "Discount Value",
    "precision": 2,
-   "description": "Fixed discount % or ₹ amount. Set by Head Office.",
+   "description": "Fixed discount % or \u20b9 amount. Set by Head Office.",
    "in_list_view": 1,
    "depends_on": "eval:!doc.allow_manual_entry"
   },
@@ -99,7 +107,7 @@
   }
  ],
  "links": [],
- "modified": "2026-03-13 00:00:00.000000",
+ "modified": "2026-03-30 10:00:00.000000",
  "modified_by": "Administrator",
  "module": "CH Item Master",
  "name": "CH Discount Reason",
