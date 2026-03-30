@@ -60,8 +60,8 @@ function load_data(page) {
 function render_dashboard(container, data) {
 	let html = '';
 
-	// --- Section 1: KPI Cards ---
-	html += render_kpi_cards(data.summary || {});
+	// --- Section 1: KPI Cards with trend arrows ---
+	html += render_kpi_cards(data.summary || {}, data.prev_summary || {});
 
 	// --- Section 2: Hourly Trend ---
 	html += '<div class="cc-section"><h5>Hourly Revenue Trend</h5><canvas id="cc-hourly-chart" height="80"></canvas></div>';
@@ -88,24 +88,35 @@ function render_dashboard(container, data) {
 
 	// Render charts after DOM update
 	setTimeout(() => {
-		render_hourly_chart(data.hourly_trend || []);
+		render_hourly_chart(data.hourly_trend || [], data.prev_hourly_trend || []);
 		render_conversion_chart(data.conversion || []);
 	}, 100);
 }
 
-function render_kpi_cards(s) {
+function render_kpi_cards(s, prev) {
+	prev = prev || {};
+
+	function trend_html(current, previous) {
+		if (!previous || previous === 0) return '';
+		let pct = ((current - previous) / previous * 100).toFixed(1);
+		if (pct == 0) return '';
+		let arrow = pct > 0 ? '▲' : '▼';
+		let cls = pct > 0 ? 'cc-trend-up' : 'cc-trend-down';
+		return `<span class="${cls}">${arrow} ${Math.abs(pct)}%</span>`;
+	}
+
 	let cards = [
-		{ label: 'Revenue', value: format_currency(s.revenue), color: '#2490ef' },
-		{ label: 'Invoices', value: s.invoice_count || 0, color: '#29cd42' },
-		{ label: 'Avg Bill Value', value: format_currency(s.avg_bill_value), color: '#7c5ecf' },
-		{ label: 'Footfall', value: s.footfall || 0, color: '#ed6e3a' },
-		{ label: 'Conversion %', value: (s.conversion_pct || 0) + '%', color: s.conversion_pct >= 40 ? '#29cd42' : '#e24c4c' },
+		{ label: 'Revenue', value: format_currency(s.revenue), color: '#2490ef', trend: trend_html(s.revenue, prev.revenue) },
+		{ label: 'Invoices', value: s.invoice_count || 0, color: '#29cd42', trend: trend_html(s.invoice_count, prev.invoice_count) },
+		{ label: 'Avg Bill Value', value: format_currency(s.avg_bill_value), color: '#7c5ecf', trend: trend_html(s.avg_bill_value, prev.avg_bill_value) },
+		{ label: 'Footfall', value: s.footfall || 0, color: '#ed6e3a', trend: trend_html(s.footfall, prev.footfall) },
+		{ label: 'Conversion %', value: (s.conversion_pct || 0) + '%', color: s.conversion_pct >= 40 ? '#29cd42' : '#e24c4c', trend: trend_html(s.conversion_pct, prev.conversion_pct) },
 	];
 
 	let html = '<div class="cc-kpi-row">';
 	cards.forEach(c => {
 		html += `<div class="cc-kpi-card" style="border-top: 3px solid ${c.color}">
-			<div class="cc-kpi-value">${c.value}</div>
+			<div class="cc-kpi-value">${c.value} ${c.trend || ''}</div>
 			<div class="cc-kpi-label">${c.label}</div>
 		</div>`;
 	});
@@ -181,21 +192,30 @@ function render_alerts(alerts) {
 	return html;
 }
 
-function render_hourly_chart(data) {
+function render_hourly_chart(data, prev_data) {
 	let canvas = document.getElementById('cc-hourly-chart');
 	if (!canvas || !data.length) return;
 
 	let labels = data.map(d => d.hour + ':00');
 	let values = data.map(d => d.revenue);
 
+	let datasets = [{ name: 'Revenue', values: values }];
+	let colors = ['#2490ef'];
+
+	// Add previous period comparison line if data available
+	if (prev_data && prev_data.length) {
+		let prev_map = {};
+		prev_data.forEach(d => { prev_map[d.hour] = d.revenue; });
+		let prev_values = data.map(d => prev_map[d.hour] || 0);
+		datasets.push({ name: 'Previous Period', values: prev_values });
+		colors.push('#d1d5db');
+	}
+
 	new frappe.Chart(canvas.parentElement, {
 		type: 'line',
 		height: 200,
-		data: {
-			labels: labels,
-			datasets: [{ name: 'Revenue', values: values }],
-		},
-		colors: ['#2490ef'],
+		data: { labels: labels, datasets: datasets },
+		colors: colors,
 		lineOptions: { regionFill: 1 },
 	});
 	canvas.remove();
@@ -239,5 +259,25 @@ function set_styles() {
 		.cc-metric-value { font-weight: 600; font-size: 16px; }
 		.cc-alert-item { margin-bottom: 6px; padding: 8px 12px; font-size: 13px; }
 		.ceo-cc-container { max-width: 1200px; margin: 0 auto; }
+		.cc-trend-up { color: #29cd42; font-size: 13px; font-weight: 600; margin-left: 4px; }
+		.cc-trend-down { color: #e24c4c; font-size: 13px; font-weight: 600; margin-left: 4px; }
+
+		/* Mobile responsive */
+		@media (max-width: 768px) {
+			.cc-kpi-row { flex-direction: column; gap: 8px; }
+			.cc-kpi-card { min-width: auto; padding: 12px 14px; }
+			.cc-kpi-value { font-size: 20px; }
+			.cc-section { padding: 12px 14px; margin-bottom: 10px; }
+			.cc-section .row { flex-direction: column; }
+			.cc-section .col-md-6 { width: 100%; max-width: 100%; padding: 0; margin-bottom: 12px; }
+			.cc-section .table { font-size: 12px; }
+			.ceo-cc-container { padding: 0 4px; }
+		}
+		@media (max-width: 480px) {
+			.cc-kpi-value { font-size: 18px; }
+			.cc-kpi-label { font-size: 11px; }
+			.cc-section h5 { font-size: 14px; }
+			.cc-alert-item { font-size: 12px; padding: 6px 8px; }
+		}
 	`);
 }

@@ -61,6 +61,30 @@ def _build_conditions(company=None, store=None, period="today"):
 	return conditions
 
 
+def _build_prev_conditions(company=None, store=None, period="today"):
+	"""Build conditions for the previous comparable period (for WoW/MoM trends)."""
+	from_date, to_date = _parse_period(period)
+	span = (to_date - from_date).days + 1
+
+	prev_to = from_date - timedelta(days=1)
+	prev_from = prev_to - timedelta(days=span - 1)
+
+	conditions = {"from_date": prev_from, "to_date": prev_to}
+	sql_parts = []
+	if company:
+		sql_parts.append("AND si.company = %(company)s")
+		conditions["company"] = company
+	if store:
+		if frappe.db.exists("POS Profile", store):
+			sql_parts.append("AND si.pos_profile = %(store)s")
+		else:
+			sql_parts.append("AND si.pos_profile IN (SELECT name FROM `tabPOS Profile` WHERE warehouse = %(store)s)")
+		conditions["store"] = store
+
+	conditions["sql_and"] = " ".join(sql_parts)
+	return conditions
+
+
 # ---------------------------------------------------------------------------
 # Main API
 # ---------------------------------------------------------------------------
@@ -71,6 +95,7 @@ def get_command_center_data(company=None, store=None, period="today"):
 	frappe.has_permission("Sales Invoice", throw=True)
 
 	ctx = _build_conditions(company, store, period)
+	prev_ctx = _build_prev_conditions(company, store, period)
 	cache_key = f"ceo_cc|{company or 'all'}|{store or 'all'}|{period}"
 	cached = frappe.cache.get_value(cache_key)
 	if cached:
@@ -78,6 +103,7 @@ def get_command_center_data(company=None, store=None, period="today"):
 
 	data = {
 		"summary": _get_summary_kpis(ctx),
+		"prev_summary": _get_summary_kpis(prev_ctx),
 		"conversion": _get_conversion_data(ctx),
 		"attach": _get_attach_data(ctx),
 		"leakage": _get_leakage_data(ctx),
@@ -86,6 +112,7 @@ def get_command_center_data(company=None, store=None, period="today"):
 		"scorecards": _get_store_scorecards(company=company, period=period),
 		"alerts": _get_active_alerts(),
 		"hourly_trend": _get_hourly_trend(ctx),
+		"prev_hourly_trend": _get_hourly_trend(prev_ctx),
 	}
 
 	frappe.cache.set_value(cache_key, json.dumps(data, default=str), expires_in_sec=300)
