@@ -1,0 +1,168 @@
+{
+ "actions": [],
+ "creation": "2026-03-30 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "enabled",
+  "section_api",
+  "api_key",
+  "api_secret",
+  "column_break_api",
+  "channel_id",
+  "base_url",
+  "section_gofix_templates",
+  "gofix_device_received",
+  "gofix_repair_completed",
+  "column_break_gofix",
+  "gofix_ready_for_delivery",
+  "gofix_sla_breach",
+  "section_buyback_templates",
+  "buyback_order_created",
+  "buyback_otp",
+  "column_break_buyback",
+  "buyback_approved",
+  "buyback_paid",
+  "section_general_templates",
+  "general_otp"
+ ],
+ "fields": [
+  {
+   "default": "0",
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "label": "Enabled"
+  },
+  {
+   "fieldname": "section_api",
+   "fieldtype": "Section Break",
+   "label": "Gallabox API Configuration"
+  },
+  {
+   "fieldname": "api_key",
+   "fieldtype": "Password",
+   "label": "API Key",
+   "mandatory_depends_on": "eval:doc.enabled"
+  },
+  {
+   "fieldname": "api_secret",
+   "fieldtype": "Password",
+   "label": "API Secret",
+   "mandatory_depends_on": "eval:doc.enabled"
+  },
+  {
+   "fieldname": "column_break_api",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "channel_id",
+   "fieldtype": "Data",
+   "label": "Channel ID",
+   "mandatory_depends_on": "eval:doc.enabled"
+  },
+  {
+   "default": "https://server.gallabox.com/devapi/messages/whatsapp",
+   "fieldname": "base_url",
+   "fieldtype": "Data",
+   "label": "Base URL"
+  },
+  {
+   "fieldname": "section_gofix_templates",
+   "fieldtype": "Section Break",
+   "label": "GoFix Template Names"
+  },
+  {
+   "default": "gofix_device_received",
+   "fieldname": "gofix_device_received",
+   "fieldtype": "Data",
+   "label": "Device Received"
+  },
+  {
+   "default": "gofix_repair_completed",
+   "fieldname": "gofix_repair_completed",
+   "fieldtype": "Data",
+   "label": "Repair Completed"
+  },
+  {
+   "fieldname": "column_break_gofix",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "gofix_ready_delivery",
+   "fieldname": "gofix_ready_for_delivery",
+   "fieldtype": "Data",
+   "label": "Ready for Delivery"
+  },
+  {
+   "default": "gofix_sla_breach",
+   "fieldname": "gofix_sla_breach",
+   "fieldtype": "Data",
+   "label": "SLA Breach Apology"
+  },
+  {
+   "fieldname": "section_buyback_templates",
+   "fieldtype": "Section Break",
+   "label": "Buyback Template Names"
+  },
+  {
+   "default": "buyback_order_created",
+   "fieldname": "buyback_order_created",
+   "fieldtype": "Data",
+   "label": "Order Created"
+  },
+  {
+   "default": "buyback_otp",
+   "fieldname": "buyback_otp",
+   "fieldtype": "Data",
+   "label": "Buyback OTP"
+  },
+  {
+   "fieldname": "column_break_buyback",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "buyback_approved",
+   "fieldname": "buyback_approved",
+   "fieldtype": "Data",
+   "label": "Order Approved"
+  },
+  {
+   "default": "buyback_paid",
+   "fieldname": "buyback_paid",
+   "fieldtype": "Data",
+   "label": "Payment Done"
+  },
+  {
+   "fieldname": "section_general_templates",
+   "fieldtype": "Section Break",
+   "label": "General Templates"
+  },
+  {
+   "default": "ch_otp_verification",
+   "fieldname": "general_otp",
+   "fieldtype": "Data",
+   "label": "General OTP Template"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-03-30 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "CH Core",
+ "name": "CH WhatsApp Settings",
+ "naming_rule": "Expression (old style)",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "read": 1,
+   "role": "System Manager",
+   "write": 1
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}
