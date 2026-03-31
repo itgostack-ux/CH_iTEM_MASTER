@@ -20,7 +20,7 @@ def get_columns():
         {"label": _("Receivable"), "fieldname": "name", "fieldtype": "Link",
          "options": "CH Scheme Receivable", "width": 160},
         {"label": _("Scheme Type"), "fieldname": "scheme_type", "fieldtype": "Data", "width": 120},
-        {"label": _("Party"), "fieldname": "party", "fieldtype": "Data", "width": 140},
+        {"label": _("Party"), "fieldname": "party_name", "fieldtype": "Data", "width": 140},
         {"label": _("Claim Date"), "fieldname": "claim_date", "fieldtype": "Date", "width": 100},
         {"label": _("Due Date"), "fieldname": "due_date", "fieldtype": "Date", "width": 100},
         {"label": _("Claim Amount"), "fieldname": "claim_amount", "fieldtype": "Currency", "width": 120},
@@ -43,7 +43,7 @@ def get_data(filters):
         SELECT
             r.name,
             r.scheme_type,
-            r.party,
+            r.party_name,
             r.claim_date,
             r.due_date,
             r.claim_amount,
@@ -76,7 +76,7 @@ def get_data(filters):
         data.append({
             "name": row.name,
             "scheme_type": row.scheme_type or "",
-            "party": row.party or "",
+            "party_name": row.party_name or "",
             "claim_date": row.claim_date,
             "due_date": row.due_date,
             "claim_amount": flt(row.claim_amount),
@@ -101,7 +101,7 @@ def _build_conditions(filters):
     if filters.get("scheme_type"):
         conditions.append("r.scheme_type = %(scheme_type)s")
     if filters.get("party"):
-        conditions.append("r.party LIKE %(party)s")
+        conditions.append("r.party_name LIKE %(party)s")
         filters["party"] = f"%{filters['party']}%"
     if filters.get("status"):
         conditions.append("r.status = %(status)s")

@@ -1,6 +1,6 @@
 {
  "charts": [],
- "content": "[{\"id\":\"vas_hdr_0\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>VAS & Warranty</b></span>\",\"col\":12}},{\"id\":\"vas_para\",\"type\":\"paragraph\",\"data\":{\"text\":\"Value Added Services — warranty plans, sold plans, claims, vouchers and ledger.\",\"col\":12}},{\"id\":\"vas_sp_0\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"vas_hdr_1\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Quick Access</b></span>\",\"col\":12}},{\"id\":\"vas_sc_plans\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Warranty Plans\",\"col\":3}},{\"id\":\"vas_sc_sold\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Sold Plans\",\"col\":3}},{\"id\":\"vas_sc_claims\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Warranty Claims\",\"col\":3}},{\"id\":\"vas_sc_vouchers\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Vouchers\",\"col\":3}},{\"id\":\"vas_sp_1\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"vas_hdr_2\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Masters & Config</b></span>\",\"col\":12}},{\"id\":\"vas_card_masters\",\"type\":\"card\",\"data\":{\"card_name\":\"Plan Masters\",\"col\":4}},{\"id\":\"vas_card_ops\",\"type\":\"card\",\"data\":{\"card_name\":\"Operations\",\"col\":4}},{\"id\":\"vas_card_audit\",\"type\":\"card\",\"data\":{\"card_name\":\"Audit & Ledger\",\"col\":4}}]",
+ "content": "[{\"id\": \"vas_hdr_0\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>VAS & Warranty</b></span>\", \"col\": 12}}, {\"id\": \"vas_para\", \"type\": \"paragraph\", \"data\": {\"text\": \"Value Added Services \\u2014 warranty plans, sold plans, claims, vouchers and ledger.\", \"col\": 12}}, {\"id\": \"vas_sp_0\", \"type\": \"spacer\", \"data\": {\"col\": 12}}, {\"id\": \"vas_hdr_1\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Quick Access</b></span>\", \"col\": 12}}, {\"id\": \"vas_sc_plans\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Warranty Plans\", \"col\": 3}}, {\"id\": \"vas_sc_sold\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Sold Plans\", \"col\": 3}}, {\"id\": \"vas_sc_claims\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Warranty Claims\", \"col\": 3}}, {\"id\": \"vas_sc_vouchers\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Vouchers\", \"col\": 3}}, {\"id\": \"vas_sp_1\", \"type\": \"spacer\", \"data\": {\"col\": 12}}, {\"id\": \"vas_hdr_2\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Masters & Config</b></span>\", \"col\": 12}}, {\"id\": \"vas_card_masters\", \"type\": \"card\", \"data\": {\"card_name\": \"Plan Masters\", \"col\": 4}}, {\"id\": \"vas_card_ops\", \"type\": \"card\", \"data\": {\"card_name\": \"Operations\", \"col\": 4}}, {\"id\": \"vas_card_audit\", \"type\": \"card\", \"data\": {\"card_name\": \"Audit & Ledger\", \"col\": 4}}, {\"id\": \"cc_card_attach\", \"type\": \"card\", \"data\": {\"card_name\": \"Attach & Rules\", \"col\": 4}}]",
  "creation": "2026-03-29 10:00:00",
  "custom_blocks": [],
  "docstatus": 0,
@@ -22,6 +22,7 @@
    "type": "Card Break"
   },
   {
+   "description": "VAS plan catalog \u2014 coverage, pricing, rules",
    "hidden": 0,
    "is_query_report": 0,
    "label": "CH Warranty Plan",
@@ -29,10 +30,10 @@
    "link_to": "CH Warranty Plan",
    "link_type": "DocType",
    "onboard": 1,
-   "type": "Link",
-   "description": "VAS plan catalog — coverage, pricing, rules"
+   "type": "Link"
   },
   {
+   "description": "Plans issued to customers (memberships)",
    "hidden": 0,
    "is_query_report": 0,
    "label": "CH Sold Plan",
@@ -40,10 +41,10 @@
    "link_to": "CH Sold Plan",
    "link_type": "DocType",
    "onboard": 1,
-   "type": "Link",
-   "description": "Plans issued to customers (memberships)"
+   "type": "Link"
   },
   {
+   "description": "Devices registered to customers",
    "hidden": 0,
    "is_query_report": 0,
    "label": "CH Customer Device",
@@ -51,8 +52,7 @@
    "link_to": "CH Customer Device",
    "link_type": "DocType",
    "onboard": 0,
-   "type": "Link",
-   "description": "Devices registered to customers"
+   "type": "Link"
   },
   {
    "hidden": 0,
@@ -64,6 +64,7 @@
    "type": "Card Break"
   },
   {
+   "description": "Warranty & VAS claims lifecycle",
    "hidden": 0,
    "is_query_report": 0,
    "label": "CH Warranty Claim",
@@ -71,10 +72,10 @@
    "link_to": "CH Warranty Claim",
    "link_type": "DocType",
    "onboard": 1,
-   "type": "Link",
-   "description": "Warranty & VAS claims lifecycle"
+   "type": "Link"
   },
   {
+   "description": "Gift cards, store credits, promo vouchers",
    "hidden": 0,
    "is_query_report": 0,
    "label": "CH Voucher",
@@ -82,10 +83,10 @@
    "link_to": "CH Voucher",
    "link_type": "DocType",
    "onboard": 0,
-   "type": "Link",
-   "description": "Gift cards, store credits, promo vouchers"
+   "type": "Link"
   },
   {
+   "description": "Full device lifecycle tracking",
    "hidden": 0,
    "is_query_report": 0,
    "label": "CH Serial Lifecycle",
@@ -93,8 +94,7 @@
    "link_to": "CH Serial Lifecycle",
    "link_type": "DocType",
    "onboard": 0,
-   "type": "Link",
-   "description": "Full device lifecycle tracking"
+   "type": "Link"
   },
   {
    "hidden": 0,
@@ -106,6 +106,7 @@
    "type": "Card Break"
   },
   {
+   "description": "Audit trail of all VAS events",
    "hidden": 0,
    "is_query_report": 0,
    "label": "CH VAS Ledger",
@@ -113,11 +114,39 @@
    "link_to": "CH VAS Ledger",
    "link_type": "DocType",
    "onboard": 1,
-   "type": "Link",
-   "description": "Audit trail of all VAS events"
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Attach & Rules",
+   "link_count": 0,
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "CH Attach Rule",
+   "link_count": 0,
+   "link_to": "CH Attach Rule",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "CH Attach Log",
+   "link_count": 0,
+   "link_to": "CH Attach Log",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
   }
  ],
- "modified": "2026-03-29 10:00:00",
+ "modified": "2026-03-31 06:38:31.419856",
  "modified_by": "Administrator",
  "module": "CH Item Master",
  "name": "CH VAS",
@@ -125,9 +154,10 @@
  "owner": "Administrator",
  "parent_page": "CH Core",
  "public": 1,
+ "quick_lists": [],
  "restrict_to_domain": "",
  "roles": [],
- "sequence_id": 10,
+ "sequence_id": 10.0,
  "shortcuts": [
   {
    "color": "Green",

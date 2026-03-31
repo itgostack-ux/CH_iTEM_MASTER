@@ -109,7 +109,7 @@
    "onboard": 1,
    "type": "Link"
   },
-    {
+  {
    "hidden": 0,
    "is_query_report": 0,
    "label": "Finance Reports",
@@ -178,7 +178,7 @@
    "type": "Link"
   }
  ],
- "modified": "2026-03-17 10:00:00.000000",
+ "modified": "2026-03-31 06:39:21.643630",
  "modified_by": "Administrator",
  "module": "CH Item Master",
  "name": "CH Core",
@@ -189,7 +189,7 @@
  "quick_lists": [],
  "restrict_to_domain": "",
  "roles": [],
- "sequence_id": 24.0,
+ "sequence_id": 2.0,
  "shortcuts": [
   {
    "color": "Blue",
@@ -241,6 +241,12 @@
    "doc_view": "List",
    "label": "Vouchers",
    "link_to": "CH Voucher",
+   "type": "DocType"
+  },
+  {
+   "doc_view": "List",
+   "label": "Business Audit Log",
+   "link_to": "CH Business Audit Log",
    "type": "DocType"
   }
  ],

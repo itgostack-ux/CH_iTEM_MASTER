@@ -1,3 +1,6 @@
+let _ceo_cc_loading = false;
+let _ceo_cc_timer = null;
+
 frappe.pages['ceo-command-center'].on_page_load = function (wrapper) {
 	let page = frappe.ui.make_app_page({
 		parent: wrapper,
@@ -7,13 +10,15 @@ frappe.pages['ceo-command-center'].on_page_load = function (wrapper) {
 
 	page.set_secondary_action('Refresh', () => load_data(page), 'refresh');
 
-	// Filters
+	// Filters — defer change handler until initial load completes
+	page._ready = false;
+
 	page.company_field = page.add_field({
 		fieldname: 'company',
 		label: __('Company'),
 		fieldtype: 'Link',
 		options: 'Company',
-		change: () => load_data(page),
+		change: () => { if (page._ready) debounced_load(page); },
 	});
 
 	page.store_field = page.add_field({
@@ -21,7 +26,7 @@ frappe.pages['ceo-command-center'].on_page_load = function (wrapper) {
 		label: __('Store'),
 		fieldtype: 'Link',
 		options: 'POS Profile',
-		change: () => load_data(page),
+		change: () => { if (page._ready) debounced_load(page); },
 	});
 
 	page.period_field = page.add_field({
@@ -30,29 +35,54 @@ frappe.pages['ceo-command-center'].on_page_load = function (wrapper) {
 		fieldtype: 'Select',
 		options: 'today\nwtd\nmtd\nqtd\nytd',
 		default: 'today',
-		change: () => load_data(page),
+		change: () => { if (page._ready) debounced_load(page); },
 	});
 
 	page.main.html('<div class="ceo-cc-container"></div>');
 	set_styles();
-	load_data(page);
+
+	// Single initial load, then enable change handlers
+	load_data(page).then(() => { page._ready = true; });
 };
+
+function debounced_load(page) {
+	clearTimeout(_ceo_cc_timer);
+	_ceo_cc_timer = setTimeout(() => load_data(page), 300);
+}
 
 function load_data(page) {
 	let container = page.main.find('.ceo-cc-container');
 	container.html('<div class="text-center p-5"><div class="spinner-border" role="status"></div></div>');
 
-	frappe.call({
+	return frappe.call({
 		method: 'ch_item_master.ch_core.page.ceo_command_center.ceo_command_center.get_command_center_data',
 		args: {
 			company: page.company_field.get_value() || null,
 			store: page.store_field.get_value() || null,
 			period: page.period_field.get_value() || 'today',
 		},
+		freeze: false,
 		callback: function (r) {
 			if (r.message) {
-				render_dashboard(container, r.message);
+				try {
+					render_dashboard(container, r.message);
+				} catch (e) {
+					console.error('CEO CC render error:', e);
+					container.html(`<div class="text-center p-5 text-muted">
+						<p>Dashboard rendering failed</p>
+						<pre class="small text-left text-danger">${frappe.utils.escape_html(e.message || e)}</pre>
+					</div>`);
+				}
+			} else {
+				container.html('<div class="text-center p-5 text-muted">No data returned</div>');
 			}
+		},
+		error: function (r) {
+			console.error('CEO CC API error:', r);
+			container.html(`<div class="text-center p-5 text-muted">
+				<p>Failed to load data</p>
+				<button class="btn btn-sm btn-default" onclick="load_data(cur_page.page)">Retry</button>
+			</div>`);
 		},
 	});
 }
@@ -106,9 +136,9 @@ function render_kpi_cards(s, prev) {
 	}
 
 	let cards = [
-		{ label: 'Revenue', value: format_currency(s.revenue), color: '#2490ef', trend: trend_html(s.revenue, prev.revenue) },
+		{ label: 'Revenue', value: fmt_currency(s.revenue), color: '#2490ef', trend: trend_html(s.revenue, prev.revenue) },
 		{ label: 'Invoices', value: s.invoice_count || 0, color: '#29cd42', trend: trend_html(s.invoice_count, prev.invoice_count) },
-		{ label: 'Avg Bill Value', value: format_currency(s.avg_bill_value), color: '#7c5ecf', trend: trend_html(s.avg_bill_value, prev.avg_bill_value) },
+		{ label: 'Avg Bill Value', value: fmt_currency(s.avg_bill_value), color: '#7c5ecf', trend: trend_html(s.avg_bill_value, prev.avg_bill_value) },
 		{ label: 'Footfall', value: s.footfall || 0, color: '#ed6e3a', trend: trend_html(s.footfall, prev.footfall) },
 		{ label: 'Conversion %', value: (s.conversion_pct || 0) + '%', color: s.conversion_pct >= 40 ? '#29cd42' : '#e24c4c', trend: trend_html(s.conversion_pct, prev.conversion_pct) },
 	];
@@ -132,13 +162,13 @@ function render_store_rankings(stores) {
 	let html = '<div class="cc-section"><h5>Store Rankings</h5><div class="row"><div class="col-md-6">';
 	html += '<h6 class="text-success">Top 5</h6><table class="table table-sm"><thead><tr><th>Store</th><th class="text-right">Revenue</th><th class="text-right">Bills</th></tr></thead><tbody>';
 	(stores.top_5 || []).forEach(s => {
-		html += `<tr><td>${s.store}</td><td class="text-right">${format_currency(s.revenue)}</td><td class="text-right">${s.invoices}</td></tr>`;
+		html += `<tr><td>${s.store}</td><td class="text-right">${fmt_currency(s.revenue)}</td><td class="text-right">${s.invoices}</td></tr>`;
 	});
 	html += '</tbody></table></div>';
 
 	html += '<div class="col-md-6"><h6 class="text-danger">Bottom 5</h6><table class="table table-sm"><thead><tr><th>Store</th><th class="text-right">Revenue</th><th class="text-right">Bills</th></tr></thead><tbody>';
 	(stores.bottom_5 || []).forEach(s => {
-		html += `<tr><td>${s.store}</td><td class="text-right">${format_currency(s.revenue)}</td><td class="text-right">${s.invoices}</td></tr>`;
+		html += `<tr><td>${s.store}</td><td class="text-right">${fmt_currency(s.revenue)}</td><td class="text-right">${s.invoices}</td></tr>`;
 	});
 	html += '</tbody></table></div></div></div>';
 	return html;
@@ -242,8 +272,9 @@ function render_conversion_chart(data) {
 	canvas.remove();
 }
 
-function format_currency(val) {
-	return frappe.format(val || 0, { fieldtype: 'Currency' });
+function fmt_currency(val) {
+	val = parseFloat(val) || 0;
+	return '₹ ' + val.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 }
 
 function set_styles() {
