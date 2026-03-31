@@ -73,6 +73,20 @@
   "column_break_gofix",
   "repair_status",
   "repair_completion_date",
+    "section_logistics",
+    "mode_of_service",
+    "pickup_required",
+    "pickup_address",
+    "pickup_slot",
+    "column_break_pickup",
+    "pickup_partner",
+    "pickup_tracking_no",
+    "delivery_otp",
+    "pickup_scheduled_at",
+    "picked_up_at",
+    "out_for_delivery_at",
+    "delivered_back_at",
+    "logistics_status",
   "section_manufacturer",
   "manufacturer_service_center",
   "manufacturer_job_id",
@@ -181,7 +195,7 @@
    "fieldname": "claim_status",
    "fieldtype": "Select",
    "label": "Claim Status",
-   "options": "Draft\nPending Approval\nApproved\nRejected\nTicket Created\nSent to Manufacturer\nIn Repair\nRepair Complete\nClosed\nCancelled",
+    "options": "Draft\nPending Approval\nApproved\nPickup Requested\nPickup Scheduled\nPicked Up\nRejected\nTicket Created\nSent to Manufacturer\nIn Repair\nRepair Complete\nOut for Delivery\nDelivered\nClosed\nCancelled",
    "default": "Draft",
    "in_list_view": 1,
    "in_standard_filter": 1,
@@ -634,6 +648,96 @@
    "read_only": 1,
    "allow_on_submit": 1
   },
+    {
+     "fieldname": "section_logistics",
+     "fieldtype": "Section Break",
+     "label": "Pickup & Delivery"
+    },
+    {
+     "fieldname": "mode_of_service",
+     "fieldtype": "Select",
+     "label": "Mode of Service",
+     "options": "Walk-in\nPickup\nCourier\nOn-site",
+     "default": "Walk-in",
+     "allow_on_submit": 1
+    },
+    {
+     "fieldname": "pickup_required",
+     "fieldtype": "Check",
+     "label": "Pickup Required",
+     "read_only": 1,
+     "allow_on_submit": 1
+    },
+    {
+     "fieldname": "pickup_address",
+     "fieldtype": "Small Text",
+     "label": "Pickup Address",
+     "allow_on_submit": 1
+    },
+    {
+     "fieldname": "pickup_slot",
+     "fieldtype": "Datetime",
+     "label": "Preferred Pickup Slot",
+     "allow_on_submit": 1
+    },
+    {
+     "fieldname": "column_break_pickup",
+     "fieldtype": "Column Break"
+    },
+    {
+     "fieldname": "pickup_partner",
+     "fieldtype": "Data",
+     "label": "Pickup Partner",
+     "allow_on_submit": 1
+    },
+    {
+     "fieldname": "pickup_tracking_no",
+     "fieldtype": "Data",
+     "label": "Tracking Number",
+     "allow_on_submit": 1
+    },
+    {
+     "fieldname": "delivery_otp",
+     "fieldtype": "Data",
+     "label": "Delivery OTP",
+     "allow_on_submit": 1
+    },
+    {
+     "fieldname": "pickup_scheduled_at",
+     "fieldtype": "Datetime",
+     "label": "Pickup Scheduled At",
+     "read_only": 1,
+     "allow_on_submit": 1
+    },
+    {
+     "fieldname": "picked_up_at",
+     "fieldtype": "Datetime",
+     "label": "Picked Up At",
+     "read_only": 1,
+     "allow_on_submit": 1
+    },
+    {
+     "fieldname": "out_for_delivery_at",
+     "fieldtype": "Datetime",
+     "label": "Out For Delivery At",
+     "read_only": 1,
+     "allow_on_submit": 1
+    },
+    {
+     "fieldname": "delivered_back_at",
+     "fieldtype": "Datetime",
+     "label": "Delivered Back At",
+     "read_only": 1,
+     "allow_on_submit": 1
+    },
+    {
+     "fieldname": "logistics_status",
+     "fieldtype": "Select",
+     "label": "Logistics Status",
+     "options": "\nNot Required\nPickup Requested\nPickup Scheduled\nPicked Up\nOut for Delivery\nDelivered",
+     "read_only": 1,
+     "allow_on_submit": 1
+    },
   {
    "fieldname": "section_manufacturer",
    "fieldtype": "Section Break",

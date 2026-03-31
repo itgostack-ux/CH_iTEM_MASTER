@@ -43,6 +43,7 @@ class CHWarrantyClaim(Document):
 			self.manufacturer_contact_phone = validate_indian_phone(
 				self.manufacturer_contact_phone, "Manufacturer Contact Phone"
 			)
+		self.pickup_required = 1 if self.mode_of_service in ("Pickup", "Courier") else 0
 		self._set_title()
 		self._set_reported_by()
 		if not self.claim_status:
@@ -69,11 +70,37 @@ class CHWarrantyClaim(Document):
 
 	def on_submit(self):
 		if self.coverage_type == "Manufacturer Warranty":
-			# Device goes to manufacturer, not GoFix
-			self._send_to_manufacturer(from_submit=True)
+			if self.pickup_required:
+				self.db_set({
+					"claim_status": "Pickup Requested",
+					"logistics_status": "Pickup Requested",
+				})
+				self._log(
+					"Pickup Requested",
+					"Approved",
+					"Pickup Requested",
+					"Awaiting pickup scheduling for manufacturer claim",
+					save=False,
+				)
+			else:
+				# Device goes to manufacturer, not GoFix
+				self._send_to_manufacturer(from_submit=True)
 		elif self.claim_status == "Approved":
-			# Create GoFix ticket immediately
-			self._create_gofix_ticket(from_submit=True)
+			if self.pickup_required:
+				self.db_set({
+					"claim_status": "Pickup Requested",
+					"logistics_status": "Pickup Requested",
+				})
+				self._log(
+					"Pickup Requested",
+					"Approved",
+					"Pickup Requested",
+					"Awaiting pickup scheduling for customer device",
+					save=False,
+				)
+			else:
+				# Create GoFix ticket immediately
+				self._create_gofix_ticket(from_submit=True)
 
 	def on_cancel(self):
 		old = self.claim_status
@@ -134,8 +161,20 @@ class CHWarrantyClaim(Document):
 		self._log("Approved", old, "Approved",
 		          (remarks or f"Approved by {frappe.session.user}") + partial_note)
 
-		# Now create GoFix ticket
-		self._create_gofix_ticket()
+		if self.pickup_required:
+			self.db_set({
+				"claim_status": "Pickup Requested",
+				"logistics_status": "Pickup Requested",
+			})
+			self._log(
+				"Pickup Requested",
+				"Approved",
+				"Pickup Requested",
+				"Claim approved and waiting for pickup scheduling",
+			)
+		else:
+			# Now create GoFix ticket
+			self._create_gofix_ticket()
 
 	@frappe.whitelist()
 	def reject(self, reason=None):
@@ -210,9 +249,136 @@ class CHWarrantyClaim(Document):
 		                      else "Repair completed by GoFix"))
 
 	@frappe.whitelist()
+	def schedule_pickup(self, pickup_address=None, pickup_slot=None,
+	                   pickup_partner=None, pickup_tracking_no=None, remarks=None):
+		"""Schedule customer pickup for claim device collection."""
+		if self.docstatus != 1:
+			frappe.throw(_("Claim must be submitted first."))
+		if self.claim_status in ("Closed", "Cancelled", "Rejected"):
+			frappe.throw(_("Cannot schedule pickup — current status: {0}").format(self.claim_status))
+		if not (pickup_address or self.pickup_address):
+			frappe.throw(_("Pickup address is required."))
+
+		old = self.claim_status
+		updates = {
+			"mode_of_service": "Pickup" if self.mode_of_service in (None, "", "Walk-in") else self.mode_of_service,
+			"pickup_required": 1,
+			"pickup_address": pickup_address or self.pickup_address,
+			"pickup_slot": pickup_slot or self.pickup_slot,
+			"pickup_partner": pickup_partner or self.pickup_partner,
+			"pickup_tracking_no": pickup_tracking_no or self.pickup_tracking_no,
+			"pickup_scheduled_at": now_datetime(),
+			"logistics_status": "Pickup Scheduled",
+			"claim_status": "Pickup Scheduled",
+		}
+		self.db_set(updates)
+
+		self._log(
+			"Pickup Scheduled",
+			old,
+			"Pickup Scheduled",
+			remarks or _("Pickup scheduled for customer device"),
+		)
+
+		return {
+			"claim_name": self.name,
+			"claim_status": "Pickup Scheduled",
+			"logistics_status": "Pickup Scheduled",
+			"pickup_scheduled_at": updates["pickup_scheduled_at"],
+		}
+
+	@frappe.whitelist()
+	def mark_picked_up(self, delivery_otp=None, remarks=None):
+		"""Mark device as picked up from customer location."""
+		if self.docstatus != 1:
+			frappe.throw(_("Claim must be submitted first."))
+		if self.claim_status not in ("Pickup Requested", "Pickup Scheduled", "Approved"):
+			frappe.throw(_("Cannot mark picked up — current status: {0}").format(self.claim_status))
+
+		old = self.claim_status
+		updates = {
+			"picked_up_at": now_datetime(),
+			"delivery_otp": delivery_otp or self.delivery_otp,
+			"logistics_status": "Picked Up",
+			"claim_status": "Picked Up",
+		}
+		self.db_set(updates)
+		self._log("Picked Up", old, "Picked Up", remarks or _("Device picked up from customer"))
+
+		if self.coverage_type == "Manufacturer Warranty":
+			self.reload()
+			if self.claim_status != "Sent to Manufacturer":
+				self._send_to_manufacturer()
+		elif not self.service_request:
+			self.reload()
+			self._create_gofix_ticket()
+
+		self.reload()
+		return {
+			"claim_name": self.name,
+			"claim_status": self.claim_status,
+			"logistics_status": self.logistics_status,
+			"service_request": self.service_request,
+		}
+
+	@frappe.whitelist()
+	def mark_out_for_delivery(self, pickup_partner=None, pickup_tracking_no=None, remarks=None):
+		"""Mark repaired device as out for customer delivery."""
+		if self.docstatus != 1:
+			frappe.throw(_("Claim must be submitted first."))
+		if self.claim_status != "Repair Complete":
+			frappe.throw(_("Cannot mark out for delivery — current status: {0}").format(self.claim_status))
+
+		old = self.claim_status
+		updates = {
+			"out_for_delivery_at": now_datetime(),
+			"pickup_partner": pickup_partner or self.pickup_partner,
+			"pickup_tracking_no": pickup_tracking_no or self.pickup_tracking_no,
+			"logistics_status": "Out for Delivery",
+			"claim_status": "Out for Delivery",
+		}
+		self.db_set(updates)
+		self._log(
+			"Out for Delivery",
+			old,
+			"Out for Delivery",
+			remarks or _("Device dispatched for customer delivery"),
+		)
+
+		return {
+			"claim_name": self.name,
+			"claim_status": "Out for Delivery",
+			"logistics_status": "Out for Delivery",
+		}
+
+	@frappe.whitelist()
+	def mark_delivered_back(self, delivery_otp=None, remarks=None):
+		"""Mark final handover to customer complete."""
+		if self.docstatus != 1:
+			frappe.throw(_("Claim must be submitted first."))
+		if self.claim_status not in ("Out for Delivery", "Repair Complete"):
+			frappe.throw(_("Cannot mark delivered — current status: {0}").format(self.claim_status))
+
+		old = self.claim_status
+		updates = {
+			"delivered_back_at": now_datetime(),
+			"delivery_otp": delivery_otp or self.delivery_otp,
+			"logistics_status": "Delivered",
+			"claim_status": "Delivered",
+		}
+		self.db_set(updates)
+		self._log("Delivered", old, "Delivered", remarks or _("Device delivered to customer"))
+
+		return {
+			"claim_name": self.name,
+			"claim_status": "Delivered",
+			"logistics_status": "Delivered",
+		}
+
+	@frappe.whitelist()
 	def close_claim(self, remarks=None):
 		"""Close the claim after settlement."""
-		if self.claim_status not in ("Repair Complete", "Approved", "Rejected", "Sent to Manufacturer"):
+		if self.claim_status not in ("Repair Complete", "Approved", "Rejected", "Sent to Manufacturer", "Delivered"):
 			frappe.throw(_("Cannot close — current status: {0}").format(
 				self.claim_status))
 
@@ -627,7 +793,8 @@ def get_warranty_claim_status(claim_name):
 	return frappe.db.get_value(
 		"CH Warranty Claim", claim_name,
 		["claim_status", "coverage_type", "approval_status", "repair_status",
-		 "service_request", "settlement_status"],
+		 "service_request", "settlement_status", "mode_of_service", "logistics_status",
+		 "pickup_scheduled_at", "picked_up_at", "out_for_delivery_at", "delivered_back_at"],
 		as_dict=True,
 	)
 
@@ -641,7 +808,7 @@ def get_claims_for_serial(serial_no):
 		fields=[
 			"name", "claim_date", "claim_status", "coverage_type",
 			"issue_description", "service_request", "repair_status",
-			"gogizmo_share", "customer_share",
+			"gogizmo_share", "customer_share", "mode_of_service", "logistics_status",
 		],
 		order_by="creation desc",
 	)

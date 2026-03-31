@@ -775,7 +775,9 @@ def initiate_warranty_claim(serial_no, customer, item_code, company,
                             issue_categories=None,
                             reported_at_company=None, reported_at_store=None,
                             estimated_repair_cost=0, customer_phone=None,
-                            customer_email=None, sold_plan=None):
+							customer_email=None, sold_plan=None,
+							mode_of_service="Walk-in", pickup_address=None,
+							pickup_slot=None):
 	"""Initiate a new warranty claim from POS or desk.
 
 	Auto-detects warranty coverage, calculates cost split, and either
@@ -817,6 +819,10 @@ def initiate_warranty_claim(serial_no, customer, item_code, company,
 		"estimated_repair_cost": float(estimated_repair_cost or 0),
 		"customer_phone": customer_phone or "",
 		"customer_email": customer_email or "",
+		"mode_of_service": mode_of_service or "Walk-in",
+		"pickup_required": 1 if mode_of_service in ("Pickup", "Courier") else 0,
+		"pickup_address": pickup_address or "",
+		"pickup_slot": pickup_slot,
 		"claim_date": nowdate(),
 	})
 
@@ -849,8 +855,53 @@ def initiate_warranty_claim(serial_no, customer, item_code, company,
 		"gogizmo_share": claim.gogizmo_share,
 		"customer_share": claim.customer_share,
 		"deductible_amount": claim.deductible_amount,
+		"mode_of_service": claim.mode_of_service,
+		"logistics_status": claim.logistics_status,
 		"service_request": claim.service_request,
 	}
+
+
+@frappe.whitelist()
+def update_claim_logistics(claim_name, action, pickup_address=None,
+	                       pickup_slot=None, pickup_partner=None,
+	                       pickup_tracking_no=None, delivery_otp=None,
+	                       remarks=None):
+	"""Update warranty claim pickup/delivery lifecycle from POS/desk.
+
+	Supported actions:
+	- schedule_pickup
+	- mark_picked_up
+	- mark_out_for_delivery
+	- mark_delivered_back
+	"""
+	if not claim_name or not action:
+		frappe.throw(_("Claim name and action are required"))
+
+	claim = frappe.get_doc("CH Warranty Claim", claim_name)
+
+	if action == "schedule_pickup":
+		return claim.schedule_pickup(
+			pickup_address=pickup_address,
+			pickup_slot=pickup_slot,
+			pickup_partner=pickup_partner,
+			pickup_tracking_no=pickup_tracking_no,
+			remarks=remarks,
+		)
+
+	if action == "mark_picked_up":
+		return claim.mark_picked_up(delivery_otp=delivery_otp, remarks=remarks)
+
+	if action == "mark_out_for_delivery":
+		return claim.mark_out_for_delivery(
+			pickup_partner=pickup_partner,
+			pickup_tracking_no=pickup_tracking_no,
+			remarks=remarks,
+		)
+
+	if action == "mark_delivered_back":
+		return claim.mark_delivered_back(delivery_otp=delivery_otp, remarks=remarks)
+
+	frappe.throw(_("Unsupported logistics action: {0}").format(action))
 
 
 @frappe.whitelist()
