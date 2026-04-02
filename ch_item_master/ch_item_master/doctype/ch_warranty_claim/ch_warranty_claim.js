@@ -59,9 +59,10 @@ frappe.ui.form.on("CH Warranty Claim", {
 
 function _setup_action_buttons(frm) {
 	if (frm.doc.docstatus !== 1) return;
+	const s = frm.doc.claim_status;
 
-	// Approve / Reject buttons (for GoGizmo Head)
-	if (frm.doc.claim_status === "Pending Approval") {
+	// ── Approve / Reject / Need More Info (Pending Approval) ──
+	if (s === "Pending Approval" || s === "Need More Information") {
 		frm.add_custom_button(__("Approve"), () => {
 			const gogizmo_amt = frm.doc.gogizmo_share || 0;
 			frappe.prompt(
@@ -99,10 +100,131 @@ function _setup_action_buttons(frm) {
 				__("Reject Warranty Claim")
 			);
 		}, __("Actions")).addClass("btn-danger");
+
+		frm.add_custom_button(__("Need More Info"), () => {
+			frappe.prompt(
+				{ fieldtype: "Small Text", fieldname: "remarks", label: "What info is needed?", reqd: 1 },
+				(values) => {
+					frm.call("need_more_info", { remarks: values.remarks }).then(() => frm.reload_doc());
+				},
+				__("Request More Information")
+			);
+		}, __("Actions"));
 	}
 
-	// Mark Repair Complete (for GoFix)
-	if (["Ticket Created", "In Repair"].includes(frm.doc.claim_status)) {
+	// ── Receive Device (walk-in Approved or Picked Up) ──
+	if ((s === "Approved" && !frm.doc.pickup_required) || s === "Picked Up") {
+		frm.add_custom_button(__("Receive Device"), () => {
+			frappe.prompt(
+				[
+					{ fieldtype: "Select", fieldname: "condition_on_receipt", label: __("Device Condition"),
+					  options: "\nGood\nMinor Damage\nMajor Damage\nWrong Device\nEmpty Parcel", reqd: 1 },
+					{ fieldtype: "Small Text", fieldname: "accessories_received", label: __("Accessories Received") },
+					{ fieldtype: "Check", fieldname: "imei_verified", label: __("IMEI Verified"), default: 1 },
+					{ fieldtype: "Small Text", fieldname: "receiving_remarks", label: __("Remarks") },
+				],
+				(values) => {
+					frm.call("mark_device_received", values).then(() => frm.reload_doc());
+				},
+				__("Receive Device")
+			);
+		}, __("Actions")).addClass("btn-primary");
+	}
+
+	// ── Perform Intake QC (Device Received / QC Pending) ──
+	if (["Device Received", "QC Pending"].includes(s)) {
+		frm.add_custom_button(__("Perform Intake QC"), () => {
+			frappe.prompt(
+				[
+					{ fieldtype: "Select", fieldname: "qc_result", label: __("QC Result"),
+					  options: "\nPassed\nFailed\nNot Repairable", reqd: 1 },
+					{ fieldtype: "Small Text", fieldname: "qc_remarks", label: __("QC Remarks") },
+					{ fieldtype: "Small Text", fieldname: "qc_result_reason", label: __("Reason (if failed)") },
+				],
+				(values) => {
+					frm.call("perform_intake_qc", values).then(() => frm.reload_doc());
+				},
+				__("Intake QC")
+			);
+		}, __("Actions")).addClass("btn-primary");
+	}
+
+	// ── Generate Processing Fee (QC Passed, fee not yet set) ──
+	if (s === "QC Passed" && !frm.doc.processing_fee_amount) {
+		frm.add_custom_button(__("Generate Fee"), () => {
+			frappe.prompt(
+				[{ fieldtype: "Currency", fieldname: "fee_amount", label: __("Fee Amount (override)"),
+				   description: __("Leave blank for auto-calculation") }],
+				(values) => {
+					frm.call("generate_processing_fee", { fee_amount: values.fee_amount || null }).then(() => frm.reload_doc());
+				},
+				__("Generate Processing Fee")
+			);
+		}, __("Actions")).addClass("btn-warning");
+	}
+
+	// ── Fee collection actions (Fee Pending / Link Sent) ──
+	if (["Fee Pending", "QC Passed"].includes(s)
+		&& flt(frm.doc.processing_fee_amount) > 0
+		&& !["Paid", "Waived", "Not Required"].includes(frm.doc.processing_fee_status)) {
+
+		frm.add_custom_button(__("Collect Fee"), () => {
+			frappe.prompt(
+				[
+					{ fieldtype: "Currency", fieldname: "paid_amount", label: __("Amount Paid"), reqd: 1,
+					  default: frm.doc.processing_fee_amount },
+					{ fieldtype: "Select", fieldname: "payment_mode", label: __("Payment Mode"),
+					  options: "\nCash\nUPI\nCard\nOnline\nNEFT", reqd: 1 },
+					{ fieldtype: "Data", fieldname: "payment_ref", label: __("Transaction Ref") },
+					{ fieldtype: "Small Text", fieldname: "remarks", label: __("Remarks") },
+				],
+				(values) => {
+					frm.call("mark_fee_paid", values).then(() => frm.reload_doc());
+				},
+				__("Collect Processing Fee")
+			);
+		}, __("Fee")).addClass("btn-success");
+
+		frm.add_custom_button(__("Send Payment Link"), () => {
+			frappe.prompt(
+				[{ fieldtype: "Select", fieldname: "channel", label: __("Send Via"),
+				   options: "WhatsApp\nSMS", default: "WhatsApp", reqd: 1 }],
+				(values) => {
+					frm.call("send_fee_payment_link", values).then(() => frm.reload_doc());
+				},
+				__("Send Fee Link")
+			);
+		}, __("Fee"));
+
+		frm.add_custom_button(__("Waive Fee"), () => {
+			frappe.prompt(
+				[
+					{ fieldtype: "Small Text", fieldname: "waiver_reason", label: __("Waiver Reason"), reqd: 1 },
+					{ fieldtype: "Currency", fieldname: "waived_amount", label: __("Amount to Waive"),
+					  description: __("Leave blank to waive full amount") },
+				],
+				(values) => {
+					frm.call("waive_processing_fee", values).then(() => frm.reload_doc());
+				},
+				__("Waive Processing Fee")
+			);
+		}, __("Fee")).addClass("btn-danger");
+	}
+
+	// ── Create GoFix Ticket (all gates passed, no ticket yet) ──
+	if (["Fee Paid", "Fee Waived"].includes(s)
+		|| (s === "QC Passed" && frm.doc.processing_fee_status === "Not Required")) {
+		if (!frm.doc.service_request) {
+			frm.add_custom_button(__("Create GoFix Ticket"), () => {
+				frappe.confirm(__("Create GoFix repair ticket for this claim?"), () => {
+					frm.call("create_repair_ticket", {}).then(() => frm.reload_doc());
+				});
+			}, __("Actions")).addClass("btn-primary");
+		}
+	}
+
+	// ── Mark Repair Complete (for GoFix) ──
+	if (["Ticket Created", "In Repair"].includes(s)) {
 		frm.add_custom_button(__("Mark Repair Complete"), () => {
 			frappe.prompt(
 				{ fieldtype: "Small Text", fieldname: "remarks", label: "Completion Remarks" },
@@ -112,10 +234,68 @@ function _setup_action_buttons(frm) {
 				__("Complete Repair")
 			);
 		}, __("Actions")).addClass("btn-success");
+
+		frm.add_custom_button(__("Additional Cost Approval"), () => {
+			frappe.prompt(
+				[
+					{ fieldtype: "Small Text", fieldname: "additional_issue_description",
+					  label: __("Additional Issue Found"), reqd: 1 },
+					{ fieldtype: "Currency", fieldname: "additional_cost_estimated",
+					  label: __("Estimated Additional Cost"), reqd: 1 },
+				],
+				(values) => {
+					frm.call("request_additional_approval", values).then(() => frm.reload_doc());
+				},
+				__("Request Customer Approval for Additional Cost")
+			);
+		}, __("Actions")).addClass("btn-warning");
 	}
 
-	// Close Claim
-	if (["Repair Complete", "Approved", "Rejected"].includes(frm.doc.claim_status)) {
+	// ── Resolve Additional Approval ──
+	if (s === "Additional Approval Pending") {
+		frm.add_custom_button(__("Customer Approved"), () => {
+			frappe.prompt(
+				{ fieldtype: "Small Text", fieldname: "remarks", label: __("Remarks") },
+				(values) => {
+					frm.call("resolve_additional_approval", { decision: "Approved", remarks: values.remarks })
+						.then(() => frm.reload_doc());
+				},
+				__("Confirm Customer Approval")
+			);
+		}, __("Actions")).addClass("btn-success");
+
+		frm.add_custom_button(__("Customer Rejected"), () => {
+			frappe.prompt(
+				{ fieldtype: "Small Text", fieldname: "remarks", label: __("Remarks") },
+				(values) => {
+					frm.call("resolve_additional_approval", { decision: "Rejected", remarks: values.remarks })
+						.then(() => frm.reload_doc());
+				},
+				__("Confirm Customer Rejection")
+			);
+		}, __("Actions")).addClass("btn-danger");
+	}
+
+	// ── Final QC (after repair) ──
+	if (["Repair Complete", "Final QC Pending"].includes(s)) {
+		frm.add_custom_button(__("Final QC"), () => {
+			frappe.prompt(
+				[
+					{ fieldtype: "Select", fieldname: "qc_result", label: __("Final QC Result"),
+					  options: "\nPassed\nFailed", reqd: 1 },
+					{ fieldtype: "Small Text", fieldname: "qc_remarks", label: __("QC Remarks") },
+				],
+				(values) => {
+					frm.call("perform_final_qc", values).then(() => frm.reload_doc());
+				},
+				__("Final QC After Repair")
+			);
+		}, __("Actions")).addClass("btn-primary");
+	}
+
+	// ── Close Claim ──
+	if (["Repair Complete", "Approved", "Rejected", "Delivered", "QC Failed",
+		 "Final QC Passed", "Payment Received", "Not Repairable"].includes(s)) {
 		frm.add_custom_button(__("Close Claim"), () => {
 			frappe.prompt(
 				{ fieldtype: "Small Text", fieldname: "remarks", label: "Closing Remarks" },

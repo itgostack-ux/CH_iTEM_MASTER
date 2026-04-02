@@ -229,7 +229,7 @@ def redeem_voucher(voucher_code, amount, pos_invoice=None, reference_doctype=Non
 		"balance_after": new_balance,
 		"transaction_date": now_datetime(),
 		"pos_invoice": pos_invoice,
-		"reference_doctype": reference_doctype or ("POS Invoice" if pos_invoice else None),
+		"reference_doctype": reference_doctype or ("Sales Invoice" if pos_invoice else None),
 		"reference_document": reference_document or pos_invoice,
 		"note": f"Redeemed ₹{redeem_amount:,.2f} at {pos_invoice or 'counter'}",
 	})
@@ -309,7 +309,7 @@ def refund_voucher(voucher_code, amount, pos_invoice=None, reason=None):
 		"balance_after": new_balance,
 		"transaction_date": now_datetime(),
 		"pos_invoice": pos_invoice,
-		"reference_doctype": "POS Invoice" if pos_invoice else None,
+		"reference_doctype": "Sales Invoice" if pos_invoice else None,
 		"reference_document": pos_invoice,
 		"note": reason or f"Refund from {pos_invoice}",
 	})
@@ -590,7 +590,7 @@ def _validate_voucher_item_groups(pos_invoice, allowed_group):
 	Throws if any line item falls outside the allowed group hierarchy.
 	"""
 	items = frappe.db.get_all(
-		"POS Invoice Item",
+		"Sales Invoice Item",
 		filters={"parent": pos_invoice},
 		fields=["item_code", "item_group"],
 	)

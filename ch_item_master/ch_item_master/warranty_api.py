@@ -904,6 +904,133 @@ def update_claim_logistics(claim_name, action, pickup_address=None,
 	frappe.throw(_("Unsupported logistics action: {0}").format(action))
 
 
+# ── Device Receiving, QC, Fee — new claim lifecycle endpoints ──────────
+
+
+@frappe.whitelist()
+def receive_claim_device(claim_name, condition_on_receipt=None,
+                         accessories_received=None, imei_verified=0,
+                         receiving_remarks=None):
+	"""Mark device as physically received at store."""
+	claim = frappe.get_doc("CH Warranty Claim", claim_name)
+	return claim.mark_device_received(
+		condition_on_receipt=condition_on_receipt,
+		accessories_received=accessories_received,
+		imei_verified=imei_verified,
+		receiving_remarks=receiving_remarks,
+	)
+
+
+@frappe.whitelist()
+def perform_claim_qc(claim_name, qc_result, qc_remarks=None,
+                     qc_result_reason=None, qc_checks=None):
+	"""Perform intake QC on received device."""
+	claim = frappe.get_doc("CH Warranty Claim", claim_name)
+	return claim.perform_intake_qc(
+		qc_result=qc_result,
+		qc_remarks=qc_remarks,
+		qc_result_reason=qc_result_reason,
+		qc_checks=qc_checks,
+	)
+
+
+@frappe.whitelist()
+def generate_claim_fee(claim_name, fee_amount=None):
+	"""Calculate and set processing fee after QC passes."""
+	claim = frappe.get_doc("CH Warranty Claim", claim_name)
+	return claim.generate_processing_fee(fee_amount=fee_amount)
+
+
+@frappe.whitelist()
+def send_claim_fee_link(claim_name, channel="WhatsApp"):
+	"""Send payment link for processing fee to customer."""
+	claim = frappe.get_doc("CH Warranty Claim", claim_name)
+	return claim.send_fee_payment_link(channel=channel)
+
+
+@frappe.whitelist()
+def mark_claim_fee_paid(claim_name, paid_amount=None, payment_mode=None,
+                        payment_ref=None, remarks=None):
+	"""Record processing fee payment."""
+	claim = frappe.get_doc("CH Warranty Claim", claim_name)
+	return claim.mark_fee_paid(
+		paid_amount=paid_amount,
+		payment_mode=payment_mode,
+		payment_ref=payment_ref,
+		remarks=remarks,
+	)
+
+
+@frappe.whitelist()
+def waive_claim_fee(claim_name, waiver_reason, waived_amount=None):
+	"""Request or approve processing fee waiver."""
+	claim = frappe.get_doc("CH Warranty Claim", claim_name)
+	return claim.waive_processing_fee(
+		waiver_reason=waiver_reason,
+		waived_amount=waived_amount,
+	)
+
+
+@frappe.whitelist()
+def create_claim_repair_ticket(claim_name, remarks=None):
+	"""Create GoFix repair ticket with strict gate control."""
+	claim = frappe.get_doc("CH Warranty Claim", claim_name)
+	return claim.create_repair_ticket(remarks=remarks)
+
+
+@frappe.whitelist()
+def need_more_info_claim(claim_name, remarks=None):
+	"""Send claim back for more information."""
+	claim = frappe.get_doc("CH Warranty Claim", claim_name)
+	return claim.need_more_info(remarks=remarks)
+
+
+@frappe.whitelist()
+def request_additional_approval_claim(claim_name, additional_issue_description=None,
+                                       additional_cost_estimated=0, additional_photos=None):
+	"""Request customer approval for additional damage / cost."""
+	claim = frappe.get_doc("CH Warranty Claim", claim_name)
+	return claim.request_additional_approval(
+		additional_issue_description=additional_issue_description,
+		additional_cost_estimated=flt(additional_cost_estimated),
+		additional_photos=additional_photos,
+	)
+
+
+@frappe.whitelist()
+def resolve_additional_approval_claim(claim_name, decision, remarks=None):
+	"""Resolve additional approval request (approved/rejected/expired)."""
+	claim = frappe.get_doc("CH Warranty Claim", claim_name)
+	return claim.resolve_additional_approval(decision=decision, remarks=remarks)
+
+
+@frappe.whitelist()
+def perform_final_qc_claim(claim_name, qc_result, qc_remarks=None):
+	"""Perform final QC after repair."""
+	claim = frappe.get_doc("CH Warranty Claim", claim_name)
+	return claim.perform_final_qc(qc_result=qc_result, qc_remarks=qc_remarks)
+
+
+@frappe.whitelist(allow_guest=True)
+def pay_processing_fee(claim, amount=None):
+	"""Public endpoint for processing fee payment (via payment link).
+
+	In production, integrate with payment gateway. For now, returns
+	a stub page or marks as paid after verification.
+	"""
+	if not claim or not frappe.db.exists("CH Warranty Claim", claim):
+		frappe.throw(_("Invalid claim"), frappe.DoesNotExistError)
+
+	# Return basic payment info (integrate with payment gateway later)
+	doc = frappe.get_doc("CH Warranty Claim", claim)
+	return {
+		"claim_name": doc.name,
+		"customer_name": doc.customer_name,
+		"amount": flt(doc.processing_fee_amount),
+		"status": doc.processing_fee_status,
+	}
+
+
 @frappe.whitelist()
 def get_device_claim_info(serial_no, company=None):
 	"""Get full device + warranty + claim history for a serial.

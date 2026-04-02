@@ -25,6 +25,22 @@
   "column_break_basic",
   "claim_status",
   "coverage_type",
+  "section_coverage_decision",
+  "coverage_source",
+  "coverage_reference_doctype",
+  "coverage_reference_id",
+  "coverage_priority",
+  "column_break_coverage_decision",
+  "entitlement_decision",
+  "entitlement_reason",
+  "section_previous_service",
+  "previous_service_invoice",
+  "previous_service_ticket",
+  "previous_service_date",
+  "column_break_prev_svc",
+  "replaced_part_reference",
+  "part_warranty_valid_till",
+  "service_warranty_register",
   "reported_by",
   "reported_at_store",
   "section_device",
@@ -73,20 +89,63 @@
   "column_break_gofix",
   "repair_status",
   "repair_completion_date",
-    "section_logistics",
-    "mode_of_service",
-    "pickup_required",
-    "pickup_address",
-    "pickup_slot",
-    "column_break_pickup",
-    "pickup_partner",
-    "pickup_tracking_no",
-    "delivery_otp",
-    "pickup_scheduled_at",
-    "picked_up_at",
-    "out_for_delivery_at",
-    "delivered_back_at",
-    "logistics_status",
+  "section_final_qc",
+  "final_qc_status",
+  "final_qc_by",
+  "final_qc_at",
+  "column_break_final_qc",
+  "final_qc_remarks",
+  "section_final_outcome",
+  "final_outcome",
+  "final_outcome_remarks",
+  "column_break_final_outcome",
+  "payment_mode",
+  "section_logistics",
+  "mode_of_service",
+  "pickup_required",
+  "pickup_address",
+  "pickup_slot",
+  "column_break_pickup",
+  "pickup_partner",
+  "pickup_tracking_no",
+  "delivery_otp",
+  "pickup_scheduled_at",
+  "picked_up_at",
+  "out_for_delivery_at",
+  "delivered_back_at",
+  "logistics_status",
+  "section_receiving",
+  "device_received_at",
+  "device_received_by",
+  "receiving_remarks",
+  "column_break_receiving",
+  "accessories_received",
+  "imei_verified",
+  "condition_on_receipt",
+  "section_receiving_photos",
+  "parcel_photo_1",
+  "parcel_photo_2",
+  "column_break_receiving_photos",
+  "device_received_photo_1",
+  "device_received_photo_2",
+  "section_intake_qc",
+  "intake_qc_status",
+  "intake_qc_by",
+  "intake_qc_at",
+  "column_break_qc",
+  "intake_qc_remarks",
+  "intake_qc_result_reason",
+  "section_qc_checks",
+  "intake_qc_checks",
+  "section_additional_damage",
+  "additional_issue_description",
+  "additional_issue_photos",
+  "additional_cost_covered",
+  "column_break_additional",
+  "additional_cost_customer",
+  "additional_approval_status",
+  "additional_approval_link_sent_at",
+  "additional_approval_decided_at",
   "section_manufacturer",
   "manufacturer_service_center",
   "manufacturer_job_id",
@@ -127,6 +186,21 @@
   "processing_fee_amount",
   "column_break_processing_fee",
   "processing_fee_invoice",
+  "processing_fee_payment_mode",
+  "section_fee_payment_link",
+  "processing_fee_link_url",
+  "processing_fee_link_sent_at",
+  "processing_fee_link_sent_via",
+  "column_break_fee_link",
+  "processing_fee_paid_at",
+  "processing_fee_paid_amount",
+  "processing_fee_payment_ref",
+  "section_fee_waiver",
+  "processing_fee_waived_amount",
+  "processing_fee_waiver_reason",
+  "column_break_fee_waiver",
+  "processing_fee_waiver_approved_by",
+  "processing_fee_waiver_approved_at",
   "section_claim_costs",
   "logistics_cost",
   "third_party_repair_cost",
@@ -195,7 +269,7 @@
    "fieldname": "claim_status",
    "fieldtype": "Select",
    "label": "Claim Status",
-    "options": "Draft\nPending Approval\nApproved\nPickup Requested\nPickup Scheduled\nPicked Up\nRejected\nTicket Created\nSent to Manufacturer\nIn Repair\nRepair Complete\nOut for Delivery\nDelivered\nClosed\nCancelled",
+   "options": "Draft\nPending Coverage Check\nCoverage Identified\nPending Approval\nNeed More Information\nApproved\nPartially Approved\nRejected\nPickup Requested\nPickup Scheduled\nPicked Up\nDevice Received\nQC Pending\nQC Passed\nQC Failed\nFee Pending\nFee Paid\nFee Waived\nTicket Created\nIn Repair\nAdditional Approval Pending\nAwaiting Spare\nRepair Complete\nFinal QC Pending\nFinal QC Passed\nInvoice Pending\nInvoice Raised\nPayment Pending\nPayment Received\nOut for Delivery\nDelivered\nClosed\nCancelled\nNot Repairable",
    "default": "Draft",
    "in_list_view": 1,
    "in_standard_filter": 1,
@@ -207,7 +281,7 @@
    "fieldname": "coverage_type",
    "fieldtype": "Select",
    "label": "Coverage Type",
-   "options": "\nIn Warranty\nOut of Warranty\nPartial Coverage\nManufacturer Warranty",
+   "options": "anniversary_warranty\nvas_plan\nrepair_warranty\nmanufacturer_warranty\npaid_repair\ngoodwill",
    "in_list_view": 1,
    "in_standard_filter": 1,
    "read_only": 1,
@@ -489,7 +563,7 @@
    "fieldname": "processing_fee_status",
    "fieldtype": "Select",
    "label": "Processing Fee Status",
-   "options": "Not Required\nPending\nPaid\nWaived",
+   "options": "Not Required\nPending\nLink Sent\nPaid\nWaived",
    "default": "Not Required",
    "read_only": 1,
    "no_copy": 1,
@@ -565,7 +639,7 @@
    "fieldname": "approval_status",
    "fieldtype": "Select",
    "label": "Approval Status",
-   "options": "\nPending\nApproved\nRejected",
+   "options": "Pending\nApproved\nPartially Approved\nRejected\nNeed More Information",
    "read_only": 1,
    "no_copy": 1,
    "in_standard_filter": 1,
@@ -648,96 +722,96 @@
    "read_only": 1,
    "allow_on_submit": 1
   },
-    {
-     "fieldname": "section_logistics",
-     "fieldtype": "Section Break",
-     "label": "Pickup & Delivery"
-    },
-    {
-     "fieldname": "mode_of_service",
-     "fieldtype": "Select",
-     "label": "Mode of Service",
-     "options": "Walk-in\nPickup\nCourier\nOn-site",
-     "default": "Walk-in",
-     "allow_on_submit": 1
-    },
-    {
-     "fieldname": "pickup_required",
-     "fieldtype": "Check",
-     "label": "Pickup Required",
-     "read_only": 1,
-     "allow_on_submit": 1
-    },
-    {
-     "fieldname": "pickup_address",
-     "fieldtype": "Small Text",
-     "label": "Pickup Address",
-     "allow_on_submit": 1
-    },
-    {
-     "fieldname": "pickup_slot",
-     "fieldtype": "Datetime",
-     "label": "Preferred Pickup Slot",
-     "allow_on_submit": 1
-    },
-    {
-     "fieldname": "column_break_pickup",
-     "fieldtype": "Column Break"
-    },
-    {
-     "fieldname": "pickup_partner",
-     "fieldtype": "Data",
-     "label": "Pickup Partner",
-     "allow_on_submit": 1
-    },
-    {
-     "fieldname": "pickup_tracking_no",
-     "fieldtype": "Data",
-     "label": "Tracking Number",
-     "allow_on_submit": 1
-    },
-    {
-     "fieldname": "delivery_otp",
-     "fieldtype": "Data",
-     "label": "Delivery OTP",
-     "allow_on_submit": 1
-    },
-    {
-     "fieldname": "pickup_scheduled_at",
-     "fieldtype": "Datetime",
-     "label": "Pickup Scheduled At",
-     "read_only": 1,
-     "allow_on_submit": 1
-    },
-    {
-     "fieldname": "picked_up_at",
-     "fieldtype": "Datetime",
-     "label": "Picked Up At",
-     "read_only": 1,
-     "allow_on_submit": 1
-    },
-    {
-     "fieldname": "out_for_delivery_at",
-     "fieldtype": "Datetime",
-     "label": "Out For Delivery At",
-     "read_only": 1,
-     "allow_on_submit": 1
-    },
-    {
-     "fieldname": "delivered_back_at",
-     "fieldtype": "Datetime",
-     "label": "Delivered Back At",
-     "read_only": 1,
-     "allow_on_submit": 1
-    },
-    {
-     "fieldname": "logistics_status",
-     "fieldtype": "Select",
-     "label": "Logistics Status",
-     "options": "\nNot Required\nPickup Requested\nPickup Scheduled\nPicked Up\nOut for Delivery\nDelivered",
-     "read_only": 1,
-     "allow_on_submit": 1
-    },
+  {
+   "fieldname": "section_logistics",
+   "fieldtype": "Section Break",
+   "label": "Pickup & Delivery"
+  },
+  {
+   "fieldname": "mode_of_service",
+   "fieldtype": "Select",
+   "label": "Mode of Service",
+   "options": "Walk-in\nPickup\nCourier\nOn-site",
+   "default": "Walk-in",
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "pickup_required",
+   "fieldtype": "Check",
+   "label": "Pickup Required",
+   "read_only": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "pickup_address",
+   "fieldtype": "Small Text",
+   "label": "Pickup Address",
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "pickup_slot",
+   "fieldtype": "Datetime",
+   "label": "Preferred Pickup Slot",
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "column_break_pickup",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "pickup_partner",
+   "fieldtype": "Data",
+   "label": "Pickup Partner",
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "pickup_tracking_no",
+   "fieldtype": "Data",
+   "label": "Tracking Number",
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "delivery_otp",
+   "fieldtype": "Data",
+   "label": "Delivery OTP",
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "pickup_scheduled_at",
+   "fieldtype": "Datetime",
+   "label": "Pickup Scheduled At",
+   "read_only": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "picked_up_at",
+   "fieldtype": "Datetime",
+   "label": "Picked Up At",
+   "read_only": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "out_for_delivery_at",
+   "fieldtype": "Datetime",
+   "label": "Out For Delivery At",
+   "read_only": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "delivered_back_at",
+   "fieldtype": "Datetime",
+   "label": "Delivered Back At",
+   "read_only": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "logistics_status",
+   "fieldtype": "Select",
+   "label": "Logistics Status",
+   "options": "\nNot Required\nPickup Requested\nPickup Scheduled\nPicked Up\nDevice Received\nOut for Delivery\nDelivered",
+   "read_only": 1,
+   "allow_on_submit": 1
+  },
   {
    "fieldname": "section_manufacturer",
    "fieldtype": "Section Break",
@@ -935,6 +1009,466 @@
    "read_only": 1,
    "no_copy": 1,
    "hidden": 1
+  },
+  {
+   "fieldname": "section_receiving",
+   "fieldtype": "Section Break",
+   "label": "Device Receiving",
+   "collapsible": 1,
+   "depends_on": "eval:doc.docstatus==1"
+  },
+  {
+   "fieldname": "device_received_at",
+   "fieldtype": "Datetime",
+   "label": "Device Received At",
+   "read_only": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "device_received_by",
+   "fieldtype": "Link",
+   "label": "Received By",
+   "options": "User",
+   "read_only": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "receiving_remarks",
+   "fieldtype": "Small Text",
+   "label": "Receiving Remarks",
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "column_break_receiving",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "accessories_received",
+   "fieldtype": "Small Text",
+   "label": "Accessories Received",
+   "allow_on_submit": 1,
+   "description": "List accessories received (charger, box, earphones, etc.)"
+  },
+  {
+   "fieldname": "imei_verified",
+   "fieldtype": "Check",
+   "label": "IMEI Verified",
+   "allow_on_submit": 1,
+   "description": "IMEI/Serial on device matches claim"
+  },
+  {
+   "fieldname": "condition_on_receipt",
+   "fieldtype": "Select",
+   "label": "Condition on Receipt",
+   "options": "\nGood\nMinor Damage\nMajor Damage\nWrong Device\nEmpty Parcel\nIMEI Mismatch\nMissing Accessories",
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "section_receiving_photos",
+   "fieldtype": "Section Break",
+   "label": "Receiving Photos",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "parcel_photo_1",
+   "fieldtype": "Attach Image",
+   "label": "Parcel Photo 1",
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "parcel_photo_2",
+   "fieldtype": "Attach Image",
+   "label": "Parcel Photo 2",
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "column_break_receiving_photos",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "device_received_photo_1",
+   "fieldtype": "Attach Image",
+   "label": "Device Photo 1 (Receipt)",
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "device_received_photo_2",
+   "fieldtype": "Attach Image",
+   "label": "Device Photo 2 (Receipt)",
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "section_intake_qc",
+   "fieldtype": "Section Break",
+   "label": "Intake QC",
+   "collapsible": 1,
+   "depends_on": "eval:doc.docstatus==1"
+  },
+  {
+   "fieldname": "intake_qc_status",
+   "fieldtype": "Select",
+   "label": "Intake QC Status",
+   "options": "\nPending\nPassed\nFailed\nNot Repairable",
+   "read_only": 1,
+   "allow_on_submit": 1,
+   "in_standard_filter": 1,
+   "description": "Must pass before repair ticket can be created"
+  },
+  {
+   "fieldname": "intake_qc_by",
+   "fieldtype": "Link",
+   "label": "QC Done By",
+   "options": "User",
+   "read_only": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "intake_qc_at",
+   "fieldtype": "Datetime",
+   "label": "QC Done At",
+   "read_only": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "column_break_qc",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "intake_qc_remarks",
+   "fieldtype": "Small Text",
+   "label": "QC Remarks",
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "intake_qc_result_reason",
+   "fieldtype": "Small Text",
+   "label": "QC Failure / Not Repairable Reason",
+   "allow_on_submit": 1,
+   "depends_on": "eval:['Failed','Not Repairable'].includes(doc.intake_qc_status)"
+  },
+  {
+   "fieldname": "section_qc_checks",
+   "fieldtype": "Section Break",
+   "label": "QC Checklist",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "intake_qc_checks",
+   "fieldtype": "Table",
+   "label": "QC Checks",
+   "options": "GoFix QC Checklist",
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "processing_fee_payment_mode",
+   "fieldtype": "Select",
+   "label": "Fee Payment Mode",
+   "options": "\nCash\nUPI\nCard\nBank Transfer\nPayment Link\nSplit",
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "section_fee_payment_link",
+   "fieldtype": "Section Break",
+   "label": "Payment Link & Tracking",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "processing_fee_link_url",
+   "fieldtype": "Data",
+   "label": "Payment Link URL",
+   "read_only": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "processing_fee_link_sent_at",
+   "fieldtype": "Datetime",
+   "label": "Link Sent At",
+   "read_only": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "processing_fee_link_sent_via",
+   "fieldtype": "Data",
+   "label": "Sent Via",
+   "read_only": 1,
+   "allow_on_submit": 1,
+   "description": "WhatsApp / SMS / Email"
+  },
+  {
+   "fieldname": "column_break_fee_link",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "processing_fee_paid_at",
+   "fieldtype": "Datetime",
+   "label": "Fee Paid At",
+   "read_only": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "processing_fee_paid_amount",
+   "fieldtype": "Currency",
+   "label": "Paid Amount",
+   "read_only": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "processing_fee_payment_ref",
+   "fieldtype": "Data",
+   "label": "Payment Reference",
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "section_fee_waiver",
+   "fieldtype": "Section Break",
+   "label": "Fee Waiver",
+   "collapsible": 1,
+   "depends_on": "eval:doc.processing_fee_status=='Waived'"
+  },
+  {
+   "fieldname": "processing_fee_waived_amount",
+   "fieldtype": "Currency",
+   "label": "Waived Amount",
+   "read_only": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "processing_fee_waiver_reason",
+   "fieldtype": "Small Text",
+   "label": "Waiver Reason",
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "column_break_fee_waiver",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "processing_fee_waiver_approved_by",
+   "fieldtype": "Link",
+   "label": "Waiver Approved By",
+   "options": "User",
+   "read_only": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "processing_fee_waiver_approved_at",
+   "fieldtype": "Datetime",
+   "label": "Waiver Approved At",
+   "read_only": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "section_coverage_decision",
+   "fieldtype": "Section Break",
+   "label": "Coverage Decision",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "coverage_source",
+   "fieldtype": "Select",
+   "label": "Coverage Source",
+   "options": "\ngofix\ngogizmo\noem\ninternal_exception",
+   "read_only": 1
+  },
+  {
+   "fieldname": "coverage_reference_doctype",
+   "fieldtype": "Link",
+   "label": "Coverage Ref DocType",
+   "options": "DocType",
+   "read_only": 1,
+   "hidden": 1
+  },
+  {
+   "fieldname": "coverage_reference_id",
+   "fieldtype": "Dynamic Link",
+   "label": "Coverage Reference",
+   "options": "coverage_reference_doctype",
+   "read_only": 1
+  },
+  {
+   "fieldname": "coverage_priority",
+   "fieldtype": "Int",
+   "label": "Coverage Priority",
+   "read_only": 1,
+   "description": "1=highest. repair_warranty=1, anniversary=2, vas=3, mfr=4, paid=5, goodwill=6"
+  },
+  {
+   "fieldname": "column_break_coverage_decision",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "entitlement_decision",
+   "fieldtype": "Select",
+   "label": "Entitlement Decision",
+   "options": "\nEligible\nNot Eligible\nPartially Eligible\nPending Verification\nConverted",
+   "read_only": 1
+  },
+  {
+   "fieldname": "entitlement_reason",
+   "fieldtype": "Small Text",
+   "label": "Entitlement Reason",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_previous_service",
+   "fieldtype": "Section Break",
+   "label": "Previous Service (Repair Warranty)",
+   "collapsible": 1,
+   "depends_on": "eval:doc.coverage_type=='repair_warranty'"
+  },
+  {
+   "fieldname": "previous_service_invoice",
+   "fieldtype": "Link",
+   "label": "Previous Service Invoice",
+   "options": "Sales Invoice",
+   "read_only": 1
+  },
+  {
+   "fieldname": "previous_service_ticket",
+   "fieldtype": "Link",
+   "label": "Previous Service Ticket",
+   "options": "Service Request",
+   "read_only": 1
+  },
+  {
+   "fieldname": "previous_service_date",
+   "fieldtype": "Date",
+   "label": "Previous Service Date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_prev_svc",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "replaced_part_reference",
+   "fieldtype": "Data",
+   "label": "Replaced Part Reference",
+   "read_only": 1
+  },
+  {
+   "fieldname": "part_warranty_valid_till",
+   "fieldtype": "Date",
+   "label": "Part Warranty Valid Till",
+   "read_only": 1
+  },
+  {
+   "fieldname": "service_warranty_register",
+   "fieldtype": "Link",
+   "label": "Service Warranty Register",
+   "options": "CH Service Warranty Register",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_additional_damage",
+   "fieldtype": "Section Break",
+   "label": "Additional Damage / Cost",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "additional_issue_description",
+   "fieldtype": "Small Text",
+   "label": "Additional Issue Description"
+  },
+  {
+   "fieldname": "additional_issue_photos",
+   "fieldtype": "Attach Image",
+   "label": "Additional Issue Photo"
+  },
+  {
+   "fieldname": "additional_cost_covered",
+   "fieldtype": "Currency",
+   "label": "Additional Covered Cost"
+  },
+  {
+   "fieldname": "column_break_additional",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "additional_cost_customer",
+   "fieldtype": "Currency",
+   "label": "Additional Customer Payable"
+  },
+  {
+   "fieldname": "additional_approval_status",
+   "fieldtype": "Select",
+   "label": "Additional Approval Status",
+   "options": "\nPending\nLink Sent\nCustomer Approved\nCustomer Rejected\nExpired\nOverride Approved"
+  },
+  {
+   "fieldname": "additional_approval_link_sent_at",
+   "fieldtype": "Datetime",
+   "label": "Approval Link Sent At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "additional_approval_decided_at",
+   "fieldtype": "Datetime",
+   "label": "Customer Decision At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_final_qc",
+   "fieldtype": "Section Break",
+   "label": "Final QC",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "final_qc_status",
+   "fieldtype": "Select",
+   "label": "Final QC Status",
+   "options": "\nPending\nPassed\nFailed"
+  },
+  {
+   "fieldname": "final_qc_by",
+   "fieldtype": "Link",
+   "label": "Final QC By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "final_qc_at",
+   "fieldtype": "Datetime",
+   "label": "Final QC At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_final_qc",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "final_qc_remarks",
+   "fieldtype": "Small Text",
+   "label": "Final QC Remarks"
+  },
+  {
+   "fieldname": "section_final_outcome",
+   "fieldtype": "Section Break",
+   "label": "Final Outcome",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "final_outcome",
+   "fieldtype": "Select",
+   "label": "Final Outcome",
+   "options": "\nRepaired Under Anniversary Warranty\nRepaired Under VAS Plan\nRepaired Under Repair Warranty\nRepaired Paid\nNot Repairable at Intake\nNot Repairable After Diagnosis\nRejected Claim\nCancelled by Customer\nGoodwill Repair",
+   "read_only": 1
+  },
+  {
+   "fieldname": "final_outcome_remarks",
+   "fieldtype": "Small Text",
+   "label": "Outcome Remarks",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_final_outcome",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "payment_mode",
+   "fieldtype": "Select",
+   "label": "Payment Mode",
+   "options": "\nCash\nUPI\nCard\nOnline\nNEFT\nSplit"
   }
  ],
  "permissions": [
@@ -1035,8 +1569,104 @@
   {
    "title": "Cancelled",
    "color": "Red"
+  },
+  {
+   "title": "Device Received",
+   "color": "Cyan"
+  },
+  {
+   "title": "QC Pending",
+   "color": "Yellow"
+  },
+  {
+   "title": "QC Passed",
+   "color": "Green"
+  },
+  {
+   "title": "QC Failed",
+   "color": "Red"
+  },
+  {
+   "title": "Fee Pending",
+   "color": "Orange"
+  },
+  {
+   "title": "Fee Paid",
+   "color": "Blue"
+  },
+  {
+   "title": "Fee Waived",
+   "color": "Blue"
+  },
+  {
+   "title": "Pickup Requested",
+   "color": "Cyan"
+  },
+  {
+   "title": "Pickup Scheduled",
+   "color": "Cyan"
+  },
+  {
+   "title": "Picked Up",
+   "color": "Cyan"
+  },
+  {
+   "title": "Out for Delivery",
+   "color": "Blue"
+  },
+  {
+   "title": "Delivered",
+   "color": "Green"
+  },
+  {
+   "title": "Pending Coverage Check",
+   "color": "light-blue"
+  },
+  {
+   "title": "Coverage Identified",
+   "color": "blue"
+  },
+  {
+   "title": "Need More Information",
+   "color": "orange"
+  },
+  {
+   "title": "Partially Approved",
+   "color": "cyan"
+  },
+  {
+   "title": "Additional Approval Pending",
+   "color": "orange"
+  },
+  {
+   "title": "Awaiting Spare",
+   "color": "yellow"
+  },
+  {
+   "title": "Final QC Pending",
+   "color": "light-blue"
+  },
+  {
+   "title": "Final QC Passed",
+   "color": "green"
+  },
+  {
+   "title": "Invoice Pending",
+   "color": "orange"
+  },
+  {
+   "title": "Invoice Raised",
+   "color": "blue"
+  },
+  {
+   "title": "Payment Pending",
+   "color": "orange"
+  },
+  {
+   "title": "Payment Received",
+   "color": "green"
   }
  ],
- "modified": "2026-03-11 00:00:00.000000",
+ "modified": "2026-04-01 10:00:00.000000",
  "creation": "2026-03-11 00:00:00.000000"
 }

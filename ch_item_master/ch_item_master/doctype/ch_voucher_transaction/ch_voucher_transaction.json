@@ -81,7 +81,7 @@
    "fieldname": "pos_invoice",
    "fieldtype": "Link",
    "label": "POS Invoice",
-   "options": "POS Invoice",
+   "options": "Sales Invoice",
    "read_only": 1
   },
   {

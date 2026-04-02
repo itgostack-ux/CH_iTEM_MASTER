@@ -1,0 +1,158 @@
+{
+ "name": "CH Warranty Decision Log",
+ "module": "CH Item Master",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "engine": "InnoDB",
+ "naming_rule": "Expression",
+ "autoname": "WDL-.YYYY.-.#####",
+ "istable": 0,
+ "issingle": 0,
+ "is_submittable": 0,
+ "track_changes": 0,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "field_order": [
+  "claim",
+  "serial_no",
+  "column_break_1",
+  "evaluated_at",
+  "evaluated_by",
+  "section_decision",
+  "selected_coverage_type",
+  "selected_coverage_source",
+  "selected_priority",
+  "column_break_decision",
+  "coverage_reference_doctype",
+  "coverage_reference_id",
+  "entitlement_decision",
+  "entitlement_reason",
+  "section_trace",
+  "decision_trace",
+  "section_alternatives",
+  "alternatives_checked"
+ ],
+ "fields": [
+  {
+   "fieldname": "claim",
+   "fieldtype": "Link",
+   "label": "Warranty Claim",
+   "options": "CH Warranty Claim",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "serial_no",
+   "fieldtype": "Data",
+   "label": "Serial No",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "evaluated_at",
+   "fieldtype": "Datetime",
+   "label": "Evaluated At",
+   "default": "Now",
+   "read_only": 1
+  },
+  {
+   "fieldname": "evaluated_by",
+   "fieldtype": "Link",
+   "label": "Evaluated By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_decision",
+   "fieldtype": "Section Break",
+   "label": "Decision"
+  },
+  {
+   "fieldname": "selected_coverage_type",
+   "fieldtype": "Data",
+   "label": "Selected Coverage Type",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "selected_coverage_source",
+   "fieldtype": "Data",
+   "label": "Selected Coverage Source"
+  },
+  {
+   "fieldname": "selected_priority",
+   "fieldtype": "Int",
+   "label": "Priority"
+  },
+  {
+   "fieldname": "column_break_decision",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "coverage_reference_doctype",
+   "fieldtype": "Link",
+   "label": "Reference DocType",
+   "options": "DocType"
+  },
+  {
+   "fieldname": "coverage_reference_id",
+   "fieldtype": "Dynamic Link",
+   "label": "Reference ID",
+   "options": "coverage_reference_doctype"
+  },
+  {
+   "fieldname": "entitlement_decision",
+   "fieldtype": "Data",
+   "label": "Entitlement Decision"
+  },
+  {
+   "fieldname": "entitlement_reason",
+   "fieldtype": "Small Text",
+   "label": "Entitlement Reason"
+  },
+  {
+   "fieldname": "section_trace",
+   "fieldtype": "Section Break",
+   "label": "Decision Trace"
+  },
+  {
+   "fieldname": "decision_trace",
+   "fieldtype": "Code",
+   "label": "Decision Trace",
+   "options": "JSON",
+   "description": "Full coverage check log as JSON"
+  },
+  {
+   "fieldname": "section_alternatives",
+   "fieldtype": "Section Break",
+   "label": "Alternatives Checked"
+  },
+  {
+   "fieldname": "alternatives_checked",
+   "fieldtype": "Code",
+   "label": "Alternatives Checked",
+   "options": "JSON",
+   "description": "Other coverages considered and why not selected"
+  }
+ ],
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
+  },
+  {
+   "role": "Sales Manager",
+   "read": 1
+  },
+  {
+   "role": "Sales User",
+   "read": 1
+  }
+ ],
+ "states": []
+}

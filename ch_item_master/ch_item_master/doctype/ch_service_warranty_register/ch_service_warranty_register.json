@@ -1,0 +1,312 @@
+{
+ "name": "CH Service Warranty Register",
+ "module": "CH Item Master",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "engine": "InnoDB",
+ "naming_rule": "Expression",
+ "autoname": "SWR-.YYYY.-.#####",
+ "istable": 0,
+ "issingle": 0,
+ "is_submittable": 0,
+ "editable_grid": 1,
+ "track_changes": 1,
+ "title_field": "title",
+ "search_fields": "serial_no,customer,item_code,part_replaced",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "field_order": [
+  "title",
+  "status",
+  "column_break_header",
+  "serial_no",
+  "imei_number",
+  "section_device",
+  "item_code",
+  "item_name",
+  "brand",
+  "column_break_device",
+  "customer",
+  "customer_name",
+  "section_service_reference",
+  "service_invoice",
+  "service_ticket",
+  "service_date",
+  "service_company",
+  "column_break_svc_ref",
+  "technician",
+  "service_type",
+  "section_part_warranty",
+  "part_replaced",
+  "part_item_code",
+  "part_serial_no",
+  "column_break_part",
+  "warranty_months",
+  "warranty_start_date",
+  "warranty_end_date",
+  "section_coverage",
+  "covered_issue_categories",
+  "excluded_issue_categories",
+  "column_break_coverage",
+  "max_claims",
+  "claims_used",
+  "section_notes",
+  "remarks",
+  "created_from"
+ ],
+ "fields": [
+  {
+   "fieldname": "title",
+   "fieldtype": "Data",
+   "label": "Title",
+   "read_only": 1,
+   "hidden": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Active\nExpired\nClaimed\nVoid",
+   "default": "Active",
+   "in_list_view": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_header",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "serial_no",
+   "fieldtype": "Data",
+   "label": "Serial No",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "imei_number",
+   "fieldtype": "Data",
+   "label": "IMEI Number"
+  },
+  {
+   "fieldname": "section_device",
+   "fieldtype": "Section Break",
+   "label": "Device"
+  },
+  {
+   "fieldname": "item_code",
+   "fieldtype": "Link",
+   "label": "Device Item",
+   "options": "Item",
+   "reqd": 1
+  },
+  {
+   "fieldname": "item_name",
+   "fieldtype": "Data",
+   "label": "Item Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "brand",
+   "fieldtype": "Link",
+   "label": "Brand",
+   "options": "Brand"
+  },
+  {
+   "fieldname": "column_break_device",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "customer",
+   "fieldtype": "Link",
+   "label": "Customer",
+   "options": "Customer",
+   "reqd": 1
+  },
+  {
+   "fieldname": "customer_name",
+   "fieldtype": "Data",
+   "label": "Customer Name",
+   "fetch_from": "customer.customer_name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_service_reference",
+   "fieldtype": "Section Break",
+   "label": "Service Reference"
+  },
+  {
+   "fieldname": "service_invoice",
+   "fieldtype": "Link",
+   "label": "Service Invoice",
+   "options": "Sales Invoice"
+  },
+  {
+   "fieldname": "service_ticket",
+   "fieldtype": "Link",
+   "label": "Service Ticket",
+   "options": "Service Request"
+  },
+  {
+   "fieldname": "service_date",
+   "fieldtype": "Date",
+   "label": "Service Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "service_company",
+   "fieldtype": "Link",
+   "label": "Service Company",
+   "options": "Company",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_svc_ref",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "technician",
+   "fieldtype": "Data",
+   "label": "Technician"
+  },
+  {
+   "fieldname": "service_type",
+   "fieldtype": "Select",
+   "label": "Service Type",
+   "options": "Screen Replacement\nBattery Replacement\nCharging Port Repair\nMotherboard Repair\nSoftware Fix\nOther"
+  },
+  {
+   "fieldname": "section_part_warranty",
+   "fieldtype": "Section Break",
+   "label": "Part / Workmanship Warranty"
+  },
+  {
+   "fieldname": "part_replaced",
+   "fieldtype": "Data",
+   "label": "Part Replaced",
+   "description": "e.g. Screen Assembly, Battery, Charging Port"
+  },
+  {
+   "fieldname": "part_item_code",
+   "fieldtype": "Link",
+   "label": "Part Item Code",
+   "options": "Item"
+  },
+  {
+   "fieldname": "part_serial_no",
+   "fieldtype": "Data",
+   "label": "Part Serial No"
+  },
+  {
+   "fieldname": "column_break_part",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "warranty_months",
+   "fieldtype": "Int",
+   "label": "Warranty Months",
+   "default": 3,
+   "reqd": 1
+  },
+  {
+   "fieldname": "warranty_start_date",
+   "fieldtype": "Date",
+   "label": "Warranty Start Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "warranty_end_date",
+   "fieldtype": "Date",
+   "label": "Warranty End Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_coverage",
+   "fieldtype": "Section Break",
+   "label": "Coverage Scope"
+  },
+  {
+   "fieldname": "covered_issue_categories",
+   "fieldtype": "Small Text",
+   "label": "Covered Issue Categories",
+   "description": "Comma-separated: same_part_failure, workmanship_defect"
+  },
+  {
+   "fieldname": "excluded_issue_categories",
+   "fieldtype": "Small Text",
+   "label": "Excluded Issue Categories",
+   "description": "Comma-separated: accidental_damage, water_damage, physical_abuse"
+  },
+  {
+   "fieldname": "column_break_coverage",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "max_claims",
+   "fieldtype": "Int",
+   "label": "Max Claims",
+   "default": 1
+  },
+  {
+   "fieldname": "claims_used",
+   "fieldtype": "Int",
+   "label": "Claims Used",
+   "default": 0,
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_notes",
+   "fieldtype": "Section Break",
+   "label": "Notes"
+  },
+  {
+   "fieldname": "remarks",
+   "fieldtype": "Small Text",
+   "label": "Remarks"
+  },
+  {
+   "fieldname": "created_from",
+   "fieldtype": "Link",
+   "label": "Created From Claim",
+   "options": "CH Warranty Claim",
+   "read_only": 1
+  }
+ ],
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "submit": 0
+  },
+  {
+   "role": "Sales Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1
+  },
+  {
+   "role": "Sales User",
+   "read": 1
+  }
+ ],
+ "states": [
+  {
+   "title": "Active",
+   "color": "green"
+  },
+  {
+   "title": "Expired",
+   "color": "red"
+  },
+  {
+   "title": "Claimed",
+   "color": "orange"
+  },
+  {
+   "title": "Void",
+   "color": "gray"
+  }
+ ]
+}
