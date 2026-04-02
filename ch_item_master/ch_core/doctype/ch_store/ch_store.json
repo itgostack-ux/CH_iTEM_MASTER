@@ -16,6 +16,8 @@
   "territory_section",
   "territory",
   "branch",
+  "zone_section",
+  "zone",
   "address_section",
   "address",
   "city",
@@ -109,6 +111,19 @@
    "options": "Branch"
   },
   {
+   "fieldname": "zone_section",
+   "fieldtype": "Section Break",
+   "label": "Zone"
+  },
+  {
+   "fieldname": "zone",
+   "fieldtype": "Link",
+   "label": "Zone",
+   "options": "CH Store Zone",
+   "in_standard_filter": 1,
+   "description": "Stock requests from this store will be routed to the zone's source warehouse"
+  },
+  {
    "fieldname": "address_section",
    "fieldtype": "Section Break",
    "label": "Address"
@@ -184,7 +199,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-03-12 10:00:00.000000",
+ "modified": "2026-04-02 16:00:00.000000",
  "modified_by": "Administrator",
  "module": "CH Core",
  "name": "CH Store",
