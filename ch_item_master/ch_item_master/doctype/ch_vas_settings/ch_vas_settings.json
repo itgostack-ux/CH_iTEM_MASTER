@@ -1,0 +1,143 @@
+{
+ "name": "CH VAS Settings",
+ "module": "CH Item Master",
+ "doctype": "DocType",
+ "document_type": "Setup",
+ "engine": "InnoDB",
+ "issingle": 1,
+ "istable": 0,
+ "editable_grid": 1,
+ "track_changes": 1,
+ "fields": [
+  {
+   "fieldname": "section_companies",
+   "fieldtype": "Section Break",
+   "label": "Company Configuration"
+  },
+  {
+   "fieldname": "gogizmo_company",
+   "fieldtype": "Link",
+   "label": "Warranty Issuer Company",
+   "options": "Company",
+   "reqd": 1,
+   "default": "GoGizmo Retail Pvt Ltd",
+   "description": "The company that issues warranty/VAS plans to customers."
+  },
+  {
+   "fieldname": "column_break_companies",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "gofix_company",
+   "fieldtype": "Link",
+   "label": "Service Provider Company",
+   "options": "Company",
+   "reqd": 1,
+   "default": "GoFix Services Pvt Ltd",
+   "description": "The company that performs repairs and services."
+  },
+  {
+   "fieldname": "section_coverage",
+   "fieldtype": "Section Break",
+   "label": "Coverage Classification"
+  },
+  {
+   "fieldname": "anniversary_threshold_months",
+   "fieldtype": "Int",
+   "label": "Anniversary Plan Threshold (Months)",
+   "default": "24",
+   "reqd": 1,
+   "description": "Plans with duration >= this value are classified as 'anniversary_warranty'. Plans below this are classified as 'vas_plan'. Set to 0 to disable auto-classification (use plan-level override instead)."
+  },
+  {
+   "fieldname": "column_break_coverage",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "post_repair_warranty_months",
+   "fieldtype": "Int",
+   "label": "Post-Repair Warranty (Months)",
+   "default": "3",
+   "reqd": 1,
+   "description": "Months of warranty issued after a successful repair (Service Warranty Register). Applies to claims closed under anniversary/VAS/paid plans."
+  },
+  {
+   "fieldname": "section_paid_repair",
+   "fieldtype": "Section Break",
+   "label": "Paid Repair Defaults",
+   "description": "Default fee calculation for claims with no warranty coverage (paid_repair). These apply when the plan has no fee rules configured."
+  },
+  {
+   "fieldname": "paid_repair_fee_percent",
+   "fieldtype": "Percent",
+   "label": "Paid Repair Fee %",
+   "default": "10",
+   "description": "Default processing fee as percentage of estimated repair cost for paid repairs."
+  },
+  {
+   "fieldname": "paid_repair_fee_minimum",
+   "fieldtype": "Currency",
+   "label": "Paid Repair Fee Minimum",
+   "default": "200",
+   "description": "Minimum processing fee for paid repairs (floor). Applied when percentage yields a lower amount."
+  },
+  {
+   "fieldname": "column_break_paid_repair",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "paid_repair_fee_maximum",
+   "fieldtype": "Currency",
+   "label": "Paid Repair Fee Maximum",
+   "default": "0",
+   "description": "Maximum processing fee cap for paid repairs. 0 = no cap."
+  },
+  {
+   "fieldname": "section_approval",
+   "fieldtype": "Section Break",
+   "label": "Approval & Roles"
+  },
+  {
+   "fieldname": "fee_waiver_roles",
+   "fieldtype": "Small Text",
+   "label": "Fee Waiver Approval Roles",
+   "default": "Sales Manager\nCH Warranty Manager\nSystem Manager",
+   "description": "Roles that can directly approve processing fee waivers (one per line). Users without these roles must submit an exception request."
+  },
+  {
+   "fieldname": "column_break_approval",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "auto_approve_threshold",
+   "fieldtype": "Currency",
+   "label": "Auto-Approve Threshold",
+   "default": "0",
+   "description": "Claims with GoGizmo share <= this amount are auto-approved without manager review. 0 = always require approval per plan rules."
+  }
+ ],
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1
+  },
+  {
+   "role": "CH Warranty Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1
+  },
+  {
+   "role": "CH Master Manager",
+   "read": 1,
+   "write": 0,
+   "create": 0
+  }
+ ],
+ "links": [],
+ "actions": [],
+ "modified": "2026-04-02 00:00:00.000000",
+ "creation": "2026-04-02 00:00:00.000000"
+}

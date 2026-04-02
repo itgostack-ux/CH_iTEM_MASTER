@@ -258,6 +258,66 @@
    "label": "Internal Notes"
   },
   {
+   "fieldname": "section_claim_behaviour",
+   "fieldtype": "Section Break",
+   "label": "Claim Behaviour",
+   "collapsible": 1,
+   "description": "Control how claims against this plan are classified, approved, and cost-split. Leave defaults for standard behaviour."
+  },
+  {
+   "fieldname": "coverage_type_override",
+   "fieldtype": "Select",
+   "label": "Coverage Type Override",
+   "options": "\nanniversary_warranty\nvas_plan\nrepair_warranty\npaid_repair",
+   "description": "Override automatic coverage classification. Blank = auto-detect based on duration vs Anniversary Threshold in VAS Settings."
+  },
+  {
+   "fieldname": "priority",
+   "fieldtype": "Int",
+   "label": "Priority",
+   "default": "0",
+   "description": "Higher value = preferred when multiple active plans exist for a device. 0 = use default type-based priority."
+  },
+  {
+   "fieldname": "column_break_claim_behaviour",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "requires_approval",
+   "fieldtype": "Select",
+   "label": "Requires Approval",
+   "options": "Auto\nAlways\nNever\nIf Company Pays",
+   "default": "Auto",
+   "description": "Auto = system decides (anniversary=always, VAS=if company pays, paid=never). Always/Never = override. If Company Pays = require approval only when GoGizmo share > 0."
+  },
+  {
+   "fieldname": "company_share_percent",
+   "fieldtype": "Percent",
+   "label": "Company Share %",
+   "default": "100",
+   "description": "Percentage of covered amount (after deductible) that the warranty issuer company absorbs. 100 = full coverage, 50 = co-pay with customer."
+  },
+  {
+   "fieldname": "post_repair_warranty_months",
+   "fieldtype": "Int",
+   "label": "Post-Repair Warranty (Months)",
+   "default": "0",
+   "description": "Override global post-repair warranty duration for claims under this plan. 0 = use VAS Settings default."
+  },
+  {
+   "fieldname": "section_fee_rules",
+   "fieldtype": "Section Break",
+   "label": "Fee Rules",
+   "collapsible": 1,
+   "description": "Configure fees charged to the customer for claims under this plan. Multiple fees can be combined (e.g. processing fee + visiting charge). Leave empty = use default fee logic from VAS Settings."
+  },
+  {
+   "fieldname": "fee_rules",
+   "fieldtype": "Table",
+   "label": "Fee Rules",
+   "options": "CH Plan Fee Rule"
+  },
+  {
    "fieldname": "section_coverage_rules",
    "fieldtype": "Section Break",
    "label": "Coverage Rules",

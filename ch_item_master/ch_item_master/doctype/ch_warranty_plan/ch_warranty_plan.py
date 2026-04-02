@@ -235,7 +235,8 @@ class CHWarrantyPlan(Document):
 					"price", "pricing_mode", "percentage_value",
 					"duration_months", "attach_level", "coverage_description",
 					"brand", "valid_from", "valid_to", "max_claims",
-					"deductible_amount",
+					"deductible_amount", "priority", "requires_approval",
+					"company_share_percent", "coverage_type_override",
 				],
 			)
 		else:
@@ -247,7 +248,8 @@ class CHWarrantyPlan(Document):
 					"price", "pricing_mode", "percentage_value",
 					"duration_months", "attach_level", "coverage_description",
 					"brand", "valid_from", "valid_to", "max_claims",
-					"deductible_amount",
+					"deductible_amount", "priority", "requires_approval",
+					"company_share_percent", "coverage_type_override",
 				],
 			)
 

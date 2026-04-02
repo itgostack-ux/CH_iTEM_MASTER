@@ -244,13 +244,24 @@ def record_warranty_claim(serial_no, service_reference=None, company=None):
 			title=_("No Warranty Coverage"),
 		)
 
-	# Prefer Own Warranty > Extended > VAS > Protection > Post-Repair
-	priority = {
+	# Sort by plan-level priority (higher = preferred), then by type-based default
+	type_priority = {
 		"Own Warranty": 1, "Extended Warranty": 2,
 		"Value Added Service": 3, "Protection Plan": 4,
 		"Post-Repair Warranty": 5,
 	}
-	valid_plans.sort(key=lambda p: priority.get(p.get("plan_type"), 99))
+
+	def _plan_sort_key(p):
+		# Plans with explicit priority (set on CH Warranty Plan) come first (higher value first)
+		plan_prio = 0
+		if p.get("warranty_plan"):
+			plan_prio = frappe.db.get_value(
+				"CH Warranty Plan", p["warranty_plan"], "priority"
+			) or 0
+		# Negate so higher priority sorts first; then use type-based default
+		return (-int(plan_prio), type_priority.get(p.get("plan_type"), 99))
+
+	valid_plans.sort(key=_plan_sort_key)
 
 	best_plan = valid_plans[0]
 	doc = frappe.get_doc("CH Sold Plan", best_plan["name"])

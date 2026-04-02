@@ -197,6 +197,27 @@ def setup_channels():
     # Note: Commit is handled by the calling function (after_migrate)
 
 
+def setup_vas_settings():
+    """Ensure CH VAS Settings singleton exists with defaults.
+
+    Called after_migrate to bootstrap the settings record.
+    """
+    import frappe
+
+    if not frappe.db.exists("CH VAS Settings"):
+        doc = frappe.new_doc("CH VAS Settings")
+        doc.gogizmo_company = "GoGizmo Retail Pvt Ltd"
+        doc.gofix_company = "GoFix Services Pvt Ltd"
+        doc.anniversary_threshold_months = 24
+        doc.post_repair_warranty_months = 3
+        doc.paid_repair_fee_percent = 10
+        doc.paid_repair_fee_minimum = 200
+        doc.fee_waiver_roles = "Sales Manager\nCH Warranty Manager\nSystem Manager"
+        doc.insert(ignore_permissions=True)
+        frappe.db.commit()
+        frappe.logger("ch_item_master").info("CH VAS Settings created with defaults")
+
+
 def delete_ch_custom_fields():
     """Remove custom fields created by CH Item Master. Called on uninstall."""
     import frappe

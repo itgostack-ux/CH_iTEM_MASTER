@@ -201,6 +201,7 @@
   "column_break_fee_waiver",
   "processing_fee_waiver_approved_by",
   "processing_fee_waiver_approved_at",
+  "fee_breakdown",
   "section_claim_costs",
   "logistics_cost",
   "third_party_repair_cost",
@@ -1256,6 +1257,14 @@
    "label": "Waiver Approved At",
    "read_only": 1,
    "allow_on_submit": 1
+  },
+  {
+   "fieldname": "fee_breakdown",
+   "fieldtype": "Small Text",
+   "label": "Fee Breakdown",
+   "read_only": 1,
+   "allow_on_submit": 1,
+   "description": "JSON breakdown of individual fee components computed from plan fee rules."
   },
   {
    "fieldname": "section_coverage_decision",

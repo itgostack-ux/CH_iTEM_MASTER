@@ -1,0 +1,80 @@
+{
+ "name": "CH Plan Fee Rule",
+ "module": "CH Item Master",
+ "doctype": "DocType",
+ "istable": 1,
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "fields": [
+  {
+   "fieldname": "fee_type",
+   "fieldtype": "Select",
+   "label": "Fee Type",
+   "options": "Processing Fee\nVisiting Charge\nInspection Fee\nDeductible\nHandling Fee",
+   "reqd": 1,
+   "in_list_view": 1,
+   "columns": 2,
+   "description": "Type of fee to charge the customer."
+  },
+  {
+   "fieldname": "fee_mode",
+   "fieldtype": "Select",
+   "label": "Fee Mode",
+   "options": "Fixed Amount\nPercentage of Estimate\nPlan Deductible",
+   "default": "Fixed Amount",
+   "reqd": 1,
+   "in_list_view": 1,
+   "columns": 2,
+   "description": "Fixed Amount = flat fee. Percentage = % of estimated repair cost. Plan Deductible = uses the plan's deductible_amount."
+  },
+  {
+   "fieldname": "fee_amount",
+   "fieldtype": "Currency",
+   "label": "Fee Amount",
+   "in_list_view": 1,
+   "columns": 1,
+   "depends_on": "eval:doc.fee_mode=='Fixed Amount'",
+   "description": "Fixed fee amount when mode is 'Fixed Amount'."
+  },
+  {
+   "fieldname": "fee_percent",
+   "fieldtype": "Percent",
+   "label": "Fee %",
+   "in_list_view": 1,
+   "columns": 1,
+   "depends_on": "eval:doc.fee_mode=='Percentage of Estimate'",
+   "description": "Percentage of estimated repair cost."
+  },
+  {
+   "fieldname": "fee_minimum",
+   "fieldtype": "Currency",
+   "label": "Min Fee",
+   "description": "Floor amount — fee will not go below this. 0 = no minimum."
+  },
+  {
+   "fieldname": "fee_maximum",
+   "fieldtype": "Currency",
+   "label": "Max Fee",
+   "description": "Ceiling amount — fee will not exceed this. 0 = no cap."
+  },
+  {
+   "fieldname": "when_to_collect",
+   "fieldtype": "Select",
+   "label": "When to Collect",
+   "options": "After QC\nBefore Device Receipt\nAfter Repair",
+   "default": "After QC",
+   "in_list_view": 1,
+   "columns": 1,
+   "description": "At which stage to collect this fee. 'After QC' is the standard gate."
+  },
+  {
+   "fieldname": "applicable_modes",
+   "fieldtype": "Small Text",
+   "label": "Applicable Service Modes",
+   "description": "Comma-separated service modes this fee applies to (Walk-in, Pickup, Courier, On-site). Leave blank = all modes."
+  }
+ ],
+ "permissions": [],
+ "sort_field": "idx",
+ "sort_order": "ASC"
+}

@@ -39,12 +39,12 @@ from frappe.model.document import Document
 from frappe.utils import nowdate, now_datetime, getdate, flt
 
 from buyback.utils import validate_indian_phone
-
-
-# GoGizmo retail company (warranty issuer)
-GOGIZMO_COMPANY = "GoGizmo Retail Pvt Ltd"
-# GoFix service company (repair provider)
-GOFIX_COMPANY = "GoFix Services Pvt Ltd"
+from ch_item_master.ch_item_master.doctype.ch_vas_settings.ch_vas_settings import (
+	get_vas_settings,
+	get_warranty_company,
+	get_service_company,
+	get_fee_waiver_roles,
+)
 
 
 class CHWarrantyClaim(Document):
@@ -599,6 +599,15 @@ class CHWarrantyClaim(Document):
 			if not self.service_request:
 				return
 
+			# Determine warranty months: plan override > VAS Settings default
+			warranty_months = 0
+			if self.warranty_plan:
+				warranty_months = frappe.db.get_value(
+					"CH Warranty Plan", self.warranty_plan, "post_repair_warranty_months"
+				) or 0
+			if not warranty_months:
+				warranty_months = get_vas_settings().post_repair_warranty_months or 3
+
 			create_service_warranty(
 				service_invoice=None,  # Will be linked when invoice is created
 				service_ticket=self.service_request,
@@ -606,9 +615,9 @@ class CHWarrantyClaim(Document):
 				item_code=self.item_code,
 				customer=self.customer,
 				part_replaced=self.issue_description[:100] if self.issue_description else "Device Repair",
-				warranty_months=3,  # Default 3-month post-repair warranty
+				warranty_months=warranty_months,
 				service_date=self.repair_completion_date or nowdate(),
-				service_company=GOFIX_COMPANY,
+				service_company=get_service_company(),
 				claim_name=self.name,
 			)
 		except Exception:
@@ -855,10 +864,11 @@ class CHWarrantyClaim(Document):
 		old = self.claim_status
 
 		# Check if user has manager role for direct approval
+		waiver_roles = get_fee_waiver_roles()
 		is_manager = frappe.db.exists("Has Role", {
 			"parent": frappe.session.user,
-			"role": ["in", ["Sales Manager", "CH Warranty Manager", "System Manager"]],
-		})
+			"role": ["in", waiver_roles],
+		}) if waiver_roles else False
 
 		if is_manager:
 			updates = {
@@ -1059,13 +1069,32 @@ class CHWarrantyClaim(Document):
 		if not selected and self.sold_plan:
 			plan_type = self.plan_type or frappe.db.get_value("CH Sold Plan", self.sold_plan, "plan_type")
 			if plan_type in ("Own Warranty", "Extended") and self.warranty_status == "Under Warranty":
-				# Check duration — anniversary is long-duration (>= 24 months)
-				duration = frappe.db.get_value("CH Warranty Plan", self.warranty_plan, "duration_months") or 0
 				company = frappe.db.get_value("CH Sold Plan", self.sold_plan, "company") if self.sold_plan else ""
-				if duration >= 24:
+
+				# Check plan-level coverage_type_override first
+				plan_coverage_override = ""
+				if self.warranty_plan:
+					plan_coverage_override = frappe.db.get_value(
+						"CH Warranty Plan", self.warranty_plan, "coverage_type_override"
+					) or ""
+
+				if plan_coverage_override == "anniversary_warranty":
+					is_anniversary = True
+				elif plan_coverage_override == "vas_plan":
+					is_anniversary = False
+				else:
+					# Auto-detect from duration vs threshold
+					duration = frappe.db.get_value(
+						"CH Warranty Plan", self.warranty_plan, "duration_months"
+					) or 0
+					settings = get_vas_settings()
+					threshold = settings.anniversary_threshold_months or 24
+					is_anniversary = duration >= threshold
+
+				if is_anniversary:
 					selected = {
 						"coverage_type": "anniversary_warranty",
-						"coverage_source": "gogizmo" if company == GOGIZMO_COMPANY else "gofix",
+						"coverage_source": "gogizmo" if company == get_warranty_company() else "gofix",
 						"coverage_priority": 2,
 						"reference_doctype": "CH Sold Plan",
 						"reference_id": self.sold_plan,
@@ -1090,7 +1119,7 @@ class CHWarrantyClaim(Document):
 			if plan_type in ("Value Added Service", "VAS", "Protection", "Post-Repair Warranty", "Extended", "Own Warranty"):
 				selected = {
 					"coverage_type": "vas_plan",
-					"coverage_source": "gogizmo" if company == GOGIZMO_COMPANY else "gofix",
+					"coverage_source": "gogizmo" if company == get_warranty_company() else "gofix",
 					"coverage_priority": 3,
 					"reference_doctype": "CH Sold Plan",
 					"reference_id": self.sold_plan,
@@ -1256,84 +1285,192 @@ class CHWarrantyClaim(Document):
 		return None
 
 	def _calculate_cost_split(self):
-		"""Calculate how much each party pays based on coverage_type."""
+		"""Calculate how much each party pays based on coverage_type and plan config.
+
+		Uses company_share_percent from plan (or coverage rule override) to
+		determine the split. Defaults to 100% company share for warranty plans.
+		"""
 		est = flt(self.estimated_repair_cost)
 
 		if self.coverage_type == "manufacturer_warranty":
-			# Manufacturer covers repair — no cost to GoGizmo or customer
 			self.gogizmo_share = 0
 			self.gofix_share = 0
 			self.customer_share = 0
 		elif self.coverage_type == "repair_warranty":
-			# GoFix covers under repair warranty — no cost to customer
 			self.gogizmo_share = 0
 			self.gofix_share = est
 			self.customer_share = 0
 		elif self.coverage_type in ("anniversary_warranty", "vas_plan"):
-			if flt(self.deductible_amount) > 0:
-				# Customer pays deductible, GoGizmo pays the rest
-				self.customer_share = flt(self.deductible_amount)
-				self.gogizmo_share = max(0, est - self.customer_share)
-				self.gofix_share = 0
-			else:
-				# GoGizmo pays everything
-				self.gogizmo_share = est
-				self.gofix_share = 0
-				self.customer_share = 0
+			# Get company share percent from plan config
+			company_pct = self._get_company_share_percent()
+			deductible = flt(self.deductible_amount)
+			after_deductible = max(0, est - deductible)
+			self.gogizmo_share = flt(after_deductible * company_pct / 100, 2)
+			self.gofix_share = 0
+			self.customer_share = flt(est - self.gogizmo_share, 2)
 		elif self.coverage_type == "goodwill":
-			# Company absorbs cost as goodwill
 			self.gogizmo_share = est
 			self.gofix_share = 0
 			self.customer_share = 0
 		else:
-			# paid_repair — customer pays GoFix directly
+			# paid_repair
 			self.gogizmo_share = 0
 			self.gofix_share = 0
 			self.customer_share = est
 
-	def _calculate_processing_fee(self):
-		"""Calculate processing fee based on coverage type and business rules.
+	def _get_company_share_percent(self):
+		"""Get company share % from coverage rule (per-issue) or plan, default 100."""
+		# Check per-issue override first
+		if self.issue_category and self.warranty_plan:
+			plan = frappe.get_cached_doc("CH Warranty Plan", self.warranty_plan)
+			for rule in (plan.coverage_rules or []):
+				if rule.issue_type == self.issue_category:
+					if rule.company_share_percent is not None and flt(rule.company_share_percent) > 0:
+						return flt(rule.company_share_percent)
+					break
 
-		Rules:
-		- manufacturer_warranty: no fee (OEM covers)
-		- repair_warranty: no fee (GoFix covers under service warranty)
-		- anniversary_warranty / vas_plan: fee = deductible_amount
-		- paid_repair: fee = estimated_repair_cost * 10% (min ₹200)
-		- goodwill: no fee
+		# Plan-level override
+		if self.warranty_plan:
+			plan_pct = frappe.db.get_value(
+				"CH Warranty Plan", self.warranty_plan, "company_share_percent"
+			)
+			if plan_pct is not None and flt(plan_pct) > 0:
+				return flt(plan_pct)
+
+		return 100  # default: company absorbs 100% after deductible
+
+	def _calculate_processing_fee(self):
+		"""Calculate processing fee from plan fee rules or VAS Settings defaults.
+
+		Priority:
+		  1. CH Plan Fee Rule child table on warranty plan (if configured)
+		  2. VAS Settings defaults (for paid_repair / legacy plans)
+		  3. Hardcoded zero for manufacturer/repair/goodwill
 		"""
+		import json as _json
+
 		if self.coverage_type in ("manufacturer_warranty", "repair_warranty", "goodwill"):
 			return 0
+
+		# Check plan fee rules first
+		if self.warranty_plan:
+			plan = frappe.get_cached_doc("CH Warranty Plan", self.warranty_plan)
+			fee_rules = plan.fee_rules or []
+			# Filter by applicable service mode
+			applicable_rules = self._filter_applicable_fee_rules(fee_rules)
+			if applicable_rules:
+				return self._compute_fee_from_rules(applicable_rules)
+
+		# No plan fee rules → use defaults
 		if self.coverage_type in ("anniversary_warranty", "vas_plan"):
 			return flt(self.deductible_amount)
-		# paid_repair — standard processing fee
-		fee = max(200, flt(self.estimated_repair_cost) * 0.10)
+
+		# paid_repair — VAS Settings defaults
+		settings = get_vas_settings()
+		pct = flt(settings.paid_repair_fee_percent) or 10
+		minimum = flt(settings.paid_repair_fee_minimum) or 200
+		maximum = flt(settings.paid_repair_fee_maximum)
+		fee = flt(self.estimated_repair_cost) * pct / 100
+		fee = max(minimum, fee)
+		if maximum > 0:
+			fee = min(maximum, fee)
 		return flt(fee, 0)
 
-	def _check_approval_needed(self):
-		"""Determine if centralized Claim Manager approval is needed.
+	def _filter_applicable_fee_rules(self, fee_rules):
+		"""Filter fee rules by applicable service mode for the current claim."""
+		result = []
+		for rule in fee_rules:
+			if rule.applicable_modes:
+				modes = [m.strip() for m in (rule.applicable_modes or "").split(",") if m.strip()]
+				if modes and self.mode_of_service not in modes:
+					continue
+			result.append(rule)
+		return result
 
-		Approval required for:
-		- anniversary_warranty (always — high liability)
-		- vas_plan where GoGizmo bears cost
-		- goodwill (manager must approve)
-		No approval for:
-		- repair_warranty (GoFix internal — rules-driven)
-		- manufacturer_warranty (OEM handles)
-		- paid_repair (customer pays)
+	def _compute_fee_from_rules(self, rules):
+		"""Compute total fee from multiple CH Plan Fee Rule rows.
+
+		Stores breakdown in self.fee_breakdown for audit.
 		"""
-		if self.coverage_type == "repair_warranty":
+		import json as _json
+
+		total = 0
+		breakdown = []
+		est = flt(self.estimated_repair_cost)
+
+		for rule in rules:
+			amount = 0
+			if rule.fee_mode == "Fixed Amount":
+				amount = flt(rule.fee_amount)
+			elif rule.fee_mode == "Percentage of Estimate":
+				amount = est * flt(rule.fee_percent) / 100
+			elif rule.fee_mode == "Plan Deductible":
+				amount = flt(self.deductible_amount)
+
+			# Apply min/max
+			if flt(rule.fee_minimum) > 0:
+				amount = max(flt(rule.fee_minimum), amount)
+			if flt(rule.fee_maximum) > 0:
+				amount = min(flt(rule.fee_maximum), amount)
+
+			amount = flt(amount, 2)
+			total += amount
+			breakdown.append({
+				"fee_type": rule.fee_type,
+				"fee_mode": rule.fee_mode,
+				"amount": amount,
+				"when_to_collect": rule.when_to_collect,
+			})
+
+		# Store breakdown for audit
+		try:
+			self.db_set("fee_breakdown", _json.dumps(breakdown, default=str))
+		except Exception:
+			pass
+
+		return flt(total, 0)
+
+	def _check_approval_needed(self):
+		"""Determine if centralized approval is needed.
+
+		Uses plan-level requires_approval setting with fallback to coverage-type rules.
+		Plan setting overrides: Always, Never, If Company Pays, Auto (use defaults).
+		"""
+		plan_setting = ""
+		if self.warranty_plan:
+			plan_setting = frappe.db.get_value(
+				"CH Warranty Plan", self.warranty_plan, "requires_approval"
+			) or "Auto"
+
+		# Auto-approve threshold from VAS Settings
+		settings = get_vas_settings()
+		threshold = flt(settings.auto_approve_threshold)
+
+		if plan_setting == "Always":
+			self.requires_approval = 1
+		elif plan_setting == "Never":
 			self.requires_approval = 0
-		elif self.coverage_type == "manufacturer_warranty":
-			self.requires_approval = 0
-		elif self.coverage_type == "paid_repair":
-			self.requires_approval = 0
-		elif self.coverage_type == "anniversary_warranty":
-			self.requires_approval = 1  # Always requires approval
-		elif self.coverage_type == "goodwill":
-			self.requires_approval = 1  # Always requires approval
-		else:
-			# vas_plan — requires approval if GoGizmo bears cost
+		elif plan_setting == "If Company Pays":
 			self.requires_approval = 1 if flt(self.gogizmo_share) > 0 else 0
+		else:
+			# Auto — use coverage-type defaults
+			if self.coverage_type == "repair_warranty":
+				self.requires_approval = 0
+			elif self.coverage_type == "manufacturer_warranty":
+				self.requires_approval = 0
+			elif self.coverage_type == "paid_repair":
+				self.requires_approval = 0
+			elif self.coverage_type == "anniversary_warranty":
+				self.requires_approval = 1
+			elif self.coverage_type == "goodwill":
+				self.requires_approval = 1
+			else:
+				# vas_plan — requires approval if GoGizmo bears cost
+				self.requires_approval = 1 if flt(self.gogizmo_share) > 0 else 0
+
+		# Auto-approve threshold override
+		if self.requires_approval and threshold > 0 and flt(self.gogizmo_share) <= threshold:
+			self.requires_approval = 0
 
 		# #11: Auto-flag swap outside warranty window
 		if (self.warranty_end_date
@@ -1411,7 +1548,7 @@ class CHWarrantyClaim(Document):
 		try:
 			# Get GoFix warehouse
 			gofix_warehouse = frappe.db.get_value(
-				"Warehouse", {"company": GOFIX_COMPANY, "is_group": 0},
+				"Warehouse", {"company": get_service_company(), "is_group": 0},
 				"name", order_by="creation asc"
 			) or ""
 
@@ -1419,7 +1556,7 @@ class CHWarrantyClaim(Document):
 			sr.customer = self.customer
 			sr.customer_name = self.customer_name
 			sr.contact_number = self.customer_phone or ""
-			sr.company = GOFIX_COMPANY
+			sr.company = get_service_company()
 			sr.device_item = self.item_code
 			sr.serial_no = self.serial_no
 			sr.brand = self.brand
@@ -1544,7 +1681,7 @@ class CHWarrantyClaim(Document):
 			update_lifecycle_status(
 				serial_no=self.serial_no,
 				new_status="In Service",
-				company=GOFIX_COMPANY,
+				company=get_service_company(),
 				remarks=f"Warranty Claim {self.name} — sent to GoFix for repair",
 			)
 		except Exception as e:

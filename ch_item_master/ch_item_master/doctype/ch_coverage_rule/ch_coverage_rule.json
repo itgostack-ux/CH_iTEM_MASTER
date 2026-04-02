@@ -48,6 +48,12 @@
    "in_list_view": 1,
    "columns": 1,
    "description": "Override plan-level deductible for this issue type. Leave blank to use plan default."
+  },
+  {
+   "fieldname": "company_share_percent",
+   "fieldtype": "Percent",
+   "label": "Company Share %",
+   "description": "Override plan-level company share for this issue type. Leave blank to use plan default."
   }
  ],
  "permissions": [],

@@ -26,6 +26,7 @@ after_migrate = [
 	"ch_item_master.setup.create_ch_custom_fields",
 	"ch_item_master.setup.setup_channels",
 	"ch_item_master.setup.sync_workspace",
+	"ch_item_master.setup.setup_vas_settings",
 	"ch_item_master.ch_item_master.backfill_ids.backfill_ids_after_migrate",
 ]
 before_uninstall = "ch_item_master.install.before_uninstall"
