@@ -20,7 +20,6 @@
    "label": "Warranty Issuer Company",
    "options": "Company",
    "reqd": 1,
-   "default": "GoGizmo Retail Pvt Ltd",
    "description": "The company that issues warranty/VAS plans to customers."
   },
   {
@@ -33,7 +32,6 @@
    "label": "Service Provider Company",
    "options": "Company",
    "reqd": 1,
-   "default": "GoFix Services Pvt Ltd",
    "description": "The company that performs repairs and services."
   },
   {

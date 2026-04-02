@@ -206,13 +206,18 @@ def setup_vas_settings():
 
     if not frappe.db.exists("CH VAS Settings"):
         doc = frappe.new_doc("CH VAS Settings")
-        doc.gogizmo_company = "GoGizmo Retail Pvt Ltd"
-        doc.gofix_company = "GoFix Services Pvt Ltd"
+        # Only set company links if they exist on this site
+        if frappe.db.exists("Company", "GoGizmo Retail Pvt Ltd"):
+            doc.gogizmo_company = "GoGizmo Retail Pvt Ltd"
+        if frappe.db.exists("Company", "GoFix Services Pvt Ltd"):
+            doc.gofix_company = "GoFix Services Pvt Ltd"
         doc.anniversary_threshold_months = 24
         doc.post_repair_warranty_months = 3
         doc.paid_repair_fee_percent = 10
         doc.paid_repair_fee_minimum = 200
         doc.fee_waiver_roles = "Sales Manager\nCH Warranty Manager\nSystem Manager"
+        doc.flags.ignore_links = True
+        doc.flags.ignore_mandatory = True
         doc.insert(ignore_permissions=True)
         frappe.db.commit()
         frappe.logger("ch_item_master").info("CH VAS Settings created with defaults")
