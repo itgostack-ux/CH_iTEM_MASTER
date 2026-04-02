@@ -27,6 +27,21 @@ def raise_exception(exception_type, company, reason, requested_value=0,
 
 	frappe.has_permission("CH Exception Request", "create", throw=True)
 
+	# IM-12 fix: Prevent duplicate open exception requests for same item+store+type
+	if item_code and store_warehouse:
+		existing = frappe.db.exists("CH Exception Request", {
+			"exception_type": exception_type,
+			"item_code": item_code,
+			"store_warehouse": store_warehouse,
+			"status": ("in", ["Pending", "Awaiting Approval"]),
+		})
+		if existing:
+			frappe.throw(
+				_("An open exception request ({0}) already exists for item {1} at this store. "
+				  "Please wait for it to be resolved.").format(existing, item_code),
+				title=_("Duplicate Exception Request"),
+			)
+
 	exc = frappe.new_doc("CH Exception Request")
 	exc.exception_type = exception_type
 	exc.company = company

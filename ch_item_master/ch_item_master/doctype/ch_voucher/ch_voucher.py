@@ -87,8 +87,10 @@ class CHVoucher(Document):
 
 	def _generate_unique_code(self):
 		"""Generate a unique 12-char alphanumeric voucher code."""
-		for _ in range(10):
-			code = random_string(12).upper()
+		# IM-6 fix: Increased retry limit from 10 to 100 with longer codes after 50 attempts
+		for attempt in range(100):
+			length = 12 if attempt < 50 else 16
+			code = random_string(length).upper()
 			if not frappe.db.exists("CH Voucher", {"voucher_code": code}):
 				return code
-		frappe.throw(_("Unable to generate unique voucher code. Please try again."))
+		frappe.throw(_("Unable to generate unique voucher code after 100 attempts. Please try again."))

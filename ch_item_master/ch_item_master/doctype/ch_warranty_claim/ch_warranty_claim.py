@@ -799,12 +799,35 @@ class CHWarrantyClaim(Document):
 		self._log("Payment Link Sent", self.claim_status, self.claim_status,
 		          f"Payment link sent via {channel} for ₹{self.processing_fee_amount}")
 
-		# TODO: Actual WhatsApp/SMS integration
-		# For now, just record the link generation
+		# IM-1 fix: Send notification via the requested channel
+		if channel == "Email":
+			self._send_fee_email(link_url)
+		elif channel == "WhatsApp" and self.customer_phone:
+			self._send_fee_whatsapp(link_url)
+		elif channel == "SMS" and self.customer_phone:
+			self._send_fee_sms(link_url)
+		else:
+			# Fallback: send email if phone not available for WhatsApp/SMS
+			customer_email = frappe.db.get_value("Customer", self.customer, "email_id")
+			if customer_email:
+				self._send_fee_email(link_url)
+			else:
+				frappe.msgprint(
+					_("Payment link generated but no contact method available. "
+					  "Please share the link manually: {0}").format(link_url),
+					indicator="orange", alert=True,
+				)
+				return {
+					"claim_name": self.name,
+					"link_url": link_url,
+					"channel": "Manual",
+					"processing_fee_status": "Link Sent",
+				}
+
 		frappe.msgprint(
-			_("Payment link generated: ₹{0} via {1}").format(
-				self.processing_fee_amount, channel),
-			indicator="blue", alert=True,
+			_("Payment link sent via {0}: ₹{1}").format(
+				channel, self.processing_fee_amount),
+			indicator="green", alert=True,
 		)
 
 		return {
@@ -845,6 +868,86 @@ class CHWarrantyClaim(Document):
 			"claim_status": "Fee Paid",
 			"processing_fee_status": "Paid",
 		}
+
+	# ── Fee notification helpers ──────────────────────────────────────
+
+	def _send_fee_email(self, link_url):
+		"""Send processing fee payment link via email."""
+		customer_email = frappe.db.get_value("Customer", self.customer, "email_id")
+		if not customer_email:
+			frappe.msgprint(_("No email on file for customer. Link: {0}").format(link_url),
+			                indicator="orange", alert=True)
+			return
+		frappe.sendmail(
+			recipients=[customer_email],
+			subject=_("Processing Fee Payment — Claim {0}").format(self.name),
+			message=_(
+				"<p>Dear Customer,</p>"
+				"<p>Your warranty claim <b>{0}</b> requires a processing fee of "
+				"<b>₹{1}</b>.</p>"
+				"<p><a href='{2}' style='padding:10px 20px;background:#7c3aed;"
+				"color:#fff;text-decoration:none;border-radius:4px'>Pay Now</a></p>"
+				"<p>Thank you,<br>GoGizmo Service Team</p>"
+			).format(self.name, self.processing_fee_amount, link_url),
+			now=True,
+		)
+
+	def _send_fee_whatsapp(self, link_url):
+		"""Send processing fee link via WhatsApp (wa.me deep link or Frappe WhatsApp integration)."""
+		phone = self.customer_phone
+		if not phone:
+			return
+		# Clean phone number
+		clean_phone = phone.replace(" ", "").replace("-", "").replace("+", "")
+		if not clean_phone.startswith("91"):
+			clean_phone = "91" + clean_phone
+
+		msg = (
+			f"GoGizmo Warranty Claim {self.name}: "
+			f"Processing fee ₹{self.processing_fee_amount} is pending. "
+			f"Pay here: {link_url}"
+		)
+
+		# Try Frappe WhatsApp integration if available
+		try:
+			from frappe.core.doctype.sms_settings.sms_settings import send_sms
+			# Use WhatsApp notification if configured
+			if frappe.db.exists("Notification", {"channel": "WhatsApp", "enabled": 1}):
+				frappe.enqueue(
+					"frappe.core.doctype.notification.notification.send_whatsapp",
+					phone=clean_phone,
+					message=msg,
+					queue="short",
+				)
+				return
+		except (ImportError, Exception):
+			pass
+
+		# Fallback: just log the message (ops team can send manually)
+		frappe.log_error(
+			message=f"WhatsApp to {clean_phone}: {msg}",
+			title=f"WhatsApp notification for {self.name}",
+		)
+
+	def _send_fee_sms(self, link_url):
+		"""Send processing fee link via SMS."""
+		phone = self.customer_phone
+		if not phone:
+			return
+
+		msg = (
+			f"GoGizmo: Processing fee Rs.{self.processing_fee_amount} "
+			f"for claim {self.name}. Pay: {link_url}"
+		)
+
+		try:
+			from frappe.core.doctype.sms_settings.sms_settings import send_sms
+			send_sms([phone], msg)
+		except Exception:
+			frappe.log_error(
+				message=f"SMS to {phone}: {msg}",
+				title=f"SMS notification failed for {self.name}",
+			)
 
 	@frappe.whitelist()
 	def waive_processing_fee(self, waiver_reason, waived_amount=None):
@@ -1707,6 +1810,21 @@ class CHWarrantyClaim(Document):
 			"company": self.reported_at_company or self.company,
 			"remarks": remarks,
 		})
+
+		# IM-11 fix: Also create a global Activity Log entry for customer-visible tracking
+		try:
+			frappe.get_doc({
+				"doctype": "Activity Log",
+				"subject": f"Warranty Claim {self.name}: {action} ({from_status} → {to_status})",
+				"content": remarks or f"{action}: Status changed from {from_status} to {to_status}",
+				"reference_doctype": "CH Warranty Claim",
+				"reference_name": self.name,
+				"user": frappe.session.user,
+				"status": "Success",
+			}).insert(ignore_permissions=True)
+		except Exception:
+			pass  # Activity Log creation is non-critical
+
 		if save:
 			self.save(ignore_permissions=True)
 

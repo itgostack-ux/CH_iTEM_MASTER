@@ -94,17 +94,16 @@ class CHItemPrice(Document):
 		from_date = getdate(self.effective_from)
 		to_date   = getdate(self.effective_to) if self.effective_to else None
 
-		# Use database-level locking to prevent race conditions
-		# This ensures two concurrent saves don't both pass validation
-		if not self.is_new():
-			frappe.db.sql(
-				"""
-				SELECT name FROM `tabCH Item Price`
-				WHERE item_code = %s AND channel = %s AND company = %s AND name != %s
-				FOR UPDATE
-				""",
-				(self.item_code, self.channel, self.company, self.name or ""),
-			)
+		# IM-3 fix: Use database-level locking to prevent race conditions
+		# Lock for BOTH new and existing docs so concurrent creates can't bypass overlap check
+		frappe.db.sql(
+			"""
+			SELECT name FROM `tabCH Item Price`
+			WHERE item_code = %s AND channel = %s AND company = %s AND name != %s
+			FOR UPDATE
+			""",
+			(self.item_code, self.channel, self.company, self.name or ""),
+		)
 
 		filters = {
 			"item_code": self.item_code,

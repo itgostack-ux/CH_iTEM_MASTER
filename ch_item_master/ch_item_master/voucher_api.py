@@ -44,6 +44,15 @@ def issue_voucher(voucher_type, amount, company, customer=None, phone=None,
 	amount = flt(amount)
 	if amount <= 0:
 		frappe.throw(_("Voucher amount must be greater than zero"))
+	# IM-7 fix: Boundary validation for amount
+	if amount > 500000:
+		frappe.throw(_("Voucher amount cannot exceed ₹5,00,000"))
+	if flt(min_order_amount) < 0:
+		frappe.throw(_("Minimum order amount cannot be negative"))
+	if flt(max_discount_amount) < 0:
+		frappe.throw(_("Maximum discount amount cannot be negative"))
+	if cint(valid_days) < 1 or cint(valid_days) > 3650:
+		frappe.throw(_("Validity must be between 1 and 3650 days"))
 
 	today = getdate(nowdate())
 	valid_upto = today + timedelta(days=cint(valid_days) or 365)
@@ -205,7 +214,17 @@ def redeem_voucher(voucher_code, amount, pos_invoice=None, reference_doctype=Non
 
 	frappe.has_permission("CH Voucher", "write", throw=True)
 
-	voucher = frappe.get_doc("CH Voucher", {"voucher_code": voucher_code})
+	# IM-2 fix: Use SELECT FOR UPDATE to prevent race condition on concurrent redemptions
+	voucher_name = frappe.db.get_value("CH Voucher", {"voucher_code": voucher_code}, "name")
+	if not voucher_name:
+		frappe.throw(_("Voucher not found"))
+
+	frappe.db.sql(
+		"SELECT name FROM `tabCH Voucher` WHERE name=%s FOR UPDATE",
+		voucher_name,
+	)
+
+	voucher = frappe.get_doc("CH Voucher", voucher_name)
 	if not voucher:
 		frappe.throw(_("Voucher not found"))
 
@@ -214,6 +233,10 @@ def redeem_voucher(voucher_code, amount, pos_invoice=None, reference_doctype=Non
 
 	if voucher.status not in ("Active", "Partially Used"):
 		frappe.throw(_("Voucher is {0} and cannot be redeemed").format(voucher.status))
+
+	# IM-10 fix: Check voucher expiry on redemption
+	if voucher.valid_upto and getdate(voucher.valid_upto) < getdate(nowdate()):
+		frappe.throw(_("Voucher expired on {0}").format(voucher.valid_upto))
 
 	# Enforce item group restriction (e.g. VAS vouchers → Accessories only)
 	if voucher.applicable_item_group:

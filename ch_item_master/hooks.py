@@ -99,6 +99,7 @@ doc_events = {
 	},
 	"Service Request": {
 		"on_submit": "ch_item_master.ch_customer_master.hooks.on_service_request_submit",
+		"on_update": "ch_item_master.ch_item_master.integrations.gofix_integration.on_service_request_update",
 	},
 	"Buyback Assessment": {
 		"on_update": "ch_item_master.ch_customer_master.hooks.on_buyback_assessment_update",
