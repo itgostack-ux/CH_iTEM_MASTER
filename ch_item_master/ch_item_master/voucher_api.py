@@ -226,9 +226,19 @@ def redeem_voucher(voucher_code, amount, pos_invoice=None, reference_doctype=Non
 	if balance <= 0:
 		frappe.throw(_("Voucher has no remaining balance"))
 
-	# Cap at available balance
-	redeem_amount = min(amount, balance)
-	new_balance = balance - redeem_amount
+	# Single-use vouchers: must redeem in one shot, forfeit entire balance
+	if voucher.single_use:
+		# Check this is the first redemption
+		existing_redeems = [t for t in (voucher.transactions or [])
+		                    if t.transaction_type == "Redeem"]
+		if existing_redeems:
+			frappe.throw(_("This voucher has already been redeemed (single-use)"))
+		redeem_amount = min(amount, balance)
+		new_balance = 0  # Forfeit remainder
+	else:
+		# Cap at available balance
+		redeem_amount = min(amount, balance)
+		new_balance = balance - redeem_amount
 
 	# Add transaction
 	voucher.append("transactions", {
@@ -310,6 +320,9 @@ def refund_voucher(voucher_code, amount, pos_invoice=None, reason=None):
 	if not voucher:
 		frappe.throw(_("Voucher not found"))
 
+	if voucher.voucher_type == "VAS Voucher":
+		frappe.throw(_("VAS Vouchers cannot be refunded"))
+
 	new_balance = flt(voucher.balance) + amount
 	# Don't exceed original amount
 	if new_balance > flt(voucher.original_amount):
@@ -362,6 +375,9 @@ def topup_voucher(voucher_code, amount, reason=None):
 	voucher = frappe.get_doc("CH Voucher", {"voucher_code": voucher_code})
 	if not voucher:
 		frappe.throw(_("Voucher not found"))
+
+	if voucher.voucher_type == "VAS Voucher":
+		frappe.throw(_("VAS Vouchers cannot be topped up"))
 
 	if voucher.status in ("Cancelled", "Expired"):
 		frappe.throw(_("Cannot top-up a {0} voucher").format(voucher.status))

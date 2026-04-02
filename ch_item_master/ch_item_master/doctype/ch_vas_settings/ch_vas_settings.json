@@ -112,6 +112,45 @@
    "label": "Auto-Approve Threshold",
    "default": "0",
    "description": "Claims with GoGizmo share <= this amount are auto-approved without manager review. 0 = always require approval per plan rules."
+  },
+  {
+   "fieldname": "section_voucher",
+   "fieldtype": "Section Break",
+   "label": "VAS Voucher Configuration",
+   "description": "Controls how vouchers are auto-generated when a VAS plan is sold."
+  },
+  {
+   "fieldname": "vas_voucher_amount",
+   "fieldtype": "Currency",
+   "label": "Voucher Face Value",
+   "default": "2000",
+   "reqd": 0,
+   "description": "Amount per voucher. floor(VAS price ÷ this value) = number of vouchers issued. E.g. ₹2000 → VAS worth ₹4000 generates 2 vouchers."
+  },
+  {
+   "fieldname": "vas_voucher_validity_days",
+   "fieldtype": "Int",
+   "label": "Voucher Validity (Days)",
+   "default": "180",
+   "description": "Days from issue date after which unused vouchers auto-expire."
+  },
+  {
+   "fieldname": "column_break_voucher",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "vas_voucher_item_group",
+   "fieldtype": "Link",
+   "label": "Redeemable On (Item Group)",
+   "options": "Item Group",
+   "description": "Restrict VAS vouchers to this item group (e.g. Accessories). Leave blank for all items."
+  },
+  {
+   "fieldname": "vas_voucher_channel",
+   "fieldtype": "Link",
+   "label": "Redeemable Channel",
+   "options": "CH Price Channel",
+   "description": "Restrict VAS voucher redemption to this channel. Leave blank for all channels."
   }
  ],
  "permissions": [
