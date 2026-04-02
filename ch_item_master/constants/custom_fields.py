@@ -325,6 +325,13 @@ CUSTOM_FIELDS = {
 			"insert_after": "ch_minimum_selling_price",
 			"description": _("Date from which this MSP applies."),
 		},
+		{
+			"fieldname": "ch_allow_zero_rate",
+			"label": _("Allow Zero Rate"),
+			"fieldtype": "Check",
+			"insert_after": "ch_msp_effective_from",
+			"description": _("Allow this item to be sold at ₹0 in POS (e.g. bags, carry items)."),
+		},
 	],
 	# ──────────────────────────────────────────────
 	# Item Price: Add MRP and MOP alongside selling price

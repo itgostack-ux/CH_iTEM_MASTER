@@ -26,6 +26,7 @@
   "requested_reason",
   "requested_value",
   "original_value",
+  "purchase_price",
   "approval_section",
   "approval_channel",
   "approver",
@@ -183,6 +184,14 @@
    "label": "Original Value",
    "description": "The original price, standard rate, or policy limit",
    "non_negative": 1
+  },
+  {
+   "fieldname": "purchase_price",
+   "fieldtype": "Currency",
+   "label": "Purchase Price",
+   "description": "Item purchase/valuation cost for approver awareness",
+   "non_negative": 1,
+   "read_only": 1
   },
   {
    "fieldname": "approval_section",

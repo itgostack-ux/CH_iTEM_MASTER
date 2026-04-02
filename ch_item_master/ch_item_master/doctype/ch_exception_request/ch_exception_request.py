@@ -29,6 +29,18 @@ class CHExceptionRequest(Document):
 				"Customer", self.customer, "customer_name"
 			) or ""
 
+		# Auto-populate purchase price for approver awareness
+		if self.item_code and not self.purchase_price:
+			self.purchase_price = flt(frappe.db.get_value(
+				"Item", self.item_code, "valuation_rate"
+			))
+			if not self.purchase_price and self.store_warehouse:
+				self.purchase_price = flt(frappe.db.get_value(
+					"Bin",
+					{"item_code": self.item_code, "warehouse": self.store_warehouse},
+					"valuation_rate",
+				))
+
 	def validate(self):
 		if self.customer_phone:
 			self.customer_phone = validate_indian_phone(self.customer_phone, "Customer Phone")
