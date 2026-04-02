@@ -76,10 +76,10 @@ def issue_voucher(voucher_type, amount, company, customer=None, phone=None,
 		"transaction_date": now_datetime(),
 		"note": f"Voucher issued: {voucher_type}",
 	})
-
-	# Activate immediately
-	voucher.status = "Active"
 	voucher.save(ignore_permissions=True)
+
+	# Submit to activate
+	voucher.submit()
 
 	return {
 		"name": voucher.name,
@@ -128,6 +128,11 @@ def validate_voucher(voucher_code, cart_total=0, customer=None, channel=None):
 	# Status check
 	if voucher.status not in ("Active", "Partially Used"):
 		return {"valid": False, "reason": f"Voucher is {voucher.status}"}
+
+	# Must be submitted
+	docstatus = frappe.db.get_value("CH Voucher", voucher.name, "docstatus")
+	if cint(docstatus) != 1:
+		return {"valid": False, "reason": "Voucher has not been activated (not submitted)"}
 
 	# Date check
 	if voucher.valid_from and today < getdate(voucher.valid_from):
@@ -204,6 +209,9 @@ def redeem_voucher(voucher_code, amount, pos_invoice=None, reference_doctype=Non
 	if not voucher:
 		frappe.throw(_("Voucher not found"))
 
+	if voucher.docstatus != 1:
+		frappe.throw(_("Voucher has not been activated (not submitted)"))
+
 	if voucher.status not in ("Active", "Partially Used"):
 		frappe.throw(_("Voucher is {0} and cannot be redeemed").format(voucher.status))
 
@@ -235,7 +243,12 @@ def redeem_voucher(voucher_code, amount, pos_invoice=None, reference_doctype=Non
 	})
 
 	voucher.balance = new_balance
+	voucher.flags.ignore_validate_update_after_submit = True
 	voucher.save(ignore_permissions=True)
+
+	# Explicitly persist status for submitted docs (validate changes aren't tracked)
+	voucher._auto_set_status()
+	voucher.db_set("status", voucher.status, update_modified=False)
 
 	# Post GL entry to reduce gift card liability (if account configured)
 	_post_voucher_gl(
@@ -315,7 +328,12 @@ def refund_voucher(voucher_code, amount, pos_invoice=None, reason=None):
 	})
 
 	voucher.balance = new_balance
+	voucher.flags.ignore_validate_update_after_submit = True
 	voucher.save(ignore_permissions=True)
+
+	# Explicitly persist status for submitted docs
+	voucher._auto_set_status()
+	voucher.db_set("status", voucher.status, update_modified=False)
 
 	return {
 		"success": True,
@@ -361,7 +379,12 @@ def topup_voucher(voucher_code, amount, reason=None):
 
 	voucher.balance = new_balance
 	voucher.original_amount = new_original
+	voucher.flags.ignore_validate_update_after_submit = True
 	voucher.save(ignore_permissions=True)
+
+	# Explicitly persist status for submitted docs
+	voucher._auto_set_status()
+	voucher.db_set("status", voucher.status, update_modified=False)
 
 	return {"success": True, "new_balance": new_balance}
 
@@ -487,7 +510,9 @@ def expire_vouchers():
 			})
 			voucher.balance = 0
 		voucher.status = "Expired"
+		voucher.flags.ignore_validate_update_after_submit = True
 		voucher.save(ignore_permissions=True)
+		voucher.db_set("status", "Expired", update_modified=False)
 
 	if expired:
 		frappe.db.commit()

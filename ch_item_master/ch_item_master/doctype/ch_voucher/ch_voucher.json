@@ -87,7 +87,7 @@
    "remember_last_selected_value": 1
   },
   {
-   "default": "Active",
+   "default": "Draft",
    "fieldname": "status",
    "fieldtype": "Select",
    "in_list_view": 1,
@@ -300,14 +300,16 @@
   }
  ],
  "links": [],
- "modified": "2026-03-12 00:00:00.000000",
+ "modified": "2026-04-02 00:00:00.000000",
  "modified_by": "Administrator",
  "module": "CH Item Master",
  "name": "CH Voucher",
  "naming_rule": "By \"Naming Series\" field",
  "owner": "Administrator",
+ "is_submittable": 1,
  "permissions": [
   {
+   "cancel": 1,
    "create": 1,
    "delete": 1,
    "email": 1,
@@ -318,24 +320,29 @@
    "report": 1,
    "role": "System Manager",
    "share": 1,
+   "submit": 1,
    "write": 1
   },
   {
+   "cancel": 1,
    "create": 1,
    "email": 1,
    "export": 1,
    "print": 1,
    "read": 1,
    "role": "CH Master Manager",
+   "submit": 1,
    "write": 1
   },
   {
+   "cancel": 1,
    "create": 1,
    "email": 1,
    "export": 1,
    "print": 1,
    "read": 1,
    "role": "CH Price Manager",
+   "submit": 1,
    "write": 1
   },
   {

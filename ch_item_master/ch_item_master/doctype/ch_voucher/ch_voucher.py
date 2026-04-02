@@ -50,18 +50,31 @@ class CHVoucher(Document):
 			self.status = "Fully Used"
 		elif flt(self.balance) < flt(self.original_amount):
 			self.status = "Partially Used"
-		elif self.status == "Draft":
-			pass  # Stay draft until activated
+		elif self.docstatus == 0:
+			self.status = "Draft"
 		else:
 			self.status = "Active"
 
+	def on_submit(self):
+		"""Submitting a voucher activates it."""
+		self.status = "Active"
+		self.db_set("status", "Active")
+
+	def on_cancel(self):
+		"""Cancelling a voucher forfeits remaining balance."""
+		self.status = "Cancelled"
+		self.db_set("status", "Cancelled")
+
 	@frappe.whitelist()
 	def activate(self):
-		"""Activate a draft voucher."""
+		"""Activate a draft voucher (legacy — now use Submit instead)."""
 		if self.status not in ("Draft",):
 			frappe.throw(_("Only Draft vouchers can be activated"))
-		self.status = "Active"
-		self.save()
+		if self.docstatus == 0:
+			self.submit()
+		else:
+			self.status = "Active"
+			self.save()
 		frappe.msgprint(_("Voucher {0} activated").format(self.voucher_code), indicator="green")
 
 	@frappe.whitelist()
