@@ -872,23 +872,46 @@ class CHWarrantyClaim(Document):
 	# ── Fee notification helpers ──────────────────────────────────────
 
 	def _send_fee_email(self, link_url):
-		"""Send processing fee payment link via email."""
+		"""Send processing fee payment link via email.
+		IM-14 fix: Use configurable subject/body from VAS Settings if available.
+		"""
 		customer_email = frappe.db.get_value("Customer", self.customer, "email_id")
 		if not customer_email:
 			frappe.msgprint(_("No email on file for customer. Link: {0}").format(link_url),
 			                indicator="orange", alert=True)
 			return
-		frappe.sendmail(
-			recipients=[customer_email],
-			subject=_("Processing Fee Payment — Claim {0}").format(self.name),
-			message=_(
+
+		# IM-14: Try to load configurable template from VAS Settings
+		subject = None
+		body = None
+		if frappe.db.exists("DocType", "VAS Settings"):
+			settings = frappe.get_cached_doc("VAS Settings")
+			subject = getattr(settings, "fee_email_subject", None)
+			body = getattr(settings, "fee_email_body", None)
+
+		if not subject:
+			subject = _("Processing Fee Payment — Claim {0}").format(self.name)
+		else:
+			subject = subject.replace("{{claim}}", self.name)
+
+		if not body:
+			body = _(
 				"<p>Dear Customer,</p>"
 				"<p>Your warranty claim <b>{0}</b> requires a processing fee of "
 				"<b>₹{1}</b>.</p>"
 				"<p><a href='{2}' style='padding:10px 20px;background:#7c3aed;"
 				"color:#fff;text-decoration:none;border-radius:4px'>Pay Now</a></p>"
 				"<p>Thank you,<br>GoGizmo Service Team</p>"
-			).format(self.name, self.processing_fee_amount, link_url),
+			).format(self.name, self.processing_fee_amount, link_url)
+		else:
+			body = body.replace("{{claim}}", self.name).replace(
+				"{{amount}}", str(self.processing_fee_amount or 0)
+			).replace("{{link}}", link_url)
+
+		frappe.sendmail(
+			recipients=[customer_email],
+			subject=subject,
+			message=body,
 			now=True,
 		)
 

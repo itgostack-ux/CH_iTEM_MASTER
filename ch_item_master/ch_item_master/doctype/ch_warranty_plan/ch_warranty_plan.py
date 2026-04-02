@@ -287,4 +287,7 @@ class CHWarrantyPlan(Document):
 
 			result.append(plan)
 
+		# IM-15 fix: Sort by priority (highest first) for deterministic rule matching
+		result.sort(key=lambda p: -(p.get("priority") or 0))
+
 		return result

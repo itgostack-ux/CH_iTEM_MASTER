@@ -47,8 +47,24 @@ def raise_exception(exception_type, company, reason, requested_value=0,
 	exc.company = company
 	exc.requested_by = frappe.session.user
 	exc.requested_reason = reason
-	exc.requested_value = flt(requested_value)
-	exc.original_value = flt(original_value)
+
+	# IM-7 fix: Validate requested_value bounds — no negative or absurdly large values
+	req_val = flt(requested_value)
+	orig_val = flt(original_value)
+	if req_val < 0:
+		frappe.throw(_("Requested value cannot be negative"), title=_("Invalid Value"))
+	if orig_val < 0:
+		frappe.throw(_("Original value cannot be negative"), title=_("Invalid Value"))
+	max_allowed = flt(etype.get("max_exception_value")) or 10_000_000
+	if req_val > max_allowed:
+		frappe.throw(
+			_("Requested value {0} exceeds the maximum allowed limit of {1}").format(
+				req_val, max_allowed),
+			title=_("Value Too High"),
+		)
+
+	exc.requested_value = req_val
+	exc.original_value = orig_val
 	exc.reference_doctype = reference_doctype
 	exc.reference_name = reference_name
 	exc.item_code = item_code
