@@ -10,6 +10,8 @@ import frappe
 from frappe import _
 from frappe.utils import cint, flt, getdate, today
 
+from ch_item_master.security import get_company_scope
+
 
 @frappe.whitelist()
 def get_customer_360(customer, company=None):
@@ -26,6 +28,10 @@ def get_customer_360(customer, company=None):
 	frappe.has_permission("Customer", "read", customer, throw=True)
 	if not frappe.db.exists("Customer", customer):
 		frappe.throw(_("Customer {0} does not exist").format(customer))
+
+	company_scope = get_company_scope(requested_company=company)
+	if not company and company_scope and len(company_scope) == 1:
+		company = company_scope[0]
 
 	cust = frappe.get_doc("Customer", customer)
 

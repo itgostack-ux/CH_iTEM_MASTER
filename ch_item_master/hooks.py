@@ -62,6 +62,23 @@ scheduler_events = {
 	},
 }
 
+# Company-wise data security
+permission_query_conditions = {
+	"CH Warranty Claim": "ch_item_master.security.get_warranty_claim_query",
+	"CH Sold Plan": "ch_item_master.security.get_sold_plan_query",
+	"CH Customer Device": "ch_item_master.security.get_customer_device_query",
+	"CH Warranty Plan": "ch_item_master.security.get_warranty_plan_query",
+	"CH Exception Request": "ch_item_master.security.get_exception_request_query",
+}
+
+has_permission = {
+	"CH Warranty Claim": "ch_item_master.security.has_warranty_claim_permission",
+	"CH Sold Plan": "ch_item_master.security.has_sold_plan_permission",
+	"CH Customer Device": "ch_item_master.security.has_customer_device_permission",
+	"CH Warranty Plan": "ch_item_master.security.has_warranty_plan_permission",
+	"CH Exception Request": "ch_item_master.security.has_exception_request_permission",
+}
+
 # Document Events
 doc_events = {
 	"Item": {

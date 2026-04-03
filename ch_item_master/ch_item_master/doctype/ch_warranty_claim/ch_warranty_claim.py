@@ -45,6 +45,7 @@ from ch_item_master.ch_item_master.doctype.ch_vas_settings.ch_vas_settings impor
 	get_service_company,
 	get_fee_waiver_roles,
 )
+from ch_item_master.security import get_company_filter_value
 
 
 class CHWarrantyClaim(Document):
@@ -1857,6 +1858,7 @@ class CHWarrantyClaim(Document):
 @frappe.whitelist()
 def get_warranty_claim_status(claim_name):
 	"""Get current status of a warranty claim."""
+	frappe.has_permission("CH Warranty Claim", "read", doc=claim_name, throw=True)
 	return frappe.db.get_value(
 		"CH Warranty Claim", claim_name,
 		["claim_status", "coverage_type", "approval_status", "repair_status",
@@ -1867,11 +1869,16 @@ def get_warranty_claim_status(claim_name):
 
 
 @frappe.whitelist()
-def get_claims_for_serial(serial_no):
-	"""Get all warranty claims for a serial number."""
+def get_claims_for_serial(serial_no, company=None):
+	"""Get all warranty claims for a serial number within the caller's company scope."""
+	filters = {"serial_no": serial_no, "docstatus": ["!=", 2]}
+	company_filter = get_company_filter_value(requested_company=company)
+	if company_filter:
+		filters["company"] = company_filter
+
 	return frappe.get_all(
 		"CH Warranty Claim",
-		filters={"serial_no": serial_no, "docstatus": ["!=", 2]},
+		filters=filters,
 		fields=[
 			"name", "claim_date", "claim_status", "coverage_type",
 			"issue_description", "service_request", "repair_status",

@@ -15,6 +15,8 @@ import frappe
 from frappe import _
 from frappe.utils import nowdate, getdate, add_months, flt
 
+from ch_item_master.security import get_company_filter_value, get_company_scope
+
 
 # ── Warranty Lookup ──────────────────────────────────────────────────────────
 
@@ -497,6 +499,9 @@ def get_customer_warranty_dashboard(identifier, company=None):
 		get_claims_for_serial,
 	)
 
+	company_scope = get_company_scope(requested_company=company)
+	company_filter = get_company_filter_value(requested_company=company)
+
 	customer = None
 	customer_name = ""
 	customer_phone = ""
@@ -598,6 +603,26 @@ def get_customer_warranty_dashboard(identifier, company=None):
 		customer_phone = cust_data.mobile_no or cust_data.ch_alternate_phone or ""
 		customer_email = cust_data.email_id or ""
 
+	# ── Determine which serials are visible for the requested company ─────────
+	visible_serials = set()
+	if company_scope:
+		if frappe.db.exists("DocType", "CH Customer Device"):
+			visible_serials.update(filter(None, frappe.get_all(
+				"CH Customer Device",
+				filters={"customer": customer, "company": company_filter},
+				pluck="serial_no",
+			)))
+		visible_serials.update(filter(None, frappe.get_all(
+			"CH Sold Plan",
+			filters={"customer": customer, "docstatus": 1, "company": company_filter},
+			pluck="serial_no",
+		)))
+		visible_serials.update(filter(None, frappe.get_all(
+			"CH Warranty Claim",
+			filters={"customer": customer, "docstatus": ("!=", 2), "company": company_filter},
+			pluck="serial_no",
+		)))
+
 	# ── Get ALL devices for this customer ────────────────────────────
 	devices = []
 	seen_serials = set()
@@ -620,12 +645,11 @@ def get_customer_warranty_dashboard(identifier, company=None):
 		devices.append(d)
 
 	# From CH Sold Plan (may have devices not in lifecycle)
-	sp_serials = frappe.db.sql("""
-		SELECT DISTINCT serial_no FROM `tabCH Sold Plan`
-		WHERE customer = %s AND docstatus = 1 AND serial_no IS NOT NULL AND serial_no != ''
-	""", customer, as_dict=True)
-	for row in sp_serials:
-		sn = row["serial_no"]
+	sp_filters = {"customer": customer, "docstatus": 1}
+	if company_filter:
+		sp_filters["company"] = company_filter
+	sp_serials = frappe.get_all("CH Sold Plan", filters=sp_filters, pluck="serial_no")
+	for sn in filter(None, sp_serials):
 		if sn in seen_serials:
 			continue
 		# Get device info from Serial No
@@ -653,13 +677,19 @@ def get_customer_warranty_dashboard(identifier, company=None):
 
 	# ── For each device, get ALL sold plans + claims ─────────────────
 	today = getdate(nowdate())
+	filtered_devices = []
 	for dev in devices:
 		sn = dev["serial_no"]
+		if company_scope and sn not in visible_serials:
+			continue
 
 		# Get all sold plans (Active + Expired + Claimed)
+		plan_filters = {"serial_no": sn, "customer": customer, "docstatus": 1}
+		if company_filter:
+			plan_filters["company"] = company_filter
 		all_plans = frappe.get_all(
 			"CH Sold Plan",
-			filters={"serial_no": sn, "customer": customer, "docstatus": 1},
+			filters=plan_filters,
 			fields=[
 				"name", "warranty_plan", "plan_title", "plan_type",
 				"start_date", "end_date", "claims_used", "max_claims",
@@ -711,7 +741,10 @@ def get_customer_warranty_dashboard(identifier, company=None):
 			dev["manufacturer_warranty_active"] = False
 
 		# Get claims
-		dev["claims"] = get_claims_for_serial(sn)
+		dev["claims"] = get_claims_for_serial(sn, company=company)
+		filtered_devices.append(dev)
+
+	devices = filtered_devices
 
 	# ── Summary stats ────────────────────────────────────────────────
 	total_plans = sum(len(d.get("plans", [])) for d in devices)
@@ -719,13 +752,16 @@ def get_customer_warranty_dashboard(identifier, company=None):
 	total_devices = len(devices)
 
 	# ── Unlinked plans (no serial_no) ────────────────────────────────
+	unlinked_filters = {
+		"customer": customer,
+		"docstatus": 1,
+		"serial_no": ["in", [None, ""]],
+	}
+	if company_filter:
+		unlinked_filters["company"] = company_filter
 	unlinked_plans_raw = frappe.get_all(
 		"CH Sold Plan",
-		filters={
-			"customer": customer,
-			"docstatus": 1,
-			"serial_no": ["in", [None, ""]],
-		},
+		filters=unlinked_filters,
 		fields=[
 			"name", "warranty_plan", "plan_title", "plan_type",
 			"start_date", "end_date", "claims_used", "max_claims",
@@ -760,6 +796,15 @@ def get_customer_warranty_dashboard(identifier, company=None):
 	total_plans += len(unlinked_plans)
 	active_plans += sum(1 for p in unlinked_plans if p["display_status"] == "active")
 
+	if company_scope and not devices and not unlinked_plans:
+		return {
+			"found": False,
+			"search_type": search_type,
+			"message": _("No warranty or claim data is available for {0}.").format(company),
+			"customer": None,
+			"devices": [],
+		}
+
 	return {
 		"found": True,
 		"search_type": search_type,
@@ -779,6 +824,13 @@ def get_customer_warranty_dashboard(identifier, company=None):
 
 
 # ── Warranty Claim APIs ─────────────────────────────────────────────────────
+
+
+def _get_claim_doc(claim_name, permission_type="read"):
+	"""Load a claim only after company-aware permission checks pass."""
+	frappe.has_permission("CH Warranty Claim", permission_type, doc=claim_name, throw=True)
+	return frappe.get_doc("CH Warranty Claim", claim_name)
+
 
 @frappe.whitelist()
 def initiate_warranty_claim(serial_no, customer, item_code, company,
@@ -888,7 +940,7 @@ def update_claim_logistics(claim_name, action, pickup_address=None,
 	if not claim_name or not action:
 		frappe.throw(_("Claim name and action are required"))
 
-	claim = frappe.get_doc("CH Warranty Claim", claim_name)
+	claim = _get_claim_doc(claim_name, "write")
 
 	if action == "schedule_pickup":
 		return claim.schedule_pickup(
@@ -923,7 +975,7 @@ def receive_claim_device(claim_name, condition_on_receipt=None,
                          accessories_received=None, imei_verified=0,
                          receiving_remarks=None):
 	"""Mark device as physically received at store."""
-	claim = frappe.get_doc("CH Warranty Claim", claim_name)
+	claim = _get_claim_doc(claim_name, "write")
 	return claim.mark_device_received(
 		condition_on_receipt=condition_on_receipt,
 		accessories_received=accessories_received,
@@ -936,7 +988,7 @@ def receive_claim_device(claim_name, condition_on_receipt=None,
 def perform_claim_qc(claim_name, qc_result, qc_remarks=None,
                      qc_result_reason=None, qc_checks=None):
 	"""Perform intake QC on received device."""
-	claim = frappe.get_doc("CH Warranty Claim", claim_name)
+	claim = _get_claim_doc(claim_name, "write")
 	return claim.perform_intake_qc(
 		qc_result=qc_result,
 		qc_remarks=qc_remarks,
@@ -948,14 +1000,14 @@ def perform_claim_qc(claim_name, qc_result, qc_remarks=None,
 @frappe.whitelist()
 def generate_claim_fee(claim_name, fee_amount=None):
 	"""Calculate and set processing fee after QC passes."""
-	claim = frappe.get_doc("CH Warranty Claim", claim_name)
+	claim = _get_claim_doc(claim_name, "write")
 	return claim.generate_processing_fee(fee_amount=fee_amount)
 
 
 @frappe.whitelist()
 def send_claim_fee_link(claim_name, channel="WhatsApp"):
 	"""Send payment link for processing fee to customer."""
-	claim = frappe.get_doc("CH Warranty Claim", claim_name)
+	claim = _get_claim_doc(claim_name, "write")
 	return claim.send_fee_payment_link(channel=channel)
 
 
@@ -963,7 +1015,7 @@ def send_claim_fee_link(claim_name, channel="WhatsApp"):
 def mark_claim_fee_paid(claim_name, paid_amount=None, payment_mode=None,
                         payment_ref=None, remarks=None):
 	"""Record processing fee payment."""
-	claim = frappe.get_doc("CH Warranty Claim", claim_name)
+	claim = _get_claim_doc(claim_name, "write")
 	return claim.mark_fee_paid(
 		paid_amount=paid_amount,
 		payment_mode=payment_mode,
@@ -975,7 +1027,7 @@ def mark_claim_fee_paid(claim_name, paid_amount=None, payment_mode=None,
 @frappe.whitelist()
 def waive_claim_fee(claim_name, waiver_reason, waived_amount=None):
 	"""Request or approve processing fee waiver."""
-	claim = frappe.get_doc("CH Warranty Claim", claim_name)
+	claim = _get_claim_doc(claim_name, "write")
 	return claim.waive_processing_fee(
 		waiver_reason=waiver_reason,
 		waived_amount=waived_amount,
@@ -985,14 +1037,14 @@ def waive_claim_fee(claim_name, waiver_reason, waived_amount=None):
 @frappe.whitelist()
 def create_claim_repair_ticket(claim_name, remarks=None):
 	"""Create GoFix repair ticket with strict gate control."""
-	claim = frappe.get_doc("CH Warranty Claim", claim_name)
+	claim = _get_claim_doc(claim_name, "write")
 	return claim.create_repair_ticket(remarks=remarks)
 
 
 @frappe.whitelist()
 def need_more_info_claim(claim_name, remarks=None):
 	"""Send claim back for more information."""
-	claim = frappe.get_doc("CH Warranty Claim", claim_name)
+	claim = _get_claim_doc(claim_name, "write")
 	return claim.need_more_info(remarks=remarks)
 
 
@@ -1000,7 +1052,7 @@ def need_more_info_claim(claim_name, remarks=None):
 def request_additional_approval_claim(claim_name, additional_issue_description=None,
                                        additional_cost_estimated=0, additional_photos=None):
 	"""Request customer approval for additional damage / cost."""
-	claim = frappe.get_doc("CH Warranty Claim", claim_name)
+	claim = _get_claim_doc(claim_name, "write")
 	return claim.request_additional_approval(
 		additional_issue_description=additional_issue_description,
 		additional_cost_estimated=flt(additional_cost_estimated),
@@ -1011,14 +1063,14 @@ def request_additional_approval_claim(claim_name, additional_issue_description=N
 @frappe.whitelist()
 def resolve_additional_approval_claim(claim_name, decision, remarks=None):
 	"""Resolve additional approval request (approved/rejected/expired)."""
-	claim = frappe.get_doc("CH Warranty Claim", claim_name)
+	claim = _get_claim_doc(claim_name, "write")
 	return claim.resolve_additional_approval(decision=decision, remarks=remarks)
 
 
 @frappe.whitelist()
 def perform_final_qc_claim(claim_name, qc_result, qc_remarks=None):
 	"""Perform final QC after repair."""
-	claim = frappe.get_doc("CH Warranty Claim", claim_name)
+	claim = _get_claim_doc(claim_name, "write")
 	return claim.perform_final_qc(qc_result=qc_result, qc_remarks=qc_remarks)
 
 
@@ -1138,7 +1190,7 @@ def get_device_claim_info(serial_no, company=None):
 	warranty_info = check_warranty(lookup_serial, company)
 
 	# ── Existing claims ──────────────────────────────────────────────
-	existing_claims = get_claims_for_serial(lc_name or serial_no)
+	existing_claims = get_claims_for_serial(lc_name or serial_no, company=company)
 
 	return {
 		"device_info": device_info,
