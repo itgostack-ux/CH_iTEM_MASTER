@@ -12,6 +12,26 @@ from frappe.utils import cint, flt, getdate, nowdate
 
 
 # ────────────────────────────────────────────────────────────────────
+# HELPER — Frappe doesn't auto-load child tables of child tables (table-
+# in-a-child-table).  Supplier Scheme Rule → Scheme Rule Detail is such
+# a two-level nesting.  This helper fetches the details once and caches
+# them on the rule object so the rest of the engine works transparently.
+# ────────────────────────────────────────────────────────────────────
+
+def _ensure_rule_details(scheme):
+	"""Populate ``rule.details`` for every rule in *scheme* if not already loaded."""
+	for rule in scheme.rules:
+		if rule.details:
+			continue
+		rule.details = frappe.get_all(
+			"Scheme Rule Detail",
+			filters={"parent": rule.name, "parenttype": "Supplier Scheme Rule"},
+			fields=["*"],
+			order_by="idx asc",
+		)
+
+
+# ────────────────────────────────────────────────────────────────────
 # 1. INVOICE → ACHIEVEMENT LEDGER  (called by doc_events hook)
 # ────────────────────────────────────────────────────────────────────
 
@@ -32,6 +52,7 @@ def process_invoice_items(doc, method=None):
 
 	for scheme_name in active_schemes:
 		scheme = frappe.get_cached_doc("Supplier Scheme Circular", scheme_name)
+		_ensure_rule_details(scheme)
 		for item_row in invoice_items:
 			_match_and_create_entry(scheme, item_row, doc)
 
@@ -226,6 +247,7 @@ def recompute_scheme(scheme_name):
 	Returns a summary dict.
 	"""
 	scheme = frappe.get_doc("Supplier Scheme Circular", scheme_name)
+	_ensure_rule_details(scheme)
 	results = []
 
 	for rule in scheme.rules:

@@ -26,6 +26,10 @@ def generate_claim_summary(scheme_name):
 	if scheme.status not in ("Active", "Closed"):
 		frappe.throw(_("Scheme must be Active or Closed to generate a claim"))
 
+	# Load nested rule details (table-in-a-child-table)
+	from ch_item_master.supplier_scheme.engine import _ensure_rule_details
+	_ensure_rule_details(scheme)
+
 	# Check for existing un-cancelled claim
 	existing = frappe.db.exists(
 		"Scheme Claim Summary",

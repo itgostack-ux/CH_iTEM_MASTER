@@ -1,0 +1,163 @@
+{
+ "actions": [],
+ "autoname": "naming_series:",
+ "creation": "2026-04-04 10:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "document_file",
+  "brand",
+  "column_break_basic",
+  "supplier",
+  "status",
+  "section_ai",
+  "extracted_json",
+  "ai_model_used",
+  "column_break_ai",
+  "extraction_log",
+  "section_schemes",
+  "created_schemes",
+  "section_notes",
+  "notes"
+ ],
+ "fields": [
+  {
+   "default": "SDU-.YYYY.-.####",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "Series",
+   "options": "SDU-.YYYY.-.####",
+   "print_hide": 1
+  },
+  {
+   "fieldname": "document_file",
+   "fieldtype": "Attach",
+   "label": "Scheme Document",
+   "reqd": 1,
+   "description": "Upload the brand/supplier scheme circular (PDF, image, or scanned document)"
+  },
+  {
+   "fieldname": "brand",
+   "fieldtype": "Link",
+   "label": "Brand",
+   "options": "Brand",
+   "description": "Auto-detected from document or select manually"
+  },
+  {
+   "fieldname": "column_break_basic",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "supplier",
+   "fieldtype": "Link",
+   "label": "Supplier",
+   "options": "Supplier"
+  },
+  {
+   "default": "Pending",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "Pending\nExtracted\nSchemes Created\nFailed",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_ai",
+   "fieldtype": "Section Break",
+   "label": "AI Extraction",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "extracted_json",
+   "fieldtype": "Code",
+   "label": "Extracted Data (JSON)",
+   "options": "JSON",
+   "read_only": 1,
+   "description": "Structured data extracted by AI from the document"
+  },
+  {
+   "fieldname": "ai_model_used",
+   "fieldtype": "Data",
+   "label": "AI Model",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_ai",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "extraction_log",
+   "fieldtype": "Small Text",
+   "label": "Extraction Log",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_schemes",
+   "fieldtype": "Section Break",
+   "label": "Created Schemes"
+  },
+  {
+   "fieldname": "created_schemes",
+   "fieldtype": "Small Text",
+   "label": "Created Scheme Circulars",
+   "read_only": 1,
+   "description": "Comma-separated list of created Supplier Scheme Circular IDs"
+  },
+  {
+   "fieldname": "section_notes",
+   "fieldtype": "Section Break",
+   "label": "Notes"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Text Editor",
+   "label": "Notes"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-04-04 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Supplier Scheme",
+ "name": "Scheme Document Upload",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Accounts Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "role": "Stock Manager",
+   "write": 1
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

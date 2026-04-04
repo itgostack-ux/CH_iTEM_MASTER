@@ -110,6 +110,8 @@ def record_settlement(receivable_name, amount, payment_reference=None,
 	if payment_entry:
 		doc.payment_entry = payment_entry
 
+	doc._compute_outstanding()
+	doc._update_status()
 	doc.flags.ignore_validate_update_after_submit = True
 	doc.save(ignore_permissions=True)
 	frappe.db.commit()
@@ -142,6 +144,8 @@ def write_off(receivable_name, amount=None, journal_entry=None, remarks=None):
 	if remarks:
 		doc.remarks = (doc.remarks or "") + "\n" + remarks
 
+	doc._compute_outstanding()
+	doc._update_status()
 	doc.flags.ignore_validate_update_after_submit = True
 	doc.save(ignore_permissions=True)
 	frappe.db.commit()
