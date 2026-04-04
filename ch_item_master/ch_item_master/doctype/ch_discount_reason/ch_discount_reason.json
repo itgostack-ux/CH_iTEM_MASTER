@@ -6,6 +6,7 @@
  "engine": "InnoDB",
  "field_order": [
   "reason_name",
+  "discount_category",
   "parent_reason",
   "enabled",
   "column_break_01",
@@ -26,6 +27,13 @@
    "label": "Reason Name",
    "reqd": 1,
    "unique": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "discount_category",
+   "fieldtype": "Select",
+   "label": "Discount Category",
+   "options": "\nTP Discount\nPrice Drop\nNegotiation\nApproval Based\nStaff Discount\nOther",
    "in_list_view": 1
   },
   {

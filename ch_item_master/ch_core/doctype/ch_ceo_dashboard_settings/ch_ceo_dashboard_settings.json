@@ -17,7 +17,11 @@
   "low_gocare_attach_threshold",
   "column_break_thresholds",
   "high_discount_threshold",
-  "alert_expiry_hours"
+  "alert_expiry_hours",
+  "section_inventory_settings",
+  "dead_stock_days",
+  "column_break_inv",
+  "slow_moving_days"
  ],
  "fields": [
   {
@@ -97,6 +101,29 @@
    "fieldname": "alert_expiry_hours",
    "fieldtype": "Int",
    "label": "Alert Expiry (Hours)"
+  },
+  {
+   "fieldname": "section_inventory_settings",
+   "fieldtype": "Section Break",
+   "label": "Inventory Settings"
+  },
+  {
+   "default": "90",
+   "fieldname": "dead_stock_days",
+   "fieldtype": "Int",
+   "label": "Dead Stock Threshold (Days)",
+   "description": "Items with no stock movement in these many days are flagged as dead stock"
+  },
+  {
+   "fieldname": "column_break_inv",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "45",
+   "fieldname": "slow_moving_days",
+   "fieldtype": "Int",
+   "label": "Slow Moving Threshold (Days)",
+   "description": "Items with low turnover in these many days are flagged as slow moving"
   }
  ],
  "index_web_pages_for_search": 0,
