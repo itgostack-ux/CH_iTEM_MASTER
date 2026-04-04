@@ -37,7 +37,7 @@ def get_data(filters):
 
 	where = " AND ".join(conditions)
 
-	return frappe.db.sql(f"""
+	return frappe.db.sql("""
 		SELECT
 			ssc.brand, ssc.name as scheme, ssc.scheme_name,
 			ssc.valid_from, ssc.valid_to, ssc.status,
@@ -52,4 +52,4 @@ def get_data(filters):
 			ON cl.scheme = ssc.name AND cl.docstatus != 2
 		WHERE {where}
 		ORDER BY ssc.brand, ssc.valid_from DESC
-	""", values, as_dict=True)
+	""".format(where=where), values, as_dict=True)  # noqa: UP032

@@ -73,7 +73,7 @@ def get_data(filters):
         FROM `tabCH Model` m
         WHERE {where}
         ORDER BY m.sub_category, m.model_name
-    """.format(where=where), values, as_dict=True)
+    """.format(where=where), values, as_dict=True)  # noqa: UP032
 
     for row in models:
         # Count variant specs and expected combinations

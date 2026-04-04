@@ -32,7 +32,7 @@ def get_data(filters):
 
 	where = " AND ".join(conditions)
 
-	rows = frappe.db.sql(f"""
+	rows = frappe.db.sql("""
 		SELECT
 			sal.store,
 			sal.scheme, sal.scheme_name,
@@ -43,7 +43,7 @@ def get_data(filters):
 		WHERE {where}
 		GROUP BY sal.store, sal.scheme
 		ORDER BY payout DESC
-	""", values, as_dict=True)
+	""".format(where=where), values, as_dict=True)  # noqa: UP032
 
 	grand_total = sum(r.payout or 0 for r in rows)
 	for r in rows:

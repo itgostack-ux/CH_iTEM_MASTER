@@ -30,7 +30,7 @@ def get_data(filters):
 
 	where = " AND ".join(conditions)
 
-	return frappe.db.sql(f"""
+	return frappe.db.sql("""
 		SELECT
 			cl.scheme, cl.scheme_name, cl.brand,
 			cl.name as claim,
@@ -39,4 +39,4 @@ def get_data(filters):
 		FROM `tabScheme Claim Summary` cl
 		WHERE {where}
 		ORDER BY cl.brand, cl.tds_amount DESC
-	""", values, as_dict=True)
+	""".format(where=where), values, as_dict=True)  # noqa: UP032

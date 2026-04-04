@@ -58,7 +58,7 @@ def get_data(filters):
           AND r.outstanding_amount > 0
           {conditions}
         ORDER BY r.due_date ASC
-    """.format(conditions=conditions), filters, as_dict=True)
+    """.format(conditions=conditions), filters, as_dict=True)  # noqa: UP032
 
     today = nowdate()
     data = []

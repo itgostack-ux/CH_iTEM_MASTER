@@ -52,7 +52,7 @@ def get_data(filters):
 
 	where = " AND ".join(conditions) if conditions else "1=1"
 
-	return frappe.db.sql(f"""
+	return frappe.db.sql("""
 		SELECT
 			sal.scheme, sal.scheme_name, sal.rule_name,
 			sal.invoice, sal.invoice_date, sal.store,
@@ -63,4 +63,4 @@ def get_data(filters):
 		FROM `tabScheme Achievement Ledger` sal
 		WHERE {where}
 		ORDER BY sal.invoice_date DESC, sal.scheme
-	""", values, as_dict=True)
+	""".format(where=where), values, as_dict=True)  # noqa: UP032

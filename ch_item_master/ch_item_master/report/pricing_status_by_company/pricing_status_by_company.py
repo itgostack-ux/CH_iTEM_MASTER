@@ -90,7 +90,7 @@ def get_data(filters):
         WHERE {w}
         ORDER BY p.status, p.channel, p.item_name
         LIMIT 1000
-    """.format(w=where), vals, as_dict=True)
+    """.format(w=where), vals, as_dict=True)  # noqa: UP032
 
     data = []
     for r in rows:

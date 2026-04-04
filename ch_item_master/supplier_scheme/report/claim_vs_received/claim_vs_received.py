@@ -35,7 +35,7 @@ def get_data(filters):
 
 	where = " AND ".join(conditions)
 
-	rows = frappe.db.sql(f"""
+	rows = frappe.db.sql("""
 		SELECT
 			cl.scheme, cl.scheme_name, cl.brand,
 			cl.name as claim, cl.claim_status,
@@ -48,7 +48,7 @@ def get_data(filters):
 		FROM `tabScheme Claim Summary` cl
 		WHERE {where}
 		ORDER BY cl.brand, cl.scheme
-	""", values, as_dict=True)
+	""".format(where=where), values, as_dict=True)  # noqa: UP032
 
 	for r in rows:
 		r.pending = flt(r.net_claim) - flt(r.total_settled)

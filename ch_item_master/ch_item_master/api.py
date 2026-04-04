@@ -221,7 +221,7 @@ def search_specs_for_sub_category(doctype, txt, searchfield, start, page_len, fi
     where_clause = " AND ".join(conditions) if conditions else "1=1"
 
     return frappe.db.sql(
-        f"""
+        """
         SELECT ia.name, ia.attribute_name
         FROM `tabItem Attribute` ia
         INNER JOIN `tabCH Sub Category Spec` csp
@@ -231,7 +231,7 @@ def search_specs_for_sub_category(doctype, txt, searchfield, start, page_len, fi
         WHERE {where_clause}
         ORDER BY ia.attribute_name ASC
         LIMIT %(start)s, %(page_len)s
-        """,
+        """.format(where_clause=where_clause),  # noqa: UP032
         values,
     )
 
@@ -528,13 +528,13 @@ def search_models(doctype, txt, searchfield, start, page_len, filters):
     where = " AND ".join(conditions) if conditions else "1=1"
 
     return frappe.db.sql(
-        f"""
+        """
         SELECT m.name, m.model_name,
                CONCAT('Brand: ', m.brand, ' | Mfr: ', m.manufacturer) as description
         FROM `tabCH Model` m
         WHERE {where}
         ORDER BY m.model_name ASC
         LIMIT %(page_len)s OFFSET %(start)s
-        """,
+        """.format(where=where),  # noqa: UP032
         {**values, "start": int(start), "page_len": int(page_len)},
     )

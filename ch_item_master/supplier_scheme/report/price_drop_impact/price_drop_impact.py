@@ -35,7 +35,7 @@ def get_data(filters):
 
 	where = " AND ".join(conditions)
 
-	rows = frappe.db.sql(f"""
+	rows = frappe.db.sql("""
 		SELECT
 			sal.scheme,
 			sal.item_code,
@@ -47,7 +47,7 @@ def get_data(filters):
 		WHERE {where}
 		GROUP BY sal.scheme, sal.item_code
 		ORDER BY payout_at_risk DESC
-	""", values, as_dict=True)
+	""".format(where=where), values, as_dict=True)  # noqa: UP032
 
 	# Enrich with current RRP from Item Price
 	for r in rows:

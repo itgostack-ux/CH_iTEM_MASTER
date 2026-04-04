@@ -90,7 +90,7 @@ def get_data(filters, channels):
         WHERE p.status = 'Active'
           AND {where}
         ORDER BY i.item_name
-    """.format(where=where), values, as_dict=True)
+    """.format(where=where), values, as_dict=True)  # noqa: UP032
 
     # Pivot: group by item_code
     from collections import OrderedDict

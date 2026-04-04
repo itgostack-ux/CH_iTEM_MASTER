@@ -76,4 +76,4 @@ def get_data(filters):
             WHERE ap.item_code = i.item_code AND ap.status = 'Active'
           )
         ORDER BY i.ch_category, i.ch_sub_category, i.item_name
-    """.format(conditions=" AND ".join(conditions)), values, as_dict=True)
+    """.format(conditions=" AND ".join(conditions)), values, as_dict=True)  # noqa: UP032

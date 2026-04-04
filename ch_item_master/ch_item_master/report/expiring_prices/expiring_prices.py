@@ -75,7 +75,7 @@ def get_data(filters):
         FROM `tabCH Item Price` p
         WHERE {conditions}
         ORDER BY p.effective_to ASC, p.item_code
-    """.format(conditions=" AND ".join(conditions)), values, as_dict=True)
+    """.format(conditions=" AND ".join(conditions)), values, as_dict=True)  # noqa: UP032
 
     # Check for replacement (a Scheduled price for same item+channel)
     for row in rows:

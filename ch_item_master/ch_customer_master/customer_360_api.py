@@ -183,9 +183,9 @@ def _get_loyalty(customer, company=None):
 
 	# Current balance
 	result = frappe.db.sql(
-		f"""SELECT IFNULL(SUM(points), 0) as balance
+		"""SELECT IFNULL(SUM(points), 0) as balance
 		FROM `tabCH Loyalty Transaction`
-		WHERE customer = %s AND docstatus = 1 AND is_expired = 0 {company_cond}""",
+		WHERE customer = %s AND docstatus = 1 AND is_expired = 0 {company_cond}""".format(company_cond=company_cond),  # noqa: UP032
 		company_args,
 		as_dict=True,
 	)
@@ -392,12 +392,12 @@ def _get_coupon_usage(customer, company=None):
 		params["company"] = company
 
 	return frappe.db.sql(
-		f"""SELECT pi.name, pi.posting_date, pi.custom_coupon_code AS coupon_code, pi.grand_total, pi.status
+		"""SELECT pi.name, pi.posting_date, pi.custom_coupon_code AS coupon_code, pi.grand_total, pi.status
 		FROM `tabSales Invoice` pi
 		WHERE pi.customer = %(customer)s AND pi.docstatus = 1
 		  AND pi.custom_coupon_code IS NOT NULL AND pi.custom_coupon_code != ''
 		  {company_cond}
-		ORDER BY pi.posting_date DESC LIMIT 20""",
+		ORDER BY pi.posting_date DESC LIMIT 20""".format(company_cond=company_cond),  # noqa: UP032
 		params,
 		as_dict=True,
 	)
@@ -412,22 +412,22 @@ def _get_refunds(customer, company=None):
 
 	# POS returns
 	returns = frappe.db.sql(
-		f"""SELECT name, posting_date, grand_total, return_against, status, 'POS Invoice' as doctype
+		"""SELECT name, posting_date, grand_total, return_against, status, 'POS Invoice' as doctype
 		FROM `tabPOS Invoice`
 		WHERE customer = %(customer)s AND docstatus = 1 AND is_return = 1
 		  {company_cond}
-		ORDER BY posting_date DESC LIMIT 20""",
+		ORDER BY posting_date DESC LIMIT 20""".format(company_cond=company_cond),  # noqa: UP032
 		params,
 		as_dict=True,
 	)
 
 	# Sales Invoice returns (non-POS)
 	si_returns = frappe.db.sql(
-		f"""SELECT name, posting_date, grand_total, return_against, status, 'Sales Invoice' as doctype
+		"""SELECT name, posting_date, grand_total, return_against, status, 'Sales Invoice' as doctype
 		FROM `tabSales Invoice`
 		WHERE customer = %(customer)s AND docstatus = 1 AND is_return = 1
 		  {company_cond}
-		ORDER BY posting_date DESC LIMIT 10""",
+		ORDER BY posting_date DESC LIMIT 10""".format(company_cond=company_cond),  # noqa: UP032
 		params,
 		as_dict=True,
 	)

@@ -74,7 +74,7 @@ def get_data(filters):
         JOIN `tabCH Sub Category` sc ON sc.name = m.sub_category
         WHERE {where}
         ORDER BY sc.category, m.sub_category, m.model_name
-    """.format(where=where), values, as_dict=True)
+    """.format(where=where), values, as_dict=True)  # noqa: UP032
 
     # Price/offer filter conditions
     price_conds = ["p.status = 'Active'"]
@@ -128,7 +128,7 @@ def get_data(filters):
                         AVG(p.selling_price) as avg_sp
                     FROM `tabCH Item Price` p
                     WHERE p.item_code IN %(items)s AND {cond}
-                """.format(cond=price_where), {**values, "items": item_codes}, as_dict=True)
+                """.format(cond=price_where), {**values, "items": item_codes}, as_dict=True)  # noqa: UP032
 
                 if price_data:
                     priced_items = price_data[0].priced or 0
@@ -147,7 +147,7 @@ def get_data(filters):
                 active_offers = frappe.db.sql("""
                     SELECT COUNT(*) FROM `tabCH Item Offer` o
                     WHERE o.item_code IN %(items)s AND {cond}
-                """.format(cond=offer_where), {**values, "items": item_codes})[0][0] or 0
+                """.format(cond=offer_where), {**values, "items": item_codes})[0][0] or 0  # noqa: UP032
 
         unpriced = total_items - priced_items
         coverage = round((priced_items / total_items * 100), 1) if total_items > 0 else 0

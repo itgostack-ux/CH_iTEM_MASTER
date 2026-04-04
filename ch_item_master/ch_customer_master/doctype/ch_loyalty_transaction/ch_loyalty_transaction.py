@@ -76,7 +76,7 @@ def get_loyalty_balance(customer, exclude=None):
 			AND docstatus = 1
 			AND is_expired = 0
 			{exclude}
-		""".format(
+		""".format(  # noqa: UP032
 			exclude=f"AND name != %(exclude)s" if exclude else ""
 		),
 		{"customer": customer, "exclude": exclude},

@@ -102,7 +102,7 @@ def get_data(filters, channels):
         WHERE {w}
         ORDER BY i.ch_sub_category, i.item_name
         LIMIT 500
-    """.format(w=item_where), {**vals, "company": company}, as_dict=True)
+    """.format(w=item_where), {**vals, "company": company}, as_dict=True)  # noqa: UP032
 
     # Get all active prices for these items
     if items:

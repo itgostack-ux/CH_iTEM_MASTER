@@ -147,7 +147,7 @@ def _get_kpis(today, month_start, company):
 
     # ─ Total Customers (company-scoped when filtered) ────────────────────
     if company:
-        total_customers = frappe.db.sql(f"""
+        total_customers = frappe.db.sql("""
             SELECT COUNT(DISTINCT _x.customer) FROM (
                 SELECT customer FROM `tabSales Invoice`
                 WHERE docstatus = 1 AND company = %(company)s
@@ -184,21 +184,21 @@ def _get_kpis(today, month_start, company):
 
     # ─ VIP Count (company-scoped customer set) ───────────────────────────
     if company:
-        vip_count = frappe.db.sql(f"""
+        vip_count = frappe.db.sql("""
             SELECT COUNT(*) FROM `tabCustomer` c
             WHERE c.disabled = 0 AND c.ch_customer_segment = 'VIP'
               AND c.name IN {cust_sub}
-        """, p)[0][0] or 0
+        """.format(cust_sub=cust_sub), p)[0][0] or 0  # noqa: UP032
     else:
         vip_count = frappe.db.count("Customer", {"ch_customer_segment": "VIP", "disabled": 0})
 
     # ─ Active Customers (visited any store in last 90d, company-scoped) ──
     if company:
-        active_customers = frappe.db.sql(f"""
+        active_customers = frappe.db.sql("""
             SELECT COUNT(*) FROM `tabCustomer` c
             WHERE c.disabled = 0 AND c.ch_last_visit_date >= %(cutoff)s
               AND c.name IN {cust_sub}
-        """, {**p, "cutoff": add_days(today, -90)})[0][0] or 0
+        """.format(cust_sub=cust_sub), {**p, "cutoff": add_days(today, -90)})[0][0] or 0  # noqa: UP032
     else:
         active_customers = frappe.db.sql("""
             SELECT COUNT(*) FROM `tabCustomer`
@@ -206,17 +206,17 @@ def _get_kpis(today, month_start, company):
         """, {"cutoff": add_days(today, -90)})[0][0] or 0
 
     # ─ Revenue (always company-filtered) ─────────────────────────────────
-    total_revenue = frappe.db.sql(f"""
+    total_revenue = frappe.db.sql("""
         SELECT IFNULL(SUM(si.grand_total), 0)
         FROM `tabSales Invoice` si
         WHERE si.docstatus = 1 {cond}
-    """, p)[0][0]
+    """.format(cond=cond), p)[0][0]  # noqa: UP032
 
-    revenue_this_month = frappe.db.sql(f"""
+    revenue_this_month = frappe.db.sql("""
         SELECT IFNULL(SUM(si.grand_total), 0)
         FROM `tabSales Invoice` si
         WHERE si.docstatus = 1 AND si.posting_date >= %(start)s {cond}
-    """, {**p, "start": month_start})[0][0]
+    """.format(cond=cond), {**p, "start": month_start})[0][0]  # noqa: UP032
 
     avg_spend = flt(total_revenue / max(total_customers, 1), 0)
 
@@ -235,11 +235,11 @@ def _get_kpis(today, month_start, company):
 
     # ─ KYC (company-scoped customer set) ─────────────────────────────────
     if company:
-        kyc_verified = frappe.db.sql(f"""
+        kyc_verified = frappe.db.sql("""
             SELECT COUNT(*) FROM `tabCustomer` c
             WHERE c.disabled = 0 AND c.ch_kyc_verified = 1
               AND c.name IN {cust_sub}
-        """, p)[0][0] or 0
+        """.format(cust_sub=cust_sub), p)[0][0] or 0  # noqa: UP032
     else:
         kyc_verified = frappe.db.count("Customer", {"ch_kyc_verified": 1, "disabled": 0})
 
@@ -392,19 +392,19 @@ def _get_insights(today, company):
     cond = _co_cond(company, "si")
     p = _co_params(company)
     inv_count = frappe.db.sql(
-        f"SELECT COUNT(*) FROM `tabSales Invoice` si WHERE si.docstatus = 1 {cond}", p
+        "SELECT COUNT(*) FROM `tabSales Invoice` si WHERE si.docstatus = 1 {cond}".format(cond=cond), p
     )[0][0]
 
     if inv_count:
-        top_revenue = frappe.db.sql(f"""
+        top_revenue = frappe.db.sql("""
             SELECT si.customer, SUM(si.grand_total) as total
             FROM `tabSales Invoice` si
             WHERE si.docstatus = 1 {cond}
             GROUP BY si.customer ORDER BY total DESC LIMIT 5
-        """, p, as_dict=True)
+        """.format(cond=cond), p, as_dict=True)  # noqa: UP032
 
         total_rev = frappe.db.sql(
-            f"SELECT IFNULL(SUM(si.grand_total),0) FROM `tabSales Invoice` si WHERE si.docstatus=1 {cond}", p
+            "SELECT IFNULL(SUM(si.grand_total),0) FROM `tabSales Invoice` si WHERE si.docstatus=1 {cond}".format(cond=cond), p
         )[0][0]
 
         if top_revenue and total_rev:
@@ -485,14 +485,14 @@ def _get_segment_distribution(company):
     """Segment breakdown. Company-filtered = among that company's customers."""
     if company:
         cust_sub = _customers_of_company_subquery(company)
-        return frappe.db.sql(f"""
+        return frappe.db.sql("""
             SELECT
                 IFNULL(NULLIF(c.ch_customer_segment, ''), 'Unclassified') as segment,
                 COUNT(*) as count
             FROM `tabCustomer` c
             WHERE c.disabled = 0 AND c.name IN {cust_sub}
             GROUP BY segment ORDER BY count DESC
-        """, _co_params(company), as_dict=True)
+        """.format(cust_sub=cust_sub), _co_params(company), as_dict=True)  # noqa: UP032
     else:
         return frappe.db.sql("""
             SELECT
@@ -546,7 +546,7 @@ def _get_company_breakdown(today, company):
     """Per-company customer activity. When filtered, shows only that company."""
     cond = _co_cond(company, "si")
     p = _co_params(company)
-    return frappe.db.sql(f"""
+    return frappe.db.sql("""
         SELECT
             si.company,
             COUNT(DISTINCT si.customer) as customers,
@@ -557,7 +557,7 @@ def _get_company_breakdown(today, company):
         FROM `tabSales Invoice` si
         WHERE si.docstatus = 1 {cond}
         GROUP BY si.company ORDER BY revenue DESC
-    """, p, as_dict=True)
+    """.format(cond=cond), p, as_dict=True)  # noqa: UP032
 
 
 # ── Top Customers ────────────────────────────────────────────────────────────
@@ -756,15 +756,15 @@ def _get_revenue_trend(today, company):
 
         p = {"start": ms, "end": me, **p_base}
 
-        revenue = frappe.db.sql(f"""
+        revenue = frappe.db.sql("""
             SELECT IFNULL(SUM(si.grand_total), 0) FROM `tabSales Invoice` si
             WHERE si.docstatus = 1 AND si.posting_date BETWEEN %(start)s AND %(end)s {cond}
-        """, p)[0][0]
+        """.format(cond=cond), p)[0][0]  # noqa: UP032
 
-        transactions = frappe.db.sql(f"""
+        transactions = frappe.db.sql("""
             SELECT COUNT(*) FROM `tabSales Invoice` si
             WHERE si.docstatus = 1 AND si.posting_date BETWEEN %(start)s AND %(end)s {cond}
-        """, p)[0][0]
+        """.format(cond=cond), p)[0][0]  # noqa: UP032
 
         new_custs = frappe.db.count("Customer", {
             "creation": ("between", [ms, me + " 23:59:59"]),
@@ -814,7 +814,7 @@ def _get_store_performance(today, company):
         cond = " AND sv.company = %(company)s"
         p = {"company": company}
 
-    return frappe.db.sql(f"""
+    return frappe.db.sql("""
         SELECT
             sv.store, sv.company,
             COUNT(*) as total_visits,
@@ -827,4 +827,4 @@ def _get_store_performance(today, company):
         WHERE sv.store IS NOT NULL AND sv.store != '' {cond}
         GROUP BY sv.store, sv.company
         ORDER BY total_visits DESC LIMIT 15
-    """, p, as_dict=True)
+    """.format(cond=cond), p, as_dict=True)  # noqa: UP032

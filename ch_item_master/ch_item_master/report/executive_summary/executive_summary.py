@@ -80,7 +80,7 @@ def _data_by_company(cur_date, company_filter):
         FROM `tabCH Item Price` p
         WHERE {w}
         ORDER BY p.company
-    """.format(w=price_where), vals, as_dict=True)
+    """.format(w=price_where), vals, as_dict=True)  # noqa: UP032
 
     if not companies and not company_filter:
         companies = [{"group_label": c.name} for c in
@@ -160,13 +160,13 @@ def _build_row(label, cur_date, company=None, category=None, channel=None):
             FROM `tabCH Item Price` p
             JOIN `tabItem` i ON i.name = p.item_code
             WHERE {pw} AND {iw}
-        """.format(pw=price_where, iw=item_where), vals)
+        """.format(pw=price_where, iw=item_where), vals)  # noqa: UP032
     else:
         active_prices = frappe.db.sql("""
             SELECT COUNT(*), COUNT(DISTINCT p.item_code), AVG(p.mrp), AVG(p.selling_price)
             FROM `tabCH Item Price` p
             WHERE {pw}
-        """.format(pw=price_where), vals)
+        """.format(pw=price_where), vals)  # noqa: UP032
 
     num_prices = active_prices[0][0] or 0
     priced_items = active_prices[0][1] or 0
@@ -180,12 +180,12 @@ def _build_row(label, cur_date, company=None, category=None, channel=None):
             FROM `tabCH Item Offer` o
             JOIN `tabItem` i ON i.name = o.item_code
             WHERE {ow} AND {iw}
-        """.format(ow=offer_where, iw=item_where), vals)[0][0] or 0
+        """.format(ow=offer_where, iw=item_where), vals)[0][0] or 0  # noqa: UP032
     else:
         active_offers = frappe.db.sql("""
             SELECT COUNT(*) FROM `tabCH Item Offer` o
             WHERE {ow}
-        """.format(ow=offer_where), vals)[0][0] or 0
+        """.format(ow=offer_where), vals)[0][0] or 0  # noqa: UP032
 
     coverage = round(priced_items / total_items * 100, 1) if total_items > 0 else 0
     disc_pct = round((1 - avg_sp / avg_mrp) * 100, 1) if avg_mrp > 0 else 0

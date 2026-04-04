@@ -138,7 +138,7 @@ def get_store_drilldown(store, company=None, period="today"):
 		WHERE si.docstatus = 1
 			AND si.posting_date BETWEEN %(from_date)s AND %(to_date)s
 			{sql_and}
-	""".format(**ctx), ctx, as_dict=1)
+	""".format(**ctx), ctx, as_dict=1)  # noqa: UP032
 
 	# Walk-ins/footfall from POS Kiosk Token
 	footfall_data = frappe.db.sql("""
@@ -158,7 +158,7 @@ def get_store_drilldown(store, company=None, period="today"):
 		WHERE si.docstatus = 1
 			AND si.posting_date BETWEEN %(from_date)s AND %(to_date)s
 			{sql_and}
-	""".format(**ctx), ctx, as_dict=1)
+	""".format(**ctx), ctx, as_dict=1)  # noqa: UP032
 
 	# Active repair load for this store (via warehouse -> source_warehouse)
 	repair_filters = {
@@ -214,7 +214,7 @@ def _get_summary_kpis(ctx):
 		WHERE si.docstatus = 1
 			AND si.posting_date BETWEEN %(from_date)s AND %(to_date)s
 			{sql_and}
-	""".format(**ctx), ctx, as_dict=1)
+	""".format(**ctx), ctx, as_dict=1)  # noqa: UP032
 	kpis["revenue"] = flt(revenue[0].total) if revenue else 0
 
 	# Invoice Count
@@ -224,7 +224,7 @@ def _get_summary_kpis(ctx):
 		WHERE si.docstatus = 1
 			AND si.posting_date BETWEEN %(from_date)s AND %(to_date)s
 			{sql_and}
-	""".format(**ctx), ctx, as_dict=1)
+	""".format(**ctx), ctx, as_dict=1)  # noqa: UP032
 	kpis["invoice_count"] = cint(inv_count[0].cnt) if inv_count else 0
 
 	# Avg Bill Value
@@ -262,7 +262,7 @@ def _get_conversion_data(ctx):
 			{sql_and}
 		GROUP BY HOUR(si.posting_time)
 		ORDER BY hr
-	""".format(**ctx), ctx, as_dict=1)
+	""".format(**ctx), ctx, as_dict=1)  # noqa: UP032
 
 	inv_map = {r.hr: r.invoices for r in invoices_hourly}
 	return [{"hour": r.hr, "tokens": r.tokens, "invoices": inv_map.get(r.hr, 0)} for r in hourly]
@@ -307,7 +307,7 @@ def _get_leakage_data(ctx):
 		WHERE si.docstatus = 1
 			AND si.posting_date BETWEEN %(from_date)s AND %(to_date)s
 			{sql_and}
-	""".format(**ctx), ctx, as_dict=1)
+	""".format(**ctx), ctx, as_dict=1)  # noqa: UP032
 	if disc:
 		leakage["discount_override_pct"] = flt(disc[0].disc_items / disc[0].total_items * 100, 1) if disc[0].total_items else 0
 	else:
@@ -350,7 +350,7 @@ def _get_store_rankings(ctx):
 			{sql_and}
 		GROUP BY si.pos_profile
 		ORDER BY revenue DESC
-	""".format(**ctx), ctx, as_dict=1)
+	""".format(**ctx), ctx, as_dict=1)  # noqa: UP032
 
 	return {
 		"top_5": stores[:5],
@@ -496,4 +496,4 @@ def _get_hourly_trend(ctx):
 			{sql_and}
 		GROUP BY HOUR(si.posting_time)
 		ORDER BY hour
-	""".format(**ctx), ctx, as_dict=1)
+	""".format(**ctx), ctx, as_dict=1)  # noqa: UP032
