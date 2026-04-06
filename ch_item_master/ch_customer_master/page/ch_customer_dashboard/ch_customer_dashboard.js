@@ -424,7 +424,7 @@ const segColors = { VIP: "#9f7aea", Regular: "#4299e1", New: "#48bb78", Dormant:
 rows.forEach(r => {
 const c = segColors[r.segment] || "#a0aec0";
 html += `<tr>
-<td><a href="/app/customer/${r.customer}" class="cd-link">${r.customer_name || r.customer}</a>
+<td><a href="/desk/customer/${r.customer}" class="cd-link">${r.customer_name || r.customer}</a>
 ${r.mobile_no ? `<br><small style="color:var(--text-muted)">${r.mobile_no}</small>` : ""}</td>
 <td><span class="cd-badge" style="background:${c}22; color:${c}">${r.segment}</span></td>
 <td>${format_currency(r.total_spend)}</td>
@@ -479,7 +479,7 @@ if (rs.top_referrers && rs.top_referrers.length) {
 html += `<div style="font-size:12px; font-weight:600; margin-bottom:6px; color:var(--text-muted)">Top Referrers</div>`;
 rs.top_referrers.forEach(r => {
 html += `<div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px;">
-<a href="/app/customer/${r.referrer}" class="cd-link">${r.customer_name}</a>
+<a href="/desk/customer/${r.referrer}" class="cd-link">${r.customer_name}</a>
 <span style="font-weight:600">${r.referral_count}</span>
 </div>`;
 });

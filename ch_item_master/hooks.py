@@ -11,7 +11,7 @@ add_to_apps_screen = [
 		"name": "ch_item_master",
 		"logo": "/assets/ch_item_master/images/icon.svg",
 		"title": "CH Item Master",
-		"route": "/app/ch-item-master",
+		"route": "/desk/ch-item-master",
 		"has_permission": "ch_item_master.ch_item_master.utils.check_app_permission",
 	}
 ]

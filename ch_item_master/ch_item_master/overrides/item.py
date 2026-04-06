@@ -349,7 +349,7 @@ def _check_duplicate_template(doc):
         frappe.throw(
             _("A template already exists for model {0}: {1}").format(
                 frappe.bold(doc.ch_model),
-                f'<a href="/app/item/{existing.name}">{existing.name}</a>',
+                f'<a href="/desk/item/{existing.name}">{existing.name}</a>',
             ),
             title=_("Duplicate Template"),
             exc=DuplicateTemplateError,
@@ -375,7 +375,7 @@ def _check_duplicate_item_name(doc):
         frappe.throw(
             _("An item with the name {0} already exists: {1}").format(
                 frappe.bold(name_to_check),
-                f'<a href="/app/item/{existing}">{existing}</a>',
+                f'<a href="/desk/item/{existing}">{existing}</a>',
             ),
             title=_("Duplicate Item Name"),
             exc=DuplicateItemNameError,

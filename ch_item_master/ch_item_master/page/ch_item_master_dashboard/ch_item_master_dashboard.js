@@ -292,7 +292,7 @@ function activity_item(a) {
 }
 
 function category_card(c) {
-	return `<a href="/app/ch-category/${c.category}" class="ch-cat-card ${!c.cat_active ? 'ch-cat-inactive' : ''}">
+	return `<a href="/desk/ch-category/${c.category}" class="ch-cat-card ${!c.cat_active ? 'ch-cat-inactive' : ''}">
 		<div class="ch-cat-name">${c.category_name || c.category}</div>
 		<div class="ch-cat-stats">
 			<span title="Sub Categories">${c.sub_categories} SC</span>

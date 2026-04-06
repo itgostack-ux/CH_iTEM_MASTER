@@ -438,7 +438,7 @@ frappe.ui.form.on('CH Model Spec Value', {
 		if (!field) return;
 
 		let spec = row.spec;
-		let url = `/app/item-attribute/${encodeURIComponent(spec)}`;
+		let url = `/desk/item-attribute/${encodeURIComponent(spec)}`;
 
 		// Remove any previous listener to avoid duplicates
 		$(field.input).off('awesomplete-open.ch_new_val');

@@ -270,7 +270,7 @@ def _get_alerts(today, company):
         alerts.append({
             "type": "warning", "icon": "alert-triangle",
             "title": f"{dormant} customer(s) marked Dormant (no visit in 6+ months)",
-            "action": "/app/customer?ch_customer_segment=Dormant",
+            "action": "/desk/customer?ch_customer_segment=Dormant",
         })
 
     # 2 — Churned customers (COMMON)
@@ -279,7 +279,7 @@ def _get_alerts(today, company):
         alerts.append({
             "type": "danger", "icon": "user-minus",
             "title": f"{churned} customer(s) classified as Churned — win-back needed",
-            "action": "/app/customer?ch_customer_segment=Churned",
+            "action": "/desk/customer?ch_customer_segment=Churned",
         })
 
     # 3 — Loyalty expiring (ALWAYS overall)
@@ -296,7 +296,7 @@ def _get_alerts(today, company):
             alerts.append({
                 "type": "warning", "icon": "clock",
                 "title": f"{cint(e.points)} loyalty pts expiring for {cint(e.customers)} customer(s) in 30 days",
-                "action": "/app/ch-loyalty-transaction?is_expired=0",
+                "action": "/desk/ch-loyalty-transaction?is_expired=0",
             })
 
     # 4 — KYC pending (COMMON)
@@ -307,7 +307,7 @@ def _get_alerts(today, company):
         alerts.append({
             "type": "info", "icon": "file-text",
             "title": f"{kyc_pending} active customer(s) without KYC verification",
-            "action": "/app/customer?ch_kyc_verified=0",
+            "action": "/desk/customer?ch_kyc_verified=0",
         })
 
     # 5 — Duplicate phones (COMMON)
@@ -320,7 +320,7 @@ def _get_alerts(today, company):
         alerts.append({
             "type": "warning", "icon": "users",
             "title": f"{len(dupes)} phone number(s) shared by multiple customers — potential duplicates",
-            "action": "/app/customer?mobile_no=%5B%22is%22%2C%22set%22%5D&order_by=mobile_no",
+            "action": "/desk/customer?mobile_no=%5B%22is%22%2C%22set%22%5D&order_by=mobile_no",
         })
 
     # 6 — Warranty expiring (COMMON — device-level, cross-company)
@@ -334,7 +334,7 @@ def _get_alerts(today, company):
             alerts.append({
                 "type": "info", "icon": "shield",
                 "title": f"{we} device warranty(ies) expiring in 30 days — upsell opportunity",
-                "action": "/app/ch-customer-device?current_status=Owned",
+                "action": "/desk/ch-customer-device?current_status=Owned",
             })
 
     return alerts
@@ -368,7 +368,7 @@ def _get_insights(today, company):
                 "title": f"VIP Concentration: {vip_pct}%",
                 "description": f"{segment_map.get('VIP', 0)} VIP customer(s). Focus retention on this group.",
                 "severity": "info",
-                "action": "/app/customer?ch_customer_segment=VIP",
+                "action": "/desk/customer?ch_customer_segment=VIP",
             })
         if dormant_pct > 25:
             insights.append({
@@ -377,7 +377,7 @@ def _get_insights(today, company):
                 "description": f"{segment_map.get('Dormant', 0)} customers inactive 6+ months. "
                                "Consider WhatsApp/SMS re-engagement campaign.",
                 "severity": "high",
-                "action": "/app/customer?ch_customer_segment=Dormant",
+                "action": "/desk/customer?ch_customer_segment=Dormant",
             })
         if churned_pct > 10:
             insights.append({
@@ -385,7 +385,7 @@ def _get_insights(today, company):
                 "title": f"Churn Alert: {churned_pct}% customers churned",
                 "description": f"{segment_map.get('Churned', 0)} customers likely left. Run targeted win-back offers.",
                 "severity": "high",
-                "action": "/app/customer?ch_customer_segment=Churned",
+                "action": "/desk/customer?ch_customer_segment=Churned",
             })
 
     # 2 — Revenue concentration (COMPANY-SPECIFIC)
@@ -448,7 +448,7 @@ def _get_insights(today, company):
                 "title": f"{no_vas} Device(s) Without VAS/Warranty",
                 "description": "Owned devices with no protection plan. Push VAS upsell.",
                 "severity": "medium",
-                "action": "/app/ch-customer-device?current_status=Owned",
+                "action": "/desk/ch-customer-device?current_status=Owned",
             })
 
     # 5 — New→Regular conversion (COMMON)
@@ -659,7 +659,7 @@ def _get_recent_activity(company):
             "detail": c.mobile_no or "",
             "timestamp": str(c.creation),
             "user": c.owner,
-            "link": f"/app/customer/{c.name}",
+            "link": f"/desk/customer/{c.name}",
         })
 
     # Invoices — company-filtered
@@ -678,7 +678,7 @@ def _get_recent_activity(company):
             "amount": inv.grand_total,
             "timestamp": str(inv.creation),
             "user": inv.owner,
-            "link": f"/app/sales-invoice/{inv.name}",
+            "link": f"/desk/sales-invoice/{inv.name}",
         })
 
     # Loyalty — ALWAYS overall
@@ -696,7 +696,7 @@ def _get_recent_activity(company):
                 "detail": f"{sign}{lt.points} pts",
                 "timestamp": str(lt.creation),
                 "user": lt.owner,
-                "link": f"/app/ch-loyalty-transaction/{lt.name}",
+                "link": f"/desk/ch-loyalty-transaction/{lt.name}",
             })
 
     # Service Requests — company-filtered
@@ -715,7 +715,7 @@ def _get_recent_activity(company):
                 "detail": sr.company or "",
                 "timestamp": str(sr.creation),
                 "user": sr.owner,
-                "link": f"/app/service-request/{sr.name}",
+                "link": f"/desk/service-request/{sr.name}",
             })
 
     # Buyback — ALWAYS common (no company field)
@@ -733,7 +733,7 @@ def _get_recent_activity(company):
                 "amount": bb.buyback_price,
                 "timestamp": str(bb.creation),
                 "user": bb.owner,
-                "link": f"/app/buyback-request/{bb.name}",
+                "link": f"/desk/buyback-request/{bb.name}",
             })
 
     activity.sort(key=lambda x: x["timestamp"], reverse=True)

@@ -69,7 +69,7 @@ def _get_alerts(today):
             "type": "danger",
             "icon": "alert-triangle",
             "title": f"{expiring_3d} price(s) expiring within 3 days",
-            "action": "/app/query-report/Expiring Prices?days_ahead=3",
+            "action": "/desk/query-report/Expiring Prices?days_ahead=3",
         })
 
     # 2. Prices expiring in next 7 days
@@ -82,7 +82,7 @@ def _get_alerts(today):
             "type": "warning",
             "icon": "clock",
             "title": f"{expiring_7d} price(s) expiring in 4-7 days",
-            "action": "/app/query-report/Expiring Prices?days_ahead=7",
+            "action": "/desk/query-report/Expiring Prices?days_ahead=7",
         })
 
     # 3. Items without any active price
@@ -100,7 +100,7 @@ def _get_alerts(today):
             "type": "danger" if items_no_price > 10 else "warning",
             "icon": "tag",
             "title": f"{items_no_price} item(s) have no active price",
-            "action": "/app/query-report/Items Without Active Price",
+            "action": "/desk/query-report/Items Without Active Price",
         })
 
     # 4. Pending price approvals
@@ -110,7 +110,7 @@ def _get_alerts(today):
             "type": "info",
             "icon": "check-circle",
             "title": f"{pending_prices} price(s) pending approval",
-            "action": "/app/ch-item-price?status=Draft",
+            "action": "/desk/ch-item-price?status=Draft",
         })
 
     # 5. Pending offer approvals
@@ -122,7 +122,7 @@ def _get_alerts(today):
             "type": "info",
             "icon": "gift",
             "title": f"{pending_offers} offer(s) pending approval",
-            "action": "/app/ch-item-offer?approval_status=Pending Approval",
+            "action": "/desk/ch-item-offer?approval_status=Pending Approval",
         })
 
     # 6. Models without items generated
@@ -139,7 +139,7 @@ def _get_alerts(today):
             "type": "warning",
             "icon": "box",
             "title": f"{models_no_items} model(s) have no items generated",
-            "action": "/app/query-report/Model Coverage",
+            "action": "/desk/query-report/Model Coverage",
         })
 
     return alerts
@@ -178,7 +178,7 @@ def _get_insights(today):
             "description": f"{len(spread_items)} item(s) have >20% price difference "
                            f"across channels (max spread: {max_spread}%). "
                            f"Examples: {items_list}",
-            "action": "/app/query-report/Price Comparison Across Channels",
+            "action": "/desk/query-report/Price Comparison Across Channels",
             "severity": "high",
         })
 
@@ -201,7 +201,7 @@ def _get_insights(today):
             "title": "Incomplete Item Generation",
             "description": f"{len(partial_coverage)} model(s) have fewer than 3 variants generated. "
                            f"Consider using 'Generate All Items' to create remaining variants.",
-            "action": "/app/query-report/Model Coverage",
+            "action": "/desk/query-report/Model Coverage",
             "severity": "medium",
         })
 
@@ -359,7 +359,7 @@ def _get_recent_activity():
             "amount": p.selling_price,
             "timestamp": str(p.creation),
             "user": p.modified_by,
-            "link": f"/app/ch-item-price/{p.name}",
+            "link": f"/desk/ch-item-price/{p.name}",
         })
 
     # Recent offers
@@ -379,7 +379,7 @@ def _get_recent_activity():
             "amount": o.value,
             "timestamp": str(o.creation),
             "user": o.modified_by,
-            "link": f"/app/ch-item-offer/{o.name}",
+            "link": f"/desk/ch-item-offer/{o.name}",
         })
 
     # Recent models
@@ -397,7 +397,7 @@ def _get_recent_activity():
             "description": f"New Model: {m.model_name} ({m.sub_category})",
             "timestamp": str(m.creation),
             "user": m.modified_by,
-            "link": f"/app/ch-model/{m.name}",
+            "link": f"/desk/ch-model/{m.name}",
         })
 
     # Recent items (CH Item Master managed items)
@@ -420,7 +420,7 @@ def _get_recent_activity():
             "description": f"New {item_type}: {it.item_name or it.name}",
             "timestamp": str(it.creation),
             "user": it.modified_by,
-            "link": f"/app/item/{it.name}",
+            "link": f"/desk/item/{it.name}",
         })
 
     # Sort all by timestamp descending

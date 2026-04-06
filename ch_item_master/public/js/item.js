@@ -403,7 +403,7 @@ function _override_multiple_variants_dialog() {
                                 var variant = r.message;
                                 frappe.msgprint_dialog = frappe.msgprint(
                                     __('Item Variant {0} already exists with same attributes', [
-                                        repl('<a href="/app/item/%(item_encoded)s" class="strong variant-click">%(item)s</a>', {
+                                        repl('<a href="/desk/item/%(item_encoded)s" class="strong variant-click">%(item)s</a>', {
                                             item_encoded: encodeURIComponent(variant),
                                             item: variant,
                                         }),

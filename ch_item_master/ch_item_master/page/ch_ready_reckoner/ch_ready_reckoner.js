@@ -837,7 +837,7 @@ function _render_drawer_tab($drawer, tab, item_code, state) {
         } else {
             prices.forEach(p => {
                 const erpBadge = p.erp_item_price
-                    ? `<a href="/app/item-price/${p.erp_item_price}" target="_blank"
+                    ? `<a href="/desk/item-price/${p.erp_item_price}" target="_blank"
                           style="font-size:10px;padding:1px 6px;border-radius:8px;
                           background:#d4edda;color:#155724;text-decoration:none;"
                           title="Synced to ERPNext Item Price">
@@ -857,7 +857,7 @@ function _render_drawer_tab($drawer, tab, item_code, state) {
                       <span style="display:flex;align-items:center;gap:6px;">
                         <span class="chpb-tag ${p.status}">${p.status}</span>
                         ${erpBadge}
-                        <a href="/app/ch-item-price/${p.name}" target="_blank" style="font-size:11px">CH ↗</a>
+                        <a href="/desk/ch-item-price/${p.name}" target="_blank" style="font-size:11px">CH ↗</a>
                       </span>
                     </div>
                     <div class="chpb-price-row">
@@ -896,7 +896,7 @@ function _render_drawer_tab($drawer, tab, item_code, state) {
               <div class="chpb-price-card" style="background:var(--orange-50,#fff8f0);border-color:var(--orange-200,#ffd9b3)">
                 <div class="card-head">
                   <span class="channel-label" style="color:var(--orange-600,#e67e22)">Buyback Prices</span>
-                  <a href="/app/buyback-price-master/${bb.name}" target="_blank" style="font-size:11px">Open ↗</a>
+                  <a href="/desk/buyback-price-master/${bb.name}" target="_blank" style="font-size:11px">Open ↗</a>
                 </div>
                 <div class="chpb-price-row">
                   ${_pval('Market Price', bb.current_market_price)}
@@ -971,7 +971,7 @@ function _render_drawer_tab($drawer, tab, item_code, state) {
                 ? `<span style="font-size:9px;padding:1px 5px;border-radius:6px;background:#e2d9f3;color:#4a235a;margin-left:4px">BILL</span>`
                 : '';
             const erpPRLink = o.erp_pricing_rule
-                ? `<a href="/app/pricing-rule/${o.erp_pricing_rule}" target="_blank"
+                ? `<a href="/desk/pricing-rule/${o.erp_pricing_rule}" target="_blank"
                       style="font-size:10px;padding:1px 6px;border-radius:8px;
                       background:#d4edda;color:#155724;text-decoration:none;"
                       title="View ERPNext Pricing Rule">
@@ -993,7 +993,7 @@ function _render_drawer_tab($drawer, tab, item_code, state) {
                   <span class="offer-type">${o.offer_type}</span><br>
                   <strong>${valStr}</strong><br>
                   <span class="chpb-tag ${o.status}">${o.status}</span>
-                  <a href="/app/ch-item-offer/${o.name}" target="_blank" style="font-size:11px">↗</a>
+                  <a href="/desk/ch-item-offer/${o.name}" target="_blank" style="font-size:11px">↗</a>
                 </div>
               </div>`);
         });
@@ -1038,7 +1038,7 @@ function _render_drawer_tab($drawer, tab, item_code, state) {
                             <div style="text-align:right">
                               <span style="padding:2px 8px;border-radius:8px;font-size:10px;font-weight:600;background:${bgCol}">${wp.plan_type}</span><br>
                               <strong>₹${frappe.format(wp.price, {fieldtype:'Currency'})}</strong><br>
-                              <a href="/app/ch-warranty-plan/${wp.name}" target="_blank" style="font-size:11px">↗</a>
+                              <a href="/desk/ch-warranty-plan/${wp.name}" target="_blank" style="font-size:11px">↗</a>
                             </div>
                           </div>`);
                     });
@@ -1062,7 +1062,7 @@ function _render_drawer_tab($drawer, tab, item_code, state) {
                   </div>
                   ${t.reason ? `<div style="font-size:11px">${t.reason}</div>` : ''}
                 </div>
-                <a href="/app/ch-item-commercial-tag/${t.name}" target="_blank" style="font-size:11px">↗</a>
+                <a href="/desk/ch-item-commercial-tag/${t.name}" target="_blank" style="font-size:11px">↗</a>
               </div>`);
         });
         $(`<button class="chpb-add-btn">+ Add Tag</button>`)

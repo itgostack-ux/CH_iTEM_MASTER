@@ -165,7 +165,7 @@ function sdu_show_review_dialog(frm) {
 						frm.reload_doc();
 						if (r.created && r.created.length) {
 							const links = r.created
-								.map(s => `<a href="/app/supplier-scheme-circular/${s}">${s}</a>`)
+								.map(s => `<a href="/desk/supplier-scheme-circular/${s}">${s}</a>`)
 								.join(", ");
 							frappe.msgprint({
 								title: __("Schemes Created"),
@@ -217,7 +217,7 @@ frappe.ui.form.on("Scheme Document Upload", {
 		if (frm.doc.created_schemes) {
 			const schemes = frm.doc.created_schemes.split(",").map(s => s.trim());
 			const links = schemes
-				.map(s => `<a href="/app/supplier-scheme-circular/${s}">${s}</a>`)
+				.map(s => `<a href="/desk/supplier-scheme-circular/${s}">${s}</a>`)
 				.join(", ");
 			frm.set_intro(
 				__("Created {0} scheme(s): {1}", [schemes.length, links]),
