@@ -1,82 +1,30 @@
-frappe.ui.form.on("Scheme Document Upload", {
-	refresh(frm) {
-		// Extract button — visible when file is attached and not yet extracted
-		if (frm.doc.document_file && frm.doc.status === "Pending") {
-			frm.add_custom_button(
-				__("Extract with AI"),
-				() => frm._extract_scheme(frm),
-				__("Actions")
-			);
-		}
-
-		// Review & Create button — visible when extracted
-		if (frm.doc.status === "Extracted" && frm.doc.extracted_json) {
-			frm.add_custom_button(
-				__("Review & Create Schemes"),
-				() => frm._show_review_dialog(frm),
-				__("Actions")
-			);
-			frm.add_custom_button(
-				__("Re-extract"),
-				() => frm._extract_scheme(frm),
-				__("Actions")
-			);
-		}
-
-		// Show created schemes as links
-		if (frm.doc.created_schemes) {
-			const schemes = frm.doc.created_schemes.split(",").map(s => s.trim());
-			const links = schemes
-				.map(s => `<a href="/app/supplier-scheme-circular/${s}">${s}</a>`)
-				.join(", ");
-			frm.set_intro(
-				__("Created {0} scheme(s): {1}", [schemes.length, links]),
-				"green"
-			);
-		}
-
-		if (frm.doc.status === "Failed") {
-			frm.set_intro(__("Extraction failed. Check the Extraction Log."), "red");
-		}
-	},
-
-	document_file(frm) {
-		if (frm.doc.document_file && frm.doc.status === "Pending") {
-			frm.save().then(() => {
-				frappe.confirm(
-					__("Document uploaded. Extract scheme data with AI now?"),
-					() => frm._extract_scheme(frm)
-				);
+// Standalone helpers — NOT inside the form event map
+function sdu_extract_scheme(frm) {
+	frappe.dom.freeze(__("AI is reading the document..."));
+	frappe.xcall(
+		"ch_item_master.supplier_scheme.doctype.scheme_document_upload.scheme_document_upload.extract_scheme_data",
+		{ upload_name: frm.doc.name }
+	)
+		.then((r) => {
+			frappe.dom.unfreeze();
+			frm.reload_doc();
+			frappe.show_alert({
+				message: __("Extracted {0} scheme part(s). Click 'Review & Create Schemes' to proceed.", [r.schemes_count]),
+				indicator: "green",
 			});
-		}
-	},
-
-	_extract_scheme(frm) {
-		frappe.dom.freeze(__("AI is reading the document..."));
-		frappe.xcall(
-			"ch_item_master.supplier_scheme.doctype.scheme_document_upload.scheme_document_upload.extract_scheme_data",
-			{ upload_name: frm.doc.name }
-		)
-			.then((r) => {
-				frappe.dom.unfreeze();
-				frm.reload_doc();
-				frappe.show_alert({
-					message: __("Extracted {0} scheme part(s). Click 'Review & Create Schemes' to proceed.", [r.schemes_count]),
-					indicator: "green",
-				});
-			})
-			.catch((e) => {
-				frappe.dom.unfreeze();
-				frm.reload_doc();
-				frappe.msgprint({
-					title: __("Extraction Failed"),
-					message: e.message || __("Check Error Log for details"),
-					indicator: "red",
-				});
+		})
+		.catch((e) => {
+			frappe.dom.unfreeze();
+			frm.reload_doc();
+			frappe.msgprint({
+				title: __("Extraction Failed"),
+				message: e.message || __("Check Error Log for details"),
+				indicator: "red",
 			});
-	},
+		});
+}
 
-	_show_review_dialog(frm) {
+function sdu_show_review_dialog(frm) {
 		let data;
 		try {
 			data = JSON.parse(frm.doc.extracted_json);
@@ -241,5 +189,55 @@ frappe.ui.form.on("Scheme Document Upload", {
 
 		dialog.show();
 		dialog.$wrapper.find(".modal-dialog").css("max-width", "950px");
+}
+
+frappe.ui.form.on("Scheme Document Upload", {
+	refresh(frm) {
+		if (frm.doc.document_file && frm.doc.status === "Pending") {
+			frm.add_custom_button(
+				__("Extract with AI"),
+				() => sdu_extract_scheme(frm),
+				__("Actions")
+			);
+		}
+
+		if (frm.doc.status === "Extracted" && frm.doc.extracted_json) {
+			frm.add_custom_button(
+				__("Review & Create Schemes"),
+				() => sdu_show_review_dialog(frm),
+				__("Actions")
+			);
+			frm.add_custom_button(
+				__("Re-extract"),
+				() => sdu_extract_scheme(frm),
+				__("Actions")
+			);
+		}
+
+		if (frm.doc.created_schemes) {
+			const schemes = frm.doc.created_schemes.split(",").map(s => s.trim());
+			const links = schemes
+				.map(s => `<a href="/app/supplier-scheme-circular/${s}">${s}</a>`)
+				.join(", ");
+			frm.set_intro(
+				__("Created {0} scheme(s): {1}", [schemes.length, links]),
+				"green"
+			);
+		}
+
+		if (frm.doc.status === "Failed") {
+			frm.set_intro(__("Extraction failed. Check the Extraction Log."), "red");
+		}
+	},
+
+	document_file(frm) {
+		if (frm.doc.document_file && frm.doc.status === "Pending") {
+			frm.save().then(() => {
+				frappe.confirm(
+					__("Document uploaded. Extract scheme data with AI now?"),
+					() => sdu_extract_scheme(frm)
+				);
+			});
+		}
 	},
 });
