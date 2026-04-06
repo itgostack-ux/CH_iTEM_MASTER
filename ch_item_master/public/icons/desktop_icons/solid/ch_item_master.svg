@@ -1,0 +1,12 @@
+<svg width="54" height="54" viewBox="0 0 54 54" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M38.5714 0H15.4286C6.90761 0 0 6.90761 0 15.4286V38.5714C0 47.0924 6.90761 54 15.4286 54H38.5714C47.0924 54 54 47.0924 54 38.5714V15.4286C54 6.90761 47.0924 0 38.5714 0Z" fill="#9B59B6"/>
+<g transform="translate(27,27)">
+<path d="M0,-15 L14,-7 L14,7 L0,15 L-14,7 L-14,-7 Z" fill="none" stroke="#fff" stroke-width="2.2" stroke-linejoin="round"/>
+<line x1="-14" y1="-7" x2="14" y2="-7" stroke="#fff" stroke-width="1.8" opacity="0.6"/>
+<line x1="0" y1="-15" x2="0" y2="15" stroke="#fff" stroke-width="1.8" opacity="0.6"/>
+<line x1="-4" y1="0" x2="-4" y2="8" stroke="#fff" stroke-width="1.2" opacity="0.5"/>
+<line x1="-1.5" y1="-2" x2="-1.5" y2="10" stroke="#fff" stroke-width="1.6" opacity="0.5"/>
+<line x1="1.5" y1="-2" x2="1.5" y2="10" stroke="#fff" stroke-width="1.6" opacity="0.5"/>
+<line x1="4" y1="0" x2="4" y2="8" stroke="#fff" stroke-width="1.2" opacity="0.5"/>
+</g>
+</svg>

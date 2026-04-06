@@ -79,7 +79,9 @@ def _populate_from_model(doc):
         doc.ch_sub_category, doc.ch_model, grouped=grouped_specs
     )
 
-    if spec_selectors and not doc.has_variants:
+    # Only auto-set has_variants when not explicitly provided (e.g. quick
+    # entry flow).  During data import the user controls has_variants.
+    if spec_selectors and not doc.has_variants and not frappe.flags.in_import:
         doc.has_variants = 1
         doc.variant_based_on = "Item Attribute"
 
