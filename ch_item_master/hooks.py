@@ -52,14 +52,6 @@ scheduler_events = {
 	"weekly": [
 		"ch_item_master.ch_item_master.doctype.ch_scheme_receivable.ch_scheme_receivable.run_scheduled_dunning",
 	],
-	"cron": {
-		"*/30 * * * *": [
-			"ch_item_master.ch_core.ceo_alerts.check_ceo_alerts",
-		],
-		"0 9 * * *": [
-			"ch_item_master.ch_core.ceo_alerts.send_ceo_daily_digest",
-		],
-	},
 }
 
 # Company-wise data security
