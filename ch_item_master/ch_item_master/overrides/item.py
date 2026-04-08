@@ -187,7 +187,9 @@ def before_insert(doc, method=None):
     if doc.has_variants:
         _check_duplicate_template(doc)
 
-    _set_item_code(doc)
+    # Only auto-generate item_code if not already provided (e.g. via data import)
+    if not doc.item_code:
+        _set_item_code(doc)
     _set_item_name(doc)
     # Duplicate name check is handled by before_save which always runs after
 
@@ -307,8 +309,15 @@ def before_save(doc, method=None):
         for row in (doc.ch_spec_values or []):
             if row.spec not in attr_specs and row.spec_value:
                 spec_values.append({"spec": row.spec, "spec_value": row.spec_value})
+    elif not doc.has_variants:
+        # Simple (non-variant) item — include spec values in name just like variants
+        spec_values = [
+            {"spec": row.spec, "spec_value": row.spec_value}
+            for row in (doc.ch_spec_values or [])
+            if row.spec_value
+        ]
     else:
-        spec_values = []  # Template or simple item — no spec values in name
+        spec_values = []  # Template item — no spec values in name
 
     display_name = generate_item_name(
         sub_category=doc.ch_sub_category,
@@ -419,17 +428,32 @@ def _set_item_code(doc):
 
 
 def _set_item_name(doc):
-    """Set item_name for template items (no spec values — just model/brand)."""
+    """Set item_name at insert time.
+
+    For templates (has_variants=1): name without spec values.
+    For simple items (has_variants=0, no variant_of): include spec values.
+    """
     if not doc.ch_model:
         return
 
     manufacturer, brand = _get_model_fields(doc)
+
+    # Simple items include their spec values in the name
+    if not doc.has_variants:
+        spec_values = [
+            {"spec": row.spec, "spec_value": row.spec_value}
+            for row in (doc.ch_spec_values or [])
+            if row.spec_value
+        ]
+    else:
+        spec_values = []  # Template — no spec values
+
     generated = generate_item_name(
         sub_category=doc.ch_sub_category,
         manufacturer=manufacturer,
         brand=brand,
         model=doc.ch_model,
-        spec_values=[],  # Template has no spec values
+        spec_values=spec_values,
     )
 
     # Append item type suffix (Refurbished, Pre-Owned, etc.) to keep names unique
