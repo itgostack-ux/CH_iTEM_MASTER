@@ -143,6 +143,7 @@ def sync_workspace():
         for sc in file_data.get("shortcuts", []):
             ws.append("shortcuts", sc)
 
+        ws.flags.ignore_links = True
         ws.save(ignore_permissions=True)
         frappe.logger("ch_item_master").info(
             f"Workspace '{ws_def['label']}' synced — {len(ws.shortcuts)} shortcuts, {len(ws.links)} links."
