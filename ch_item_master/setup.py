@@ -134,6 +134,7 @@ def sync_workspace():
         ws.parent_page = file_data.get("parent_page", "")
         ws.public = file_data.get("public", 1)
         ws.title = file_data.get("title", ws_def["label"])
+        ws.type = file_data.get("type") or "Workspace"
         ws.links = []
         ws.shortcuts = []
 
