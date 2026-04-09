@@ -1442,12 +1442,12 @@ def _enrich_batch_items(batch, item_codes):
     ic_list = list(item_codes)
 
     # 1. Stock & valuation from Bin (sum across warehouses)
-    bin_data = frappe.get_all(
-        "Bin",
-        filters={"item_code": ("in", ic_list)},
-        fields=["item_code", "sum(actual_qty) as total_qty", "avg(valuation_rate) as avg_valuation"],
-        group_by="item_code",
-    )
+    bin_data = frappe.db.sql("""
+        SELECT item_code, SUM(actual_qty) as total_qty, AVG(valuation_rate) as avg_valuation
+        FROM `tabBin`
+        WHERE item_code IN %s
+        GROUP BY item_code
+    """, (ic_list,), as_dict=True)
     stock_index = {b.item_code: b for b in bin_data}
 
     # 2. Last sale from Sales Invoice Item (most recent submitted invoice)

@@ -94,7 +94,7 @@ def _log_store_visit(customer, company, visit_type, reference_doctype=None,
 		if store:
 			cust_doc.ch_last_visit_store = frappe.db.get_value("Warehouse", store, "warehouse_name") or store
 
-		cust_doc.save(ignore_permissions=True, ignore_links=True)
+		cust_doc.save(ignore_permissions=True)
 	except Exception:
 		frappe.log_error(
 			title=f"CH Customer Store Visit Error: {customer}",

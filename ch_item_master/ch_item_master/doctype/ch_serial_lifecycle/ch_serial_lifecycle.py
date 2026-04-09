@@ -19,11 +19,12 @@ from frappe.utils import nowdate, now_datetime, getdate
 VALID_TRANSITIONS = {
     "": ["Received"],
     "Received": ["In Stock", "Returned", "Scrapped"],
-    "In Stock": ["Displayed", "Sold", "In Service", "Buyback", "Scrapped", "Lost"],
+    "In Stock": ["Displayed", "Sold", "In Service", "Buyback", "Scrapped", "Lost", "Repaired"],
     "Displayed": ["In Stock", "Sold", "Scrapped", "Lost"],
     "Sold": ["Returned", "In Service", "Buyback"],
     "Returned": ["In Stock", "In Service", "Refurbished", "Buyback", "Scrapped"],
-    "In Service": ["In Stock", "Sold", "Refurbished", "Scrapped", "Returned"],
+    "In Service": ["Repaired", "In Stock", "Sold", "Refurbished", "Scrapped", "Returned"],
+    "Repaired": ["Sold", "In Stock", "Returned", "In Service", "Refurbished", "Scrapped"],
     "Refurbished": ["In Stock", "Buyback", "Scrapped"],
     "Buyback": ["In Stock", "Sold", "In Service", "Refurbished", "Scrapped"],
     "Scrapped": [],
@@ -116,6 +117,12 @@ def update_lifecycle_status(serial_no, new_status, company=None,
         **kwargs: Additional fields to set on the document (e.g. sale_date,
                   sale_document, sale_rate, customer, customer_name)
     """
+    if not frappe.db.exists("CH Serial Lifecycle", serial_no):
+        frappe.log_error(
+            title=f"Serial Lifecycle not found: {serial_no}",
+            message=f"Cannot update lifecycle to '{new_status}' — CH Serial Lifecycle '{serial_no}' does not exist.",
+        )
+        return {"status": "skipped", "serial_no": serial_no, "reason": "not_found"}
     doc = frappe.get_doc("CH Serial Lifecycle", serial_no)
     doc.lifecycle_status = new_status
     if company:
@@ -136,7 +143,7 @@ def update_lifecycle_status(serial_no, new_status, company=None,
             doc.set(key, value)
 
     doc.save(ignore_permissions=False)
-    frappe.db.commit()
+    # v16: do not call frappe.db.commit() — caller or request lifecycle handles it
     return {"status": "ok", "serial_no": doc.name, "new_status": doc.lifecycle_status}
 
 

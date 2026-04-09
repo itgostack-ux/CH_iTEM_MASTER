@@ -128,7 +128,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Status",
-   "options": "\nReceived\nIn Stock\nDisplayed\nSold\nReturned\nIn Service\nRefurbished\nBuyback\nScrapped\nLost",
+   "options": "\nReceived\nIn Stock\nDisplayed\nSold\nReturned\nIn Service\nRepaired\nRefurbished\nBuyback\nScrapped\nLost",
    "reqd": 1,
    "default": "Received"
   },
