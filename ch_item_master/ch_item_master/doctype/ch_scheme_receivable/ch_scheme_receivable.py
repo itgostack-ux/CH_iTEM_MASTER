@@ -256,22 +256,27 @@ def run_scheduled_dunning():
 
 @frappe.whitelist()
 def create_from_pos_invoice(doc, method=None):
-	"""Auto-detect bank/brand offers on a POS Invoice and create receivables.
+	"""Auto-detect bank/brand offers on a POS/Sales Invoice and create receivables.
 
-	Called after POS Invoice submit (via doc_events hook) or standalone.
+	Called after POS Invoice or Sales Invoice submit (via doc_events hook).
 	Scans the invoice for offer-based discounts that generate third-party
 	receivables.
 
 	Args:
-		doc: POS Invoice doc object, or POS Invoice name (string).
+		doc: POS Invoice or Sales Invoice doc object, or name (string).
 		method: Unused — present for doc_events compatibility.
 
 	Returns list of created CH Scheme Receivable names.
 	"""
 	if isinstance(doc, str):
-		inv = frappe.get_doc("POS Invoice", doc)
+		# Try POS Invoice first, fall back to Sales Invoice
+		if frappe.db.exists("POS Invoice", doc):
+			inv = frappe.get_doc("POS Invoice", doc)
+		else:
+			inv = frappe.get_doc("Sales Invoice", doc)
 	else:
 		inv = doc
+	inv_doctype = inv.doctype
 	created = []
 
 	# Check for offers linked to this invoice's items
@@ -308,12 +313,12 @@ def create_from_pos_invoice(doc, method=None):
 			# Append invoice row to existing receivable
 			doc = frappe.get_doc("CH Scheme Receivable", existing)
 			already_linked = any(
-				r.invoice_type == "POS Invoice" and r.invoice == inv.name
+				r.invoice_type == inv_doctype and r.invoice == inv.name
 				for r in doc.invoices
 			)
 			if not already_linked:
 				doc.append("invoices", {
-					"invoice_type": "POS Invoice",
+					"invoice_type": inv_doctype,
 					"invoice": inv.name,
 					"invoice_date": inv.posting_date,
 					"customer": inv.customer,
@@ -335,7 +340,7 @@ def create_from_pos_invoice(doc, method=None):
 				"claim_amount": recv_amount,
 				"claim_date": inv.posting_date,
 				"invoices": [{
-					"invoice_type": "POS Invoice",
+					"invoice_type": inv_doctype,
 					"invoice": inv.name,
 					"invoice_date": inv.posting_date,
 					"customer": inv.customer,

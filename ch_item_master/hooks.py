@@ -93,7 +93,12 @@ doc_events = {
 		"validate": "ch_item_master.ch_customer_master.overrides.customer.validate",
 	},
 	"Sales Invoice": {
-		"on_submit": "ch_item_master.ch_customer_master.hooks.on_sales_invoice_submit",
+		"on_submit": [
+			"ch_item_master.ch_customer_master.hooks.on_sales_invoice_submit",
+			"ch_item_master.ch_item_master.doctype.ch_scheme_receivable.ch_scheme_receivable.create_from_pos_invoice",
+			"ch_item_master.supplier_scheme.engine.process_invoice_items",
+		],
+		"on_cancel": "ch_item_master.supplier_scheme.engine.reverse_invoice_items",
 	},
 	"POS Invoice": {
 		"on_submit": [

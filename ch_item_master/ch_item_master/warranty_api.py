@@ -1055,8 +1055,8 @@ def request_additional_approval_claim(claim_name, additional_issue_description=N
 	claim = _get_claim_doc(claim_name, "write")
 	return claim.request_additional_approval(
 		additional_issue_description=additional_issue_description,
-		additional_cost_estimated=flt(additional_cost_estimated),
-		additional_photos=additional_photos,
+		additional_cost_customer=flt(additional_cost_estimated),
+		additional_issue_photos=additional_photos,
 	)
 
 

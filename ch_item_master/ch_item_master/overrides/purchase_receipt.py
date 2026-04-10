@@ -44,12 +44,10 @@ def on_submit(doc, method):
 			sn.item_code = item_code
 			sn.company = doc.company
 			sn.warehouse = doc.set_warehouse or (doc.items[0].warehouse if doc.items else None)
-			sn.purchase_document_type = "Purchase Receipt"
-			sn.purchase_document_no = doc.name
-			sn.purchase_date = doc.posting_date
+			sn.reference_doctype = "Purchase Receipt"
+			sn.reference_name = doc.name
+			sn.posting_date = doc.posting_date
 			sn.purchase_rate = _get_item_rate(doc, item_code)
-			sn.supplier = doc.supplier
-			sn.supplier_name = doc.supplier_name
 			sn.status = "Active"
 			sn.flags.ignore_permissions = True
 			sn.insert()
