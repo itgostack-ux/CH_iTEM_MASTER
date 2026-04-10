@@ -3,7 +3,7 @@
  "creation": "2026-02-23 00:00:00.000000",
  "doctype": "Page",
  "icon": "price-request",
- "module": "Ch Item Master",
+ "module": "CH Item Master",
  "name": "ch-ready-reckoner",
  "page_name": "ch-ready-reckoner",
  "roles": [
