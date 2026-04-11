@@ -240,7 +240,7 @@ function _setup_action_buttons(frm) {
 				[
 					{ fieldtype: "Small Text", fieldname: "additional_issue_description",
 					  label: __("Additional Issue Found"), reqd: 1 },
-					{ fieldtype: "Currency", fieldname: "additional_cost_estimated",
+					{ fieldtype: "Currency", fieldname: "additional_cost_customer",
 					  label: __("Estimated Additional Cost"), reqd: 1 },
 				],
 				(values) => {
@@ -257,7 +257,7 @@ function _setup_action_buttons(frm) {
 			frappe.prompt(
 				{ fieldtype: "Small Text", fieldname: "remarks", label: __("Remarks") },
 				(values) => {
-					frm.call("resolve_additional_approval", { decision: "Approved", remarks: values.remarks })
+					frm.call("resolve_additional_approval", { decision: "Customer Approved", remarks: values.remarks })
 						.then(() => frm.reload_doc());
 				},
 				__("Confirm Customer Approval")
@@ -268,7 +268,7 @@ function _setup_action_buttons(frm) {
 			frappe.prompt(
 				{ fieldtype: "Small Text", fieldname: "remarks", label: __("Remarks") },
 				(values) => {
-					frm.call("resolve_additional_approval", { decision: "Rejected", remarks: values.remarks })
+					frm.call("resolve_additional_approval", { decision: "Customer Rejected", remarks: values.remarks })
 						.then(() => frm.reload_doc());
 				},
 				__("Confirm Customer Rejection")
