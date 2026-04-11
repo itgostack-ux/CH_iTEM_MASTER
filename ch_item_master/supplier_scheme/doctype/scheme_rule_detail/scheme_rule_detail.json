@@ -10,6 +10,7 @@
   "item_group",
   "model",
   "series",
+  "supplier_product_name",
   "column_break_item",
   "qty_from",
   "qty_to",
@@ -54,6 +55,13 @@
    "fieldtype": "Data",
    "label": "Series",
    "description": "Model series/family (e.g. Galaxy S, iPhone 16)"
+  },
+  {
+   "fieldname": "supplier_product_name",
+   "fieldtype": "Data",
+   "label": "Supplier Product Name",
+   "description": "Original product name from the supplier scheme document",
+   "read_only": 1
   },
   {
    "fieldname": "column_break_item",

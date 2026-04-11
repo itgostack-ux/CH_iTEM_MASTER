@@ -1,6 +1,6 @@
 {
  "charts": [],
- "content": "[{\"id\":\"sch_hdr_quick\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Quick Links</b></span>\",\"col\":12}},{\"id\":\"sch_sc_circular\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Supplier Scheme Circular\",\"col\":3}},{\"id\":\"sch_sc_upload\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Scheme Document Upload\",\"col\":3}},{\"id\":\"sch_sc_claims\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Scheme Claim Summary\",\"col\":3}},{\"id\":\"sch_sc_receivable\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"CH Scheme Receivable\",\"col\":3}},{\"id\":\"sch_spacer1\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"sch_hdr_schemes\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Scheme Setup</b></span>\",\"col\":12}},{\"id\":\"sch_card_setup\",\"type\":\"card\",\"data\":{\"card_name\":\"Scheme Setup\",\"col\":4}},{\"id\":\"sch_card_tracking\",\"type\":\"card\",\"data\":{\"card_name\":\"Tracking & Claims\",\"col\":4}},{\"id\":\"sch_card_receivable\",\"type\":\"card\",\"data\":{\"card_name\":\"Receivables\",\"col\":4}},{\"id\":\"sch_spacer2\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"sch_hdr_reports\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Reports & Analytics</b></span>\",\"col\":12}},{\"id\":\"sch_card_rpt_perf\",\"type\":\"card\",\"data\":{\"card_name\":\"Performance Reports\",\"col\":4}},{\"id\":\"sch_card_rpt_finance\",\"type\":\"card\",\"data\":{\"card_name\":\"Finance Reports\",\"col\":4}},{\"id\":\"sch_card_rpt_alerts\",\"type\":\"card\",\"data\":{\"card_name\":\"Alerts & Compliance\",\"col\":4}}]",
+ "content": "[{\"id\":\"sch_hdr_quick\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Quick Links</b></span>\",\"col\":12}},{\"id\":\"sch_sc_circular\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Supplier Scheme Circular\",\"col\":3}},{\"id\":\"sch_sc_upload\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Scheme Document Upload\",\"col\":3}},{\"id\":\"sch_sc_product_map\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Scheme Product Map\",\"col\":3}},{\"id\":\"sch_sc_claims\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Scheme Claim Summary\",\"col\":3}},{\"id\":\"sch_sc_receivable\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"CH Scheme Receivable\",\"col\":3}},{\"id\":\"sch_spacer1\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"sch_hdr_schemes\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Scheme Setup</b></span>\",\"col\":12}},{\"id\":\"sch_card_setup\",\"type\":\"card\",\"data\":{\"card_name\":\"Scheme Setup\",\"col\":4}},{\"id\":\"sch_card_tracking\",\"type\":\"card\",\"data\":{\"card_name\":\"Tracking & Claims\",\"col\":4}},{\"id\":\"sch_card_receivable\",\"type\":\"card\",\"data\":{\"card_name\":\"Receivables\",\"col\":4}},{\"id\":\"sch_spacer2\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"sch_hdr_reports\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Reports & Analytics</b></span>\",\"col\":12}},{\"id\":\"sch_card_rpt_perf\",\"type\":\"card\",\"data\":{\"card_name\":\"Performance Reports\",\"col\":4}},{\"id\":\"sch_card_rpt_finance\",\"type\":\"card\",\"data\":{\"card_name\":\"Finance Reports\",\"col\":4}},{\"id\":\"sch_card_rpt_alerts\",\"type\":\"card\",\"data\":{\"card_name\":\"Alerts & Compliance\",\"col\":4}}]",
  "creation": "2026-04-05 17:00:00",
  "custom_blocks": [],
  "docstatus": 0,
@@ -17,7 +17,7 @@
    "hidden": 0,
    "is_query_report": 0,
    "label": "Scheme Setup",
-   "link_count": 3,
+   "link_count": 4,
    "link_type": "DocType",
    "onboard": 0,
    "type": "Card Break"
@@ -50,6 +50,16 @@
    "link_to": "Supplier Scheme Rule",
    "link_type": "DocType",
    "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Scheme Product Map",
+   "link_count": 0,
+   "link_to": "Scheme Product Map",
+   "link_type": "DocType",
+   "onboard": 1,
    "type": "Link"
   },
   {
@@ -264,6 +274,13 @@
    "doc_view": "List",
    "label": "Scheme Document Upload",
    "link_to": "Scheme Document Upload",
+   "type": "DocType"
+  },
+  {
+   "color": "Yellow",
+   "doc_view": "List",
+   "label": "Scheme Product Map",
+   "link_to": "Scheme Product Map",
    "type": "DocType"
   },
   {

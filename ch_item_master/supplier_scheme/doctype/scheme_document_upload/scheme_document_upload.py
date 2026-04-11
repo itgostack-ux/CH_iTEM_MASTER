@@ -432,6 +432,20 @@ def _create_single_circular(scheme_data, upload_doc):
 			remarks_parts.append(line["remarks"])
 		detail.remarks = "; ".join(remarks_parts) if remarks_parts else ""
 
+		# Apply resolved product mapping (set by product_mapper.resolve_scheme_products)
+		if line.get("_item_code"):
+			detail.item_code = line["_item_code"]
+		if line.get("_model"):
+			detail.model = line["_model"]
+		if line.get("_item_group"):
+			detail.item_group = line["_item_group"]
+
+		# Store original supplier product name for traceability
+		series = line.get("series", "")
+		variant = line.get("model_variant", "")
+		if series or variant:
+			detail.supplier_product_name = f"{series} {variant}".strip() if series and variant else (series or variant)
+
 	circular.insert(ignore_permissions=True)
 	return circular
 
