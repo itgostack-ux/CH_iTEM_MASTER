@@ -48,7 +48,13 @@ class SupplierSchemeCircular(Document):
 		for rule in self.rules:
 			if not rule.rule_name:
 				frappe.throw(_("Row {0}: Rule Name is required").format(rule.idx))
-			for detail in rule.details or []:
+			# Fetch details from DB (nested child tables not loaded on parent rows)
+			details = frappe.get_all(
+				"Scheme Rule Detail",
+				filters={"parent": rule.name, "parenttype": "Supplier Scheme Rule"},
+				fields=["idx", "payout_per_unit", "additional_payout", "qty_from", "qty_to"],
+			) if rule.name else []
+			for detail in details:
 				if flt(detail.payout_per_unit) < 0:
 					frappe.throw(_("Row {0}: Payout per unit cannot be negative").format(detail.idx))
 				if flt(detail.additional_payout) < 0:

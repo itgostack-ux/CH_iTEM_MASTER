@@ -21,7 +21,7 @@ from frappe.utils import cint, flt, getdate, nowdate
 def _ensure_rule_details(scheme):
 	"""Populate ``rule.details`` for every rule in *scheme* if not already loaded."""
 	for rule in scheme.rules:
-		if rule.details:
+		if getattr(rule, 'details', None):
 			continue
 		rule.details = frappe.get_all(
 			"Scheme Rule Detail",
@@ -144,7 +144,7 @@ def _match_item_to_rule(rule, item_row, invoice_doc):
 	Check if item_row matches any detail line of the rule.
 	Returns the first matching Scheme Rule Detail or None.
 	"""
-	for detail in rule.details or []:
+	for detail in getattr(rule, 'details', None) or []:
 		if detail.exclusion_flag:
 			continue
 
@@ -260,7 +260,7 @@ def recompute_scheme(scheme_name):
 	results = []
 
 	for rule in scheme.rules:
-		slab_details = [d for d in (rule.details or []) if not d.exclusion_flag]
+		slab_details = [d for d in (getattr(rule, 'details', None) or []) if not d.exclusion_flag]
 		if not slab_details:
 			continue
 

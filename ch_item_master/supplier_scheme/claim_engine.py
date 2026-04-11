@@ -109,7 +109,7 @@ def _compute_rule_breakdown(scheme):
 	breakdown = []
 
 	for rule in scheme.rules:
-		slab_details = [d for d in (rule.details or []) if not d.exclusion_flag]
+		slab_details = [d for d in (getattr(rule, 'details', None) or []) if not d.exclusion_flag]
 		if not slab_details:
 			continue
 
