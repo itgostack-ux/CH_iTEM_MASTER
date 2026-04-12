@@ -1416,8 +1416,6 @@ def upload_ready_reckoner_prices(file_url, effective_from=None, company=None, re
         batch.notes = f"{len(parse_errors)} parse warning(s):\n" + "\n".join(parse_errors[:50])
 
     batch.insert(ignore_permissions=True)
-    frappe.db.commit()
-
     return {
         "batch_name": batch.name,
         "total_rows": total_rows,

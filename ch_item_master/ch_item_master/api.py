@@ -478,8 +478,6 @@ def generate_items_from_model(model) -> dict:
                 "Bulk Item Generation Error",
             )
 
-    frappe.db.commit()
-
     return {
         "template": template_code,
         "total_combinations": total_combos,

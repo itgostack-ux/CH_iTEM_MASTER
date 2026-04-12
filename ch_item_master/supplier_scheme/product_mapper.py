@@ -178,7 +178,6 @@ def save_mappings(mappings_json) -> dict:
 		doc.insert(ignore_permissions=True)
 		saved += 1
 
-	frappe.db.commit()
 	return {"saved": saved}
 
 

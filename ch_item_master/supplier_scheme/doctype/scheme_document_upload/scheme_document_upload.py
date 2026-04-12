@@ -60,8 +60,6 @@ def extract_scheme_data(upload_name) -> dict:
 		doc.extraction_log = "\n".join(log_lines)
 
 		doc.save(ignore_permissions=True)
-		frappe.db.commit()
-
 		return {
 			"success": True,
 			"schemes_count": len(schemes),
@@ -118,8 +116,6 @@ def create_schemes_from_upload(upload_name, schemes_json=None) -> dict:
 		doc.created_schemes = ", ".join(created)
 		doc.status = "Schemes Created"
 		doc.save(ignore_permissions=True)
-		frappe.db.commit()
-
 	return {
 		"created": created,
 		"count": len(created),
