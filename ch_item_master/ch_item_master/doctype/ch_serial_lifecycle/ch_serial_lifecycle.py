@@ -105,7 +105,7 @@ class CHSerialLifecycle(Document):
 
 @frappe.whitelist()
 def update_lifecycle_status(serial_no, new_status, company=None,
-                            warehouse=None, remarks=None, **kwargs):
+                            warehouse=None, remarks=None, **kwargs) -> dict:
     """Change lifecycle status of a serial number.
 
     Args:
@@ -148,7 +148,7 @@ def update_lifecycle_status(serial_no, new_status, company=None,
 
 
 @frappe.whitelist()
-def get_lifecycle_history(serial_no):
+def get_lifecycle_history(serial_no) -> dict:
     """Get full lifecycle history of a device."""
     doc = frappe.get_doc("CH Serial Lifecycle", serial_no)
     return {
@@ -173,7 +173,7 @@ def get_lifecycle_history(serial_no):
 
 
 @frappe.whitelist()
-def scan_serial(serial_no):
+def scan_serial(serial_no) -> dict:
     """Quick lookup by serial/IMEI — returns summary for mobile scanning.
 
     Searches by serial_no, imei_number, or imei_number_2.
@@ -193,7 +193,7 @@ def scan_serial(serial_no):
             "name"
         )
         if not name:
-            frappe.throw(_("Serial / IMEI not found: {0}").format(serial_no))
+            frappe.throw(_("Serial / IMEI not found: {0}").format(serial_no), title=_("Ch Serial Lifecycle Error"))
         doc = frappe.get_doc("CH Serial Lifecycle", name)
 
     # Valid next transitions

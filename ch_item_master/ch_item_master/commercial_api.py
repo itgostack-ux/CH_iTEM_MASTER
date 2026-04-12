@@ -11,7 +11,7 @@ from frappe.utils import flt, getdate, nowdate, now_datetime, cint
 # ─────────────────────────────────────────────────────────────────────────────
 
 @frappe.whitelist()
-def get_price_as_of(item_code, channel, as_of_date=None, company=None):
+def get_price_as_of(item_code, channel, as_of_date=None, company=None) -> dict:
 	"""Return the CH Item Price that was active for an item+channel on a given date.
 
 	Used for: dispute resolution, returns validation, retroactive auditing.
@@ -26,7 +26,7 @@ def get_price_as_of(item_code, channel, as_of_date=None, company=None):
 		dict with price details or None if no price was active.
 	"""
 	if not item_code or not channel:
-		frappe.throw(_("item_code and channel are required"))
+		frappe.throw(_("item_code and channel are required"), title=_("API Error"))
 
 	target_date = getdate(as_of_date) if as_of_date else getdate(nowdate())
 
@@ -66,13 +66,13 @@ def get_price_as_of(item_code, channel, as_of_date=None, company=None):
 
 
 @frappe.whitelist()
-def get_price_history(item_code, channel, company=None, limit=20):
+def get_price_history(item_code, channel, company=None, limit=20) -> list:
 	"""Return the full price history for an item+channel, newest first.
 
 	Used for: audit trail, trend analysis.
 	"""
 	if not item_code or not channel:
-		frappe.throw(_("item_code and channel are required"))
+		frappe.throw(_("item_code and channel are required"), title=_("API Error"))
 
 	filters = {
 		"item_code": item_code,

@@ -20,11 +20,11 @@ class SchemeProductMap(Document):
 	def _validate_mapping_target(self):
 		"""Ensure the correct target field is set for the match_level."""
 		if self.match_level == "Item" and not self.item_code:
-			frappe.throw(_("Item Code is required when Match Level is 'Item'"))
+			frappe.throw(_("Item Code is required when Match Level is 'Item'"), title=_("Scheme Product Map Error"))
 		if self.match_level == "Model" and not self.model:
-			frappe.throw(_("CH Model is required when Match Level is 'Model'"))
+			frappe.throw(_("CH Model is required when Match Level is 'Model'"), title=_("Scheme Product Map Error"))
 		if self.match_level == "Item Group" and not self.item_group:
-			frappe.throw(_("Item Group is required when Match Level is 'Item Group'"))
+			frappe.throw(_("Item Group is required when Match Level is 'Item Group'"), title=_("Scheme Product Map Error"))
 
 	def _compute_item_count(self):
 		"""Count how many active Items match this mapping."""
@@ -65,7 +65,7 @@ class SchemeProductMap(Document):
 			)
 
 	@frappe.whitelist()
-	def mark_verified(self):
+	def mark_verified(self) -> None:
 		"""Mark this mapping as verified by the current user."""
 		self.mapping_source = "Verified"
 		self.verified_by = frappe.session.user

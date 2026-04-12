@@ -57,7 +57,8 @@
    "in_standard_filter": 1,
    "label": "Scheme",
    "options": "Supplier Scheme Circular",
-   "reqd": 1
+   "reqd": 1,
+   "search_index": 1
   },
   {
    "fieldname": "scheme_name",
@@ -110,14 +111,16 @@
    "fieldtype": "Link",
    "in_standard_filter": 1,
    "label": "Store",
-   "options": "Warehouse"
+   "options": "Warehouse",
+   "search_index": 1
   },
   {
    "fieldname": "company",
    "fieldtype": "Link",
    "in_standard_filter": 1,
    "label": "Company",
-   "options": "Company"
+   "options": "Company",
+   "search_index": 1
   },
   {
    "fieldname": "section_item",
@@ -131,7 +134,8 @@
    "in_standard_filter": 1,
    "label": "Item",
    "options": "Item",
-   "reqd": 1
+   "reqd": 1,
+   "search_index": 1
   },
   {
    "fieldname": "item_name",
@@ -151,7 +155,8 @@
    "fieldtype": "Link",
    "in_standard_filter": 1,
    "label": "Brand",
-   "options": "Brand"
+   "options": "Brand",
+   "search_index": 1
   },
   {
    "fieldname": "column_break_serial",
@@ -174,7 +179,7 @@
    "default": "0",
    "fieldname": "price_at_sale",
    "fieldtype": "Currency",
-   "label": "Sale Price (₹)"
+   "label": "Sale Price (\u20b9)"
   },
   {
    "fieldname": "section_compliance",
@@ -246,7 +251,7 @@
    "default": "0",
    "fieldname": "computed_payout",
    "fieldtype": "Currency",
-   "label": "Computed Payout (₹)",
+   "label": "Computed Payout (\u20b9)",
    "read_only": 1,
    "description": "Calculated by the slab/payout engine"
   },

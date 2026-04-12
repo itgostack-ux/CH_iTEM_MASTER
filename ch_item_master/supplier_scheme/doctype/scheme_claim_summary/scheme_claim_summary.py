@@ -28,22 +28,22 @@ class SchemeClaimSummary(Document):
 
 	def _validate_amounts(self):
 		if flt(self.total_payout) < 0:
-			frappe.throw(_("Total Payout cannot be negative"))
+			frappe.throw(_("Total Payout cannot be negative"), title=_("Scheme Claim Summary Error"))
 		if flt(self.net_claim) < 0:
-			frappe.throw(_("Net Claim cannot be negative"))
+			frappe.throw(_("Net Claim cannot be negative"), title=_("Scheme Claim Summary Error"))
 
 	@frappe.whitelist()
-	def lock_claim(self):
+	def lock_claim(self) -> None:
 		"""Lock the claim so no more achievement changes affect it."""
 		if self.claim_status != "Draft":
-			frappe.throw(_("Only Draft claims can be locked"))
+			frappe.throw(_("Only Draft claims can be locked"), title=_("Scheme Claim Summary Error"))
 		self.db_set("claim_status", "Locked")
 		self.reload()
 
 	@frappe.whitelist()
-	def mark_claim_ready(self):
+	def mark_claim_ready(self) -> None:
 		"""Mark as ready for filing with the supplier."""
 		if self.claim_status not in ("Draft", "Locked"):
-			frappe.throw(_("Only Draft or Locked claims can be marked ready"))
+			frappe.throw(_("Only Draft or Locked claims can be marked ready"), title=_("Scheme Claim Summary Error"))
 		self.db_set("claim_status", "Claim Ready")
 		self.reload()

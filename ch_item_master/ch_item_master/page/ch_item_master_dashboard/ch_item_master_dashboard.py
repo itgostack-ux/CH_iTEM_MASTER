@@ -12,7 +12,7 @@ from frappe.utils import nowdate, add_days, getdate, flt, cint, date_diff
 
 
 @frappe.whitelist()
-def get_dashboard_data():
+def get_dashboard_data() -> dict:
     """Return complete dashboard data for CH Item Master.
 
     Returns:

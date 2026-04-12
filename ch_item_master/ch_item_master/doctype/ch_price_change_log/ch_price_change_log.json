@@ -30,7 +30,8 @@
    "in_standard_filter": 1,
    "label": "Item Code",
    "options": "Item",
-   "reqd": 1
+   "reqd": 1,
+   "search_index": 1
   },
   {
    "fetch_from": "item_code.item_name",
@@ -44,7 +45,8 @@
    "fieldtype": "Data",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "Channel"
+   "label": "Channel",
+   "search_index": 1
   },
   {
    "fieldname": "change_type",
@@ -52,7 +54,8 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Type",
-   "options": "Selling Price\nBuyback Price\nTag"
+   "options": "Selling Price\nBuyback Price\nTag",
+   "search_index": 1
   },
   {
    "fieldname": "column_break_01",
@@ -92,7 +95,8 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Source",
-   "options": "Upload Batch\nReady Reckoner Dialog\nDirect Edit\nAPI"
+   "options": "Upload Batch\nReady Reckoner Dialog\nDirect Edit\nAPI",
+   "search_index": 1
   },
   {
    "fieldname": "batch_ref",

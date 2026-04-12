@@ -58,7 +58,8 @@
    "in_standard_filter": 1,
    "bold": 1,
    "no_copy": 1,
-   "description": "Auto-generated numeric ID for API integration"
+   "description": "Auto-generated numeric ID for API integration",
+   "search_index": 1
   },
   {
    "fieldname": "customer_section",
@@ -72,7 +73,8 @@
    "in_standard_filter": 1,
    "label": "Customer",
    "options": "Customer",
-   "reqd": 1
+   "reqd": 1,
+   "search_index": 1
   },
   {
    "fetch_from": "customer.customer_name",
@@ -104,7 +106,8 @@
    "label": "Serial No",
    "options": "Serial No",
    "reqd": 1,
-   "unique": 1
+   "unique": 1,
+   "search_index": 1
   },
   {
    "fieldname": "item_code",
@@ -113,7 +116,8 @@
    "in_standard_filter": 1,
    "label": "Item Code",
    "options": "Item",
-   "reqd": 1
+   "reqd": 1,
+   "search_index": 1
   },
   {
    "fetch_from": "item_code.item_name",
@@ -129,7 +133,8 @@
    "in_standard_filter": 1,
    "label": "Brand",
    "options": "Brand",
-   "read_only": 1
+   "read_only": 1,
+   "search_index": 1
   },
   {
    "fieldname": "column_break_device",
@@ -164,7 +169,8 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Current Status",
-   "options": "Owned\nIn Service\nBuyback\nSold\nReturned\nLost\nScrapped"
+   "options": "Owned\nIn Service\nBuyback\nSold\nReturned\nLost\nScrapped",
+   "search_index": 1
   },
   {
    "fieldname": "column_break_status",

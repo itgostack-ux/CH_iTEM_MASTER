@@ -14,7 +14,7 @@ from ch_item_master.security import get_company_scope
 
 
 @frappe.whitelist()
-def get_customer_360(customer, company=None):
+def get_customer_360(customer, company=None) -> dict:
 	"""Return a comprehensive view of a customer.
 
 	Args:
@@ -27,7 +27,7 @@ def get_customer_360(customer, company=None):
 	"""
 	frappe.has_permission("Customer", "read", customer, throw=True)
 	if not frappe.db.exists("Customer", customer):
-		frappe.throw(_("Customer {0} does not exist").format(customer))
+		frappe.throw(_("Customer {0} does not exist").format(customer), title=_("API Error"))
 
 	company_scope = get_company_scope(requested_company=company)
 	if not company and company_scope and len(company_scope) == 1:
@@ -525,7 +525,7 @@ def _mask_account(account_no):
 
 
 @frappe.whitelist()
-def merge_customers(primary_customer, duplicate_customer):
+def merge_customers(primary_customer, duplicate_customer) -> dict:
 	"""Merge a duplicate customer into the primary customer.
 
 	Transfers all transactions, devices, loyalty, and visits.
@@ -533,7 +533,7 @@ def merge_customers(primary_customer, duplicate_customer):
 	frappe.only_for("System Manager")
 
 	if primary_customer == duplicate_customer:
-		frappe.throw(_("Cannot merge a customer with itself"))
+		frappe.throw(_("Cannot merge a customer with itself"), title=_("API Error"))
 
 	primary = frappe.get_doc("Customer", primary_customer)
 	duplicate = frappe.get_doc("Customer", duplicate_customer)

@@ -154,5 +154,7 @@
    "read": 1
   }
  ],
- "states": []
+ "states": [],
+ "search_fields": "warranty_claim,serial_no,decision",
+ "title_field": "warranty_claim"
 }

@@ -415,7 +415,7 @@ def _set_item_code(doc):
     lock_ok = frappe.db.sql("SELECT GET_LOCK(%s, 30)", lock_name)[0][0]
     if not lock_ok:
         frappe.log_error(f"Lock acquisition timeout for {lock_name}", "Item Code Lock Timeout")
-        frappe.throw(_("System busy generating item codes. Please retry in a moment."))
+        frappe.throw(_("System busy generating item codes. Please retry in a moment."), title=_("Validation Error"))
 
     try:
         doc.item_code = _next_item_code(prefix)

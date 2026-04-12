@@ -35,7 +35,8 @@
    "in_standard_filter": 1,
    "bold": 1,
    "no_copy": 1,
-   "description": "Auto-generated numeric ID for API integration"
+   "description": "Auto-generated numeric ID for API integration",
+   "search_index": 1
   },
   {
    "default": "CH-LT-.YYYY.-",
@@ -52,7 +53,8 @@
    "in_standard_filter": 1,
    "label": "Customer",
    "options": "Customer",
-   "reqd": 1
+   "reqd": 1,
+   "search_index": 1
   },
   {
    "fetch_from": "customer.customer_name",
@@ -80,7 +82,8 @@
    "in_standard_filter": 1,
    "label": "Company",
    "options": "Company",
-   "reqd": 1
+   "reqd": 1,
+   "search_index": 1
   },
   {
    "fieldname": "transaction_section",
@@ -95,7 +98,8 @@
    "in_standard_filter": 1,
    "label": "Transaction Type",
    "options": "Earn\nRedeem\nExpire\nAdjust\nReferral Bonus\nSign Up Bonus\nService Bonus",
-   "reqd": 1
+   "reqd": 1,
+   "search_index": 1
   },
   {
    "description": "Positive = earn, Negative = redeem/expire",

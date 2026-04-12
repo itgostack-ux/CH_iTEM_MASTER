@@ -41,7 +41,8 @@
    "options": "Company",
    "reqd": 1,
    "in_standard_filter": 1,
-   "remember_last_selected_value": 1
+   "remember_last_selected_value": 1,
+   "search_index": 1
   },
   {
    "fieldname": "warranty_plan",
@@ -51,7 +52,8 @@
    "reqd": 1,
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "description": "The CH Warranty Plan being issued to this customer/device."
+   "description": "The CH Warranty Plan being issued to this customer/device.",
+   "search_index": 1
   },
   {
    "fieldname": "plan_title",
@@ -68,7 +70,8 @@
    "label": "Plan Type",
    "fetch_from": "warranty_plan.plan_type",
    "read_only": 1,
-   "in_standard_filter": 1
+   "in_standard_filter": 1,
+   "search_index": 1
   },
   {
    "fieldname": "column_break_basic",
@@ -81,7 +84,8 @@
    "options": "Customer",
    "reqd": 1,
    "in_list_view": 1,
-   "in_standard_filter": 1
+   "in_standard_filter": 1,
+   "search_index": 1
   },
   {
    "fieldname": "customer_name",
@@ -118,7 +122,8 @@
    "in_standard_filter": 1,
    "read_only": 1,
    "no_copy": 1,
-   "description": "Active = warranty in effect. Expired = past end_date. Claimed = max claims reached. Void = manually voided."
+   "description": "Active = warranty in effect. Expired = past end_date. Claimed = max claims reached. Void = manually voided.",
+   "search_index": 1
   },
   {
    "fieldname": "section_device",
@@ -132,7 +137,8 @@
    "options": "Item",
    "reqd": 1,
    "in_standard_filter": 1,
-   "description": "The device/product this plan covers."
+   "description": "The device/product this plan covers.",
+   "search_index": 1
   },
   {
    "fieldname": "item_name",
@@ -151,7 +157,8 @@
    "label": "Serial / IMEI",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "description": "Serial number or IMEI of the device covered by this plan."
+   "description": "Serial number or IMEI of the device covered by this plan.",
+   "search_index": 1
   },
   {
    "fieldname": "brand",

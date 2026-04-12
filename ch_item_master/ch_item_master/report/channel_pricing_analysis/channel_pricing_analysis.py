@@ -22,7 +22,7 @@ def execute(filters=None):
     filters = filters or {}
     company = filters.get("company")
     if not company:
-        frappe.throw(_("Please select a Company"))
+        frappe.throw(_("Please select a Company"), title=_("Validation Error"))
 
     channels = frappe.get_all("CH Price Channel",
                               filters={"disabled": 0},

@@ -49,7 +49,8 @@
    "in_standard_filter": 1,
    "label": "Scheme",
    "options": "Supplier Scheme Circular",
-   "reqd": 1
+   "reqd": 1,
+   "search_index": 1
   },
   {
    "fieldname": "scheme_name",
@@ -86,7 +87,8 @@
    "in_standard_filter": 1,
    "label": "Status",
    "options": "Pending\nPartially Received\nSettled\nCancelled",
-   "read_only": 1
+   "read_only": 1,
+   "search_index": 1
   },
   {
    "fieldname": "section_credit_note",
@@ -125,14 +127,14 @@
    "fieldname": "claim_amount",
    "fieldtype": "Currency",
    "in_list_view": 1,
-   "label": "Claim Amount (₹)",
+   "label": "Claim Amount (\u20b9)",
    "reqd": 1
   },
   {
    "default": "0",
    "fieldname": "tds_deducted",
    "fieldtype": "Currency",
-   "label": "TDS Deducted (₹)"
+   "label": "TDS Deducted (\u20b9)"
   },
   {
    "fieldname": "column_break_amounts",
@@ -143,13 +145,13 @@
    "fieldname": "received_amount",
    "fieldtype": "Currency",
    "in_list_view": 1,
-   "label": "Received Amount (₹)"
+   "label": "Received Amount (\u20b9)"
   },
   {
    "default": "0",
    "fieldname": "pending_amount",
    "fieldtype": "Currency",
-   "label": "Pending Amount (₹)",
+   "label": "Pending Amount (\u20b9)",
    "read_only": 1,
    "bold": 1
   },
@@ -247,10 +249,22 @@
  "sort_field": "creation",
  "sort_order": "DESC",
  "states": [
-  {"color": "orange", "title": "Pending"},
-  {"color": "yellow", "title": "Partially Received"},
-  {"color": "green", "title": "Settled"},
-  {"color": "red", "title": "Cancelled"}
+  {
+   "color": "orange",
+   "title": "Pending"
+  },
+  {
+   "color": "yellow",
+   "title": "Partially Received"
+  },
+  {
+   "color": "green",
+   "title": "Settled"
+  },
+  {
+   "color": "red",
+   "title": "Cancelled"
+  }
  ],
  "track_changes": 1
 }

@@ -73,14 +73,16 @@
    "in_standard_filter": 1,
    "label": "Serial / IMEI Number",
    "reqd": 1,
-   "unique": 1
+   "unique": 1,
+   "search_index": 1
   },
   {
    "fieldname": "imei_number",
    "fieldtype": "Data",
    "in_standard_filter": 1,
    "label": "IMEI 1",
-   "description": "15-digit IMEI for slot 1 (if different from serial)"
+   "description": "15-digit IMEI for slot 1 (if different from serial)",
+   "search_index": 1
   },
   {
    "fieldname": "imei_number_2",
@@ -99,7 +101,8 @@
    "in_standard_filter": 1,
    "label": "Item",
    "options": "Item",
-   "reqd": 1
+   "reqd": 1,
+   "search_index": 1
   },
   {
    "fieldname": "item_name",
@@ -130,18 +133,20 @@
    "label": "Status",
    "options": "\nReceived\nIn Stock\nDisplayed\nSold\nReturned\nIn Service\nRepaired\nRefurbished\nBuyback\nScrapped\nLost",
    "reqd": 1,
-   "default": "Received"
+   "default": "Received",
+   "search_index": 1
   },
-    {
-     "fieldname": "stock_condition",
-     "fieldtype": "Select",
-     "label": "Stock Condition",
-     "options": "\nFresh\nRefurbished\nOpen Box\nDemo\nRepaired\nCustomer Return\nInward",
-     "in_list_view": 1,
-     "in_standard_filter": 1,
-     "default": "Fresh",
-     "description": "Physical condition classification for stock."
-    },
+  {
+   "fieldname": "stock_condition",
+   "fieldtype": "Select",
+   "label": "Stock Condition",
+   "options": "\nFresh\nRefurbished\nOpen Box\nDemo\nRepaired\nCustomer Return\nInward",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "default": "Fresh",
+   "description": "Physical condition classification for stock.",
+   "search_index": 1
+  },
   {
    "fieldname": "sub_status",
    "fieldtype": "Select",
@@ -157,7 +162,8 @@
    "fieldtype": "Link",
    "in_standard_filter": 1,
    "label": "Current Company",
-   "options": "Company"
+   "options": "Company",
+   "search_index": 1
   },
   {
    "fieldname": "current_warehouse",

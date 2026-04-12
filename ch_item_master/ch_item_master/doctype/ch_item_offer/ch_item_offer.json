@@ -73,7 +73,8 @@
    "in_standard_filter": 1,
    "in_list_view": 1,
    "remember_last_selected_value": 1,
-   "description": "Company this offer applies to."
+   "description": "Company this offer applies to.",
+   "search_index": 1
   },
   {
    "fieldname": "item_code",
@@ -82,7 +83,8 @@
    "in_standard_filter": 1,
    "label": "Item Code",
    "options": "Item",
-   "mandatory_depends_on": "eval:doc.offer_level=='Item' && doc.apply_on=='Item Code'"
+   "mandatory_depends_on": "eval:doc.offer_level=='Item' && doc.apply_on=='Item Code'",
+   "search_index": 1
   },
   {
    "fetch_from": "item_code.item_name",
@@ -109,7 +111,8 @@
    "insert_after": "offer_name",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "description": "Item = per-line discount. Bill = transaction-level discount (e.g. ₹500 off on bills > ₹10,000)"
+   "description": "Item = per-line discount. Bill = transaction-level discount (e.g. \u20b9500 off on bills > \u20b910,000)",
+   "search_index": 1
   },
   {
    "fieldname": "apply_on",
@@ -118,7 +121,7 @@
    "options": "Item Code\nItem Group\nBrand",
    "default": "Item Code",
    "depends_on": "eval:doc.offer_level=='Item'",
-   "description": "How the offer targets items — by specific item, item group, or brand"
+   "description": "How the offer targets items \u2014 by specific item, item group, or brand"
   },
   {
    "fieldname": "target_item_group",
@@ -155,7 +158,8 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Status",
-   "options": "Draft\nActive\nScheduled\nExpired\nCancelled"
+   "options": "Draft\nActive\nScheduled\nExpired\nCancelled",
+   "search_index": 1
   },
   {
    "default": "Pending Approval",
@@ -164,7 +168,8 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Approval Status",
-   "options": "Pending Approval\nApproved\nRejected"
+   "options": "Pending Approval\nApproved\nRejected",
+   "search_index": 1
   },
   {
    "fieldname": "offer_details_section",
@@ -178,7 +183,8 @@
    "in_standard_filter": 1,
    "label": "Offer Type",
    "options": "Flat Discount\nPrice Override\nBank Offer\nBrand Offer\nCashback\nBundle\nCombo\nAttachment\nFreebie",
-   "reqd": 1
+   "reqd": 1,
+   "search_index": 1
   },
   {
    "fieldname": "value_type",
@@ -204,7 +210,8 @@
    "in_standard_filter": 1,
    "label": "Channel",
    "options": "CH Price Channel",
-   "description": "Leave blank = applies to all channels"
+   "description": "Leave blank = applies to all channels",
+   "search_index": 1
   },
   {
    "default": "1",
@@ -285,7 +292,7 @@
    "fieldname": "payment_mode",
    "fieldtype": "Data",
    "label": "Payment Mode",
-   "description": "e.g. Card, UPI, Cash — blank = any"
+   "description": "e.g. Card, UPI, Cash \u2014 blank = any"
   },
   {
    "fieldname": "notes_section",
@@ -347,7 +354,7 @@
    "fieldtype": "Section Break",
    "label": "Attachment Offer Details",
    "depends_on": "eval:in_list(['Attachment','Freebie'], doc.offer_type)",
-   "description": "Buy trigger item → get reward item at special price (or free)"
+   "description": "Buy trigger item \u2192 get reward item at special price (or free)"
   },
   {
    "fieldname": "trigger_item",

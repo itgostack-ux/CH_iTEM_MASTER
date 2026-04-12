@@ -21,15 +21,15 @@ class SchemeDocumentUpload(Document):
 # ---------------------------------------------------------------------------
 
 @frappe.whitelist()
-def extract_scheme_data(upload_name):
+def extract_scheme_data(upload_name) -> dict:
 	"""Parse the uploaded document using AI and store extracted JSON."""
 	doc = frappe.get_doc("Scheme Document Upload", upload_name)
 	if not doc.document_file:
-		frappe.throw(_("Please attach a document first"))
+		frappe.throw(_("Please attach a document first"), title=_("Scheme Document Upload Error"))
 
 	ai_settings = _get_ai_settings()
 	if not ai_settings:
-		frappe.throw(_("POS AI Settings not configured. Please set up API key."))
+		frappe.throw(_("POS AI Settings not configured. Please set up API key."), title=_("Scheme Document Upload Error"))
 
 	try:
 		file_url = doc.document_file
@@ -73,11 +73,11 @@ def extract_scheme_data(upload_name):
 		doc.save(ignore_permissions=True)
 		frappe.db.commit()
 		frappe.log_error(frappe.get_traceback(), f"Scheme extraction failed: {upload_name}")
-		frappe.throw(_("AI extraction failed. Check Extraction Log for details."))
+		frappe.throw(_("AI extraction failed. Check Extraction Log for details."), title=_("Scheme Document Upload Error"))
 
 
 @frappe.whitelist()
-def create_schemes_from_upload(upload_name, schemes_json=None):
+def create_schemes_from_upload(upload_name, schemes_json=None) -> dict:
 	"""Create Supplier Scheme Circular(s) from extracted data.
 
 	If schemes_json is provided, use it (user may have edited).
@@ -90,12 +90,12 @@ def create_schemes_from_upload(upload_name, schemes_json=None):
 			data = json.loads(schemes_json)
 	else:
 		if not doc.extracted_json:
-			frappe.throw(_("No extracted data. Please run extraction first."))
+			frappe.throw(_("No extracted data. Please run extraction first."), title=_("Scheme Document Upload Error"))
 		data = json.loads(doc.extracted_json)
 
 	schemes = data.get("schemes", [])
 	if not schemes:
-		frappe.throw(_("No schemes found in extracted data"))
+		frappe.throw(_("No schemes found in extracted data"), title=_("Scheme Document Upload Error"))
 
 	created = []
 	for scheme_data in schemes:

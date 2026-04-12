@@ -42,7 +42,8 @@
    "in_standard_filter": 1,
    "in_list_view": 1,
    "remember_last_selected_value": 1,
-   "description": "Company this warranty plan applies to."
+   "description": "Company this warranty plan applies to.",
+   "search_index": 1
   },
   {
    "fieldname": "plan_name",
@@ -52,7 +53,8 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "unique": 1,
-   "description": "e.g. 'Extended Warranty - 1 Year', 'Screen Protection Plan'"
+   "description": "e.g. 'Extended Warranty - 1 Year', 'Screen Protection Plan'",
+   "search_index": 1
   },
   {
    "fieldname": "plan_type",
@@ -62,7 +64,8 @@
    "reqd": 1,
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "description": "Own Warranty = free GoGizmo warranty on new purchase. Extended = paid extension. VAS = screen protector, data transfer, etc. Post-Repair = GoFix warranty issued after repair (depends on service/spare type)."
+   "description": "Own Warranty = free GoGizmo warranty on new purchase. Extended = paid extension. VAS = screen protector, data transfer, etc. Post-Repair = GoFix warranty issued after repair (depends on service/spare type).",
+   "search_index": 1
   },
   {
    "fieldname": "coverage_scope",
@@ -100,7 +103,8 @@
    "options": "Active\nInactive\nDraft",
    "default": "Active",
    "in_list_view": 1,
-   "in_standard_filter": 1
+   "in_standard_filter": 1,
+   "search_index": 1
   },
   {
    "fieldname": "brand",
@@ -108,7 +112,8 @@
    "label": "Brand",
    "options": "Brand",
    "in_standard_filter": 1,
-   "description": "Restrict this plan to a specific brand. Leave blank = all brands."
+   "description": "Restrict this plan to a specific brand. Leave blank = all brands.",
+   "search_index": 1
   },
   {
    "fieldname": "section_validity",

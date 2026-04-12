@@ -48,7 +48,8 @@
    "in_standard_filter": 1,
    "label": "Scheme",
    "options": "Supplier Scheme Circular",
-   "reqd": 1
+   "reqd": 1,
+   "search_index": 1
   },
   {
    "fieldname": "scheme_name",
@@ -65,7 +66,8 @@
    "label": "Brand",
    "options": "Brand",
    "fetch_from": "scheme.brand",
-   "read_only": 1
+   "read_only": 1,
+   "search_index": 1
   },
   {
    "fieldname": "column_break_ref",
@@ -93,7 +95,8 @@
    "in_standard_filter": 1,
    "label": "Claim Status",
    "options": "Draft\nLocked\nClaim Ready\nClaim Raised\nSettled",
-   "reqd": 1
+   "reqd": 1,
+   "search_index": 1
   },
   {
    "fieldname": "section_qty",
@@ -117,7 +120,7 @@
    "fieldname": "slab_achieved",
    "fieldtype": "Data",
    "label": "Slab Achieved",
-   "description": "e.g. '81-100 units' — the matching slab range"
+   "description": "e.g. '81-100 units' \u2014 the matching slab range"
   },
   {
    "fieldname": "column_break_qty",
@@ -139,20 +142,20 @@
    "default": "0",
    "fieldname": "base_payout",
    "fieldtype": "Currency",
-   "label": "Base Payout (₹)"
+   "label": "Base Payout (\u20b9)"
   },
   {
    "default": "0",
    "fieldname": "additional_payout",
    "fieldtype": "Currency",
-   "label": "Additional Payout (₹)"
+   "label": "Additional Payout (\u20b9)"
   },
   {
    "default": "0",
    "fieldname": "total_payout",
    "fieldtype": "Currency",
    "in_list_view": 1,
-   "label": "Total Payout (₹)",
+   "label": "Total Payout (\u20b9)",
    "bold": 1
   },
   {
@@ -169,13 +172,13 @@
    "default": "0",
    "fieldname": "tds_amount",
    "fieldtype": "Currency",
-   "label": "TDS Amount (₹)"
+   "label": "TDS Amount (\u20b9)"
   },
   {
    "default": "0",
    "fieldname": "net_claim",
    "fieldtype": "Currency",
-   "label": "Net Claim (₹)",
+   "label": "Net Claim (\u20b9)",
    "bold": 1,
    "description": "Total Payout minus TDS"
   },
@@ -256,11 +259,26 @@
  "sort_field": "creation",
  "sort_order": "DESC",
  "states": [
-  {"color": "orange", "title": "Draft"},
-  {"color": "yellow", "title": "Locked"},
-  {"color": "blue", "title": "Claim Ready"},
-  {"color": "purple", "title": "Claim Raised"},
-  {"color": "green", "title": "Settled"}
+  {
+   "color": "orange",
+   "title": "Draft"
+  },
+  {
+   "color": "yellow",
+   "title": "Locked"
+  },
+  {
+   "color": "blue",
+   "title": "Claim Ready"
+  },
+  {
+   "color": "purple",
+   "title": "Claim Raised"
+  },
+  {
+   "color": "green",
+   "title": "Settled"
+  }
  ],
  "track_changes": 1
 }

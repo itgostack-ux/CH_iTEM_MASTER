@@ -21,7 +21,7 @@ from ch_item_master.security import get_company_filter_value, get_company_scope
 # ── Warranty Lookup ──────────────────────────────────────────────────────────
 
 @frappe.whitelist()
-def check_warranty(serial_no, company=None):
+def check_warranty(serial_no, company=None) -> dict:
 	"""Check warranty status for a device serial/IMEI.
 
 	Looks up CH Sold Plan records (submitted, active) for the serial.
@@ -89,7 +89,7 @@ def check_warranty(serial_no, company=None):
 
 @frappe.whitelist()
 def get_applicable_plans(item_code=None, item_group=None, channel=None,
-                         company=None, brand=None):
+                         company=None, brand=None) -> dict:
 	"""Get warranty/VAS plans applicable to an item.
 
 	Delegates to CH Warranty Plan.get_applicable_plans with all filters.
@@ -109,7 +109,7 @@ def get_applicable_plans(item_code=None, item_group=None, channel=None,
 # ── VAS Category Validation ─────────────────────────────────────────────────
 
 @frappe.whitelist()
-def validate_vas_category(serial_no, warranty_plan):
+def validate_vas_category(serial_no, warranty_plan) -> dict:
 	"""Validate that a VAS plan's category restriction matches the device's category.
 
 	Used by POS when manual IMEI is entered to ensure laptop plans aren't sold for phones, etc.
@@ -158,7 +158,7 @@ def validate_vas_category(serial_no, warranty_plan):
 @frappe.whitelist()
 def issue_warranty_plan(warranty_plan, customer, item_code, serial_no=None,
                         start_date=None, company=None, sales_invoice=None,
-                        sales_order=None, plan_price=None):
+                        sales_order=None, plan_price=None) -> dict:
 	"""Issue (create + submit) a Sold Plan for a customer/device.
 
 	Called by GoFix or retail sales flow when a warranty/VAS plan is sold.
@@ -218,7 +218,7 @@ def issue_warranty_plan(warranty_plan, customer, item_code, serial_no=None,
 # ── Claim Recording ─────────────────────────────────────────────────────────
 
 @frappe.whitelist()
-def record_warranty_claim(serial_no, service_reference=None, company=None):
+def record_warranty_claim(serial_no, service_reference=None, company=None) -> dict:
 	"""Record a warranty claim against the best available plan for a serial.
 
 	Finds the most applicable active plan and increments claims_used.
@@ -281,7 +281,7 @@ def record_warranty_claim(serial_no, service_reference=None, company=None):
 # ── MSP Validation ──────────────────────────────────────────────────────────
 
 @frappe.whitelist()
-def validate_claim(sold_plan_name, issue_type=None, estimate_amount=0):
+def validate_claim(sold_plan_name, issue_type=None, estimate_amount=0) -> dict:
 	"""Pre-validate whether a claim is eligible under a sold plan.
 
 	Checks expiry, claim count limits, annual limits, value caps,
@@ -394,7 +394,7 @@ def validate_claim(sold_plan_name, issue_type=None, estimate_amount=0):
 # ── MSP Validation ──────────────────────────────────────────────────────────
 
 @frappe.whitelist()
-def validate_msp(item_code, selling_rate):
+def validate_msp(item_code, selling_rate) -> dict:
 	"""Check if a selling rate meets the Minimum Selling Price for an item.
 
 	Args:
@@ -481,7 +481,7 @@ def expire_sold_plans():
 # ── Customer Warranty Dashboard ──────────────────────────────────────────────
 
 @frappe.whitelist()
-def get_customer_warranty_dashboard(identifier, company=None):
+def get_customer_warranty_dashboard(identifier, company=None) -> dict:
 	"""Full customer warranty dashboard — search by phone, IMEI, or serial.
 
 	Used by POS to give the store exec a complete view of a customer's warranty
@@ -510,7 +510,7 @@ def get_customer_warranty_dashboard(identifier, company=None):
 
 	identifier = (identifier or "").strip()
 	if not identifier:
-		frappe.throw(_("Enter a phone number, IMEI, or serial number"))
+		frappe.throw(_("Enter a phone number, IMEI, or serial number"), title=_("API Error"))
 
 	# ── Detect search type and find customer ─────────────────────────
 	# Phone: 10+ digits (Indian phone)
@@ -840,7 +840,7 @@ def initiate_warranty_claim(serial_no, customer, item_code, company,
                             estimated_repair_cost=0, customer_phone=None,
 							customer_email=None, sold_plan=None,
 							mode_of_service="Walk-in", pickup_address=None,
-							pickup_slot=None):
+							pickup_slot=None) -> dict:
 	"""Initiate a new warranty claim from POS or desk.
 
 	Auto-detects warranty coverage, calculates cost split, and either
@@ -928,7 +928,7 @@ def initiate_warranty_claim(serial_no, customer, item_code, company,
 def update_claim_logistics(claim_name, action, pickup_address=None,
 	                       pickup_slot=None, pickup_partner=None,
 	                       pickup_tracking_no=None, delivery_otp=None,
-	                       remarks=None):
+	                       remarks=None) -> dict:
 	"""Update warranty claim pickup/delivery lifecycle from POS/desk.
 
 	Supported actions:
@@ -938,7 +938,7 @@ def update_claim_logistics(claim_name, action, pickup_address=None,
 	- mark_delivered_back
 	"""
 	if not claim_name or not action:
-		frappe.throw(_("Claim name and action are required"))
+		frappe.throw(_("Claim name and action are required"), title=_("API Error"))
 
 	claim = _get_claim_doc(claim_name, "write")
 
@@ -964,7 +964,7 @@ def update_claim_logistics(claim_name, action, pickup_address=None,
 	if action == "mark_delivered_back":
 		return claim.mark_delivered_back(delivery_otp=delivery_otp, remarks=remarks)
 
-	frappe.throw(_("Unsupported logistics action: {0}").format(action))
+	frappe.throw(_("Unsupported logistics action: {0}").format(action), title=_("API Error"))
 
 
 # ── Device Receiving, QC, Fee — new claim lifecycle endpoints ──────────
@@ -973,7 +973,7 @@ def update_claim_logistics(claim_name, action, pickup_address=None,
 @frappe.whitelist()
 def receive_claim_device(claim_name, condition_on_receipt=None,
                          accessories_received=None, imei_verified=0,
-                         receiving_remarks=None):
+                         receiving_remarks=None) -> dict:
 	"""Mark device as physically received at store."""
 	claim = _get_claim_doc(claim_name, "write")
 	return claim.mark_device_received(
@@ -986,7 +986,7 @@ def receive_claim_device(claim_name, condition_on_receipt=None,
 
 @frappe.whitelist()
 def perform_claim_qc(claim_name, qc_result, qc_remarks=None,
-                     qc_result_reason=None, qc_checks=None):
+                     qc_result_reason=None, qc_checks=None) -> dict:
 	"""Perform intake QC on received device."""
 	claim = _get_claim_doc(claim_name, "write")
 	return claim.perform_intake_qc(
@@ -998,14 +998,14 @@ def perform_claim_qc(claim_name, qc_result, qc_remarks=None,
 
 
 @frappe.whitelist()
-def generate_claim_fee(claim_name, fee_amount=None):
+def generate_claim_fee(claim_name, fee_amount=None) -> dict:
 	"""Calculate and set processing fee after QC passes."""
 	claim = _get_claim_doc(claim_name, "write")
 	return claim.generate_processing_fee(fee_amount=fee_amount)
 
 
 @frappe.whitelist()
-def send_claim_fee_link(claim_name, channel="WhatsApp"):
+def send_claim_fee_link(claim_name, channel="WhatsApp") -> dict:
 	"""Send payment link for processing fee to customer."""
 	claim = _get_claim_doc(claim_name, "write")
 	return claim.send_fee_payment_link(channel=channel)
@@ -1013,7 +1013,7 @@ def send_claim_fee_link(claim_name, channel="WhatsApp"):
 
 @frappe.whitelist()
 def mark_claim_fee_paid(claim_name, paid_amount=None, payment_mode=None,
-                        payment_ref=None, remarks=None):
+                        payment_ref=None, remarks=None) -> dict:
 	"""Record processing fee payment."""
 	claim = _get_claim_doc(claim_name, "write")
 	return claim.mark_fee_paid(
@@ -1025,7 +1025,7 @@ def mark_claim_fee_paid(claim_name, paid_amount=None, payment_mode=None,
 
 
 @frappe.whitelist()
-def waive_claim_fee(claim_name, waiver_reason, waived_amount=None):
+def waive_claim_fee(claim_name, waiver_reason, waived_amount=None) -> dict:
 	"""Request or approve processing fee waiver."""
 	claim = _get_claim_doc(claim_name, "write")
 	return claim.waive_processing_fee(
@@ -1035,14 +1035,14 @@ def waive_claim_fee(claim_name, waiver_reason, waived_amount=None):
 
 
 @frappe.whitelist()
-def create_claim_repair_ticket(claim_name, remarks=None):
+def create_claim_repair_ticket(claim_name, remarks=None) -> dict:
 	"""Create GoFix repair ticket with strict gate control."""
 	claim = _get_claim_doc(claim_name, "write")
 	return claim.create_repair_ticket(remarks=remarks)
 
 
 @frappe.whitelist()
-def need_more_info_claim(claim_name, remarks=None):
+def need_more_info_claim(claim_name, remarks=None) -> dict:
 	"""Send claim back for more information."""
 	claim = _get_claim_doc(claim_name, "write")
 	return claim.need_more_info(remarks=remarks)
@@ -1050,7 +1050,7 @@ def need_more_info_claim(claim_name, remarks=None):
 
 @frappe.whitelist()
 def request_additional_approval_claim(claim_name, additional_issue_description=None,
-                                       additional_cost_estimated=0, additional_photos=None):
+                                       additional_cost_estimated=0, additional_photos=None) -> dict:
 	"""Request customer approval for additional damage / cost."""
 	claim = _get_claim_doc(claim_name, "write")
 	return claim.request_additional_approval(
@@ -1061,28 +1061,28 @@ def request_additional_approval_claim(claim_name, additional_issue_description=N
 
 
 @frappe.whitelist()
-def resolve_additional_approval_claim(claim_name, decision, remarks=None):
+def resolve_additional_approval_claim(claim_name, decision, remarks=None) -> dict:
 	"""Resolve additional approval request (approved/rejected/expired)."""
 	claim = _get_claim_doc(claim_name, "write")
 	return claim.resolve_additional_approval(decision=decision, remarks=remarks)
 
 
 @frappe.whitelist()
-def perform_final_qc_claim(claim_name, qc_result, qc_remarks=None):
+def perform_final_qc_claim(claim_name, qc_result, qc_remarks=None) -> dict:
 	"""Perform final QC after repair."""
 	claim = _get_claim_doc(claim_name, "write")
 	return claim.perform_final_qc(qc_result=qc_result, qc_remarks=qc_remarks)
 
 
 @frappe.whitelist(allow_guest=True)
-def pay_processing_fee(claim, amount=None):
+def pay_processing_fee(claim, amount=None) -> dict:
 	"""Public endpoint for processing fee payment (via payment link).
 
 	In production, integrate with payment gateway. For now, returns
 	a stub page or marks as paid after verification.
 	"""
 	if not claim or not frappe.db.exists("CH Warranty Claim", claim):
-		frappe.throw(_("Invalid claim"), frappe.DoesNotExistError)
+		frappe.throw(_("Invalid claim"), frappe.DoesNotExistError, title=_("API Error"))
 
 	# Return basic payment info (integrate with payment gateway later)
 	doc = frappe.get_doc("CH Warranty Claim", claim)
@@ -1095,7 +1095,7 @@ def pay_processing_fee(claim, amount=None):
 
 
 @frappe.whitelist()
-def get_device_claim_info(serial_no, company=None):
+def get_device_claim_info(serial_no, company=None) -> dict:
 	"""Get full device + warranty + claim history for a serial.
 
 	Used by POS claim UI to show all info before initiating a claim.

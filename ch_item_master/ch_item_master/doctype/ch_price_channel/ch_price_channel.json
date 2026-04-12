@@ -31,7 +31,8 @@
    "in_standard_filter": 1,
    "label": "Channel Name",
    "reqd": 1,
-   "unique": 1
+   "unique": 1,
+   "search_index": 1
   },
   {
    "fieldname": "description",

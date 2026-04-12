@@ -15,7 +15,7 @@ from frappe.utils import flt, now_datetime, getdate, add_to_date
 def raise_exception(exception_type, company, reason, requested_value=0,
                     original_value=0, reference_doctype=None, reference_name=None,
                     item_code=None, serial_no=None, store_warehouse=None,
-                    pos_profile=None, pos_invoice=None, customer=None):
+                    pos_profile=None, pos_invoice=None, customer=None) -> dict:
 	"""Create a new CH Exception Request in Pending state.
 
 	Returns dict with request name + exception type config (for frontend
@@ -23,7 +23,7 @@ def raise_exception(exception_type, company, reason, requested_value=0,
 	"""
 	etype = frappe.get_cached_doc("CH Exception Type", exception_type)
 	if not etype.enabled:
-		frappe.throw(_("Exception type {0} is disabled").format(exception_type))
+		frappe.throw(_("Exception type {0} is disabled").format(exception_type), title=_("API Error"))
 
 	frappe.has_permission("CH Exception Request", "create", throw=True)
 
@@ -107,19 +107,19 @@ def raise_exception(exception_type, company, reason, requested_value=0,
 @frappe.whitelist()
 def approve_exception(exception_name, approver_user=None, channel=None,
                       otp_code=None, otp_mobile=None,
-                      resolution_value=None, remarks=None):
+                      resolution_value=None, remarks=None) -> dict:
 	"""Approve an exception request.
 
 	If the exception type requires OTP, validates it first.
 	"""
 	exc = frappe.get_doc("CH Exception Request", exception_name)
 	if exc.status != "Pending":
-		frappe.throw(_("Exception {0} is already {1}").format(exception_name, exc.status))
+		frappe.throw(_("Exception {0} is already {1}").format(exception_name, exc.status), title=_("API Error"))
 
 	frappe.has_permission("CH Exception Request", "write", throw=True)
 
 	if exc.docstatus == 1:
-		frappe.throw(_("Exception {0} is already submitted").format(exception_name))
+		frappe.throw(_("Exception {0} is already submitted").format(exception_name), title=_("API Error"))
 
 	etype = frappe.get_cached_doc("CH Exception Type", exc.exception_type)
 	approver_user = approver_user or frappe.session.user
@@ -136,7 +136,7 @@ def approve_exception(exception_name, approver_user=None, channel=None,
 			reference_name=exception_name,
 		)
 		if not result.get("valid"):
-			frappe.throw(_("OTP verification failed: {0}").format(result.get("message")))
+			frappe.throw(_("OTP verification failed: {0}").format(result.get("message")), title=_("API Error"))
 		otp_ref = result.get("otp_log")
 
 	exc.approve(
@@ -155,11 +155,11 @@ def approve_exception(exception_name, approver_user=None, channel=None,
 
 
 @frappe.whitelist()
-def reject_exception(exception_name, reason=None):
+def reject_exception(exception_name, reason=None) -> dict:
 	"""Reject an exception request."""
 	exc = frappe.get_doc("CH Exception Request", exception_name)
 	if exc.status != "Pending":
-		frappe.throw(_("Exception {0} is already {1}").format(exception_name, exc.status))
+		frappe.throw(_("Exception {0} is already {1}").format(exception_name, exc.status), title=_("API Error"))
 
 	frappe.has_permission("CH Exception Request", "write", throw=True)
 
@@ -168,7 +168,7 @@ def reject_exception(exception_name, reason=None):
 
 
 @frappe.whitelist()
-def check_exception_valid(exception_name):
+def check_exception_valid(exception_name) -> dict:
 	"""Check if an approved exception is still within its validity window.
 
 	Called by POS / other apps before consuming the exception.
@@ -184,14 +184,14 @@ def check_exception_valid(exception_name):
 
 
 @frappe.whitelist()
-def request_exception_otp(exception_name, mobile_no):
+def request_exception_otp(exception_name, mobile_no) -> dict:
 	"""Generate an OTP for an exception request approval.
 
 	Uses the exception type as the OTP purpose.
 	"""
 	exc = frappe.get_doc("CH Exception Request", exception_name)
 	if exc.status != "Pending":
-		frappe.throw(_("Exception {0} is already {1}").format(exception_name, exc.status))
+		frappe.throw(_("Exception {0} is already {1}").format(exception_name, exc.status), title=_("API Error"))
 
 	from ch_item_master.ch_core.doctype.ch_otp_log.ch_otp_log import CHOTPLog
 	otp_code = CHOTPLog.generate_otp(
@@ -208,7 +208,7 @@ def request_exception_otp(exception_name, mobile_no):
 # ─────────────────────────────────────────────────────────────────────────────
 
 @frappe.whitelist()
-def get_pending_exceptions(company=None, store_warehouse=None, exception_type=None):
+def get_pending_exceptions(company=None, store_warehouse=None, exception_type=None) -> list:
 	"""Return all pending exception requests, optionally filtered."""
 	filters = {"status": "Pending", "docstatus": 0}
 	if company:
@@ -232,7 +232,7 @@ def get_pending_exceptions(company=None, store_warehouse=None, exception_type=No
 
 
 @frappe.whitelist()
-def get_exception_summary(company, from_date=None, to_date=None):
+def get_exception_summary(company, from_date=None, to_date=None) -> dict:
 	"""Return aggregated exception stats for reporting / dashboard."""
 	if not from_date:
 		from_date = getdate()

@@ -64,7 +64,8 @@
    "in_standard_filter": 1,
    "label": "Company",
    "options": "Company",
-   "read_only": 1
+   "read_only": 1,
+   "search_index": 1
   },
   {
    "fieldname": "store_warehouse",
@@ -72,7 +73,8 @@
    "in_standard_filter": 1,
    "label": "Store / Warehouse",
    "options": "Warehouse",
-   "read_only": 1
+   "read_only": 1,
+   "search_index": 1
   },
   {
    "fieldname": "item_section",
@@ -86,7 +88,8 @@
    "in_standard_filter": 1,
    "label": "Item Code",
    "options": "Item",
-   "read_only": 1
+   "read_only": 1,
+   "search_index": 1
   },
   {
    "fetch_from": "item_code.item_name",
@@ -112,7 +115,8 @@
    "in_standard_filter": 1,
    "label": "Override Type",
    "options": "Rate Override\nDiscount Override\nBelow MOP\nAdditional Discount",
-   "read_only": 1
+   "read_only": 1,
+   "search_index": 1
   },
   {
    "fieldname": "original_price",
@@ -181,7 +185,8 @@
    "in_standard_filter": 1,
    "label": "POS User",
    "options": "User",
-   "read_only": 1
+   "read_only": 1,
+   "search_index": 1
   },
   {
    "fieldname": "override_at",

@@ -41,11 +41,11 @@ class CHSchemeReceivable(Document):
 
 	def _validate_amounts(self):
 		if flt(self.claim_amount) <= 0:
-			frappe.throw(_("Claim Amount must be greater than zero."))
+			frappe.throw(_("Claim Amount must be greater than zero."), title=_("Ch Scheme Receivable Error"))
 		if flt(self.received_amount) < 0:
-			frappe.throw(_("Received Amount cannot be negative."))
+			frappe.throw(_("Received Amount cannot be negative."), title=_("Ch Scheme Receivable Error"))
 		if flt(self.written_off_amount) < 0:
-			frappe.throw(_("Written Off Amount cannot be negative."))
+			frappe.throw(_("Written Off Amount cannot be negative."), title=_("Ch Scheme Receivable Error"))
 		if flt(self.outstanding_amount) < 0:
 			frappe.throw(
 				_("Received + Written Off ({0}) exceeds Claim Amount ({1}).").format(
@@ -77,7 +77,7 @@ class CHSchemeReceivable(Document):
 
 @frappe.whitelist()
 def record_settlement(receivable_name, amount, payment_reference=None,
-                      settlement_date=None, payment_entry=None):
+                      settlement_date=None, payment_entry=None) -> dict:
 	"""Record partial or full settlement against a scheme receivable.
 
 	Args:
@@ -89,13 +89,13 @@ def record_settlement(receivable_name, amount, payment_reference=None,
 	"""
 	amount = flt(amount)
 	if amount <= 0:
-		frappe.throw(_("Settlement amount must be positive."))
+		frappe.throw(_("Settlement amount must be positive."), title=_("Ch Scheme Receivable Error"))
 
 	doc = frappe.get_doc("CH Scheme Receivable", receivable_name)
 	if doc.docstatus != 1:
-		frappe.throw(_("Can only settle submitted receivables."))
+		frappe.throw(_("Can only settle submitted receivables."), title=_("Ch Scheme Receivable Error"))
 	if doc.status in ("Settled", "Written Off", "Cancelled"):
-		frappe.throw(_("Receivable {0} is already {1}.").format(receivable_name, doc.status))
+		frappe.throw(_("Receivable {0} is already {1}.").format(receivable_name, doc.status), title=_("Ch Scheme Receivable Error"))
 
 	outstanding = flt(doc.outstanding_amount)
 	if amount > outstanding:
@@ -120,7 +120,7 @@ def record_settlement(receivable_name, amount, payment_reference=None,
 
 
 @frappe.whitelist()
-def write_off(receivable_name, amount=None, journal_entry=None, remarks=None):
+def write_off(receivable_name, amount=None, journal_entry=None, remarks=None) -> dict:
 	"""Write off outstanding amount (partial or full).
 
 	Args:
@@ -131,12 +131,12 @@ def write_off(receivable_name, amount=None, journal_entry=None, remarks=None):
 	"""
 	doc = frappe.get_doc("CH Scheme Receivable", receivable_name)
 	if doc.docstatus != 1:
-		frappe.throw(_("Can only write off submitted receivables."))
+		frappe.throw(_("Can only write off submitted receivables."), title=_("Ch Scheme Receivable Error"))
 
 	outstanding = flt(doc.outstanding_amount)
 	amount = flt(amount) if amount else outstanding
 	if amount <= 0 or amount > outstanding:
-		frappe.throw(_("Write-off amount must be between 0 and {0}.").format(outstanding))
+		frappe.throw(_("Write-off amount must be between 0 and {0}.").format(outstanding), title=_("Ch Scheme Receivable Error"))
 
 	doc.written_off_amount = flt(doc.written_off_amount) + amount
 	if journal_entry:
@@ -170,20 +170,20 @@ def write_off(receivable_name, amount=None, journal_entry=None, remarks=None):
 # ── Dunning ──────────────────────────────────────────────────────────────────
 
 @frappe.whitelist()
-def send_dunning_notice(receivable_name):
+def send_dunning_notice(receivable_name) -> dict:
 	"""Send a dunning email to the party for an overdue scheme receivable.
 
 	Updates last_dunning_date after sending.
 	"""
 	doc = frappe.get_doc("CH Scheme Receivable", receivable_name)
 	if doc.docstatus != 1:
-		frappe.throw(_("Can only send dunning for submitted receivables"))
+		frappe.throw(_("Can only send dunning for submitted receivables"), title=_("Ch Scheme Receivable Error"))
 	if doc.status in ("Settled", "Written Off", "Cancelled"):
-		frappe.throw(_("Receivable is already {0}").format(doc.status))
+		frappe.throw(_("Receivable is already {0}").format(doc.status), title=_("Ch Scheme Receivable Error"))
 
 	outstanding = flt(doc.outstanding_amount)
 	if outstanding <= 0:
-		frappe.throw(_("No outstanding amount on {0}").format(receivable_name))
+		frappe.throw(_("No outstanding amount on {0}").format(receivable_name), title=_("Ch Scheme Receivable Error"))
 
 	due_date = doc.due_date or doc.claim_date
 	days_overdue = date_diff(nowdate(), str(due_date)) if due_date else 0
@@ -255,7 +255,7 @@ def run_scheduled_dunning():
 
 
 @frappe.whitelist()
-def create_from_pos_invoice(doc, method=None):
+def create_from_pos_invoice(doc, method=None) -> dict:
 	"""Auto-detect bank/brand offers on a POS/Sales Invoice and create receivables.
 
 	Called after POS Invoice or Sales Invoice submit (via doc_events hook).

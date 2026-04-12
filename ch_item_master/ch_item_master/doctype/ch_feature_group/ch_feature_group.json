@@ -33,7 +33,8 @@
    "label": "Group Name",
    "reqd": 1,
    "unique": 1,
-   "description": "e.g. Display, Camera, Platform, Body, Memory, Network"
+   "description": "e.g. Display, Camera, Platform, Body, Memory, Network",
+   "search_index": 1
   },
   {
    "fieldname": "column_break_01",
@@ -62,7 +63,6 @@
  "modified_by": "Administrator",
  "module": "CH Item Master",
  "name": "CH Feature Group",
- "naming_rule": "By fieldname",
  "owner": "Administrator",
  "permissions": [
   {

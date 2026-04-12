@@ -102,6 +102,21 @@
  ],
  "sort_field": "creation",
  "sort_order": "DESC",
- "states": [],
- "track_changes": 0
+ "states": [
+  {
+   "color": "Green",
+   "title": "Sent"
+  },
+  {
+   "color": "Red",
+   "title": "Failed"
+  },
+  {
+   "color": "Yellow",
+   "title": "Pending"
+  }
+ ],
+ "track_changes": 0,
+ "search_fields": "mobile_no,message_type,status",
+ "title_field": "mobile_no"
 }

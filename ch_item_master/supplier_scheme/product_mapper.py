@@ -23,7 +23,7 @@ from frappe.utils import flt
 # ---------------------------------------------------------------------------
 
 @frappe.whitelist()
-def resolve_scheme_products(brand, schemes_json):
+def resolve_scheme_products(brand, schemes_json) -> dict:
 	"""Resolve all product names in extracted scheme data to internal items.
 
 	Args:
@@ -42,7 +42,7 @@ def resolve_scheme_products(brand, schemes_json):
 		data = schemes_json
 
 	if not brand:
-		frappe.throw(_("Brand is required for product resolution"))
+		frappe.throw(_("Brand is required for product resolution"), title=_("Validation Error"))
 
 	schemes = data.get("schemes", [])
 	if not schemes:
@@ -121,7 +121,7 @@ def resolve_scheme_products(brand, schemes_json):
 
 
 @frappe.whitelist()
-def save_mappings(mappings_json):
+def save_mappings(mappings_json) -> dict:
 	"""Save confirmed product mappings to the Scheme Product Map table.
 
 	Args:
@@ -183,7 +183,7 @@ def save_mappings(mappings_json):
 
 
 @frappe.whitelist()
-def get_mapping_coverage(brand):
+def get_mapping_coverage(brand) -> dict:
 	"""Get mapping coverage stats for a brand.
 
 	Returns how many unique product names from recent schemes

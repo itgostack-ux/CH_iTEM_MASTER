@@ -4,6 +4,8 @@ app_publisher = "GoStack"
 app_description = "Common Item Master"
 app_email = "contact@gostack.in"
 app_license = "custom"
+
+boot_session = "ch_item_master.boot.boot_session"
 required_apps = ["frappe/erpnext"]
 
 add_to_apps_screen = [

@@ -209,7 +209,7 @@ class CHWarrantyPlan(Document):
 	@staticmethod
 	@frappe.whitelist()
 	def get_applicable_plans(item_code=None, item_group=None, channel=None,
-	                         company=None, brand=None):
+	                         company=None, brand=None) -> dict:
 		"""Return warranty/VAS plans applicable to a given item and channel.
 
 		Used by POS and transaction UI to suggest add-on plans.

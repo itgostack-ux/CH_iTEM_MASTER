@@ -54,7 +54,8 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Scheme Name",
-   "reqd": 1
+   "reqd": 1,
+   "search_index": 1
   },
   {
    "fieldname": "circular_number",
@@ -69,7 +70,8 @@
    "in_standard_filter": 1,
    "label": "Brand",
    "options": "Brand",
-   "reqd": 1
+   "reqd": 1,
+   "search_index": 1
   },
   {
    "fieldname": "column_break_basic",
@@ -80,7 +82,8 @@
    "fieldtype": "Link",
    "in_standard_filter": 1,
    "label": "Supplier",
-   "options": "Supplier"
+   "options": "Supplier",
+   "search_index": 1
   },
   {
    "fieldname": "distributor",
@@ -97,7 +100,8 @@
    "in_standard_filter": 1,
    "label": "Status",
    "options": "Draft\nActive\nClosed\nCancelled",
-   "read_only": 1
+   "read_only": 1,
+   "search_index": 1
   },
   {
    "fieldname": "section_dates",
@@ -311,10 +315,22 @@
  "sort_field": "creation",
  "sort_order": "DESC",
  "states": [
-  {"color": "orange", "title": "Draft"},
-  {"color": "blue", "title": "Active"},
-  {"color": "gray", "title": "Closed"},
-  {"color": "red", "title": "Cancelled"}
+  {
+   "color": "orange",
+   "title": "Draft"
+  },
+  {
+   "color": "blue",
+   "title": "Active"
+  },
+  {
+   "color": "gray",
+   "title": "Closed"
+  },
+  {
+   "color": "red",
+   "title": "Cancelled"
+  }
  ],
  "title_field": "scheme_name",
  "track_changes": 1

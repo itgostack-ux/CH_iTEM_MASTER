@@ -1,7 +1,7 @@
 {
  "actions": [],
  "autoname": "",
- "naming_rule": "",
+ "naming_rule": "By fieldname",
  "creation": "2026-02-19 00:00:00.000000",
  "doctype": "DocType",
  "document_type": "Setup",
@@ -47,7 +47,8 @@
    "in_standard_filter": 1,
    "label": "Sub Category",
    "options": "CH Sub Category",
-   "reqd": 1
+   "reqd": 1,
+   "search_index": 1
   },
   {
    "fieldname": "manufacturer",
@@ -56,7 +57,8 @@
    "in_standard_filter": 1,
    "label": "Manufacturer",
    "options": "Manufacturer",
-   "reqd": 1
+   "reqd": 1,
+   "search_index": 1
   },
   {
    "fieldname": "column_break_01",
@@ -69,7 +71,8 @@
    "in_standard_filter": 1,
    "label": "Brand",
    "options": "Brand",
-   "reqd": 1
+   "reqd": 1,
+   "search_index": 1
   },
   {
    "fieldname": "model_name",
@@ -78,7 +81,8 @@
    "in_standard_filter": 1,
    "label": "Model Name",
    "reqd": 1,
-   "unique": 1
+   "unique": 1,
+   "search_index": 1
   },
   {
    "default": "0",
@@ -162,7 +166,7 @@
    "fieldname": "model_features_section",
    "fieldtype": "Section Break",
    "label": "Model Features",
-   "description": "Descriptive features common to all items of this model (e.g. display type, camera specs, chipset). These are NOT variant-forming — they describe the model itself."
+   "description": "Descriptive features common to all items of this model (e.g. display type, camera specs, chipset). These are NOT variant-forming \u2014 they describe the model itself."
   },
   {
    "fieldname": "model_features",
@@ -177,7 +181,6 @@
  "modified_by": "Administrator",
  "module": "CH Item Master",
  "name": "CH Model",
- "naming_rule": "By fieldname",
  "owner": "Administrator",
  "permissions": [
   {

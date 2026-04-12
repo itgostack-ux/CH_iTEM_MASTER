@@ -24,7 +24,7 @@ class SupplierSchemeCircular(Document):
 
 	def _validate_dates(self):
 		if getdate(self.valid_from) > getdate(self.valid_to):
-			frappe.throw(_("Valid From cannot be after Valid To"))
+			frappe.throw(_("Valid From cannot be after Valid To"), title=_("Supplier Scheme Circular Error"))
 		# Warn on overlapping schemes for same brand
 		overlaps = frappe.db.sql("""
 			SELECT name, scheme_name
@@ -44,10 +44,10 @@ class SupplierSchemeCircular(Document):
 
 	def _validate_rules(self):
 		if not self.rules:
-			frappe.throw(_("At least one rule is required"))
+			frappe.throw(_("At least one rule is required"), title=_("Supplier Scheme Circular Error"))
 		for rule in self.rules:
 			if not rule.rule_name:
-				frappe.throw(_("Row {0}: Rule Name is required").format(rule.idx))
+				frappe.throw(_("Row {0}: Rule Name is required").format(rule.idx), title=_("Supplier Scheme Circular Error"))
 			# Fetch details from DB (nested child tables not loaded on parent rows)
 			details = frappe.get_all(
 				"Scheme Rule Detail",
@@ -56,9 +56,9 @@ class SupplierSchemeCircular(Document):
 			) if rule.name else []
 			for detail in details:
 				if flt(detail.payout_per_unit) < 0:
-					frappe.throw(_("Row {0}: Payout per unit cannot be negative").format(detail.idx))
+					frappe.throw(_("Row {0}: Payout per unit cannot be negative").format(detail.idx), title=_("Supplier Scheme Circular Error"))
 				if flt(detail.additional_payout) < 0:
-					frappe.throw(_("Row {0}: Additional payout cannot be negative").format(detail.idx))
+					frappe.throw(_("Row {0}: Additional payout cannot be negative").format(detail.idx), title=_("Supplier Scheme Circular Error"))
 				if cint(detail.qty_from) > cint(detail.qty_to) and cint(detail.qty_to) > 0:
 					frappe.throw(
 						_("Row {0}: Qty From ({1}) > Qty To ({2})").format(
@@ -96,7 +96,7 @@ class SupplierSchemeCircular(Document):
 		self.total_pending_amount = flt(self.total_claim_amount) - flt(self.total_settled_amount)
 
 	@frappe.whitelist()
-	def recompute_achievements(self):
+	def recompute_achievements(self) -> None:
 		"""Trigger full recomputation of eligibility and payouts for this scheme."""
 		frappe.has_permission("Supplier Scheme Circular", "write", throw=True)
 		from ch_item_master.supplier_scheme.engine import recompute_scheme
@@ -105,16 +105,16 @@ class SupplierSchemeCircular(Document):
 		return result
 
 	@frappe.whitelist()
-	def generate_claim(self):
+	def generate_claim(self) -> None:
 		"""Generate a Scheme Claim Summary from current achievement data."""
 		frappe.has_permission("Scheme Claim Summary", "create", throw=True)
 		from ch_item_master.supplier_scheme.claim_engine import generate_claim_summary
 		return generate_claim_summary(self.name)
 
 	@frappe.whitelist()
-	def close_scheme(self):
+	def close_scheme(self) -> None:
 		"""Close this scheme (no further achievement entries)."""
 		if self.docstatus != 1:
-			frappe.throw(_("Only submitted schemes can be closed"))
+			frappe.throw(_("Only submitted schemes can be closed"), title=_("Supplier Scheme Circular Error"))
 		self.db_set("status", "Closed")
 		self.reload()

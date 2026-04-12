@@ -85,7 +85,7 @@ def get_ready_reckoner_data(
     page_length=100,
     page=1,
     group_by_price_specs=0,
-):
+) -> dict:
     """Return the Ready Reckoner grid data.
 
     When group_by_price_specs=1, items that differ only in non-price specs
@@ -455,7 +455,7 @@ def _compute_best_offer(offers):
 # ─────────────────────────────────────────────────────────────────────────────
 
 @frappe.whitelist()
-def get_item_price_detail(item_code, company=None):
+def get_item_price_detail(item_code, company=None) -> dict:
     """Return full price + offer + tag detail for the side drawer."""
     frappe.only_for(["System Manager", "CH Master Manager", "CH Price Manager",
                      "CH Offer Manager", "CH Warranty Manager", "CH Viewer", "Stock User"])
@@ -582,7 +582,7 @@ def get_item_price_detail(item_code, company=None):
 # ─────────────────────────────────────────────────────────────────────────────
 
 @frappe.whitelist()
-def get_active_price(item_code, channel, as_of_date=None):
+def get_active_price(item_code, channel, as_of_date=None) -> dict:
     """Return the final selling price for item+channel on as_of_date.
 
     Output:
@@ -664,7 +664,7 @@ def get_active_price(item_code, channel, as_of_date=None):
 # ─────────────────────────────────────────────────────────────────────────────
 
 @frappe.whitelist()
-def approve_price(price_name):
+def approve_price(price_name) -> str:
     """Approve a CH Item Price record.
 
     Delegates to CHItemPrice.approve() to ensure single code path
@@ -677,7 +677,7 @@ def approve_price(price_name):
 
 
 @frappe.whitelist()
-def approve_offer(offer_name):
+def approve_offer(offer_name) -> str:
     """Approve a CH Item Offer."""
     frappe.only_for(["System Manager", "CH Master Manager"])
     doc = frappe.get_doc("CH Item Offer", offer_name)
@@ -690,7 +690,7 @@ def approve_offer(offer_name):
 # ─────────────────────────────────────────────────────────────────────────────
 
 @frappe.whitelist()
-def clone_item_pricing(source_item, target_item, include_offers=True, effective_from=None):
+def clone_item_pricing(source_item, target_item, include_offers=True, effective_from=None) -> dict:
     """Copy all price records (and optionally offers) from source → target."""
     frappe.only_for(["System Manager", "CH Master Manager"])
 
@@ -840,7 +840,7 @@ def _get_sibling_item_codes(item_code):
 
 
 @frappe.whitelist()
-def get_sibling_items(item_code):
+def get_sibling_items(item_code) -> dict:
     """Return sibling item codes that share the same price-affecting specs.
 
     Used by the UI to show how many items will be affected by price propagation.
@@ -862,7 +862,7 @@ def get_sibling_items(item_code):
 def export_ready_reckoner(
     category=None, sub_category=None, brand=None,
     model=None, channel=None, as_of_date=None, company=None,
-):
+) -> None:
     """Export CH Ready Reckoner as Excel file."""
     frappe.only_for(["System Manager", "CH Master Manager"])
 
@@ -1005,7 +1005,7 @@ def create_price_change_batch(
     mrp=None, mop=None, selling_price=None, effective_from=None,
     # Buyback price fields — passed as kwargs
     **kwargs
-):
+) -> dict:
     """Create a single-item CH Price Upload Batch from a Ready Reckoner dialog.
 
     Instead of saving prices directly, this creates a Draft batch with
@@ -1084,7 +1084,7 @@ def create_price_change_batch(
                 })
 
     if not batch_items:
-        frappe.throw(_("No changes detected — all values match the current prices."))
+        frappe.throw(_("No changes detected — all values match the current prices."), title=_("API Error"))
 
     # Reason is mandatory when changing existing prices (not for new prices)
     has_existing_price_change = any(
@@ -1161,7 +1161,7 @@ _VALID_TAGS = {"EOL", "FAST MOVING", "SLOW MOVING", "NEW", "PROMO FOCUS", "RESTR
 
 
 @frappe.whitelist()
-def upload_ready_reckoner_prices(file_url, effective_from=None, company=None, reason=None):
+def upload_ready_reckoner_prices(file_url, effective_from=None, company=None, reason=None) -> None:
     """Parse a Ready Reckoner Excel and create a CH Price Upload Batch (Draft).
 
     Instead of applying changes directly, this creates a maker/checker batch:
@@ -1187,7 +1187,7 @@ def upload_ready_reckoner_prices(file_url, effective_from=None, company=None, re
     rows_iter = ws.iter_rows(values_only=True)
     headers = next(rows_iter, None)
     if not headers:
-        frappe.throw(_("Empty file — no header row found."))
+        frappe.throw(_("Empty file — no header row found."), title=_("API Error"))
 
     headers = [str(h).strip() if h else "" for h in headers]
 
@@ -1195,7 +1195,7 @@ def upload_ready_reckoner_prices(file_url, effective_from=None, company=None, re
     try:
         item_code_idx = headers.index("Item Code")
     except ValueError:
-        frappe.throw(_("Missing 'Item Code' column in header row."))
+        frappe.throw(_("Missing 'Item Code' column in header row."), title=_("API Error"))
 
     tags_idx = None
     if _TAG_HEADER in headers:
@@ -1241,7 +1241,7 @@ def upload_ready_reckoner_prices(file_url, effective_from=None, company=None, re
                 item_codes_in_file.add(ic)
 
     if not item_codes_in_file:
-        frappe.throw(_("No item codes found in the file."))
+        frappe.throw(_("No item codes found in the file."), title=_("API Error"))
 
     # Batch-fetch current selling prices
     selling_price_index = {}  # (item_code, channel) → {mrp, mop, selling_price}
@@ -1393,7 +1393,7 @@ def upload_ready_reckoner_prices(file_url, effective_from=None, company=None, re
         if parse_errors:
             msg += "<br><br><b>" + _("{0} parse error(s):").format(len(parse_errors)) + "</b><br>"
             msg += "<br>".join(parse_errors[:20])
-        frappe.throw(msg)
+        frappe.throw(msg, title=_("API Error"))
 
     # ── Create the batch document ─────────────────────────────────────────
     batch = frappe.new_doc("CH Price Upload Batch")

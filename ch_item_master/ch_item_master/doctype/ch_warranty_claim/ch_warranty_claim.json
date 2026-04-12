@@ -252,7 +252,8 @@
    "reqd": 1,
    "in_standard_filter": 1,
    "remember_last_selected_value": 1,
-   "description": "Company that sold the device (warranty issuer)"
+   "description": "Company that sold the device (warranty issuer)",
+   "search_index": 1
   },
   {
    "fieldname": "reported_at_company",
@@ -276,7 +277,8 @@
    "in_standard_filter": 1,
    "read_only": 1,
    "no_copy": 1,
-   "allow_on_submit": 1
+   "allow_on_submit": 1,
+   "search_index": 1
   },
   {
    "fieldname": "coverage_type",
@@ -288,7 +290,8 @@
    "read_only": 1,
    "no_copy": 1,
    "allow_on_submit": 1,
-   "description": "Auto-determined from warranty status"
+   "description": "Auto-determined from warranty status",
+   "search_index": 1
   },
   {
    "fieldname": "reported_by",
@@ -314,7 +317,8 @@
    "label": "Serial / IMEI",
    "reqd": 1,
    "in_list_view": 1,
-   "in_standard_filter": 1
+   "in_standard_filter": 1,
+   "search_index": 1
   },
   {
    "fieldname": "imei_number",
@@ -329,7 +333,8 @@
    "label": "Item",
    "options": "Item",
    "reqd": 1,
-   "in_standard_filter": 1
+   "in_standard_filter": 1,
+   "search_index": 1
   },
   {
    "fieldname": "item_name",
@@ -357,7 +362,8 @@
    "options": "Customer",
    "reqd": 1,
    "in_list_view": 1,
-   "in_standard_filter": 1
+   "in_standard_filter": 1,
+   "search_index": 1
   },
   {
    "fieldname": "customer_name",
@@ -644,7 +650,8 @@
    "read_only": 1,
    "no_copy": 1,
    "in_standard_filter": 1,
-   "allow_on_submit": 1
+   "allow_on_submit": 1,
+   "search_index": 1
   },
   {
    "fieldname": "approved_amount",
@@ -1113,7 +1120,8 @@
    "read_only": 1,
    "allow_on_submit": 1,
    "in_standard_filter": 1,
-   "description": "Must pass before repair ticket can be created"
+   "description": "Must pass before repair ticket can be created",
+   "search_index": 1
   },
   {
    "fieldname": "intake_qc_by",

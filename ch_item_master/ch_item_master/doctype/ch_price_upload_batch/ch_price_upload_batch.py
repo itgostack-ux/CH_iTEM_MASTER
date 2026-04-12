@@ -26,7 +26,7 @@ class CHPriceUploadBatch(Document):
 
 	def validate(self):
 		if not self.items:
-			frappe.throw(_("No changes to review — the items table is empty."))
+			frappe.throw(_("No changes to review — the items table is empty."), title=_("Ch Price Upload Batch Error"))
 		self._update_summary()
 
 	def _update_summary(self):
@@ -112,10 +112,10 @@ class CHPriceUploadBatch(Document):
 	# ── Workflow actions (called from JS buttons) ─────────────────────────
 
 	@frappe.whitelist()
-	def submit_for_approval(self):
+	def submit_for_approval(self) -> None:
 		"""Maker submits the batch for checker review."""
 		if self.status != "Draft":
-			frappe.throw(_("Only Draft batches can be submitted for approval."))
+			frappe.throw(_("Only Draft batches can be submitted for approval."), title=_("Ch Price Upload Batch Error"))
 		self._validate_price_sanity()
 		self.status = "Pending Approval"
 		self.submitted_by = frappe.session.user
@@ -124,14 +124,14 @@ class CHPriceUploadBatch(Document):
 		frappe.msgprint(_("Batch submitted for approval."), indicator="blue")
 
 	@frappe.whitelist()
-	def revise_batch(self):
+	def revise_batch(self) -> None:
 		"""Allow maker to revise a rejected or partially-applied batch.
 
 		Resets status to Draft, clears per-row statuses, and lets the user
 		edit rows (fix prices, remove bad rows) before resubmitting.
 		"""
 		if self.status not in ("Rejected", "Partially Applied"):
-			frappe.throw(_("Only Rejected or Partially Applied batches can be revised."))
+			frappe.throw(_("Only Rejected or Partially Applied batches can be revised."), title=_("Ch Price Upload Batch Error"))
 
 		# Reset row-level statuses — keep Applied rows as-is, reset others
 		for row in self.items:
@@ -144,10 +144,10 @@ class CHPriceUploadBatch(Document):
 		frappe.msgprint(_("Batch reset to Draft — you can now edit and resubmit."), indicator="blue")
 
 	@frappe.whitelist()
-	def approve_and_apply(self):
+	def approve_and_apply(self) -> None:
 		"""Checker approves — immediately applies all pending changes."""
 		if self.status != "Pending Approval":
-			frappe.throw(_("Only 'Pending Approval' batches can be approved."))
+			frappe.throw(_("Only 'Pending Approval' batches can be approved."), title=_("Ch Price Upload Batch Error"))
 
 		self.status = "Applying"
 		self.approved_by = frappe.session.user
@@ -159,13 +159,13 @@ class CHPriceUploadBatch(Document):
 		except Exception:
 			frappe.db.commit()
 			frappe.log_error(frappe.get_traceback(), "Price Upload Batch Apply Error")
-			frappe.throw(_("Error while applying changes. Check Error Log for details."))
+			frappe.throw(_("Error while applying changes. Check Error Log for details."), title=_("Ch Price Upload Batch Error"))
 
 	@frappe.whitelist()
-	def reject_batch(self, reason=None):
+	def reject_batch(self, reason=None) -> None:
 		"""Checker rejects the batch."""
 		if self.status != "Pending Approval":
-			frappe.throw(_("Only 'Pending Approval' batches can be rejected."))
+			frappe.throw(_("Only 'Pending Approval' batches can be rejected."), title=_("Ch Price Upload Batch Error"))
 		self.status = "Rejected"
 		self.rejected_by = frappe.session.user
 		self.rejected_at = now_datetime()

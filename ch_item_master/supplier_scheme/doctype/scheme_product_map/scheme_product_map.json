@@ -36,7 +36,8 @@
    "in_standard_filter": 1,
    "label": "Brand",
    "options": "Brand",
-   "reqd": 1
+   "reqd": 1,
+   "search_index": 1
   },
   {
    "description": "Product name exactly as it appears in the supplier scheme document",
@@ -46,7 +47,8 @@
    "in_standard_filter": 1,
    "label": "Supplier Product Name",
    "reqd": 1,
-   "unique": 0
+   "unique": 0,
+   "search_index": 1
   },
   {
    "fieldname": "column_break_source",
@@ -127,7 +129,8 @@
    "fieldtype": "Select",
    "in_standard_filter": 1,
    "label": "Mapping Source",
-   "options": "Manual\nAI Suggested\nAI Verified\nVerified"
+   "options": "Manual\nAI Suggested\nAI Verified\nVerified",
+   "search_index": 1
   },
   {
    "default": "0",

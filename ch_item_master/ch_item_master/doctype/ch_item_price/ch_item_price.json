@@ -46,7 +46,8 @@
    "in_standard_filter": 1,
    "in_list_view": 1,
    "remember_last_selected_value": 1,
-   "description": "Company this price applies to."
+   "description": "Company this price applies to.",
+   "search_index": 1
   },
   {
    "fieldname": "item_code",
@@ -55,7 +56,8 @@
    "in_standard_filter": 1,
    "label": "Item Code",
    "options": "Item",
-   "reqd": 1
+   "reqd": 1,
+   "search_index": 1
   },
   {
    "fetch_from": "item_code.item_name",
@@ -72,7 +74,8 @@
    "in_standard_filter": 1,
    "label": "Channel",
    "options": "CH Price Channel",
-   "reqd": 1
+   "reqd": 1,
+   "search_index": 1
   },
   {
    "fieldname": "column_break_01",
@@ -85,7 +88,8 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Status",
-   "options": "Draft\nActive\nScheduled\nExpired"
+   "options": "Draft\nActive\nScheduled\nExpired",
+   "search_index": 1
   },
   {
    "fieldname": "prices_section",
@@ -123,7 +127,8 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Effective From",
-   "reqd": 1
+   "reqd": 1,
+   "search_index": 1
   },
   {
    "fieldname": "effective_to",
@@ -220,6 +225,29 @@
  ],
  "sort_field": "effective_from",
  "sort_order": "DESC",
- "states": [],
- "track_changes": 1
+ "states": [
+  {
+   "color": "Green",
+   "title": "Active"
+  },
+  {
+   "color": "Red",
+   "title": "Expired"
+  },
+  {
+   "color": "Yellow",
+   "title": "Pending Approval"
+  },
+  {
+   "color": "Orange",
+   "title": "Rejected"
+  },
+  {
+   "color": "Gray",
+   "title": "Draft"
+  }
+ ],
+ "track_changes": 1,
+ "search_fields": "item_code,item_name,channel,company",
+ "title_field": "item_name"
 }

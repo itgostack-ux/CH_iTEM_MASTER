@@ -22,7 +22,7 @@ def create_accrual_entry(settlement_name):
 	"""
 	sett = frappe.get_doc("Scheme Settlement", settlement_name)
 	if sett.accrual_journal_entry:
-		frappe.throw(_("Accrual JE already exists: {0}").format(sett.accrual_journal_entry))
+		frappe.throw(_("Accrual JE already exists: {0}").format(sett.accrual_journal_entry), title=_("Validation Error"))
 
 	company = _get_company(sett)
 	receivable_account = _get_account(company, "custom_scheme_receivable_account", "Scheme Receivable")
@@ -30,7 +30,7 @@ def create_accrual_entry(settlement_name):
 	amount = flt(sett.claim_amount)
 
 	if amount <= 0:
-		frappe.throw(_("Claim amount must be positive to create accrual entry"))
+		frappe.throw(_("Claim amount must be positive to create accrual entry"), title=_("Validation Error"))
 
 	je = frappe.new_doc("Journal Entry")
 	je.company = company
@@ -68,7 +68,7 @@ def create_settlement_entry(settlement_name):
 	"""
 	sett = frappe.get_doc("Scheme Settlement", settlement_name)
 	if sett.journal_entry:
-		frappe.throw(_("Settlement JE already exists: {0}").format(sett.journal_entry))
+		frappe.throw(_("Settlement JE already exists: {0}").format(sett.journal_entry), title=_("Validation Error"))
 
 	company = _get_company(sett)
 	receivable_account = _get_account(company, "custom_scheme_receivable_account", "Scheme Receivable")
@@ -77,7 +77,7 @@ def create_settlement_entry(settlement_name):
 	total_credit = received + tds
 
 	if total_credit <= 0:
-		frappe.throw(_("Received amount or TDS must be positive"))
+		frappe.throw(_("Received amount or TDS must be positive"), title=_("Validation Error"))
 
 	je = frappe.new_doc("Journal Entry")
 	je.company = company
@@ -142,7 +142,7 @@ def _get_company(settlement):
 	if not company:
 		company = frappe.defaults.get_global_default("company")
 	if not company:
-		frappe.throw(_("Company not set on scheme {0}").format(settlement.scheme))
+		frappe.throw(_("Company not set on scheme {0}").format(settlement.scheme), title=_("Validation Error"))
 	return company
 
 

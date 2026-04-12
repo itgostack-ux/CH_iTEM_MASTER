@@ -58,7 +58,8 @@
    "label": "Store Name",
    "reqd": 1,
    "in_list_view": 1,
-   "in_standard_filter": 1
+   "in_standard_filter": 1,
+   "search_index": 1
   },
   {
    "fieldname": "column_break_01",
@@ -71,7 +72,8 @@
    "options": "Company",
    "reqd": 1,
    "in_list_view": 1,
-   "in_standard_filter": 1
+   "in_standard_filter": 1,
+   "search_index": 1
   },
   {
    "fieldname": "warehouse",
@@ -121,7 +123,8 @@
    "label": "Zone",
    "options": "CH Store Zone",
    "in_standard_filter": 1,
-   "description": "Stock requests from this store will be routed to the zone's source warehouse"
+   "description": "Stock requests from this store will be routed to the zone's source warehouse",
+   "search_index": 1
   },
   {
    "fieldname": "address_section",
@@ -137,7 +140,8 @@
    "fieldname": "city",
    "fieldtype": "Data",
    "label": "City",
-   "in_standard_filter": 1
+   "in_standard_filter": 1,
+   "search_index": 1
   },
   {
    "fieldname": "column_break_addr",

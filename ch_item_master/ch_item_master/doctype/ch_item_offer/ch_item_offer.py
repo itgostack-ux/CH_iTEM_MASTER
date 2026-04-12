@@ -197,7 +197,7 @@ class CHItemOffer(Document):
 			self.status = "Active"
 
 	@frappe.whitelist()
-	def approve(self):
+	def approve(self) -> None:
 		"""Approve this offer — called from form action button."""
 		frappe.only_for(["System Manager", "CH Master Manager"])
 		self.approval_status = "Approved"
@@ -213,7 +213,7 @@ class CHItemOffer(Document):
 		)
 
 	@frappe.whitelist()
-	def reject(self):
+	def reject(self) -> None:
 		"""Reject this offer."""
 		frappe.only_for(["System Manager", "CH Master Manager"])
 		self.approval_status = "Rejected"

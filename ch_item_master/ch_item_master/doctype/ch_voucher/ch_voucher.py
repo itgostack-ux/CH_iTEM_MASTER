@@ -29,16 +29,16 @@ class CHVoucher(Document):
 
 	def _validate_amounts(self):
 		if flt(self.original_amount) <= 0:
-			frappe.throw(_("Original Amount must be greater than zero"))
+			frappe.throw(_("Original Amount must be greater than zero"), title=_("Ch Voucher Error"))
 		if flt(self.balance) < 0:
-			frappe.throw(_("Balance cannot be negative"))
+			frappe.throw(_("Balance cannot be negative"), title=_("Ch Voucher Error"))
 		if flt(self.balance) > flt(self.original_amount):
-			frappe.throw(_("Balance cannot exceed Original Amount"))
+			frappe.throw(_("Balance cannot exceed Original Amount"), title=_("Ch Voucher Error"))
 
 	def _validate_dates(self):
 		if self.valid_from and self.valid_upto and self.status != "Expired":
 			if getdate(self.valid_upto) < getdate(self.valid_from):
-				frappe.throw(_("Valid Upto cannot be before Valid From"))
+				frappe.throw(_("Valid Upto cannot be before Valid From"), title=_("Ch Voucher Error"))
 
 	def _auto_set_status(self):
 		today = getdate(nowdate())
@@ -66,10 +66,10 @@ class CHVoucher(Document):
 		self.db_set("status", "Cancelled")
 
 	@frappe.whitelist()
-	def activate(self):
+	def activate(self) -> None:
 		"""Activate a draft voucher (legacy — now use Submit instead)."""
 		if self.status not in ("Draft",):
-			frappe.throw(_("Only Draft vouchers can be activated"))
+			frappe.throw(_("Only Draft vouchers can be activated"), title=_("Ch Voucher Error"))
 		if self.docstatus == 0:
 			self.submit()
 		else:
@@ -78,10 +78,10 @@ class CHVoucher(Document):
 		frappe.msgprint(_("Voucher {0} activated").format(self.voucher_code), indicator="green")
 
 	@frappe.whitelist()
-	def cancel_voucher(self):
+	def cancel_voucher(self) -> None:
 		"""Cancel a voucher (forfeits remaining balance)."""
 		if self.status in ("Fully Used", "Cancelled"):
-			frappe.throw(_("Cannot cancel a {0} voucher").format(self.status))
+			frappe.throw(_("Cannot cancel a {0} voucher").format(self.status), title=_("Ch Voucher Error"))
 		self.status = "Cancelled"
 		self.save()
 
@@ -93,4 +93,4 @@ class CHVoucher(Document):
 			code = random_string(length).upper()
 			if not frappe.db.exists("CH Voucher", {"voucher_code": code}):
 				return code
-		frappe.throw(_("Unable to generate unique voucher code after 100 attempts. Please try again."))
+		frappe.throw(_("Unable to generate unique voucher code after 100 attempts. Please try again."), title=_("Ch Voucher Error"))

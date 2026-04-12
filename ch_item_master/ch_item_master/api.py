@@ -41,7 +41,7 @@ from ch_item_master.ch_item_master.utils import (
 
 @frappe.whitelist()
 def generate_item_name(sub_category, manufacturer=None, brand=None, model=None,
-                       spec_values=None, model_name_override=None):
+                       spec_values=None, model_name_override=None) -> str:
     """Return the auto-generated item name.
 
     For templates: spec_values=[] -> name without specs.
@@ -60,7 +60,7 @@ def generate_item_name(sub_category, manufacturer=None, brand=None, model=None,
         as_dict=True,
     )
     if not sub_cat:
-        frappe.throw(_("Sub Category {0} not found").format(sub_category))
+        frappe.throw(_("Sub Category {0} not found").format(sub_category), title=_("API Error"))
 
     name_parts = []
 
@@ -122,7 +122,7 @@ def generate_item_name(sub_category, manufacturer=None, brand=None, model=None,
 # ───────────────────────────────────────────────────────────────────────────────
 
 @frappe.whitelist()
-def get_sub_category_manufacturers(sub_category):
+def get_sub_category_manufacturers(sub_category) -> list:
     """Return manufacturer names allowed for a given sub-category."""
     return frappe.get_all(
         "CH Sub Category Manufacturer",
@@ -132,7 +132,7 @@ def get_sub_category_manufacturers(sub_category):
 
 
 @frappe.whitelist()
-def get_brands_for_manufacturer(manufacturer):
+def get_brands_for_manufacturer(manufacturer) -> list:
     """Return brand names that list the given manufacturer in their manufacturers table.
 
     Used by CH Model form to filter the Brand dropdown after a
@@ -155,7 +155,7 @@ def get_brands_for_manufacturer(manufacturer):
 # ───────────────────────────────────────────────────────────────────────────────
 
 @frappe.whitelist()
-def get_attribute_values(spec="", txt="", **kwargs):
+def get_attribute_values(spec="", txt="", **kwargs) -> list:
     """Return attribute values for a given Item Attribute (spec).
 
     Used by the Autocomplete get_query on spec_value in CH Model form.
@@ -188,7 +188,7 @@ def get_attribute_values(spec="", txt="", **kwargs):
 # ───────────────────────────────────────────────────────────────────────────────
 
 @frappe.whitelist()
-def search_specs_for_sub_category(doctype, txt, searchfield, start, page_len, filters):
+def search_specs_for_sub_category(doctype, txt, searchfield, start, page_len, filters) -> list:
     """Link query for 'spec' field in CH Model Spec Value / CH Item Spec Value.
 
     Filters:
@@ -241,7 +241,7 @@ def search_specs_for_sub_category(doctype, txt, searchfield, start, page_len, fi
 # ───────────────────────────────────────────────────────────────────────────────
 
 @frappe.whitelist()
-def get_model_details(model):
+def get_model_details(model) -> dict:
     """Return details needed to auto-fill the Item form from a CH Model.
 
     Returns: sub_category, category, manufacturer, brand, spec_selectors,
@@ -256,7 +256,7 @@ def get_model_details(model):
         as_dict=True,
     )
     if not mdoc:
-        frappe.throw(_("Model {0} not found").format(model))
+        frappe.throw(_("Model {0} not found").format(model), title=_("API Error"))
 
     sc_data = frappe.db.get_value(
         "CH Sub Category", mdoc.sub_category,
@@ -297,7 +297,7 @@ def get_model_details(model):
 
 
 @frappe.whitelist()
-def get_model_attribute_values(model):
+def get_model_attribute_values(model) -> dict:
     """Return all spec values mapped to a CH Model, grouped by attribute.
 
     Used by the variant creation dialog to show only model-allowed values
@@ -323,7 +323,7 @@ def get_model_attribute_values(model):
 
 
 @frappe.whitelist()
-def get_property_spec_values(model, spec):
+def get_property_spec_values(model, spec) -> list:
     """Return the values mapped for a single spec on a CH Model.
 
     Used by the ch_spec_values child table to offer autocomplete options
@@ -361,7 +361,7 @@ def get_property_spec_values(model, spec):
 # ───────────────────────────────────────────────────────────────────────────────
 
 @frappe.whitelist()
-def generate_items_from_model(model):
+def generate_items_from_model(model) -> dict:
     """Generate all missing ERPNext Item variants for a CH Model.
 
 
@@ -494,7 +494,7 @@ def generate_items_from_model(model):
 # ───────────────────────────────────────────────────────────────────────────────
 
 @frappe.whitelist()
-def search_models(doctype, txt, searchfield, start, page_len, filters):
+def search_models(doctype, txt, searchfield, start, page_len, filters) -> list:
     """Custom link search for CH Model that shows Brand and Manufacturer.
 
     Returns results like:

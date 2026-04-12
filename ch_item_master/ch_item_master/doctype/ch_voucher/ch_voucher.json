@@ -61,7 +61,8 @@
    "in_standard_filter": 1,
    "label": "Voucher Type",
    "options": "Gift Card\nStore Credit\nPromo Voucher\nReturn Credit\nVAS Voucher",
-   "reqd": 1
+   "reqd": 1,
+   "search_index": 1
   },
   {
    "fieldname": "voucher_code",
@@ -84,7 +85,8 @@
    "label": "Company",
    "options": "Company",
    "reqd": 1,
-   "remember_last_selected_value": 1
+   "remember_last_selected_value": 1,
+   "search_index": 1
   },
   {
    "default": "Draft",
@@ -94,7 +96,8 @@
    "in_standard_filter": 1,
    "label": "Status",
    "options": "Draft\nActive\nPartially Used\nFully Used\nExpired\nCancelled",
-   "read_only": 1
+   "read_only": 1,
+   "search_index": 1
   },
   {
    "fieldname": "section_value",
@@ -134,7 +137,8 @@
    "in_standard_filter": 1,
    "label": "Issued To (Customer)",
    "options": "Customer",
-   "description": "Leave blank for bearer vouchers"
+   "description": "Leave blank for bearer vouchers",
+   "search_index": 1
   },
   {
    "fetch_from": "issued_to.customer_name",

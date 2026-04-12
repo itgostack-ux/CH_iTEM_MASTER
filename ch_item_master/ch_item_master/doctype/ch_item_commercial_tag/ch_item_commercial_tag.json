@@ -35,7 +35,8 @@
    "in_standard_filter": 1,
    "in_list_view": 1,
    "remember_last_selected_value": 1,
-   "description": "Leave blank if this record applies to all companies."
+   "description": "Leave blank if this record applies to all companies.",
+   "search_index": 1
   },
   {
    "fieldname": "item_code",
@@ -44,7 +45,8 @@
    "in_standard_filter": 1,
    "label": "Item Code",
    "options": "Item",
-   "reqd": 1
+   "reqd": 1,
+   "search_index": 1
   },
   {
    "fetch_from": "item_code.item_name",
@@ -61,7 +63,8 @@
    "in_standard_filter": 1,
    "label": "Tag",
    "options": "EOL\nFAST MOVING\nSLOW MOVING\nNEW\nPROMO FOCUS\nRESTRICTED\nCLEARANCE\nDEAD STOCK",
-   "reqd": 1
+   "reqd": 1,
+   "search_index": 1
   },
   {
    "fieldname": "column_break_01",
@@ -74,7 +77,8 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Status",
-   "options": "Active\nExpired"
+   "options": "Active\nExpired",
+   "search_index": 1
   },
   {
    "fieldname": "validity_section",

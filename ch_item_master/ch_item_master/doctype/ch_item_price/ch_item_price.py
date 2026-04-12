@@ -183,7 +183,7 @@ class CHItemPrice(Document):
 			self._expire_erp_item_price()
 
 	@frappe.whitelist()
-	def approve(self):
+	def approve(self) -> None:
 		"""Approve this price record — activates it and syncs to ERPNext.
 
 		Only CH Price Manager or System Manager can approve.
@@ -215,7 +215,7 @@ class CHItemPrice(Document):
 		)
 
 	@frappe.whitelist()
-	def reject(self):
+	def reject(self) -> None:
 		"""Reject this price record — expires it and disables the ERPNext sync."""
 		frappe.only_for(["System Manager", "CH Price Manager", "CH Master Manager"])
 

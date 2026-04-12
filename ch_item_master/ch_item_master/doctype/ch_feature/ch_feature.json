@@ -32,7 +32,8 @@
    "in_standard_filter": 1,
    "label": "Feature Group",
    "options": "CH Feature Group",
-   "reqd": 1
+   "reqd": 1,
+   "search_index": 1
   },
   {
    "fieldname": "feature_name",
@@ -41,7 +42,8 @@
    "in_standard_filter": 1,
    "label": "Feature Name",
    "reqd": 1,
-   "description": "e.g. Type, Size, Resolution, Weight, Chipset, CPU, GPU"
+   "description": "e.g. Type, Size, Resolution, Weight, Chipset, CPU, GPU",
+   "search_index": 1
   },
   {
    "fieldname": "column_break_01",
@@ -62,7 +64,6 @@
  "modified_by": "Administrator",
  "module": "CH Item Master",
  "name": "CH Feature",
- "naming_rule": "Expression",
  "owner": "Administrator",
  "permissions": [
   {

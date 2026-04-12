@@ -35,7 +35,8 @@
    "in_standard_filter": 1,
    "label": "Category Name",
    "reqd": 1,
-   "unique": 1
+   "unique": 1,
+   "search_index": 1
   },
   {
    "fieldname": "item_group",
@@ -44,7 +45,8 @@
    "in_standard_filter": 1,
    "label": "Item Group",
    "options": "Item Group",
-   "reqd": 1
+   "reqd": 1,
+   "search_index": 1
   },
   {
    "fieldname": "item_group_id",

@@ -597,7 +597,7 @@ def _to_float(val):
 # ─────────────────────────────────────────────────────────────────────────────
 
 @frappe.whitelist()
-def import_masters(data):
+def import_masters(data) -> dict:
     """Import CH masters from a structured JSON payload.
 
     Args:
@@ -615,7 +615,7 @@ def import_masters(data):
 
 
 @frappe.whitelist()
-def import_masters_from_csv():
+def import_masters_from_csv() -> dict:
     """Import CH masters from an uploaded CSV file.
 
     The CSV file must be attached to the HTTP request as 'file'.
@@ -631,7 +631,7 @@ def import_masters_from_csv():
 
     uploaded = frappe.request.files.get("file")
     if not uploaded:
-        frappe.throw(_("No file attached. Please upload a CSV file."))
+        frappe.throw(_("No file attached. Please upload a CSV file."), title=_("API Error"))
 
     # Read file content, handle BOM
     content = uploaded.read()
@@ -655,7 +655,7 @@ def import_masters_from_csv():
 
 
 @frappe.whitelist()
-def get_import_csv_template():
+def get_import_csv_template() -> dict:
     """Return the CSV column headers as a downloadable template.
 
     Returns: dict with headers list and sample_row.

@@ -18,7 +18,7 @@ def issue_voucher(voucher_type, amount, company, customer=None, phone=None,
                   valid_days=365, source_type=None, source_document=None,
                   reason=None, single_use=0, min_order_amount=0,
                   max_discount_amount=0, applicable_channel=None,
-                  applicable_item_group=None, sold_plan=None):
+                  applicable_item_group=None, sold_plan=None) -> dict:
 	"""Issue a new voucher (Gift Card / Store Credit / Promo Voucher / Return Credit / VAS Voucher).
 
 	Args:
@@ -43,16 +43,16 @@ def issue_voucher(voucher_type, amount, company, customer=None, phone=None,
 
 	amount = flt(amount)
 	if amount <= 0:
-		frappe.throw(_("Voucher amount must be greater than zero"))
+		frappe.throw(_("Voucher amount must be greater than zero"), title=_("API Error"))
 	# IM-7 fix: Boundary validation for amount
 	if amount > 500000:
-		frappe.throw(_("Voucher amount cannot exceed ₹5,00,000"))
+		frappe.throw(_("Voucher amount cannot exceed ₹5,00,000"), title=_("API Error"))
 	if flt(min_order_amount) < 0:
-		frappe.throw(_("Minimum order amount cannot be negative"))
+		frappe.throw(_("Minimum order amount cannot be negative"), title=_("API Error"))
 	if flt(max_discount_amount) < 0:
-		frappe.throw(_("Maximum discount amount cannot be negative"))
+		frappe.throw(_("Maximum discount amount cannot be negative"), title=_("API Error"))
 	if cint(valid_days) < 1 or cint(valid_days) > 3650:
-		frappe.throw(_("Validity must be between 1 and 3650 days"))
+		frappe.throw(_("Validity must be between 1 and 3650 days"), title=_("API Error"))
 
 	today = getdate(nowdate())
 	valid_upto = today + timedelta(days=cint(valid_days) or 365)
@@ -104,7 +104,7 @@ def issue_voucher(voucher_type, amount, company, customer=None, phone=None,
 # ─────────────────────────────────────────────────────────────────────────────
 
 @frappe.whitelist()
-def validate_voucher(voucher_code, cart_total=0, customer=None, channel=None):
+def validate_voucher(voucher_code, cart_total=0, customer=None, channel=None) -> dict:
 	"""Validate a voucher code and return applicable discount.
 
 	Args:
@@ -196,7 +196,7 @@ def validate_voucher(voucher_code, cart_total=0, customer=None, channel=None):
 
 @frappe.whitelist()
 def redeem_voucher(voucher_code, amount, pos_invoice=None, reference_doctype=None,
-                   reference_document=None):
+                   reference_document=None) -> dict:
 	"""Redeem (use) a voucher — deducts from balance.
 
 	Args:
@@ -210,14 +210,14 @@ def redeem_voucher(voucher_code, amount, pos_invoice=None, reference_doctype=Non
 	"""
 	amount = flt(amount)
 	if amount <= 0:
-		frappe.throw(_("Redemption amount must be greater than zero"))
+		frappe.throw(_("Redemption amount must be greater than zero"), title=_("API Error"))
 
 	frappe.has_permission("CH Voucher", "write", throw=True)
 
 	# IM-2 fix: Use SELECT FOR UPDATE to prevent race condition on concurrent redemptions
 	voucher_name = frappe.db.get_value("CH Voucher", {"voucher_code": voucher_code}, "name")
 	if not voucher_name:
-		frappe.throw(_("Voucher not found"))
+		frappe.throw(_("Voucher not found"), title=_("API Error"))
 
 	frappe.db.sql(
 		"SELECT name FROM `tabCH Voucher` WHERE name=%s FOR UPDATE",
@@ -226,17 +226,17 @@ def redeem_voucher(voucher_code, amount, pos_invoice=None, reference_doctype=Non
 
 	voucher = frappe.get_doc("CH Voucher", voucher_name)
 	if not voucher:
-		frappe.throw(_("Voucher not found"))
+		frappe.throw(_("Voucher not found"), title=_("API Error"))
 
 	if voucher.docstatus != 1:
-		frappe.throw(_("Voucher has not been activated (not submitted)"))
+		frappe.throw(_("Voucher has not been activated (not submitted)"), title=_("API Error"))
 
 	if voucher.status not in ("Active", "Partially Used"):
-		frappe.throw(_("Voucher is {0} and cannot be redeemed").format(voucher.status))
+		frappe.throw(_("Voucher is {0} and cannot be redeemed").format(voucher.status), title=_("API Error"))
 
 	# IM-10 fix: Check voucher expiry on redemption
 	if voucher.valid_upto and getdate(voucher.valid_upto) < getdate(nowdate()):
-		frappe.throw(_("Voucher expired on {0}").format(voucher.valid_upto))
+		frappe.throw(_("Voucher expired on {0}").format(voucher.valid_upto), title=_("API Error"))
 
 	# Enforce item group restriction (e.g. VAS vouchers → Accessories only)
 	if voucher.applicable_item_group:
@@ -247,7 +247,7 @@ def redeem_voucher(voucher_code, amount, pos_invoice=None, reference_doctype=Non
 
 	balance = flt(voucher.balance)
 	if balance <= 0:
-		frappe.throw(_("Voucher has no remaining balance"))
+		frappe.throw(_("Voucher has no remaining balance"), title=_("API Error"))
 
 	# Single-use vouchers: must redeem in one shot, forfeit entire balance
 	if voucher.single_use:
@@ -255,7 +255,7 @@ def redeem_voucher(voucher_code, amount, pos_invoice=None, reference_doctype=Non
 		existing_redeems = [t for t in (voucher.transactions or [])
 		                    if t.transaction_type == "Redeem"]
 		if existing_redeems:
-			frappe.throw(_("This voucher has already been redeemed (single-use)"))
+			frappe.throw(_("This voucher has already been redeemed (single-use)"), title=_("API Error"))
 		redeem_amount = min(amount, balance)
 		new_balance = 0  # Forfeit remainder
 	else:
@@ -321,7 +321,7 @@ def redeem_voucher(voucher_code, amount, pos_invoice=None, reference_doctype=Non
 # ─────────────────────────────────────────────────────────────────────────────
 
 @frappe.whitelist()
-def refund_voucher(voucher_code, amount, pos_invoice=None, reason=None):
+def refund_voucher(voucher_code, amount, pos_invoice=None, reason=None) -> dict:
 	"""Refund amount back to a voucher (e.g. on invoice cancellation).
 
 	Args:
@@ -335,16 +335,16 @@ def refund_voucher(voucher_code, amount, pos_invoice=None, reason=None):
 	"""
 	amount = flt(amount)
 	if amount <= 0:
-		frappe.throw(_("Refund amount must be greater than zero"))
+		frappe.throw(_("Refund amount must be greater than zero"), title=_("API Error"))
 
 	frappe.has_permission("CH Voucher", "write", throw=True)
 
 	voucher = frappe.get_doc("CH Voucher", {"voucher_code": voucher_code})
 	if not voucher:
-		frappe.throw(_("Voucher not found"))
+		frappe.throw(_("Voucher not found"), title=_("API Error"))
 
 	if voucher.voucher_type == "VAS Voucher":
-		frappe.throw(_("VAS Vouchers cannot be refunded"))
+		frappe.throw(_("VAS Vouchers cannot be refunded"), title=_("API Error"))
 
 	new_balance = flt(voucher.balance) + amount
 	# Don't exceed original amount
@@ -383,7 +383,7 @@ def refund_voucher(voucher_code, amount, pos_invoice=None, reason=None):
 # ─────────────────────────────────────────────────────────────────────────────
 
 @frappe.whitelist()
-def topup_voucher(voucher_code, amount, reason=None):
+def topup_voucher(voucher_code, amount, reason=None) -> dict:
 	"""Add balance to an existing voucher (Gift Card top-up).
 
 	Returns:
@@ -391,19 +391,19 @@ def topup_voucher(voucher_code, amount, reason=None):
 	"""
 	amount = flt(amount)
 	if amount <= 0:
-		frappe.throw(_("Top-up amount must be greater than zero"))
+		frappe.throw(_("Top-up amount must be greater than zero"), title=_("API Error"))
 
 	frappe.has_permission("CH Voucher", "write", throw=True)
 
 	voucher = frappe.get_doc("CH Voucher", {"voucher_code": voucher_code})
 	if not voucher:
-		frappe.throw(_("Voucher not found"))
+		frappe.throw(_("Voucher not found"), title=_("API Error"))
 
 	if voucher.voucher_type == "VAS Voucher":
-		frappe.throw(_("VAS Vouchers cannot be topped up"))
+		frappe.throw(_("VAS Vouchers cannot be topped up"), title=_("API Error"))
 
 	if voucher.status in ("Cancelled", "Expired"):
-		frappe.throw(_("Cannot top-up a {0} voucher").format(voucher.status))
+		frappe.throw(_("Cannot top-up a {0} voucher").format(voucher.status), title=_("API Error"))
 
 	new_balance = flt(voucher.balance) + amount
 	new_original = flt(voucher.original_amount) + amount
@@ -433,7 +433,7 @@ def topup_voucher(voucher_code, amount, reason=None):
 # ─────────────────────────────────────────────────────────────────────────────
 
 @frappe.whitelist()
-def check_balance(voucher_code):
+def check_balance(voucher_code) -> dict:
 	"""Check voucher balance (can be called by customer via website/app).
 
 	Returns:
@@ -466,7 +466,7 @@ def check_balance(voucher_code):
 # ─────────────────────────────────────────────────────────────────────────────
 
 @frappe.whitelist()
-def get_customer_vouchers(customer, company=None, include_expired=False):
+def get_customer_vouchers(customer, company=None, include_expired=False) -> list:
 	"""Get all vouchers for a customer.
 
 	Args:
@@ -499,7 +499,7 @@ def get_customer_vouchers(customer, company=None, include_expired=False):
 # ─────────────────────────────────────────────────────────────────────────────
 
 @frappe.whitelist()
-def issue_return_credit(customer, amount, company, pos_invoice=None, reason=None):
+def issue_return_credit(customer, amount, company, pos_invoice=None, reason=None) -> dict:
 	"""Issue a Return Credit voucher when processing a return at POS.
 
 	This replaces cash refund — customer gets store credit instead.

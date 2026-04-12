@@ -22,7 +22,8 @@
    "unique": 1,
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "description": "e.g. Chennai South, Chennai North, Bangalore Central"
+   "description": "e.g. Chennai South, Chennai North, Bangalore Central",
+   "search_index": 1
   },
   {
    "fieldname": "column_break_01",
@@ -35,7 +36,8 @@
    "options": "Company",
    "reqd": 1,
    "in_list_view": 1,
-   "in_standard_filter": 1
+   "in_standard_filter": 1,
+   "search_index": 1
   },
   {
    "fieldname": "section_break_wh",

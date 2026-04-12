@@ -19,7 +19,7 @@ from frappe.utils import today, getdate, date_diff, flt
 def execute(filters=None):
     filters = filters or {}
     if not filters.get("company"):
-        frappe.throw(_("Please select a Company"))
+        frappe.throw(_("Please select a Company"), title=_("Validation Error"))
 
     columns = get_columns()
     data = get_data(filters)

@@ -67,7 +67,8 @@
    "in_standard_filter": 1,
    "label": "Exception Type",
    "options": "CH Exception Type",
-   "reqd": 1
+   "reqd": 1,
+   "search_index": 1
   },
   {
    "fieldname": "company",
@@ -76,7 +77,8 @@
    "in_standard_filter": 1,
    "label": "Company",
    "options": "Company",
-   "reqd": 1
+   "reqd": 1,
+   "search_index": 1
   },
   {
    "fieldname": "column_break_hdr",
@@ -90,7 +92,8 @@
    "in_standard_filter": 1,
    "label": "Status",
    "options": "Pending\nApproved\nRejected\nExpired\nAuto-Approved",
-   "read_only": 1
+   "read_only": 1,
+   "search_index": 1
   },
   {
    "fieldname": "store_warehouse",
@@ -379,6 +382,28 @@
  "search_fields": "exception_type,company,reference_name,status",
  "sort_field": "creation",
  "sort_order": "DESC",
- "states": [],
- "track_changes": 1
+ "states": [
+  {
+   "color": "Yellow",
+   "title": "Pending"
+  },
+  {
+   "color": "Green",
+   "title": "Approved"
+  },
+  {
+   "color": "Red",
+   "title": "Rejected"
+  },
+  {
+   "color": "Orange",
+   "title": "Escalated"
+  },
+  {
+   "color": "Gray",
+   "title": "Cancelled"
+  }
+ ],
+ "track_changes": 1,
+ "title_field": "exception_type"
 }

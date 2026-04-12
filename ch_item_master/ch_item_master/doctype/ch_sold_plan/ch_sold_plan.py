@@ -381,7 +381,7 @@ class CHSoldPlan(Document):
 # ── Whitelisted API ────────────────────────────────────────────────────────
 
 @frappe.whitelist()
-def get_active_plans_for_serial(serial_no, company=None):
+def get_active_plans_for_serial(serial_no, company=None) -> dict:
 	"""Get all active sold plans for a serial number.
 
 	Used by GoFix Service Request to determine warranty coverage.
@@ -426,7 +426,7 @@ def get_active_plans_for_serial(serial_no, company=None):
 
 
 @frappe.whitelist()
-def check_warranty_status(serial_no, company=None):
+def check_warranty_status(serial_no, company=None) -> dict:
 	"""Quick warranty check for a serial number.
 
 	Returns a summary: warranty_covered (bool), covering_plan (dict or None),

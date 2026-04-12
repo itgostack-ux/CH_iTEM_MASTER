@@ -21,10 +21,10 @@ def generate_claim_summary(scheme_name):
 	scheme = frappe.get_doc("Supplier Scheme Circular", scheme_name)
 
 	if scheme.docstatus != 1:
-		frappe.throw(_("Scheme must be submitted before generating a claim"))
+		frappe.throw(_("Scheme must be submitted before generating a claim"), title=_("Validation Error"))
 
 	if scheme.status not in ("Active", "Closed"):
-		frappe.throw(_("Scheme must be Active or Closed to generate a claim"))
+		frappe.throw(_("Scheme must be Active or Closed to generate a claim"), title=_("Validation Error"))
 
 	# Load nested rule details (table-in-a-child-table)
 	from ch_item_master.supplier_scheme.engine import _ensure_rule_details

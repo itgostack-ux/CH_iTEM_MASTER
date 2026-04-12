@@ -65,7 +65,7 @@ def _validate_company(company):
         return None
     allowed = _get_allowed_companies()
     if company not in allowed:
-        frappe.throw(_("You do not have permission to view data for {0}").format(company))
+        frappe.throw(_("You do not have permission to view data for {0}").format(company), title=_("Validation Error"))
     return company
 
 
@@ -103,14 +103,14 @@ def _customers_of_company_subquery(company):
 # ── Public APIs ──────────────────────────────────────────────────────────────
 
 @frappe.whitelist()
-def get_allowed_companies():
+def get_allowed_companies() -> dict:
     """Return companies the current user can access (for the dropdown)."""
     companies = _get_allowed_companies()
     return {"companies": companies, "show_all": len(companies) > 1}
 
 
 @frappe.whitelist()
-def get_dashboard_data(company=None):
+def get_dashboard_data(company=None) -> dict:
     """Return complete dashboard payload.
 
     Args:
