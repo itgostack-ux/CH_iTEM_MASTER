@@ -179,16 +179,25 @@ def before_insert(doc, method=None):
     # where user only selects a model and everything else is derived)
     _populate_from_model(doc)
 
+    placeholder_code = (doc.item_code or "").strip().lower() == "__autoname"
+
     # Template/simple items — need ch_sub_category to proceed
     if not doc.ch_sub_category:
+        if placeholder_code or doc.ch_model:
+            frappe.throw(
+                _(
+                    "Unable to generate Item Code. Please select a valid CH Sub Category/Model "
+                    "and ensure Prefix is configured in CH Sub Category."
+                )
+            )
         return
 
     # Only block duplicate templates for variant sub-categories
     if doc.has_variants:
         _check_duplicate_template(doc)
 
-    # Only auto-generate item_code if not already provided (e.g. via data import)
-    if not doc.item_code:
+    # Auto-generate when item_code is blank OR UI placeholder '__autoname'.
+    if not doc.item_code or placeholder_code:
         _set_item_code(doc)
     _set_item_name(doc)
     # Duplicate name check is handled by before_save which always runs after
