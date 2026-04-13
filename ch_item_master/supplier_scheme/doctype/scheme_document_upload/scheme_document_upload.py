@@ -170,6 +170,7 @@ def _read_file_content(file_url):
 		"mime_type": mime_type,
 		"text_content": text_content,
 		"file_name": file_doc.file_name,
+		"_raw_bytes": raw,
 	}
 
 
@@ -177,14 +178,26 @@ def _extract_pdf_text(raw_bytes):
 	"""Extract text from PDF bytes. Returns empty string on failure."""
 	try:
 		import io
-		# Try pdfplumber first (better for tables)
+
+		# Try PyMuPDF (fitz) — installed as pymupdf, best for tables/columns
+		try:
+			import fitz  # pymupdf
+			doc = fitz.open(stream=raw_bytes, filetype="pdf")
+			pages = []
+			for page in doc:
+				pages.append(page.get_text("text") or "")
+			doc.close()
+			return "\n\n--- PAGE BREAK ---\n\n".join(pages)
+		except ImportError:
+			pass
+
+		# Fallback to pdfplumber if available
 		try:
 			import pdfplumber
 			with pdfplumber.open(io.BytesIO(raw_bytes)) as pdf:
 				pages = []
 				for page in pdf.pages:
 					text = page.extract_text() or ""
-					# Also try to extract tables
 					tables = page.extract_tables() or []
 					for table in tables:
 						for row in table:
@@ -288,52 +301,9 @@ Return JSON with structure:
 }"""
 
 
-def _call_ai_extraction(file_content, ai_settings):
-	"""Call OpenAI API (with vision if needed) to extract scheme data."""
+def _send_ai_request(messages, ai_settings):
+	"""POST messages to OpenAI and return parsed JSON response."""
 	import requests
-
-	messages = [
-		{"role": "system", "content": EXTRACTION_SYSTEM_PROMPT},
-	]
-
-	text = file_content.get("text_content", "")
-	mime = file_content.get("mime_type", "")
-	b64 = file_content.get("base64", "")
-
-	# If we got good text extraction, use text mode (cheaper)
-	# If text is too short or it's an image, use vision mode
-	if text and len(text) > 200:
-		messages.append({
-			"role": "user",
-			"content": (
-				f"Parse this scheme circular document:\n\n{text}\n\n"
-				"Extract all scheme parts into the specified JSON structure."
-			),
-		})
-	else:
-		# Vision mode — send as image
-		if mime == "application/pdf":
-			# For PDF with poor text, send as image
-			# OpenAI can handle PDF base64 in some models
-			media_type = "application/pdf"
-		else:
-			media_type = mime
-
-		messages.append({
-			"role": "user",
-			"content": [
-				{
-					"type": "text",
-					"text": "Parse this scheme circular document. Extract all scheme parts into the specified JSON structure.",
-				},
-				{
-					"type": "image_url",
-					"image_url": {
-						"url": f"data:{media_type};base64,{b64}",
-					},
-				},
-			],
-		})
 
 	resp = requests.post(
 		ai_settings["endpoint"],
@@ -350,9 +320,66 @@ def _call_ai_extraction(file_content, ai_settings):
 		timeout=ai_settings["timeout"],
 	)
 	resp.raise_for_status()
-
 	content = resp.json()["choices"][0]["message"]["content"]
 	return json.loads(content)
+
+
+def _call_ai_extraction(file_content, ai_settings):
+	"""Call OpenAI API (text or vision mode) to extract scheme data."""
+	messages = [
+		{"role": "system", "content": EXTRACTION_SYSTEM_PROMPT},
+	]
+
+	text = file_content.get("text_content", "")
+	mime = file_content.get("mime_type", "")
+	b64 = file_content.get("base64", "")
+
+	# Text mode (cheaper): used when PDF text extraction succeeded
+	if text and len(text) > 200:
+		messages.append({
+			"role": "user",
+			"content": (
+				f"Parse this scheme circular document:\n\n{text}\n\n"
+				"Extract all scheme parts into the specified JSON structure."
+			),
+		})
+		return _send_ai_request(messages, ai_settings)
+
+	# Vision mode — OpenAI only accepts JPEG/PNG/WEBP/GIF, NOT application/pdf.
+	if mime == "application/pdf":
+		# Render PDF pages to PNG via PyMuPDF
+		try:
+			import base64 as _b64
+			import fitz
+			pdf_doc = fitz.open(stream=file_content.get("_raw_bytes", b""), filetype="pdf")
+			for page_num in range(min(len(pdf_doc), 5)):  # cap at 5 pages
+				pix = pdf_doc[page_num].get_pixmap(dpi=150)
+				page_b64 = _b64.b64encode(pix.tobytes("png")).decode("utf-8")
+				messages.append({
+					"role": "user",
+					"content": [
+						{"type": "text", "text": f"Page {page_num + 1} of the scheme circular:"},
+						{"type": "image_url", "image_url": {"url": f"data:image/png;base64,{page_b64}"}},
+					],
+				})
+			pdf_doc.close()
+			messages.append({"role": "user", "content": "Extract all scheme parts into the specified JSON structure."})
+		except Exception as e:
+			frappe.throw(
+				_("Could not render this PDF for AI analysis: {0}").format(str(e)),
+				title=_("Scheme Document Upload Error"),
+			)
+	else:
+		# Image file (JPEG, PNG, etc.) — send directly
+		messages.append({
+			"role": "user",
+			"content": [
+				{"type": "text", "text": "Parse this scheme circular document. Extract all scheme parts into the specified JSON structure."},
+				{"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b64}"}},
+			],
+		})
+
+	return _send_ai_request(messages, ai_settings)
 
 
 def _create_single_circular(scheme_data, upload_doc):
