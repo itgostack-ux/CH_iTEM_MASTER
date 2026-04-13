@@ -5,7 +5,7 @@ frappe.ui.form.on('CH Item Price', {
 	setup(frm) {
 		// Filter item_code to only show items (not disabled)
 		frm.set_query('item_code', () => ({
-			filters: { disabled: 0 }
+			filters: { disabled: 0, has_variants: 0 }
 		}));
 
 		// Filter channel to active channels only

@@ -45,10 +45,10 @@ function _set_brand_filters(frm) {
 	const brand = frm.doc.brand;
 	if (brand) {
 		frm.set_query("item_code", () => ({
-			filters: { brand: brand, disabled: 0 },
+			filters: { brand: brand, disabled: 0, has_variants: 0 },
 		}));
 		frm.set_query("model", () => ({
-			filters: { brand: brand, disabled: 0 },
+			filters: { brand: brand, disabled: 0, has_variants: 0 },
 		}));
 	}
 }
