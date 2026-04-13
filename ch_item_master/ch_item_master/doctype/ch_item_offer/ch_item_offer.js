@@ -4,7 +4,7 @@
 frappe.ui.form.on('CH Item Offer', {
 	setup(frm) {
 		frm.set_query('item_code', () => ({
-			filters: { disabled: 0, has_variants: 0 }
+			filters: { disabled: 0 }
 		}));
 
 		frm.set_query('channel', () => ({
