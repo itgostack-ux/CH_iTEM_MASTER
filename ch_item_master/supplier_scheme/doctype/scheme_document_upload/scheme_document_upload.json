@@ -61,7 +61,7 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Status",
-   "options": "Pending\nExtracted\nSchemes Created\nFailed",
+   "options": "Pending\nExtracted\nSchemes Created\nPartial\nFailed",
    "read_only": 1
   },
   {

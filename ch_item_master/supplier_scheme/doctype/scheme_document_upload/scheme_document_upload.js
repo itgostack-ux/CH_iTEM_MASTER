@@ -270,16 +270,29 @@ function sdu_show_review_dialog(frm) {
 			</div>
 		</div>`;
 
-		// Each scheme part
+			// Each scheme part
 		schemes.forEach((s, i) => {
 			const rules = s.rules || [];
-			html += `<div class="scheme-part" style="border:1px solid #d1d8dd;border-radius:8px;padding:14px;margin-bottom:12px">
+			const already_created = s._created_doc || null;
+			const part_style = already_created
+				? "border:1px solid #c3e6cb;border-radius:8px;padding:14px;margin-bottom:12px;background:#f8fff9;opacity:0.85"
+				: "border:1px solid #d1d8dd;border-radius:8px;padding:14px;margin-bottom:12px";
+			html += `<div class="scheme-part" style="${part_style}">
 				<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
 					<h5 style="margin:0">
-						<input type="checkbox" class="scheme-check" data-idx="${i}" checked style="margin-right:8px">
+						${
+							already_created
+								? `<input type="checkbox" class="scheme-check" data-idx="${i}" disabled style="margin-right:8px">`
+								: `<input type="checkbox" class="scheme-check" data-idx="${i}" checked style="margin-right:8px">`
+						}
 						Part ${i + 1}: ${frappe.utils.escape_html(s.scheme_name)}
 					</h5>
-					<span class="badge" style="background:#e3f2fd;color:#1565c0">${s.rule_type}</span>
+					<span style="display:flex;gap:6px;align-items:center">
+						${already_created
+							? `<a href="/desk/supplier-scheme-circular/${already_created}" target="_blank" class="badge" style="background:#d4edda;color:#155724">✓ ${already_created}</a>`
+							: ""}
+						<span class="badge" style="background:#e3f2fd;color:#1565c0">${s.rule_type}</span>
+					</span>
 				</div>
 				<div class="text-muted" style="font-size:12px;margin-bottom:8px">
 					Payout: ${s.payout_basis} | Achievement: ${s.achievement_basis}
@@ -384,17 +397,20 @@ function sdu_show_review_dialog(frm) {
 					.then((r) => {
 						frappe.dom.unfreeze();
 						frm.reload_doc();
-						if (r.created && r.created.length) {
-							const links = r.created
-								.map(s => `<a href="/desk/supplier-scheme-circular/${s}">${s}</a>`)
-								.join(", ");
-							frappe.msgprint({
-								title: __("Schemes Created"),
-								message: __("Created {0} scheme(s): {1}", [r.count, links])
-									+ (r.failed ? `<br>${__("{0} failed", [r.failed])}` : ""),
-								indicator: "green",
-							});
+						const links = (r.created || [])
+							.map(s => `<a href="/desk/supplier-scheme-circular/${s}">${s}</a>`)
+							.join(", ");
+						const failed_names = r.failed_names || [];
+						let msg = __("Created {0} scheme(s): {1}", [r.count || 0, links || "—"]);
+						if (failed_names.length) {
+							msg += `<br><span style="color:#e67e22">⚠ ${failed_names.length} failed: ${failed_names.map(n => frappe.utils.escape_html(n)).join(", ")}</span>`
+								+ `<br><small>Use <b>Create Remaining Schemes</b> to retry.</small>`;
 						}
+						frappe.msgprint({
+							title: failed_names.length ? __("Partially Created") : __("Schemes Created"),
+							message: msg,
+							indicator: failed_names.length ? "orange" : "green",
+						});
 					})
 					.catch((e) => {
 						frappe.dom.unfreeze();
@@ -440,14 +456,26 @@ frappe.ui.form.on("Scheme Document Upload", {
 			);
 		}
 
+		if (frm.doc.status === "Partial" && frm.doc.extracted_json) {
+			frm.add_custom_button(
+				__("Create Remaining Schemes"),
+				() => sdu_show_review_dialog(frm),
+				__("Actions")
+			);
+		}
+
 		if (frm.doc.created_schemes) {
 			const schemes = frm.doc.created_schemes.split(",").map(s => s.trim());
 			const links = schemes
 				.map(s => `<a href="/desk/supplier-scheme-circular/${s}">${s}</a>`)
 				.join(", ");
+			const partial = frm.doc.status === "Partial";
 			frm.set_intro(
-				__("Created {0} scheme(s): {1}", [schemes.length, links]),
-				"green"
+				__(partial
+					? "Partially created — {0} scheme(s): {1}. Use <b>Create Remaining Schemes</b> to finish."
+					: "Created {0} scheme(s): {1}",
+					[schemes.length, links]),
+				partial ? "orange" : "green"
 			);
 		}
 

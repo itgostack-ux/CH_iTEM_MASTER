@@ -96,28 +96,43 @@ def create_schemes_from_upload(upload_name, schemes_json=None) -> dict:
 		frappe.throw(_("No schemes found in extracted data"), title=_("Scheme Document Upload Error"))
 
 	created = []
-	for scheme_data in schemes:
+	failed = []
+	for i, scheme_data in enumerate(schemes):
+		# Skip schemes already created in a previous run
+		if scheme_data.get("_created_doc"):
+			created.append(scheme_data["_created_doc"])
+			continue
 		try:
 			circular = _create_single_circular(scheme_data, doc)
 			created.append(circular.name)
+			# Mark this scheme as created in the data so retries skip it
+			schemes[i]["_created_doc"] = circular.name
 		except Exception:
+			failed.append(scheme_data.get("scheme_name", f"Part {i+1}"))
 			frappe.log_error(
 				frappe.get_traceback(),
 				f"Failed to create scheme: {scheme_data.get('scheme_name', '?')}"
 			)
-			frappe.msgprint(
-				_("Failed to create: {0}. Check Error Log.").format(
-					scheme_data.get("scheme_name", "Unknown")
-				),
-				indicator="orange",
-			)
 
-	if created:
-		doc.created_schemes = ", ".join(created)
+	# Persist updated extracted_json with _created_doc markers
+	data["schemes"] = schemes
+	doc.extracted_json = json.dumps(data, indent=2, ensure_ascii=False)
+
+	# Accumulate created_schemes (don't overwrite previous run's entries)
+	existing = [s.strip() for s in (doc.created_schemes or "").split(",") if s.strip()]
+	all_created = existing + [c for c in created if c not in existing]
+	if all_created:
+		doc.created_schemes = ", ".join(all_created)
+
+	all_done = all(s.get("_created_doc") for s in schemes)
+	if all_done:
 		doc.status = "Schemes Created"
-		doc.save(ignore_permissions=True)
+	elif created:
+		doc.status = "Partial"
+	doc.save(ignore_permissions=True)
 	return {
 		"created": created,
+		"failed_names": failed,
 		"count": len(created),
 		"failed": len(schemes) - len(created),
 	}
