@@ -1,5 +1,7 @@
 frappe.ui.form.on("Supplier Scheme Circular", {
 	refresh(frm) {
+		_update_days_remaining(frm);
+
 		// Status indicator colour
 		const status_color = {
 			"Draft": "gray",
@@ -87,6 +89,10 @@ frappe.ui.form.on("Supplier Scheme Circular", {
 		}
 	},
 
+	valid_to(frm) {
+		_update_days_remaining(frm);
+	},
+
 	validate(frm) {
 		// Give clear error messages instead of silent beeps
 		if (!frm.doc.rules || !frm.doc.rules.length) {
@@ -128,4 +134,14 @@ frappe.ui.form.on("Supplier Scheme Rule", {
 		frm.refresh_field("rules");
 	},
 });
+
+function _update_days_remaining(frm) {
+	if (!frm.doc.valid_to) return;
+	const today = frappe.datetime.get_today();
+	const diff = frappe.datetime.get_diff(frm.doc.valid_to, today);
+	const val = diff < 0 ? 0 : diff;
+	// Set without triggering dirty-save prompt (field is read-only anyway)
+	frm.doc.days_remaining = val;
+	frm.refresh_field("days_remaining");
+}
 
