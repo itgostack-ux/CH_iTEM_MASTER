@@ -60,6 +60,11 @@ frappe.ui.form.on("Supplier Scheme Circular", {
 		if (!is_approver) {
 			frm.set_df_property("review_notes", "read_only", 1);
 		}
+
+		// Always hide the native Submit button — use our controlled approval flow instead
+		if (frm.doc.docstatus === 0) {
+			frm.$wrapper.find(".btn-submit").hide();
+		}
 	},
 
 	validate(frm) {
