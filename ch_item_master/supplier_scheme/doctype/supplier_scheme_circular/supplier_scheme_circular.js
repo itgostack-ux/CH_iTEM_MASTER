@@ -1,8 +1,12 @@
 frappe.ui.form.on("Supplier Scheme Circular", {
 	refresh(frm) {
 		_update_days_remaining(frm);
+		_render_confidence_badge(frm);
 
-		// Status indicator colour
+		// Achievement vs target (only for saved docs)
+		if (!frm.is_new()) {
+			_render_achievement_section(frm);
+		}
 		const status_color = {
 			"Draft": "gray",
 			"Pending Approval": "orange",
@@ -146,8 +150,99 @@ function _update_days_remaining(frm) {
 	const today = frappe.datetime.get_today();
 	const diff = frappe.datetime.get_diff(frm.doc.valid_to, today);
 	const val = diff < 0 ? 0 : diff;
-	// Set without triggering dirty-save prompt (field is read-only anyway)
 	frm.doc.days_remaining = val;
 	frm.refresh_field("days_remaining");
+}
+
+function _render_confidence_badge(frm) {
+	// Remove any previous badge
+	frm.$wrapper.find(".ai-confidence-alert").remove();
+	const score = frm.doc.ai_confidence_score;
+	if (!score) return;
+
+	const color   = score >= 85 ? "#22c55e" : score >= 70 ? "#f59e0b" : "#ef4444";
+	const label   = score >= 85 ? "High confidence" : score >= 70 ? "Review recommended" : "Low confidence — verify carefully";
+	const icon    = score >= 85 ? "fa-check-circle" : score >= 70 ? "fa-exclamation-triangle" : "fa-times-circle";
+
+	const $badge = $(`
+		<div class="ai-confidence-alert" style="
+			margin: 8px 15px;
+			padding: 8px 14px;
+			border-radius: 6px;
+			border-left: 4px solid ${color};
+			background: ${color}18;
+			display: flex;
+			align-items: center;
+			gap: 10px;
+			font-size: 13px;
+		">
+			<i class="fa ${icon}" style="color:${color};font-size:16px"></i>
+			<span>
+				<strong style="color:${color}">AI Confidence: ${score}%</strong>
+				&nbsp;·&nbsp; ${label}
+			</span>
+		</div>
+	`);
+
+	// Insert below the page title bar
+	frm.$wrapper.find(".form-page").prepend($badge);
+}
+
+function _render_achievement_section(frm) {
+	if (!frm.doc.name || frm.is_new() || !frm.doc.rules || !frm.doc.rules.length) return;
+
+	frappe.call({
+		method: "ch_item_master.supplier_scheme.api.get_rule_achievements",
+		args: { scheme: frm.doc.name },
+		callback(r) {
+			if (!r.message) return;
+			const rows = r.message;
+			if (!rows.length) return;
+
+			let html = `
+				<div style="margin-top:10px">
+				<table style="width:100%;border-collapse:collapse;font-size:13px">
+					<thead>
+						<tr style="background:#f1f5f9;font-weight:600">
+							<th style="padding:6px 10px;text-align:left">Rule</th>
+							<th style="padding:6px 10px;text-align:right">Target</th>
+							<th style="padding:6px 10px;text-align:right">Achieved</th>
+							<th style="padding:6px 10px;min-width:120px">Progress</th>
+							<th style="padding:6px 10px;text-align:right">Payout Est.</th>
+						</tr>
+					</thead>
+					<tbody>
+			`;
+
+			for (const row of rows) {
+				const pct = row.target_qty > 0
+					? Math.min(100, ((row.achieved_qty / row.target_qty) * 100)).toFixed(0)
+					: null;
+				const bar_color = pct === null ? "#6b7280"
+					: pct >= 100 ? "#22c55e" : pct >= 60 ? "#f59e0b" : "#ef4444";
+				const bar = pct !== null
+					? `<div style="background:#e5e7eb;border-radius:4px;height:8px;overflow:hidden">
+						<div style="width:${pct}%;background:${bar_color};height:100%;border-radius:4px"></div>
+					   </div>
+					   <span style="font-size:11px;color:#6b7280">${pct}%</span>`
+					: `<span style="font-size:11px;color:#6b7280">No target set</span>`;
+
+				html += `
+					<tr style="border-bottom:1px solid #f1f5f9">
+						<td style="padding:6px 10px">${row.rule_name}</td>
+						<td style="padding:6px 10px;text-align:right">${row.target_qty || "—"}</td>
+						<td style="padding:6px 10px;text-align:right;font-weight:600">${row.achieved_qty}</td>
+						<td style="padding:6px 10px">${bar}</td>
+						<td style="padding:6px 10px;text-align:right">${frappe.format(row.estimated_payout, {fieldtype:"Currency"})}</td>
+					</tr>`;
+			}
+			html += `</tbody></table></div>`;
+
+			// Inject into the totals section HTML field — or use a custom section
+			const $section = frm.$wrapper.find('[data-fieldname="section_totals"]').closest(".form-section");
+			$section.find(".achievement-table").remove();
+			$section.append(`<div class="achievement-table">${html}</div>`);
+		},
+	});
 }
 

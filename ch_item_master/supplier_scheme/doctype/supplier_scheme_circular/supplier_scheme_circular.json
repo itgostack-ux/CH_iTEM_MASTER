@@ -104,6 +104,15 @@
    "search_index": 1
   },
   {
+   "fieldname": "ai_confidence_score",
+   "fieldtype": "Percent",
+   "label": "AI Confidence Score",
+   "read_only": 1,
+   "description": "Confidence score returned by AI extraction (0\u2013100). Review carefully if below 80.",
+   "bold": 1,
+   "depends_on": "eval:doc.ai_confidence_score > 0"
+  },
+  {
    "fieldname": "section_dates",
    "fieldtype": "Section Break",
    "label": "Scheme Period"
@@ -268,6 +277,14 @@
    "fieldtype": "Small Text",
    "label": "Review Notes / Rejection Reason",
    "read_only": 1
+  },
+  {
+   "fieldname": "last_expiry_reminder",
+   "fieldtype": "Date",
+   "label": "Last Expiry Reminder Sent",
+   "read_only": 1,
+   "hidden": 1,
+   "no_copy": 1
   },
   {
    "fieldname": "amended_from",

@@ -47,6 +47,7 @@ scheduler_events = {
 		"ch_item_master.ch_item_master.commercial_api.run_tag_auto_repricing",
 		"ch_item_master.ch_item_master.voucher_api.expire_vouchers",
 		"ch_item_master.supplier_scheme.scheduled.auto_close_expired_schemes",
+		"ch_item_master.supplier_scheme.scheduled.send_expiry_claim_reminders",
 	],
 	"hourly": [
 		"ch_item_master.ch_item_master.exception_api.expire_stale_exceptions",

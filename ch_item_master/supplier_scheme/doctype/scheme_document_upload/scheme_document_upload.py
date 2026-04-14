@@ -278,6 +278,8 @@ Also extract top-level info:
 - tds_percent: number
 - terms: array of key terms & conditions (strings)
 
+Also return a top-level "confidence" score (0-100) reflecting how complete and unambiguous the extraction was. Deduct points for: missing dates, ambiguous payout values, unclear model names, incomplete slab tables.
+
 Return JSON with structure:
 {
   "brand": "...",
@@ -288,6 +290,7 @@ Return JSON with structure:
   "settlement_type": "...",
   "tds_applicable": true/false,
   "tds_percent": 10,
+  "confidence": 85,
   "terms": ["...", "..."],
   "schemes": [
     {
@@ -297,6 +300,7 @@ Return JSON with structure:
       "achievement_basis": "...",
       "stackable": false,
       "notes": "...",
+      "confidence": 90,
       "rules": [
         {
           "series": "...",
@@ -439,6 +443,11 @@ def _create_single_circular(scheme_data, upload_doc):
 			terms_html += f"<li>{frappe.utils.escape_html(t)}</li>"
 		terms_html += "</ol>"
 		circular.description = terms_html
+
+	# AI confidence: use per-scheme confidence if available, else top-level
+	scheme_conf = flt(scheme_data.get("confidence", top_data.get("confidence", 0)))
+	if scheme_conf:
+		circular.ai_confidence_score = scheme_conf
 
 	# Build rule via new_doc so its _table_fieldnames comes from meta
 	# (Frappe v16: child rows created via parent.append() get empty _table_fieldnames,

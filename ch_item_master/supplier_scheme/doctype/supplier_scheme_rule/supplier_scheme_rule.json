@@ -76,6 +76,12 @@
    "label": "Rule Line Items"
   },
   {
+   "fieldname": "target_qty",
+   "fieldtype": "Int",
+   "label": "Target Qty",
+   "description": "Monthly target for this rule (for achievement tracking)"
+  },
+  {
    "fieldname": "details",
    "fieldtype": "Table",
    "label": "Details",
