@@ -5,6 +5,13 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import cint, date_diff, flt, getdate, nowdate
 
+_APPROVER_ROLES = ("Purchase Manager", "Scheme Manager", "System Manager")
+
+
+def _is_approver():
+	"""Return True if the current user holds an approval role."""
+	return any(frappe.db.exists("Has Role", {"parent": frappe.session.user, "role": r}) for r in _APPROVER_ROLES)
+
 
 class SupplierSchemeCircular(Document):
 	def validate(self):
@@ -12,6 +19,14 @@ class SupplierSchemeCircular(Document):
 		self._validate_rules()
 		self._compute_days_remaining()
 		self._compute_totals()
+
+	def before_submit(self):
+		if not _is_approver():
+			frappe.throw(
+				_("Only a Purchase Manager or Scheme Manager can activate a Supplier Scheme Circular. "
+				  "Please use 'Submit for Review' and ask a manager to approve it."),
+				title=_("Approval Required"),
+			)
 
 	def on_submit(self):
 		self.db_set("status", "Active")
@@ -110,6 +125,63 @@ class SupplierSchemeCircular(Document):
 		frappe.has_permission("Scheme Claim Summary", "create", throw=True)
 		from ch_item_master.supplier_scheme.claim_engine import generate_claim_summary
 		return generate_claim_summary(self.name)
+
+	@frappe.whitelist()
+	def submit_for_review(self) -> None:
+		"""Maker step: move a Draft scheme into Pending Approval for manager sign-off."""
+		if self.docstatus != 0:
+			frappe.throw(_("Only saved (Draft) schemes can be submitted for review."))
+		if self.status not in ("Draft",):
+			frappe.throw(_("Scheme is already '{0}'. Only Draft schemes can be submitted for review.").format(self.status))
+		self.db_set("status", "Pending Approval")
+		# Notify approvers
+		approver_emails = frappe.db.sql("""
+			SELECT DISTINCT u.email
+			FROM `tabUser` u
+			JOIN `tabHas Role` hr ON hr.parent = u.name
+			WHERE hr.role IN ('Purchase Manager','Scheme Manager','System Manager')
+			  AND u.enabled = 1 AND u.email != ''
+		""", as_list=True)
+		if approver_emails:
+			recipients = [row[0] for row in approver_emails]
+			frappe.sendmail(
+				recipients=recipients,
+				subject=_("Scheme Approval Required: {0}").format(self.scheme_name or self.name),
+				message=_(
+					"<p>Scheme <b>{name}</b> – <b>{scheme}</b> ({brand}) has been submitted for your approval.</p>"
+					"<p>Please review and Approve or Reject it.</p>"
+					'<p><a href="/app/supplier-scheme-circular/{name}">Open Scheme ›</a></p>'
+				).format(name=self.name, scheme=self.scheme_name or "", brand=self.brand or ""),
+				delayed=False,
+			)
+		frappe.msgprint(_("Scheme submitted for review. Approvers have been notified."), indicator="blue", alert=True)
+
+	@frappe.whitelist()
+	def approve_scheme(self) -> None:
+		"""Checker step: approve and activate the scheme (submits the document)."""
+		if not _is_approver():
+			frappe.throw(_("Only a Purchase Manager or Scheme Manager can approve schemes."), title=_("Not Authorised"))
+		if self.docstatus != 0 or self.status != "Pending Approval":
+			frappe.throw(_("Only schemes in 'Pending Approval' state can be approved."))
+		self.db_set("reviewed_by", frappe.session.user)
+		self.db_set("review_date", nowdate())
+		# submit() will trigger on_submit → status = Active
+		self.reload()
+		self.submit()
+		frappe.msgprint(_("Scheme approved and is now Active."), indicator="green", alert=True)
+
+	@frappe.whitelist()
+	def reject_scheme(self, reason: str = "") -> None:
+		"""Checker step: reject the scheme and return it to Draft with a note."""
+		if not _is_approver():
+			frappe.throw(_("Only a Purchase Manager or Scheme Manager can reject schemes."), title=_("Not Authorised"))
+		if self.docstatus != 0 or self.status != "Pending Approval":
+			frappe.throw(_("Only schemes in 'Pending Approval' state can be rejected."))
+		self.db_set("status", "Draft")
+		self.db_set("reviewed_by", frappe.session.user)
+		self.db_set("review_date", nowdate())
+		self.db_set("review_notes", reason or "")
+		frappe.msgprint(_("Scheme rejected and returned to Draft."), indicator="orange", alert=True)
 
 	@frappe.whitelist()
 	def close_scheme(self) -> None:

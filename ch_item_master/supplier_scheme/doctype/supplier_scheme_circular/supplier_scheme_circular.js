@@ -1,10 +1,64 @@
 frappe.ui.form.on("Supplier Scheme Circular", {
 	refresh(frm) {
-		if (frm.doc.docstatus === 0 && !frm.is_new()) {
-			// Show upload button on draft circulars too
+		// Status indicator colour
+		const status_color = {
+			"Draft": "gray",
+			"Pending Approval": "orange",
+			"Active": "green",
+			"Closed": "blue",
+			"Cancelled": "red",
+		};
+		const color = status_color[frm.doc.status] || "gray";
+		frm.page.set_indicator(frm.doc.status, color);
+
+		// ---------- MAKER: Submit for Review ----------
+		if (frm.doc.docstatus === 0 && frm.doc.status === "Draft" && !frm.is_new()) {
+			frm.add_custom_button(__("Submit for Review"), () => {
+				frappe.confirm(
+					__("Submit this scheme for manager approval? You won't be able to edit it until it is reviewed."),
+					() => frm.call("submit_for_review").then(() => frm.reload_doc())
+				);
+			}).addClass("btn-warning");
+		}
+
+		// ---------- CHECKER: Approve / Reject ----------
+		const is_approver = frappe.user.has_role(["Purchase Manager", "Scheme Manager", "System Manager"]);
+		if (frm.doc.docstatus === 0 && frm.doc.status === "Pending Approval" && is_approver) {
+			frm.add_custom_button(__("Approve"), () => {
+				frappe.confirm(
+					__("Approve and activate this scheme? This cannot be undone without cancellation."),
+					() => frm.call("approve_scheme").then(() => frm.reload_doc())
+				);
+			}, __("Review Actions")).addClass("btn-success");
+
+			frm.add_custom_button(__("Reject"), () => {
+				frappe.prompt(
+					[{
+						fieldname: "reason",
+						fieldtype: "Small Text",
+						label: __("Rejection Reason"),
+						reqd: 1,
+						description: __("This will be stored on the scheme and visible to the team."),
+					}],
+					({ reason }) => {
+						frm.call("reject_scheme", { reason }).then(() => frm.reload_doc());
+					},
+					__("Reject Scheme"),
+					__("Reject")
+				);
+			}, __("Review Actions")).addClass("btn-danger");
+		}
+
+		// ---------- Upload Scheme Document (Draft only) ----------
+		if (frm.doc.docstatus === 0 && frm.doc.status === "Draft" && !frm.is_new()) {
 			frm.add_custom_button(__("Upload Scheme Document"), () => {
 				frappe.new_doc("Scheme Document Upload");
 			});
+		}
+
+		// Make review fields read-only for non-approvers
+		if (!is_approver) {
+			frm.set_df_property("review_notes", "read_only", 1);
 		}
 	},
 
@@ -49,3 +103,4 @@ frappe.ui.form.on("Supplier Scheme Rule", {
 		frm.refresh_field("rules");
 	},
 });
+

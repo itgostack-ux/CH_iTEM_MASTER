@@ -99,7 +99,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Status",
-   "options": "Draft\nActive\nClosed\nCancelled",
+   "options": "Draft\nPending Approval\nActive\nClosed\nCancelled",
    "read_only": 1,
    "search_index": 1
   },
@@ -235,6 +235,38 @@
    "fieldname": "total_pending_amount",
    "fieldtype": "Currency",
    "label": "Total Pending",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_review",
+   "fieldtype": "Section Break",
+   "label": "Review Information",
+   "collapsible": 1,
+   "collapsible_depends_on": "eval:in_list([\"Pending Approval\",\"Active\",\"Rejected\"], doc.status)",
+   "depends_on": "eval:in_list([\"Pending Approval\",\"Active\",\"Rejected\"], doc.status)"
+  },
+  {
+   "fieldname": "reviewed_by",
+   "fieldtype": "Link",
+   "label": "Reviewed By",
+   "options": "User",
+   "read_only": 1,
+   "bold": 1
+  },
+  {
+   "fieldname": "review_date",
+   "fieldtype": "Date",
+   "label": "Review Date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_review",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "review_notes",
+   "fieldtype": "Small Text",
+   "label": "Review Notes / Rejection Reason",
    "read_only": 1
   },
   {
