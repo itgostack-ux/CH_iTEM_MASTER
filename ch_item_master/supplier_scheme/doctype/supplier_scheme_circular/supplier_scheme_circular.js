@@ -63,8 +63,14 @@ frappe.ui.form.on("Supplier Scheme Circular", {
 			frm.set_df_property("review_notes", "read_only", 1);
 		}
 
+		// On duplicate, Frappe copies the original status — reset it to Draft
+		if (frm.is_new() && frm.doc.status !== "Draft") {
+			frm.set_value("status", "Draft");
+		}
+
 		// Always hide the native Submit button — use our controlled approval flow instead
-		if (frm.doc.docstatus === 0) {
+		// Only hide when doc is already saved (btn_primary = Submit); when new, btn_primary = Save
+		if (frm.doc.docstatus === 0 && !frm.is_new()) {
 			// btn_primary is rendered after refresh; defer so we catch it
 			setTimeout(() => {
 				frm.page.btn_primary && frm.page.btn_primary.hide();
