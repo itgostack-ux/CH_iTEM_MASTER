@@ -64,6 +64,23 @@ frappe.ui.form.on("Supplier Scheme Circular", {
 		// Always hide the native Submit button — use our controlled approval flow instead
 		if (frm.doc.docstatus === 0) {
 			frm.$wrapper.find(".btn-submit").hide();
+			// Override savesubmit — intercepts the button, the "Submit this document to confirm"
+			// shortcut link, and any keyboard trigger regardless of Frappe version.
+			frm.savesubmit = function () {
+				if (frm.doc.status === "Pending Approval" && is_approver) {
+					frappe.msgprint({
+						title: __("Use Review Actions"),
+						message: __("Go to Review Actions → Approve to activate this scheme."),
+						indicator: "orange",
+					});
+				} else {
+					frappe.msgprint({
+						title: __("Approval Required"),
+						message: __("Please use the <b>Submit for Review</b> button to send this scheme for manager approval."),
+						indicator: "orange",
+					});
+				}
+			};
 		}
 	},
 
