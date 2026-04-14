@@ -63,7 +63,10 @@ frappe.ui.form.on("Supplier Scheme Circular", {
 
 		// Always hide the native Submit button — use our controlled approval flow instead
 		if (frm.doc.docstatus === 0) {
-			frm.$wrapper.find(".btn-submit").hide();
+			// btn_primary is rendered after refresh; defer so we catch it
+			setTimeout(() => {
+				frm.page.btn_primary && frm.page.btn_primary.hide();
+			}, 0);
 			// Override savesubmit — intercepts the button, the "Submit this document to confirm"
 			// shortcut link, and any keyboard trigger regardless of Frappe version.
 			frm.savesubmit = function () {
