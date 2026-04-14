@@ -425,9 +425,10 @@ def _create_single_circular(scheme_data, upload_doc):
 		terms_html += "</ol>"
 		circular.description = terms_html
 
-	# Build rule
-	rule_data = scheme_data
-	rule = circular.append("rules", {})
+	# Build rule via new_doc so its _table_fieldnames comes from meta
+	# (Frappe v16: child rows created via parent.append() get empty _table_fieldnames,
+	#  blocking grandchild .append() calls. Passing a BaseDocument skips that override.)
+	rule = frappe.new_doc("Supplier Scheme Rule")
 	rule.rule_name = scheme_data.get("scheme_name", "Rule 1")
 	rule.rule_type = _map_rule_type(scheme_data.get("rule_type", "Quantity Slab"))
 	rule.payout_basis = scheme_data.get("payout_basis", "Per Unit")
@@ -468,6 +469,9 @@ def _create_single_circular(scheme_data, upload_doc):
 		variant = line.get("model_variant", "")
 		if series or variant:
 			detail.supplier_product_name = f"{series} {variant}".strip() if series and variant else (series or variant)
+
+	# Attach the fully-built rule (with its details) to the circular
+	circular.append("rules", rule)
 
 	circular.insert(ignore_permissions=True)
 	return circular
