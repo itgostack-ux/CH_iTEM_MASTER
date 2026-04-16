@@ -1,0 +1,462 @@
+{
+ "actions": [],
+ "autoname": "naming_series:",
+ "creation": "2026-04-16 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "section_campaign",
+  "naming_series",
+  "campaign_name",
+  "company",
+  "campaign_type",
+  "column_break_info",
+  "status",
+  "valid_from",
+  "valid_upto",
+  "amended_from",
+  "section_general",
+  "description",
+  "channel",
+  "column_break_targeting",
+  "target_customer_group",
+  "target_territory",
+  "section_coupon_settings",
+  "discount_type",
+  "discount_value",
+  "code_prefix",
+  "min_order_amount",
+  "column_break_coupon",
+  "code_generation",
+  "coupon_quantity",
+  "max_use_per_code",
+  "apply_on",
+  "apply_on_item_group",
+  "apply_on_brand",
+  "pricing_rule",
+  "section_voucher_settings",
+  "voucher_type",
+  "face_value",
+  "voucher_quantity",
+  "column_break_voucher",
+  "customer_locked",
+  "single_use_voucher",
+  "max_voucher_discount",
+  "applicable_item_group",
+  "section_codes",
+  "codes",
+  "section_performance",
+  "total_codes_generated",
+  "total_distributed",
+  "total_redeemed",
+  "column_break_perf",
+  "total_discount_given",
+  "total_revenue_generated",
+  "redemption_rate"
+ ],
+ "fields": [
+  {
+   "fieldname": "section_campaign",
+   "fieldtype": "Section Break",
+   "label": "Campaign Details"
+  },
+  {
+   "default": "CPN-CAMP-.#####",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "Naming Series",
+   "options": "CPN-CAMP-.#####",
+   "reqd": 1
+  },
+  {
+   "bold": 1,
+   "fieldname": "campaign_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Campaign Name",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "campaign_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Campaign Type",
+   "options": "Coupon Code\nVoucher\nBoth",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_info",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Draft",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Draft\nActive\nPaused\nCompleted\nExpired\nCancelled",
+   "read_only": 1
+  },
+  {
+   "fieldname": "valid_from",
+   "fieldtype": "Date",
+   "label": "Valid From",
+   "reqd": 1
+  },
+  {
+   "fieldname": "valid_upto",
+   "fieldtype": "Date",
+   "label": "Valid Upto",
+   "reqd": 1
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "hidden": 1,
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "CH Coupon Campaign",
+   "print_hide": 1,
+   "read_only": 1
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "section_general",
+   "fieldtype": "Section Break",
+   "label": "Targeting & Distribution"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description"
+  },
+  {
+   "default": "All",
+   "fieldname": "channel",
+   "fieldtype": "Select",
+   "label": "Channel",
+   "options": "All\nOnline\nRetail\nWholesale"
+  },
+  {
+   "fieldname": "column_break_targeting",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "target_customer_group",
+   "fieldtype": "Link",
+   "label": "Target Customer Group",
+   "options": "Customer Group"
+  },
+  {
+   "fieldname": "target_territory",
+   "fieldtype": "Link",
+   "label": "Target Territory",
+   "options": "Territory"
+  },
+  {
+   "depends_on": "eval:doc.campaign_type=='Coupon Code' || doc.campaign_type=='Both'",
+   "fieldname": "section_coupon_settings",
+   "fieldtype": "Section Break",
+   "label": "Coupon Settings"
+  },
+  {
+   "depends_on": "eval:doc.campaign_type=='Coupon Code' || doc.campaign_type=='Both'",
+   "fieldname": "discount_type",
+   "fieldtype": "Select",
+   "label": "Discount Type",
+   "mandatory_depends_on": "eval:doc.campaign_type=='Coupon Code' || doc.campaign_type=='Both'",
+   "options": "Discount Percentage\nDiscount Amount"
+  },
+  {
+   "depends_on": "eval:doc.campaign_type=='Coupon Code' || doc.campaign_type=='Both'",
+   "fieldname": "discount_value",
+   "fieldtype": "Float",
+   "label": "Discount Value",
+   "mandatory_depends_on": "eval:doc.campaign_type=='Coupon Code' || doc.campaign_type=='Both'",
+   "non_negative": 1,
+   "precision": "2"
+  },
+  {
+   "depends_on": "eval:doc.campaign_type=='Coupon Code' || doc.campaign_type=='Both'",
+   "description": "e.g. DIWALI, SUMMER, FLAT10 — used as prefix for generated codes",
+   "fieldname": "code_prefix",
+   "fieldtype": "Data",
+   "label": "Code Prefix"
+  },
+  {
+   "depends_on": "eval:doc.campaign_type=='Coupon Code' || doc.campaign_type=='Both'",
+   "fieldname": "min_order_amount",
+   "fieldtype": "Currency",
+   "label": "Min. Order Amount",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "column_break_coupon",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Single Shared Code",
+   "depends_on": "eval:doc.campaign_type=='Coupon Code' || doc.campaign_type=='Both'",
+   "description": "<b>Single Shared Code</b>: One code shared via ads (e.g. DIWALI15). Quantity = max total uses.<br><b>Unique Codes</b>: One-per-card/customer unique codes.",
+   "fieldname": "code_generation",
+   "fieldtype": "Select",
+   "label": "Code Generation",
+   "options": "Single Shared Code\nUnique Codes"
+  },
+  {
+   "depends_on": "eval:doc.campaign_type=='Coupon Code' || doc.campaign_type=='Both'",
+   "description": "Single Shared: max total uses. Unique: number of codes to generate.",
+   "fieldname": "coupon_quantity",
+   "fieldtype": "Int",
+   "label": "Coupon Quantity",
+   "mandatory_depends_on": "eval:doc.campaign_type=='Coupon Code' || doc.campaign_type=='Both'",
+   "non_negative": 1
+  },
+  {
+   "default": "1",
+   "depends_on": "eval:(doc.campaign_type=='Coupon Code' || doc.campaign_type=='Both') && doc.code_generation=='Unique Codes'",
+   "fieldname": "max_use_per_code",
+   "fieldtype": "Int",
+   "label": "Max Use Per Code",
+   "non_negative": 1
+  },
+  {
+   "default": "Grand Total",
+   "depends_on": "eval:doc.campaign_type=='Coupon Code' || doc.campaign_type=='Both'",
+   "fieldname": "apply_on",
+   "fieldtype": "Select",
+   "label": "Apply On",
+   "options": "Grand Total\nItem Group\nBrand"
+  },
+  {
+   "depends_on": "eval:(doc.campaign_type=='Coupon Code' || doc.campaign_type=='Both') && doc.apply_on=='Item Group'",
+   "fieldname": "apply_on_item_group",
+   "fieldtype": "Link",
+   "label": "Item Group",
+   "options": "Item Group"
+  },
+  {
+   "depends_on": "eval:(doc.campaign_type=='Coupon Code' || doc.campaign_type=='Both') && doc.apply_on=='Brand'",
+   "fieldname": "apply_on_brand",
+   "fieldtype": "Link",
+   "label": "Brand",
+   "options": "Brand"
+  },
+  {
+   "depends_on": "eval:doc.campaign_type=='Coupon Code' || doc.campaign_type=='Both'",
+   "description": "Auto-created on submit. Links generated codes to this discount rule.",
+   "fieldname": "pricing_rule",
+   "fieldtype": "Link",
+   "label": "Pricing Rule",
+   "options": "Pricing Rule",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:doc.campaign_type=='Voucher' || doc.campaign_type=='Both'",
+   "fieldname": "section_voucher_settings",
+   "fieldtype": "Section Break",
+   "label": "Voucher Settings"
+  },
+  {
+   "depends_on": "eval:doc.campaign_type=='Voucher' || doc.campaign_type=='Both'",
+   "fieldname": "voucher_type",
+   "fieldtype": "Select",
+   "label": "Voucher Type",
+   "mandatory_depends_on": "eval:doc.campaign_type=='Voucher' || doc.campaign_type=='Both'",
+   "options": "Gift Card\nStore Credit\nPromo Voucher"
+  },
+  {
+   "depends_on": "eval:doc.campaign_type=='Voucher' || doc.campaign_type=='Both'",
+   "fieldname": "face_value",
+   "fieldtype": "Currency",
+   "label": "Face Value",
+   "mandatory_depends_on": "eval:doc.campaign_type=='Voucher' || doc.campaign_type=='Both'",
+   "non_negative": 1
+  },
+  {
+   "depends_on": "eval:doc.campaign_type=='Voucher' || doc.campaign_type=='Both'",
+   "fieldname": "voucher_quantity",
+   "fieldtype": "Int",
+   "label": "Voucher Quantity",
+   "mandatory_depends_on": "eval:doc.campaign_type=='Voucher' || doc.campaign_type=='Both'",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "column_break_voucher",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.campaign_type=='Voucher' || doc.campaign_type=='Both'",
+   "fieldname": "customer_locked",
+   "fieldtype": "Check",
+   "label": "Customer-Locked (Non-Transferable)"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.campaign_type=='Voucher' || doc.campaign_type=='Both'",
+   "fieldname": "single_use_voucher",
+   "fieldtype": "Check",
+   "label": "Single Use (Full Balance)"
+  },
+  {
+   "depends_on": "eval:doc.campaign_type=='Voucher' || doc.campaign_type=='Both'",
+   "fieldname": "max_voucher_discount",
+   "fieldtype": "Currency",
+   "label": "Max Discount Per Transaction",
+   "non_negative": 1
+  },
+  {
+   "depends_on": "eval:doc.campaign_type=='Voucher' || doc.campaign_type=='Both'",
+   "fieldname": "applicable_item_group",
+   "fieldtype": "Link",
+   "label": "Applicable Item Group",
+   "options": "Item Group"
+  },
+  {
+   "fieldname": "section_codes",
+   "fieldtype": "Section Break",
+   "label": "Generated Codes"
+  },
+  {
+   "fieldname": "codes",
+   "fieldtype": "Table",
+   "label": "Codes",
+   "options": "CH Campaign Code",
+   "read_only": 1
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "section_performance",
+   "fieldtype": "Section Break",
+   "label": "Performance Dashboard"
+  },
+  {
+   "fieldname": "total_codes_generated",
+   "fieldtype": "Int",
+   "label": "Total Codes Generated",
+   "read_only": 1
+  },
+  {
+   "fieldname": "total_distributed",
+   "fieldtype": "Int",
+   "label": "Total Distributed",
+   "read_only": 1
+  },
+  {
+   "bold": 1,
+   "fieldname": "total_redeemed",
+   "fieldtype": "Int",
+   "label": "Total Redeemed",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_perf",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "total_discount_given",
+   "fieldtype": "Currency",
+   "label": "Total Discount Given",
+   "read_only": 1
+  },
+  {
+   "bold": 1,
+   "fieldname": "total_revenue_generated",
+   "fieldtype": "Currency",
+   "label": "Revenue from Redeemed Codes",
+   "read_only": 1
+  },
+  {
+   "fieldname": "redemption_rate",
+   "fieldtype": "Percent",
+   "label": "Redemption Rate",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "is_submittable": 1,
+ "links": [
+  {
+   "group": "Reference",
+   "link_doctype": "Pricing Rule",
+   "link_fieldname": "name"
+  }
+ ],
+ "modified": "2026-04-16 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Ch Item Master",
+ "name": "CH Coupon Campaign",
+ "naming_rule": "By \"Naming Series\"",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "amend": 1,
+   "cancel": 1,
+   "create": 1,
+   "delete": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "amend": 1,
+   "cancel": 1,
+   "create": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Sales Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "CH Master Manager",
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Sales User"
+  },
+  {
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "role": "CH Viewer"
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

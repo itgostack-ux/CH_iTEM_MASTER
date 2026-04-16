@@ -80,15 +80,10 @@ def _extract_invoice_items(doc):
 	"""Extract item-level data needed for scheme matching."""
 	items = []
 	for row in doc.items:
-		# v16: serial numbers may be in serial_and_batch_bundle instead of serial_no text field
-		serial_no_str = row.serial_no
-		if not serial_no_str and row.get("serial_and_batch_bundle"):
-			try:
-				from erpnext.stock.serial_batch_bundle import get_serial_nos
-				sn_list = get_serial_nos(row.serial_and_batch_bundle)
-				serial_no_str = "\n".join(sn_list) if sn_list else ""
-			except Exception:
-				serial_no_str = ""
+		# Use shared serial extraction utility
+		from ch_item_master.ch_item_master.serial_utils import get_serial_nos_from_item
+		sn_list = get_serial_nos_from_item(row)
+		serial_no_str = "\n".join(sn_list) if sn_list else ""
 		items.append(
 			frappe._dict(
 				item_code=row.item_code,

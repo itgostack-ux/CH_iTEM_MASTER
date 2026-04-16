@@ -103,14 +103,25 @@ def generate_item_name(sub_category, manufacturer=None, brand=None, model=None,
             fields=["spec", "name_order"],
             order_by="name_order asc, idx asc",
         )
+        spec_value_map = {
+            sv["spec"]: sv["spec_value"]
+            for sv in spec_values
+            if sv.get("spec_value")
+        }
+        spec_parts_added = 0
         if specs_in_name:
-            spec_value_map = {
-                sv["spec"]: sv["spec_value"]
-                for sv in spec_values
-                if sv.get("spec_value")
-            }
             for spec_row in specs_in_name:
                 val = str(spec_value_map.get(spec_row.spec, "")).strip()
+                if val:
+                    name_parts.append(val)
+                    spec_parts_added += 1
+
+        # Fallback: if no specs were added to the name (sub-category has no
+        # specs or none marked in_item_name), append ALL provided attribute
+        # values so the variant name differs from the template name.
+        if not spec_parts_added and spec_value_map:
+            for sv in spec_values:
+                val = str(sv.get("spec_value", "")).strip()
                 if val:
                     name_parts.append(val)
 

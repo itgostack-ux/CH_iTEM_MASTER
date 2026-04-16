@@ -27,12 +27,29 @@ SR_TO_LIFECYCLE_STATUS = {
 
 
 def on_service_request_update(doc, method=None):
-	"""Called on Service Request on_update. Syncs status to warranty claim + lifecycle."""
+	"""Called on Service Request on_update. Syncs status to warranty claim + lifecycle.
+
+	Error-isolated so a failure here never blocks the primary GoFix
+	workflow that owns this doctype.
+	"""
 	if doc.flags.get("skip_claim_sync"):
 		return
 
-	_sync_warranty_claim(doc)
-	_sync_serial_lifecycle(doc)
+	try:
+		_sync_warranty_claim(doc)
+	except Exception:
+		frappe.log_error(
+			title=f"GoFix→Warranty Claim sync error: {doc.name}",
+			message=frappe.get_traceback(),
+		)
+
+	try:
+		_sync_serial_lifecycle(doc)
+	except Exception:
+		frappe.log_error(
+			title=f"GoFix→Serial Lifecycle sync error: {doc.name}",
+			message=frappe.get_traceback(),
+		)
 
 
 def _sync_warranty_claim(doc):

@@ -47,6 +47,59 @@ class CHExceptionRequest(Document):
 		self._validate_exception_type()
 		self._check_daily_limit()
 
+	def _validate_approver(self, approver):
+		"""Ensure only authorized managers can approve or reject exceptions."""
+		approver = approver or frappe.session.user
+		roles = set(frappe.get_roles(approver))
+		allowed_roles = {
+			"Store Manager",
+			"Sales Manager",
+			"Service Manager",
+			"System Manager",
+			"Administrator",
+		}
+		if not roles.intersection(allowed_roles):
+			frappe.throw(
+				_("User {0} is not authorized to approve or reject exception requests.").format(approver),
+				title=_("Unauthorized Approver"),
+			)
+		return approver
+
+	def _resolve_audit_event(self):
+		"""Map exception categories to a meaningful business audit event."""
+		etype = (self.exception_type or "").lower()
+		if any(k in etype for k in ("discount", "price", "msp", "margin")):
+			return "Discount Override"
+		if "return" in etype:
+			return "Return Approved"
+		if any(k in etype for k in ("buyback", "exchange")):
+			return "Buyback Value Edit"
+		if any(k in etype for k in ("repair", "estimate", "service")):
+			return "Repair Estimate Revision"
+		return "Other"
+
+	def _write_audit_log(self, before=None, after=None, remarks=None, event_type=None, user=None):
+		"""Write a best-effort governance audit entry for the exception lifecycle."""
+		try:
+			from ch_pos.audit import log_business_event
+
+			log_business_event(
+				event_type=event_type or self._resolve_audit_event(),
+				ref_doctype=self.doctype,
+				ref_name=self.name,
+				before=before,
+				after=after,
+				remarks=remarks or self.resolution_remarks or "",
+				store=self.store_warehouse,
+				company=self.company,
+				user=user or self.approver or self.requested_by,
+			)
+		except Exception:
+			frappe.log_error(
+				frappe.get_traceback(),
+				f"CH Exception Request audit log failed for {self.name}"
+			)
+
 	def before_submit(self):
 		if self.status == "Pending":
 			frappe.throw(
@@ -107,8 +160,9 @@ class CHExceptionRequest(Document):
 	def approve(self, approver=None, channel=None, otp_reference=None,
 	            resolution_value=None, remarks=None):
 		"""Approve this exception request."""
-		approver = approver or frappe.session.user
+		approver = self._validate_approver(approver)
 		now = now_datetime()
+		prior_status = self.status or "Pending"
 
 		self.status = "Approved"
 		self.approver = approver
@@ -133,23 +187,43 @@ class CHExceptionRequest(Document):
 
 		self.save(ignore_permissions=True)
 		self.submit()
+		self._write_audit_log(
+			before=prior_status,
+			after=f"Approved via {self.approval_channel}",
+			remarks=self.resolution_remarks or "Exception approved",
+			user=approver,
+		)
 		return self
 
 	def reject(self, approver=None, reason=None):
 		"""Reject this exception request."""
-		approver = approver or frappe.session.user
+		approver = self._validate_approver(approver)
 		now = now_datetime()
+		prior_status = self.status or "Pending"
+
+		reason = (reason or self.resolution_remarks or "").strip()
+		if not reason:
+			frappe.throw(
+				_("Rejection reason is mandatory for exception requests."),
+				title=_("Reason Required"),
+			)
 
 		self.status = "Rejected"
 		self.approver = approver
 		self.approver_name = frappe.db.get_value("User", approver, "full_name") or ""
 		self.resolved_at = now
 		self.resolved_by = approver
-		if reason:
-			self.resolution_remarks = reason
+		self.resolution_remarks = reason
 
 		self.save(ignore_permissions=True)
 		self.submit()
+		self._write_audit_log(
+			before=prior_status,
+			after="Rejected",
+			remarks=reason,
+			event_type="Other",
+			user=approver,
+		)
 		return self
 
 	def is_valid(self):

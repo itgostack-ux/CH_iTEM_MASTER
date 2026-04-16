@@ -75,6 +75,17 @@
    "type": "Link"
   },
   {
+   "description": "VAS operations dashboard",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "VAS Hub",
+   "link_count": 0,
+   "link_to": "vas-hub",
+   "link_type": "Page",
+   "onboard": 1,
+   "type": "Link"
+  },
+  {
    "description": "Gift cards, store credits, promo vouchers",
    "hidden": 0,
    "is_query_report": 0,
@@ -198,6 +209,13 @@
  "roles": [],
  "sequence_id": 10.0,
  "shortcuts": [
+  {
+   "color": "Pink",
+   "doc_view": "",
+   "label": "VAS Hub",
+   "link_to": "vas-hub",
+   "type": "Page"
+  },
   {
    "color": "Green",
    "doc_view": "List",
