@@ -1,7 +1,7 @@
 import frappe
 from frappe.model.document import Document
 
-from buyback.utils import validate_indian_phone
+from ch_item_master.ch_item_master.utils import validate_indian_phone
 
 
 class CHStore(Document):

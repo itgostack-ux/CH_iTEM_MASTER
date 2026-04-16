@@ -6,7 +6,7 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import nowdate, now_datetime, getdate, flt, random_string
 
-from buyback.utils import validate_indian_phone
+from ch_item_master.ch_item_master.utils import validate_indian_phone
 
 
 class CHVoucher(Document):

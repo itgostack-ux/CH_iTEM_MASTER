@@ -16,7 +16,7 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import nowdate, getdate, add_months, flt
 
-from buyback.utils import validate_indian_phone
+from ch_item_master.ch_item_master.utils import validate_indian_phone
 
 from ch_item_master.ch_item_master.exceptions import (
 	WarrantyExpiredError,

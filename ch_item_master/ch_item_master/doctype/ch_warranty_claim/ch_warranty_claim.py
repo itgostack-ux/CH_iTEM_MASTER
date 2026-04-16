@@ -38,7 +38,7 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import nowdate, now_datetime, getdate, flt
 
-from buyback.utils import validate_indian_phone
+from ch_item_master.ch_item_master.utils import validate_indian_phone
 from ch_item_master.ch_item_master.doctype.ch_vas_settings.ch_vas_settings import (
 	get_vas_settings,
 	get_warranty_company,
