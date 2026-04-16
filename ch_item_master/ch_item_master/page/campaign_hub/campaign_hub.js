@@ -40,6 +40,12 @@ class CampaignHub {
 		this.$root = $(`<div class="hub-root campaign-hub-root"></div>`).appendTo(this.page.body);
 	}
 
+	_go_list(doctype, filters = {}) {
+		const co = this.company_field?.get_value();
+		if (co) filters.company = co;
+		frappe.set_route("List", doctype, filters);
+	}
+
 	/* ── Data ─────────────────────────────────────────────────── */
 
 	refresh() {
@@ -134,7 +140,7 @@ class CampaignHub {
 
 		this.$root.find(".hub-flow-node").on("click", (e) => {
 			const step = $(e.currentTarget).data("step");
-			frappe.set_route("List", "CH Coupon Campaign", { status: step });
+			this._go_list("CH Coupon Campaign", { status: step });
 		});
 	}
 
@@ -167,7 +173,7 @@ class CampaignHub {
 		this.$root.find(".hub-kpi-card").on("click", (e) => {
 			const key = $(e.currentTarget).data("kpi");
 			const actions = {
-				active:   () => frappe.set_route("List", "CH Coupon Campaign", { status: "Active" }),
+				active:   () => this._go_list("CH Coupon Campaign", { status: "Active" }),
 				codes:    () => this._activate_tab("active"),
 				redeemed: () => this._activate_tab("redemptions"),
 				rate:     () => this._activate_tab("top"),
@@ -208,19 +214,19 @@ class CampaignHub {
 			</div>
 		`);
 
-		this.$root.on("click", ".hub-action-btn", function () {
+		this.$root.on("click", ".hub-action-btn", (e) => {
 			const actions = {
 				new_campaign:  () => frappe.new_doc("CH Coupon Campaign"),
-				all_campaigns: () => frappe.set_route("List", "CH Coupon Campaign"),
-				coupon_codes:  () => frappe.set_route("List", "Coupon Code"),
-				vouchers:      () => frappe.set_route("List", "CH Voucher"),
-				pricing_rules: () => frappe.set_route("List", "Pricing Rule", { coupon_code_based: 1 }),
+				all_campaigns: () => this._go_list("CH Coupon Campaign"),
+				coupon_codes:  () => this._go_list("Coupon Code"),
+				vouchers:      () => this._go_list("CH Voucher"),
+				pricing_rules: () => this._go_list("Pricing Rule", { coupon_code_based: 1 }),
 				lookup:        () => {
 					const $btn = $(".hub-tab[data-tab='lookup']").first();
 					if ($btn.length) $btn.trigger("click");
 				},
 			};
-			const fn = actions[$(this).data("act")];
+			const fn = actions[$(e.currentTarget).data("act")];
 			if (fn) fn();
 		});
 	}

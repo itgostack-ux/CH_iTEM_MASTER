@@ -58,6 +58,12 @@ class VASHub {
 		this.$root = $(`<div class="hub-root"></div>`).appendTo(this.page.body);
 	}
 
+	_go_list(doctype, filters = {}) {
+		const co = this.company_field?.get_value();
+		if (co) filters.company = co;
+		frappe.set_route("List", doctype, filters);
+	}
+
 	refresh() {
 		const company = this.company_field?.get_value() || "";
 		const store = this.store_field?.get_value() || "";
@@ -151,15 +157,28 @@ class VASHub {
 			<div class="hub-section">
 				<h5 class="hub-section-title"><i class="fa fa-bolt"></i> ${__("Quick Actions")}</h5>
 				<div class="hub-actions-grid">
-					<button class="hub-action-btn" onclick="frappe.set_route('List','CH Sold Plan',{status:'Active'})"><i class="fa fa-certificate"></i> ${__("Active Plans")}</button>
-					<button class="hub-action-btn" onclick="frappe.set_route('List','CH Warranty Claim',{status:'Pending Approval'})"><i class="fa fa-exclamation-circle"></i> ${__("Pending Claims")}</button>
-					<button class="hub-action-btn" onclick="frappe.set_route('List','CH Voucher',{status:'Active'})"><i class="fa fa-ticket"></i> ${__("Active Vouchers")}</button>
-					<button class="hub-action-btn" onclick="frappe.set_route('List','CH Warranty Plan')"><i class="fa fa-list"></i> ${__("Warranty Plans")}</button>
-					<button class="hub-action-btn" onclick="frappe.set_route('List','CH Sold Plan',{status:'Expired'})"><i class="fa fa-clock-o"></i> ${__("Expired Plans")}</button>
-					<button class="hub-action-btn" onclick="frappe.set_route('List','CH Warranty Claim')"><i class="fa fa-gavel"></i> ${__("All Claims")}</button>
+					<button class="hub-action-btn" data-act="active_plans"><i class="fa fa-certificate"></i> ${__("Active Plans")}</button>
+					<button class="hub-action-btn" data-act="pending_claims"><i class="fa fa-exclamation-circle"></i> ${__("Pending Claims")}</button>
+					<button class="hub-action-btn" data-act="active_vouchers"><i class="fa fa-ticket"></i> ${__("Active Vouchers")}</button>
+					<button class="hub-action-btn" data-act="warranty_plans"><i class="fa fa-list"></i> ${__("Warranty Plans")}</button>
+					<button class="hub-action-btn" data-act="expired_plans"><i class="fa fa-clock-o"></i> ${__("Expired Plans")}</button>
+					<button class="hub-action-btn" data-act="all_claims"><i class="fa fa-gavel"></i> ${__("All Claims")}</button>
 				</div>
 			</div>
 		`);
+
+		this.$root.on("click", ".hub-action-btn", (e) => {
+			const actions = {
+				active_plans:    () => this._go_list("CH Sold Plan", { status: "Active" }),
+				pending_claims:  () => this._go_list("CH Warranty Claim", { status: "Pending Approval" }),
+				active_vouchers: () => this._go_list("CH Voucher", { status: "Active" }),
+				warranty_plans:  () => this._go_list("CH Warranty Plan"),
+				expired_plans:   () => this._go_list("CH Sold Plan", { status: "Expired" }),
+				all_claims:      () => this._go_list("CH Warranty Claim"),
+			};
+			const fn = actions[$(e.currentTarget).data("act")];
+			if (fn) fn();
+		});
 	}
 
 	_render_intelligence(insights, financial) {
