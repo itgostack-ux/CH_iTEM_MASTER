@@ -166,6 +166,7 @@ class CHModel(Document):
 			"CH Sub Category Spec",
 			filters={"parent": self.sub_category, "parenttype": "CH Sub Category"},
 			pluck="spec",
+			ignore_permissions=True,
 		)
 
 		seen_pairs = set()
@@ -228,6 +229,7 @@ class CHModel(Document):
 				"parenttype": "CH Sub Category",
 			},
 			fields=["spec", "is_variant"],
+			ignore_permissions=True,
 		)
 		if not all_specs:
 			return

@@ -264,6 +264,7 @@ def _validate_ch_spec_values(doc):
             "is_variant": 0,
         },
         pluck="spec",
+        ignore_permissions=True,
     )
 
     # Check for duplicate specs in ch_spec_values
@@ -342,6 +343,17 @@ def before_save(doc, method=None):
 
     doc.ch_display_name = display_name
 
+    # Safety: if variant name is identical to the template name (specs not
+    # appended — e.g. sub-category has no in_item_name specs configured),
+    # force-append all attribute values so the variant is distinguishable.
+    if display_name and doc.variant_of:
+        tpl_name = frappe.db.get_value("Item", doc.variant_of, "item_name")
+        if display_name == tpl_name and doc.attributes:
+            attr_parts = [str(r.attribute_value).strip() for r in doc.attributes if r.attribute_value]
+            if attr_parts:
+                display_name = f"{display_name} {' '.join(attr_parts)}"
+                doc.ch_display_name = display_name
+
     if display_name:
         doc.item_name = display_name
         # Keep description in sync — replaces hyphenated default set by ERPNext variant creation
@@ -381,14 +393,20 @@ def _check_duplicate_item_name(doc):
 
     item_name is auto-generated from model + specs; a duplicate means
     the same combination already exists.
+    For variants, also exclude the template from the check — the template's
+    base name is expected to overlap (variant adds spec suffixes).
     """
     name_to_check = doc.item_name
     if not name_to_check or name_to_check == "__autoname":
         return
 
+    exclude_names = [doc.name or ""]
+    if doc.variant_of:
+        exclude_names.append(doc.variant_of)
+
     existing = frappe.db.get_value(
         "Item",
-        {"item_name": name_to_check, "name": ("!=", doc.name or "")},
+        {"item_name": name_to_check, "name": ("not in", exclude_names)},
         "name",
     )
     if existing:

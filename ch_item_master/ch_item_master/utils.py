@@ -94,6 +94,7 @@ def _get_spec_selectors(sub_category, model, grouped=None):
                  "is_variant": 1},
         fields=["spec", "name_order"],
         order_by="name_order asc, idx asc",
+        ignore_permissions=True,
     )
     if not variant_specs:
         return []
@@ -121,6 +122,7 @@ def _get_property_specs(sub_category, model, grouped=None):
                  "is_variant": 0},
         fields=["spec"],
         order_by="idx asc",
+        ignore_permissions=True,
     )
     if not property_specs:
         return []

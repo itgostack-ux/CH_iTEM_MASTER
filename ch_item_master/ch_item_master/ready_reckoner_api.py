@@ -32,6 +32,7 @@ def _get_non_price_specs():
         "CH Sub Category Spec",
         filters={"is_variant": 1, "affects_price": 0},
         fields=["parent as sub_category", "spec"],
+        ignore_permissions=True,
     )
     # Return dict: sub_category → set of non-price spec names
     result: dict = {}
@@ -783,6 +784,7 @@ def _get_sibling_item_codes(item_code):
         "CH Sub Category Spec",
         filters={"parent": sub_cat, "is_variant": 1, "affects_price": 0},
         pluck="spec",
+        ignore_permissions=True,
     )
     non_price_specs = set(spec_rows)
 

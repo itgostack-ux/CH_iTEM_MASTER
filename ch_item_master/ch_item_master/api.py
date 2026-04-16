@@ -102,6 +102,7 @@ def generate_item_name(sub_category, manufacturer=None, brand=None, model=None,
                      "in_item_name": 1},
             fields=["spec", "name_order"],
             order_by="name_order asc, idx asc",
+            ignore_permissions=True,
         )
         spec_value_map = {
             sv["spec"]: sv["spec_value"]
@@ -327,6 +328,7 @@ def get_model_attribute_values(model) -> dict:
         "CH Sub Category Spec",
         filters={"parent": sub_category, "parenttype": "CH Sub Category", "is_variant": 1},
         pluck="spec",
+        ignore_permissions=True,
     ))
 
     grouped = _group_model_spec_values(model)
