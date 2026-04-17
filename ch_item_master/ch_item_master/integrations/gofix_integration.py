@@ -11,8 +11,8 @@ from frappe.utils import nowdate, now_datetime
 
 # Map GoFix Service Request statuses to warranty claim statuses
 SR_TO_CLAIM_STATUS = {
-	"Completed": "Repair Completed",
-	"Invoiced": "Repair Completed",
+	"Completed": "Repair Complete",
+	"Invoiced": "Repair Complete",
 	"Delivered": "Delivered",
 	"Cancelled": "Cancelled",
 	"Rejected": "Rejected",
