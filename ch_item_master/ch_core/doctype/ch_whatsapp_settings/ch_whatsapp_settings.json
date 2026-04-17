@@ -22,6 +22,7 @@
   "buyback_otp",
   "column_break_buyback",
   "buyback_approved",
+  "buyback_customer_approval",
   "buyback_paid",
   "section_general_templates",
   "general_otp"
@@ -125,6 +126,12 @@
    "fieldname": "buyback_approved",
    "fieldtype": "Data",
    "label": "Order Approved"
+  },
+  {
+   "default": "buyback_customer_approval",
+   "fieldname": "buyback_customer_approval",
+   "fieldtype": "Data",
+   "label": "Customer Approval Link"
   },
   {
    "default": "buyback_paid",
