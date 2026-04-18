@@ -10,20 +10,13 @@ from frappe.utils import nowdate, now_datetime
 
 
 # Map GoFix Service Request statuses to warranty claim statuses
-SR_TO_CLAIM_STATUS = {
-	"Completed": "Repair Complete",
-	"Invoiced": "Repair Complete",
-	"Delivered": "Delivered",
-	"Cancelled": "Cancelled",
-	"Rejected": "Rejected",
-}
+# Source of truth: ch_item_master.seed_status_registry.CROSS_APP_MAPPINGS["SR_TO_CLAIM_STATUS"]
+from ch_item_master.seed_status_registry import CROSS_APP_MAPPINGS as _CAM
+
+SR_TO_CLAIM_STATUS = {k: v for k, v in _CAM["SR_TO_CLAIM_STATUS"].items() if not k.startswith("_")}
 
 # Map GoFix statuses to Serial Lifecycle statuses
-SR_TO_LIFECYCLE_STATUS = {
-	"Completed": "In Stock",    # Repaired, back in stock pending delivery
-	"Delivered": "Sold",        # Delivered back to customer
-	"Cancelled": "In Stock",    # Cancelled, device goes back to stock
-}
+SR_TO_LIFECYCLE_STATUS = {k: v for k, v in _CAM["SR_TO_LIFECYCLE_STATUS"].items() if not k.startswith("_")}
 
 
 def on_service_request_update(doc, method=None):
