@@ -207,6 +207,7 @@ class CHItemOffer(Document):
 		self.save()
 		self._sync_to_erp_pricing_rule()
 		self._sync_additional_companies()
+		self._create_tpd_scheme()
 		frappe.msgprint(
 			_("{0} approved — Pricing Rule created/updated in ERPNext").format(self.name),
 			indicator="green",
@@ -383,3 +384,118 @@ class CHItemOffer(Document):
 				_("Trigger Item and Reward Item cannot be the same"),
 				title=_("Invalid Attachment Offer"),
 			)
+
+	# ── TPD Compensation ────────────────────────────────────────────────────
+
+	def _get_offer_brand(self):
+		"""Resolve the brand for this offer (item brand, target_brand, or None)."""
+		if self.get("apply_on") == "Brand" and self.get("target_brand"):
+			return self.target_brand
+		if self.item_code:
+			return frappe.db.get_value("Item", self.item_code, "brand")
+		return None
+
+	def _create_tpd_scheme(self):
+		"""Auto-create a Supplier Scheme Circular for TPD compensation tracking.
+
+		Called on approve() when tpd_compensation_per_unit > 0.
+		Creates an active scheme so the engine immediately picks up matching sales.
+		"""
+		if not flt(self.tpd_compensation_per_unit) > 0:
+			return
+
+		# Skip if already linked (re-approving an offer)
+		if self.get("linked_scheme_circular") and frappe.db.exists(
+			"Supplier Scheme Circular", self.linked_scheme_circular
+		):
+			return
+
+		brand = self._get_offer_brand()
+		if not brand:
+			frappe.msgprint(
+				_("TPD compensation set but item brand could not be determined. "
+				  "Create the Supplier Scheme Circular manually."),
+				indicator="orange",
+				title=_("TPD Scheme Not Created"),
+			)
+			return
+
+		from frappe.utils import getdate
+
+		# ── Build rule + detail ─────────────────────────────────────────────
+		rule = frappe.new_doc("Supplier Scheme Rule")
+		rule.rule_name = f"TPD — {self.offer_name}"
+		rule.rule_type = "RRP Band Scheme" if self.value_type == "Price Override" else "Quantity Slab"
+		rule.payout_basis = "Per Unit"
+		rule.achievement_basis = "Invoice Date"
+		rule.notes = (
+			f"Auto-created for TPD offer {self.name}. "
+			f"Price override: ₹{flt(self.value):,.0f}, "
+			f"Compensation: ₹{flt(self.tpd_compensation_per_unit):,.0f}/unit."
+		)
+
+		detail = rule.append("details", {})
+		# Target: item code, item group, or brand-level (blank = brand gate on circular handles it)
+		apply_on = self.get("apply_on") or "Item Code"
+		if apply_on == "Item Code" and self.item_code:
+			detail.item_code = self.item_code
+		elif apply_on == "Item Group" and self.get("target_item_group"):
+			detail.item_group = self.target_item_group
+		# For Brand-level offers: leave item_code/item_group blank;
+		# the brand field on the circular will gate matching.
+
+		# Add RRP band so only sales at the TPD price qualify
+		if self.value_type == "Price Override" and flt(self.value) > 0:
+			# 5 % tolerance below TPD price for rounding/discount variations
+			detail.rrp_from = flt(self.value) * 0.95
+			detail.rrp_to = flt(self.value) * 1.02
+
+		detail.qty_from = 1
+		detail.qty_to = 0  # unlimited
+		detail.payout_per_unit = flt(self.tpd_compensation_per_unit)
+		detail.include_in_slab = 1
+		detail.eligible_for_payout = 1
+		detail.remarks = f"TPD: {self.offer_name}"
+
+		# ── Build circular ──────────────────────────────────────────────────
+		circular = frappe.new_doc("Supplier Scheme Circular")
+		circular.scheme_name = f"TPD — {self.offer_name}"
+		circular.brand = brand
+		circular.supplier = self.tpd_supplier or ""
+		circular.valid_from = getdate(self.start_date)
+		circular.valid_to = getdate(self.end_date)
+		circular.settlement_type = "Credit Note"
+		circular.description = (
+			f"<p>Auto-created TPD scheme for offer <b>{self.offer_name}</b> ({self.name}).</p>"
+			f"<p>Price override: ₹{flt(self.value):,.0f} | "
+			f"Compensation: ₹{flt(self.tpd_compensation_per_unit):,.0f}/unit</p>"
+		)
+		circular.append("rules", rule)
+
+		circular.flags.ignore_permissions = True
+		circular.flags.tpd_auto_create = True  # bypass approver-role check
+		circular.insert()
+
+		# Frappe v16: grandchild rows (Scheme Rule Detail) are NOT cascade-saved
+		# by circular.insert(). Fetch each saved rule row and save() it with details.
+		saved_rule = circular.rules[0]  # only one rule per TPD offer
+		rule_doc = frappe.get_doc("Supplier Scheme Rule", saved_rule.name)
+		for i, d in enumerate(saved_rule.details or []):
+			row = rule_doc.append("details", {})
+			row.update({k: v for k, v in d.as_dict().items()
+						if k not in ("name", "parent", "parenttype", "parentfield", "idx")})
+		rule_doc.save(ignore_permissions=True)
+
+		circular.flags.tpd_auto_create = True
+		circular.submit()
+
+		self.db_set("linked_scheme_circular", circular.name, update_modified=False)
+
+		frappe.msgprint(
+			_("TPD Scheme Circular {0} created and activated. All sales at the TPD price "
+			  "will be tracked automatically.").format(
+				frappe.bold(circular.name)
+			),
+			indicator="blue",
+			title=_("TPD Scheme Created"),
+		)

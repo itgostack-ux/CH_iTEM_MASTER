@@ -21,6 +21,9 @@ class SupplierSchemeCircular(Document):
 		self._compute_totals()
 
 	def before_submit(self):
+		# Allow programmatic submit from TPD offer approve() to bypass approver check
+		if self.flags.get("tpd_auto_create"):
+			return
 		if not _is_approver():
 			frappe.throw(
 				_("Only a Purchase Manager or Scheme Manager can activate a Supplier Scheme Circular. "

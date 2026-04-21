@@ -42,6 +42,11 @@
   "notes_section",
   "notes",
   "erp_pricing_rule",
+  "tpd_section",
+  "tpd_supplier",
+  "tpd_compensation_per_unit",
+  "column_break_tpd",
+  "linked_scheme_circular",
   "cross_company_section",
   "additional_companies",
   "combo_section",
@@ -312,6 +317,38 @@
    "hidden": 1,
    "read_only": 1,
    "description": "ERPNext Pricing Rule synced when this offer is approved"
+  },
+  {
+   "fieldname": "tpd_section",
+   "fieldtype": "Section Break",
+   "label": "TPD Compensation (Temporary Price Drop)",
+   "collapsible": 1,
+   "description": "If the brand compensates for this price drop, set the per-unit payout here. A Supplier Scheme Circular will be auto-created on approval to track and claim compensation."
+  },
+  {
+   "fieldname": "tpd_supplier",
+   "fieldtype": "Link",
+   "label": "Compensating Supplier",
+   "options": "Supplier",
+   "description": "Brand/supplier paying the TPD compensation"
+  },
+  {
+   "fieldname": "tpd_compensation_per_unit",
+   "fieldtype": "Currency",
+   "label": "Compensation Per Unit (₹)",
+   "description": "Amount brand pays back for each unit sold during TPD window. Leave 0 if no compensation."
+  },
+  {
+   "fieldname": "column_break_tpd",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "linked_scheme_circular",
+   "fieldtype": "Link",
+   "label": "Linked Scheme Circular",
+   "options": "Supplier Scheme Circular",
+   "read_only": 1,
+   "description": "Auto-created Supplier Scheme Circular for tracking TPD compensation"
   },
   {
    "fieldname": "cross_company_section",
