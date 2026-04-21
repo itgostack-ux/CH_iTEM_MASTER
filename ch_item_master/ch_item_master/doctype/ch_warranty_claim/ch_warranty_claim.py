@@ -1679,10 +1679,26 @@ class CHWarrantyClaim(Document):
 				"name", order_by="creation asc"
 			) or ""
 
+			# Resolve contact number: claim field → Customer mobile_no → alternate phone
+			contact_number = self.customer_phone or ""
+			if not contact_number and self.customer:
+				contact_number = frappe.db.get_value(
+					"Customer", self.customer, "mobile_no"
+				) or frappe.db.get_value(
+					"Customer", self.customer, "ch_alternate_phone"
+				) or ""
+
+			if not contact_number:
+				frappe.throw(
+					_("Cannot create GoFix ticket — customer mobile number is not set. "
+					  "Please update the customer record with a mobile number."),
+					title=_("Missing Contact Number"),
+				)
+
 			sr = frappe.new_doc("Service Request")
 			sr.customer = self.customer
 			sr.customer_name = self.customer_name
-			sr.contact_number = self.customer_phone or ""
+			sr.contact_number = contact_number
 			sr.company = get_service_company()
 			sr.device_item = self.item_code
 			sr.serial_no = self.serial_no
