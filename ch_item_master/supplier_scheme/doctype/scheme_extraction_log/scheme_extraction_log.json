@@ -1,0 +1,90 @@
+{
+ "actions": [],
+ "creation": "2026-04-21 10:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "timestamp",
+  "level",
+  "step",
+  "column_break_1",
+  "ai_model",
+  "section_message",
+  "message",
+  "section_traceback",
+  "traceback"
+ ],
+ "fields": [
+  {
+   "default": "now",
+   "fieldname": "timestamp",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Timestamp",
+   "read_only": 1
+  },
+  {
+   "fieldname": "level",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Level",
+   "options": "Info\nWarning\nError",
+   "read_only": 1
+  },
+  {
+   "fieldname": "step",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Step",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "ai_model",
+   "fieldtype": "Data",
+   "label": "AI Model",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_message",
+   "fieldtype": "Section Break",
+   "label": "Message"
+  },
+  {
+   "fieldname": "message",
+   "fieldtype": "Small Text",
+   "in_list_view": 1,
+   "label": "Message",
+   "read_only": 1
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "section_traceback",
+   "fieldtype": "Section Break",
+   "label": "Traceback"
+  },
+  {
+   "fieldname": "traceback",
+   "fieldtype": "Code",
+   "label": "Traceback",
+   "options": "Python",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-04-21 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Supplier Scheme",
+ "name": "Scheme Extraction Log",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}

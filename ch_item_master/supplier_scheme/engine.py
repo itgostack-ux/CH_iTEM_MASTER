@@ -143,6 +143,21 @@ def _match_item_to_rule(rule, item_row, invoice_doc):
 		if detail.exclusion_flag:
 			continue
 
+		item_code = (detail.item_code or "").strip()
+		item_group = (detail.item_group or "").strip()
+		model = (detail.model or "").strip()
+		series = (detail.series or "").strip()
+
+		# Imported scheme lines often keep generic placeholders from the
+		# document parser. Treat those values as wildcards so they do not
+		# block otherwise valid matches.
+		if item_group.lower() in {"all item groups", "all groups", "all items", "all"}:
+			item_group = ""
+		if model.lower() in {"all models", "all model", "all"}:
+			model = ""
+		if series.lower() in {"all series", "all series/families", "all"}:
+			series = ""
+
 		# Date applicability check
 		if detail.applicable_from_date and getdate(invoice_doc.posting_date) < getdate(detail.applicable_from_date):
 			continue
@@ -150,17 +165,17 @@ def _match_item_to_rule(rule, item_row, invoice_doc):
 			continue
 
 		# Item matching (any specified criterion must match)
-		if detail.item_code and detail.item_code != item_row.item_code:
+		if item_code and item_code != item_row.item_code:
 			continue
-		if detail.item_group and detail.item_group != item_row.item_group:
+		if item_group and item_group != item_row.item_group:
 			continue
-		if detail.model and detail.model != _get_item_model(item_row.item_code):
+		if model and model != _get_item_model(item_row.item_code):
 			continue
-		if detail.series and not _series_match(detail.series, item_row.item_code):
+		if series and not _series_match(series, item_row.item_code):
 			continue
 
 		# At least one filter must be specified
-		if not any([detail.item_code, detail.item_group, detail.model, detail.series]):
+		if not any([item_code, item_group, model, series]):
 			continue
 
 		# Brand must match the scheme brand

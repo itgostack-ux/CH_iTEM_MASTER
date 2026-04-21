@@ -31,11 +31,19 @@ def extract_scheme_data(upload_name) -> dict:
 	if not ai_settings:
 		frappe.throw(_("POS AI Settings not configured. Please set up API key."), title=_("Scheme Document Upload Error"))
 
+	# Clear previous log rows so a retry starts fresh
+	doc.extraction_logs = []
+
 	try:
+		_add_log(doc, "Info", "File Read", "Reading uploaded document from file system")
 		file_url = doc.document_file
 		file_content = _read_file_content(file_url)
+		mime = file_content.get("mime_type", "unknown")
+		_add_log(doc, "Info", "File Read", f"File loaded — type: {mime}, size: {len(file_content.get('base64', '')) * 3 // 4} bytes")
 
+		_add_log(doc, "Info", "AI Request", f"Sending to AI model {ai_settings.get('model')} (timeout {ai_settings['timeout']}s)")
 		extracted = _call_ai_extraction(file_content, ai_settings)
+		_add_log(doc, "Info", "AI Request", "AI responded successfully", ai_model=ai_settings.get("model"))
 
 		doc.extracted_json = json.dumps(extracted, indent=2, ensure_ascii=False)
 		doc.ai_model_used = ai_settings.get("model")
@@ -51,13 +59,18 @@ def extract_scheme_data(upload_name) -> dict:
 			if match:
 				doc.brand = match
 
-		log_lines = []
 		schemes = extracted.get("schemes", [])
-		log_lines.append(f"Extracted {len(schemes)} scheme part(s)")
+		_add_log(doc, "Info", "Extraction Complete", f"Extracted {len(schemes)} scheme part(s)")
 		for i, s in enumerate(schemes):
 			rules_count = len(s.get("rules", []))
-			log_lines.append(f"  Part {i+1}: {s.get('scheme_name', '?')} — {rules_count} rule lines")
-		doc.extraction_log = "\n".join(log_lines)
+			_add_log(doc, "Info", "Extraction Complete",
+				f"Part {i+1}: {s.get('scheme_name', '?')} — {rules_count} rule lines")
+
+		# Keep legacy text field in sync for backward compat
+		summary_lines = [f"Extracted {len(schemes)} scheme part(s)"]
+		for i, s in enumerate(schemes):
+			summary_lines.append(f"  Part {i+1}: {s.get('scheme_name', '?')} — {len(s.get('rules', []))} rule lines")
+		doc.extraction_log = "\n".join(summary_lines)
 
 		doc.save(ignore_permissions=True)
 		return {
@@ -66,12 +79,33 @@ def extract_scheme_data(upload_name) -> dict:
 			"extracted": extracted,
 		}
 	except Exception:
+		tb = frappe.get_traceback()
+		# User-friendly message depending on error type
+		if "ReadTimeoutError" in tb or "Timeout" in tb or "timed out" in tb.lower():
+			user_msg = _("AI request timed out. The document may be large or the server is busy. "
+				"Please retry — the timeout is set to {0}s. You can increase it in POS AI Settings."
+			).format(ai_settings.get("timeout", 120))
+			step_label = "AI Request Timeout"
+		elif "ConnectionError" in tb or "NewConnectionError" in tb:
+			user_msg = _("Could not reach the AI server (api.openai.com). Check internet connectivity and retry.")
+			step_label = "AI Connection Error"
+		elif "401" in tb or "Unauthorized" in tb:
+			user_msg = _("AI API key rejected (401 Unauthorized). Please update the API key in POS AI Settings.")
+			step_label = "AI Auth Error"
+		elif "429" in tb or "RateLimitError" in tb:
+			user_msg = _("AI rate limit reached. Wait a minute and retry.")
+			step_label = "AI Rate Limit"
+		else:
+			user_msg = _("AI extraction failed. See the Extraction Log table for the full error.")
+			step_label = "Extraction Error"
+
+		_add_log(doc, "Error", step_label, user_msg, traceback=tb[-3000:])
 		doc.status = "Failed"
-		doc.extraction_log = frappe.get_traceback()[-2000:]
+		doc.extraction_log = user_msg + "\n\n" + tb[-1500:]
 		doc.save(ignore_permissions=True)
 		frappe.db.commit()
-		frappe.log_error(frappe.get_traceback(), f"Scheme extraction failed: {upload_name}")
-		frappe.throw(_("AI extraction failed. Check Extraction Log for details."), title=_("Scheme Document Upload Error"))
+		frappe.log_error(tb, f"Scheme extraction failed: {upload_name}")
+		frappe.throw(user_msg, title=_("Extraction Failed"))
 
 
 @frappe.whitelist()
@@ -155,10 +189,25 @@ def _get_ai_settings():
 			"api_key": api_key,
 			"endpoint": settings.api_endpoint or "https://api.openai.com/v1/chat/completions",
 			"model": settings.comparison_model or "gpt-4o",
-			"timeout": max(settings.timeout_sec or 30, 30),
+			# Minimum 120s — scheme images can be large and GPT-4o vision is slow
+			"timeout": max(settings.timeout_sec or 120, 120),
 		}
 	except frappe.DoesNotExistError:
 		return None
+
+
+def _add_log(doc, level, step, message, traceback=None, ai_model=None):
+	"""Append one row to the doc's extraction_logs child table."""
+	from frappe.utils import now_datetime
+	row = doc.append("extraction_logs", {
+		"timestamp": now_datetime(),
+		"level": level,
+		"step": step,
+		"message": (message or "")[:500],
+		"traceback": traceback or "",
+		"ai_model": ai_model or "",
+	})
+	return row
 
 
 def _read_file_content(file_url):

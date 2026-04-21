@@ -16,9 +16,10 @@ function sdu_extract_scheme(frm) {
 		.catch((e) => {
 			frappe.dom.unfreeze();
 			frm.reload_doc();
+			const msg = e.message || __("AI extraction failed. Check the Extraction Log table on the form for details.");
 			frappe.msgprint({
 				title: __("Extraction Failed"),
-				message: e.message || __("Check Error Log for details"),
+				message: msg + "<br><br><i>" + __("The Extraction Log table below shows each step and the exact error.") + "</i>",
 				indicator: "red",
 			});
 		});
@@ -480,7 +481,16 @@ frappe.ui.form.on("Scheme Document Upload", {
 		}
 
 		if (frm.doc.status === "Failed") {
-			frm.set_intro(__("Extraction failed. Check the Extraction Log."), "red");
+			frm.set_intro(
+				__("Extraction failed — see the <b>Extraction Log</b> table below for the exact error. "
+					+ "Fix the issue and click <b>Retry Extraction</b>."),
+				"red"
+			);
+			frm.add_custom_button(
+				__("Retry Extraction"),
+				() => sdu_extract_scheme(frm),
+				__("Actions")
+			);
 		}
 	},
 

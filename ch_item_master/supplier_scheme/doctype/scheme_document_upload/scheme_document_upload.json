@@ -16,6 +16,8 @@
   "ai_model_used",
   "column_break_ai",
   "extraction_log",
+  "section_extraction_logs",
+  "extraction_logs",
   "section_schemes",
   "created_schemes",
   "section_notes",
@@ -91,7 +93,21 @@
   {
    "fieldname": "extraction_log",
    "fieldtype": "Small Text",
+   "label": "Extraction Log (Legacy)",
+   "read_only": 1,
+   "hidden": 1
+  },
+  {
+   "collapsible": 0,
+   "fieldname": "section_extraction_logs",
+   "fieldtype": "Section Break",
+   "label": "Extraction Log"
+  },
+  {
+   "fieldname": "extraction_logs",
+   "fieldtype": "Table",
    "label": "Extraction Log",
+   "options": "Scheme Extraction Log",
    "read_only": 1
   },
   {
