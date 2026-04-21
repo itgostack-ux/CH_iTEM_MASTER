@@ -311,26 +311,26 @@ def create_from_pos_invoice(doc, method=None) -> dict:
 
 		if existing:
 			# Append invoice row to existing receivable
-			doc = frappe.get_doc("CH Scheme Receivable", existing)
+			receivable_doc = frappe.get_doc("CH Scheme Receivable", existing)
 			already_linked = any(
 				r.invoice_type == inv_doctype and r.invoice == inv.name
-				for r in doc.invoices
+				for r in receivable_doc.invoices
 			)
 			if not already_linked:
-				doc.append("invoices", {
+				receivable_doc.append("invoices", {
 					"invoice_type": inv_doctype,
 					"invoice": inv.name,
 					"invoice_date": inv.posting_date,
 					"customer": inv.customer,
 					"amount": recv_amount,
 				})
-				doc.claim_amount = flt(doc.claim_amount) + recv_amount
-				doc.flags.ignore_validate_update_after_submit = True
-				doc.save(ignore_permissions=True)
-			created.append(doc.name)
+				receivable_doc.claim_amount = flt(receivable_doc.claim_amount) + recv_amount
+				receivable_doc.flags.ignore_validate_update_after_submit = True
+				receivable_doc.save(ignore_permissions=True)
+			created.append(receivable_doc.name)
 		else:
 			# Create new receivable
-			doc = frappe.get_doc({
+			receivable_doc = frappe.get_doc({
 				"doctype": "CH Scheme Receivable",
 				"scheme_type": scheme_type,
 				"party_type": party_type,
@@ -347,8 +347,8 @@ def create_from_pos_invoice(doc, method=None) -> dict:
 					"amount": recv_amount,
 				}],
 			})
-			doc.insert(ignore_permissions=True)
-			created.append(doc.name)
+			receivable_doc.insert(ignore_permissions=True)
+			created.append(receivable_doc.name)
 
 	if created:
 		frappe.db.commit()
