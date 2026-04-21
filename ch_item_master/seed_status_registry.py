@@ -16,6 +16,77 @@ Added to after_migrate hook so every deploy catches mismatches early.
 import frappe
 from frappe.utils import cstr
 
+
+# Minimal idempotent seed-upgrades for legacy sites.
+# These options are auto-added if missing so migrate output stays clean.
+SEED_STATUS_OPTION_UPGRADES = {
+	"POS Kiosk Token": {
+		"status": ["Expired"],
+	},
+}
+
+
+def _set_field_options(doctype, fieldname, options_list):
+	"""Persist Select options via Custom Field or Property Setter."""
+	options_text = "\n".join(options_list)
+
+	custom_field_name = frappe.db.get_value(
+		"Custom Field", {"dt": doctype, "fieldname": fieldname}, "name"
+	)
+	if custom_field_name:
+		frappe.db.set_value("Custom Field", custom_field_name, "options", options_text)
+		return
+
+	ps_filters = {
+		"doc_type": doctype,
+		"doctype_or_field": "DocField",
+		"field_name": fieldname,
+		"property": "options",
+	}
+	if frappe.db.exists("Property Setter", ps_filters):
+		frappe.db.set_value("Property Setter", ps_filters, "value", options_text)
+	else:
+		frappe.get_doc(
+			{
+				"doctype": "Property Setter",
+				"doc_type": doctype,
+				"doctype_or_field": "DocField",
+				"field_name": fieldname,
+				"property": "options",
+				"property_type": "Text",
+				"value": options_text,
+			}
+		).insert(ignore_permissions=True)
+
+
+def apply_status_option_seed_upgrades():
+	"""Ensure known missing legacy status options are auto-seeded."""
+	applied = []
+	for doctype, fields in SEED_STATUS_OPTION_UPGRADES.items():
+		if not frappe.db.exists("DocType", doctype):
+			continue
+
+		meta = frappe.get_meta(doctype)
+		for fieldname, required_options in fields.items():
+			field = meta.get_field(fieldname)
+			if not field:
+				continue
+
+			actual_options = [o.strip() for o in cstr(field.options).split("\n") if o.strip()]
+			to_add = [opt for opt in required_options if opt not in actual_options]
+			if not to_add:
+				continue
+
+			new_options = actual_options + to_add
+			_set_field_options(doctype, fieldname, new_options)
+			applied.append(f"  {doctype}.{fieldname}: added {to_add}")
+
+	# Clear cache once to ensure meta reflects upgrades in current migrate run.
+	if applied:
+		frappe.clear_cache()
+
+	return applied
+
 # ═══════════════════════════════════════════════════════════════════════
 # MASTER REGISTRY — All status field options that code depends on
 # Format: { "Doctype": { "fieldname": [list of valid options] } }
@@ -126,6 +197,7 @@ STATUS_REGISTRY = {
 			"Converted",
 			"Dropped",
 			"Cancelled",
+			"Expired",
 		],
 	},
 	"CH Exception Request": {
@@ -255,6 +327,7 @@ def validate_status_registry():
 	errors = []
 	warnings = []
 	fixed = []
+	fixed.extend(apply_status_option_seed_upgrades())
 
 	print("\n" + "=" * 70)
 	print("  STATUS REGISTRY VALIDATION")
