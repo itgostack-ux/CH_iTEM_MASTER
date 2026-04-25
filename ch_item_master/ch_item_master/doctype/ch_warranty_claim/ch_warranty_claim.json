@@ -195,6 +195,8 @@
   "processing_fee_paid_at",
   "processing_fee_paid_amount",
   "processing_fee_payment_ref",
+  "gateway_order_id",
+  "gateway_payload",
   "section_fee_waiver",
   "processing_fee_waived_amount",
   "processing_fee_waiver_reason",
@@ -1226,6 +1228,23 @@
    "fieldtype": "Data",
    "label": "Payment Reference",
    "allow_on_submit": 1
+  },
+  {
+   "fieldname": "gateway_order_id",
+   "fieldtype": "Data",
+   "label": "Gateway Order ID",
+   "read_only": 1,
+   "allow_on_submit": 1,
+   "hidden": 1
+  },
+  {
+   "fieldname": "gateway_payload",
+   "fieldtype": "Small Text",
+   "label": "Gateway Payload",
+   "read_only": 1,
+   "allow_on_submit": 1,
+   "hidden": 1,
+   "description": "Raw JSON payload from payment gateway webhook (last 2000 chars)"
   },
   {
    "fieldname": "section_fee_waiver",

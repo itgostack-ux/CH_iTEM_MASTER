@@ -864,11 +864,83 @@ class CHWarrantyClaim(Document):
 		self._log("Fee Paid", old, "Fee Paid",
 		          remarks or f"Processing fee ₹{amount} paid via {payment_mode or 'N/A'}")
 
+		# Post GL entry: Dr Cash/Receivable → Cr Processing Fee Revenue
+		self._post_processing_fee_gl(amount, payment_mode, payment_ref)
+
 		return {
 			"claim_name": self.name,
 			"claim_status": "Fee Paid",
 			"processing_fee_status": "Paid",
 		}
+
+	def _post_processing_fee_gl(self, amount: float, payment_mode: str = None,
+	                             payment_ref: str = None) -> None:
+		"""Create journal entry for processing fee cash receipt.
+
+		Dr Cash / Receivable  →  Cr Processing Fee Revenue
+		Silently skips if accounts are not configured (logs warning).
+		"""
+		company = self.company or frappe.defaults.get_global_default("company")
+		if not company:
+			return
+
+		settings = frappe.get_cached_doc("CH VAS Settings")
+		revenue_account = settings.get("processing_fee_revenue_account")
+		if not revenue_account:
+			frappe.log_error(
+				f"Processing fee GL skipped for {self.name}: "
+				"'Processing Fee Revenue Account' not set in CH VAS Settings.",
+				"Warranty Fee GL"
+			)
+			return
+
+		# Debit side: configured receivable account or company default cash account
+		debit_account = settings.get("processing_fee_receivable_account") or \
+			frappe.db.get_value("Company", company, "default_cash_account")
+		if not debit_account:
+			frappe.log_error(
+				f"Processing fee GL skipped for {self.name}: no cash/receivable account found.",
+				"Warranty Fee GL"
+			)
+			return
+
+		cost_center = frappe.db.get_value("Company", company, "cost_center")
+
+		try:
+			je = frappe.new_doc("Journal Entry")
+			je.update({
+				"voucher_type": "Journal Entry",
+				"company": company,
+				"posting_date": frappe.utils.today(),
+				"cheque_no": payment_ref or self.name,
+				"cheque_date": frappe.utils.today(),
+				"remark": _("Processing fee for warranty claim {0} — {1}").format(
+					self.name, payment_mode or "Cash"
+				),
+				"accounts": [
+					{
+						"account": debit_account,
+						"debit_in_account_currency": flt(amount),
+						"cost_center": cost_center,
+						"reference_type": "CH Warranty Claim",
+						"reference_name": self.name,
+					},
+					{
+						"account": revenue_account,
+						"credit_in_account_currency": flt(amount),
+						"cost_center": cost_center,
+						"reference_type": "CH Warranty Claim",
+						"reference_name": self.name,
+					},
+				],
+			})
+			je.flags.ignore_permissions = True
+			je.insert(ignore_permissions=True)
+			je.submit()
+			self.db_set("processing_fee_invoice", je.name, update_modified=False)
+		except Exception:
+			frappe.log_error(frappe.get_traceback(),
+			                 f"Processing fee GL failed for {self.name}")
 
 	# ── Fee notification helpers ──────────────────────────────────────
 

@@ -75,7 +75,6 @@ def _sync_warranty_claim(doc):
 	if current in ("Closed", "Cancelled", "Delivered"):
 		return
 
-	# Update claim
 	frappe.db.set_value(
 		"CH Warranty Claim", claim_name,
 		{
@@ -85,14 +84,22 @@ def _sync_warranty_claim(doc):
 		update_modified=True,
 	)
 
+	# Notify any open CH Warranty Claim form so it refreshes without a page reload
+	frappe.publish_realtime(
+		"ch_claim_status_update",
+		{"name": claim_name, "status": new_claim_status},
+		doctype="CH Warranty Claim",
+		docname=claim_name,
+	)
+
 	# Log the status change
 	try:
 		claim = frappe.get_doc("CH Warranty Claim", claim_name)
 		claim._log(
-			f"GoFix Sync: {sr_status}",
+			_("GoFix Sync: {0}").format(sr_status),
 			current,
 			new_claim_status,
-			f"Auto-updated from Service Request {sr_name} status: {sr_status}",
+			_("Auto-updated from Service Request {0} status: {1}").format(sr_name, sr_status),
 		)
 	except Exception:
 		frappe.log_error(
@@ -111,37 +118,36 @@ def _sync_serial_lifecycle(doc):
 
 	new_lifecycle_status = SR_TO_LIFECYCLE_STATUS.get(sr_status)
 	if not new_lifecycle_status:
-		# For in-progress statuses, set to "In Service"
+		# In-progress statuses map to "In Service"
 		if sr_status in ("Accepted", "In Service", "In Progress", "Repair In Progress"):
 			new_lifecycle_status = "In Service"
 		else:
 			return
 
-	# Check if CH Serial Lifecycle exists
 	if not frappe.db.exists("CH Serial Lifecycle", serial_no):
 		return
 
-	current_status = frappe.db.get_value(
-		"CH Serial Lifecycle", serial_no, "lifecycle_status"
-	)
+	current_status = frappe.db.get_value("CH Serial Lifecycle", serial_no, "lifecycle_status")
 	if current_status == new_lifecycle_status:
 		return
 
-	# Terminal statuses should not be overwritten
+	# Terminal statuses must not be overwritten by service state changes
 	if current_status in ("Scrapped", "Lost"):
 		return
 
-	try:
-		lc = frappe.get_doc("CH Serial Lifecycle", serial_no)
-		lc.lifecycle_status = new_lifecycle_status
-		lc.notes = f"GoFix Service Request {doc.name}: {sr_status}"
-		lc.flags.ignore_permissions = True
-		lc.save()
-	except Exception:
-		frappe.log_error(
-			f"Failed to update lifecycle for {serial_no} from SR {doc.name}",
-			"GoFix → Serial Lifecycle Sync",
-		)
+	# Use the canonical API so lifecycle log child table is populated correctly
+	from ch_item_master.ch_item_master.doctype.ch_serial_lifecycle.ch_serial_lifecycle import (
+		update_lifecycle_status,
+	)
+	update_lifecycle_status(
+		serial_no=serial_no,
+		new_status=new_lifecycle_status,
+		company=doc.get("company") or frappe.defaults.get_global_default("company"),
+		warehouse=None,
+		remarks=_("GoFix Service Request {0}: {1}").format(doc.name, sr_status),
+		reference_doctype="Service Request",
+		reference_name=doc.name,
+	)
 
 
 def _map_repair_status(sr_status):

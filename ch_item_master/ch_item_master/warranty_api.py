@@ -13,7 +13,7 @@ Usage from GoFix:
 
 import frappe
 from frappe import _
-from frappe.utils import nowdate, getdate, add_months, flt
+from frappe.utils import nowdate, now_datetime, getdate, add_months, flt
 
 from ch_item_master.security import get_company_filter_value, get_company_scope
 
@@ -1075,23 +1075,300 @@ def perform_final_qc_claim(claim_name, qc_result, qc_remarks=None) -> dict:
 
 
 @frappe.whitelist(allow_guest=True)
-def pay_processing_fee(claim, amount=None) -> dict:
+def pay_processing_fee(claim: str, amount=None) -> dict:
 	"""Public endpoint for processing fee payment (via payment link).
 
-	In production, integrate with payment gateway. For now, returns
-	a stub page or marks as paid after verification.
+	Creates a payment order with the configured gateway and returns the
+	credentials needed for the customer's browser to complete payment.
+	If no gateway is configured, returns a stub response for manual payment.
 	"""
 	if not claim or not frappe.db.exists("CH Warranty Claim", claim):
 		frappe.throw(_("Invalid claim"), frappe.DoesNotExistError, title=_("API Error"))
 
-	# Return basic payment info (integrate with payment gateway later)
 	doc = frappe.get_doc("CH Warranty Claim", claim)
+
+	if doc.processing_fee_status == "Paid":
+		return {
+			"claim_name": doc.name,
+			"customer_name": doc.customer_name,
+			"amount": flt(doc.processing_fee_amount),
+			"status": "Paid",
+			"already_paid": True,
+		}
+
+	fee_amount = flt(amount) if amount else flt(doc.processing_fee_amount)
+	if fee_amount <= 0:
+		frappe.throw(_("Processing fee amount must be greater than zero."), title=_("Payment Error"))
+
+	settings = frappe.get_cached_doc("CH VAS Settings")
+	provider = settings.get("payment_gateway_provider")
+
+	if provider == "Razorpay":
+		return _create_razorpay_order(doc, fee_amount, settings)
+	elif provider == "Cashfree":
+		return _create_cashfree_order(doc, fee_amount, settings)
+	elif provider == "PayU":
+		return _create_payu_order(doc, fee_amount, settings)
+
+	# No gateway configured — return info for manual/offline payment
 	return {
 		"claim_name": doc.name,
 		"customer_name": doc.customer_name,
-		"amount": flt(doc.processing_fee_amount),
-		"status": doc.processing_fee_status,
+		"amount": fee_amount,
+		"currency": "INR",
+		"status": doc.processing_fee_status or "Pending",
+		"payment_mode": "manual",
+		"instructions": _("Please pay ₹{0} at the service center counter and quote claim {1}.").format(
+			fee_amount, doc.name
+		),
 	}
+
+
+def _create_razorpay_order(doc, amount: float, settings) -> dict:
+	"""Create a Razorpay order and return checkout params."""
+	import hmac
+	import hashlib
+	import json
+
+	key_id = settings.get("payment_gateway_merchant_id")
+	key_secret = settings.get_password("payment_gateway_api_key")
+	if not key_id or not key_secret:
+		frappe.throw(_("Razorpay credentials are not configured in CH VAS Settings."), title=_("Payment Config Error"))
+
+	try:
+		import requests
+
+		payload = {
+			"amount": int(amount * 100),  # paise
+			"currency": "INR",
+			"receipt": doc.name,
+			"notes": {
+				"claim_name": doc.name,
+				"customer": doc.customer_name or "",
+			},
+		}
+		resp = requests.post(
+			"https://api.razorpay.com/v1/orders",
+			json=payload,
+			auth=(key_id, key_secret),
+			timeout=10,
+		)
+		resp.raise_for_status()
+		order = resp.json()
+	except Exception as e:
+		frappe.log_error(frappe.get_traceback(), f"Razorpay order creation failed: {doc.name}")
+		frappe.throw(_("Payment gateway error. Please try again or contact support."), title=_("Gateway Error"))
+
+	# Persist the gateway order ID on the claim for webhook correlation
+	frappe.db.set_value("CH Warranty Claim", doc.name, "gateway_order_id", order["id"], update_modified=False)
+
+	return {
+		"claim_name": doc.name,
+		"customer_name": doc.customer_name,
+		"amount": amount,
+		"currency": "INR",
+		"payment_mode": "razorpay",
+		"key_id": key_id,
+		"order_id": order["id"],
+		"description": _("Processing fee for warranty claim {0}").format(doc.name),
+		"prefill": {
+			"name": doc.customer_name or "",
+			"email": doc.get("customer_email") or "",
+			"contact": doc.get("customer_mobile") or "",
+		},
+	}
+
+
+def _create_cashfree_order(doc, amount: float, settings) -> dict:
+	"""Create a Cashfree payment session and return checkout params."""
+	app_id = settings.get("payment_gateway_merchant_id")
+	secret_key = settings.get_password("payment_gateway_api_key")
+	if not app_id or not secret_key:
+		frappe.throw(_("Cashfree credentials are not configured in CH VAS Settings."), title=_("Payment Config Error"))
+
+	try:
+		import requests
+
+		payload = {
+			"order_id": doc.name,
+			"order_amount": round(amount, 2),
+			"order_currency": "INR",
+			"customer_details": {
+				"customer_id": doc.get("customer") or doc.name,
+				"customer_name": doc.customer_name or "Customer",
+				"customer_email": doc.get("customer_email") or "noreply@example.com",
+				"customer_phone": doc.get("customer_mobile") or "9999999999",
+			},
+			"order_meta": {
+				"return_url": f"/warranty-payment/result?claim={doc.name}&order_id={{order_id}}",
+				"notify_url": f"/api/method/ch_item_master.ch_item_master.warranty_api.payment_webhook?gateway=cashfree",
+			},
+		}
+		resp = requests.post(
+			"https://api.cashfree.com/pg/orders",
+			json=payload,
+			headers={"x-api-version": "2023-08-01", "x-client-id": app_id, "x-client-secret": secret_key},
+			timeout=10,
+		)
+		resp.raise_for_status()
+		session = resp.json()
+	except Exception as e:
+		frappe.log_error(frappe.get_traceback(), f"Cashfree order creation failed: {doc.name}")
+		frappe.throw(_("Payment gateway error. Please try again or contact support."), title=_("Gateway Error"))
+
+	return {
+		"claim_name": doc.name,
+		"customer_name": doc.customer_name,
+		"amount": amount,
+		"currency": "INR",
+		"payment_mode": "cashfree",
+		"payment_session_id": session.get("payment_session_id"),
+		"order_id": session.get("order_id"),
+	}
+
+
+def _create_payu_order(doc, amount: float, settings) -> dict:
+	"""Build PayU payment hash and return checkout params."""
+	import hashlib
+
+	merchant_key = settings.get("payment_gateway_merchant_id")
+	salt = settings.get_password("payment_gateway_api_key")
+	if not merchant_key or not salt:
+		frappe.throw(_("PayU credentials are not configured in CH VAS Settings."), title=_("Payment Config Error"))
+
+	txnid = f"WC-{doc.name}"
+	amount_str = f"{round(amount, 2):.2f}"
+	product_info = f"Processing fee for {doc.name}"
+	firstname = (doc.customer_name or "Customer").split()[0]
+	email = doc.get("customer_email") or "noreply@example.com"
+
+	# PayU hash: key|txnid|amount|productinfo|firstname|email|||||||||||salt
+	hash_str = f"{merchant_key}|{txnid}|{amount_str}|{product_info}|{firstname}|{email}|||||||||||{salt}"
+	txn_hash = hashlib.sha512(hash_str.encode("utf-8")).hexdigest()
+
+	return {
+		"claim_name": doc.name,
+		"customer_name": doc.customer_name,
+		"amount": amount,
+		"currency": "INR",
+		"payment_mode": "payu",
+		"key": merchant_key,
+		"txnid": txnid,
+		"amount_str": amount_str,
+		"productinfo": product_info,
+		"firstname": firstname,
+		"email": email,
+		"hash": txn_hash,
+		"surl": f"/warranty-payment/result?claim={doc.name}&status=success",
+		"furl": f"/warranty-payment/result?claim={doc.name}&status=failure",
+	}
+
+
+@frappe.whitelist(allow_guest=True)
+def payment_webhook(gateway: str = "razorpay") -> dict:
+	"""Receive payment gateway callback and mark processing fee as Paid."""
+	import hmac
+	import hashlib
+	import json
+
+	raw_body = frappe.request.get_data(as_text=True)
+	payload = json.loads(raw_body) if raw_body else {}
+
+	settings = frappe.get_cached_doc("CH VAS Settings")
+	webhook_secret = settings.get_password("payment_gateway_webhook_secret") or ""
+
+	if gateway == "razorpay":
+		sig_header = frappe.get_request_header("X-Razorpay-Signature") or ""
+		expected = hmac.new(
+			webhook_secret.encode(), raw_body.encode(), hashlib.sha256
+		).hexdigest()
+		if not hmac.compare_digest(expected, sig_header):
+			frappe.throw(_("Webhook signature mismatch"), frappe.AuthenticationError)
+
+		event = payload.get("event", "")
+		if event == "payment.captured":
+			order_id = payload.get("payload", {}).get("payment", {}).get("entity", {}).get("order_id")
+			if order_id:
+				_mark_processing_fee_paid_by_gateway_order(order_id, payload)
+
+	elif gateway == "cashfree":
+		sig_header = frappe.get_request_header("x-webhook-signature") or ""
+		ts_header = frappe.get_request_header("x-webhook-timestamp") or ""
+		msg = f"{ts_header}{raw_body}"
+		expected = hmac.new(webhook_secret.encode(), msg.encode(), hashlib.sha256).hexdigest()
+		if not hmac.compare_digest(expected, sig_header):
+			frappe.throw(_("Webhook signature mismatch"), frappe.AuthenticationError)
+
+		order_status = payload.get("data", {}).get("order", {}).get("order_status")
+		if order_status == "PAID":
+			order_id = payload.get("data", {}).get("order", {}).get("order_id")
+			if order_id:
+				_mark_processing_fee_paid_by_claim_name(order_id, payload)
+
+	elif gateway == "payu":
+		# PayU posts form data; verify hash in reverse
+		posted = frappe.form_dict
+		status = posted.get("status", "")
+		if status == "success":
+			_mark_processing_fee_paid_by_txnid(posted.get("txnid", ""), posted)
+
+	return {"status": "ok"}
+
+
+def _mark_processing_fee_paid_by_gateway_order(order_id: str, payload: dict) -> None:
+	"""Mark fee Paid on the claim that holds this Razorpay order ID."""
+	claim_name = frappe.db.get_value(
+		"CH Warranty Claim", {"gateway_order_id": order_id}, "name"
+	)
+	if not claim_name:
+		frappe.log_error(f"No claim found for gateway order {order_id}", "Payment Webhook")
+		return
+	_mark_processing_fee_paid(claim_name, payload)
+
+
+def _mark_processing_fee_paid_by_claim_name(order_id: str, payload: dict) -> None:
+	"""Cashfree uses claim name as order_id."""
+	if frappe.db.exists("CH Warranty Claim", order_id):
+		_mark_processing_fee_paid(order_id, payload)
+	else:
+		frappe.log_error(f"No claim found for Cashfree order {order_id}", "Payment Webhook")
+
+
+def _mark_processing_fee_paid_by_txnid(txnid: str, payload: dict) -> None:
+	"""PayU txnid format is WC-<claim_name>."""
+	if txnid.startswith("WC-"):
+		claim_name = txnid[3:]
+		if frappe.db.exists("CH Warranty Claim", claim_name):
+			_mark_processing_fee_paid(claim_name, payload)
+		else:
+			frappe.log_error(f"No claim found for PayU txnid {txnid}", "Payment Webhook")
+
+
+def _mark_processing_fee_paid(claim_name: str, payload: dict) -> None:
+	"""Set processing_fee_status = Paid and log the gateway reference."""
+	import json
+
+	current_status = frappe.db.get_value("CH Warranty Claim", claim_name, "processing_fee_status")
+	if current_status == "Paid":
+		return  # idempotent
+
+	frappe.db.set_value(
+		"CH Warranty Claim",
+		claim_name,
+		{
+			"processing_fee_status": "Paid",
+			"processing_fee_paid_at": frappe.utils.now_datetime(),
+			"gateway_payload": json.dumps(payload, default=str)[:2000],
+		},
+		update_modified=True,
+	)
+	frappe.db.commit()
+	frappe.publish_realtime(
+		"ch_processing_fee_paid",
+		{"name": claim_name},
+		doctype="CH Warranty Claim",
+		docname=claim_name,
+	)
 
 
 @frappe.whitelist()

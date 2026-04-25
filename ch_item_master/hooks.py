@@ -116,6 +116,10 @@ doc_events = {
 		"on_submit": "ch_item_master.ch_item_master.overrides.purchase_receipt.on_submit",
 		"on_cancel": "ch_item_master.ch_item_master.overrides.purchase_receipt.on_cancel",
 	},
+	"CH Warranty Claim": {
+		"on_submit": "ch_item_master.ch_item_master.integrations.warranty_claim_hooks.on_submit",
+		"on_cancel": "ch_item_master.ch_item_master.integrations.warranty_claim_hooks.on_cancel",
+	},
 	"Service Request": {
 		"on_submit": "ch_item_master.ch_customer_master.hooks.on_service_request_submit",
 		"on_update": "ch_item_master.ch_item_master.integrations.gofix_integration.on_service_request_update",

@@ -151,6 +151,65 @@
    "label": "Redeemable Channel",
    "options": "CH Price Channel",
    "description": "Restrict VAS voucher redemption to this channel. Leave blank for all channels."
+  },
+  {
+   "fieldname": "section_payment_gateway",
+   "fieldtype": "Section Break",
+   "label": "Processing Fee Payment Gateway",
+   "description": "Configure online payment gateway for processing fee collection. Leave blank to use manual/offline payment."
+  },
+  {
+   "fieldname": "payment_gateway_provider",
+   "fieldtype": "Select",
+   "label": "Gateway Provider",
+   "options": "\nRazorpay\nCashfree\nPayU",
+   "description": "Payment gateway provider for processing fee collection links."
+  },
+  {
+   "fieldname": "payment_gateway_merchant_id",
+   "fieldtype": "Data",
+   "label": "Merchant ID / Key ID",
+   "description": "Razorpay: Key ID. Cashfree: App ID. PayU: Merchant Key."
+  },
+  {
+   "fieldname": "column_break_payment_gateway",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "payment_gateway_api_key",
+   "fieldtype": "Password",
+   "label": "API Secret Key",
+   "description": "Razorpay: Key Secret. Cashfree: Secret Key. PayU: Salt."
+  },
+  {
+   "fieldname": "payment_gateway_webhook_secret",
+   "fieldtype": "Password",
+   "label": "Webhook Secret",
+   "description": "Used to verify HMAC signature on gateway callbacks."
+  },
+  {
+   "fieldname": "section_gl_accounts",
+   "fieldtype": "Section Break",
+   "label": "GL Accounts",
+   "description": "Accounts used when creating journal entries for warranty fee payments."
+  },
+  {
+   "fieldname": "processing_fee_revenue_account",
+   "fieldtype": "Link",
+   "label": "Processing Fee Revenue Account",
+   "options": "Account",
+   "description": "Credited when a warranty processing fee is marked as paid (Dr Cash/Bank → Cr this account)."
+  },
+  {
+   "fieldname": "col_break_gl",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "processing_fee_receivable_account",
+   "fieldtype": "Link",
+   "label": "Processing Fee Receivable Account",
+   "options": "Account",
+   "description": "Debited when fee is marked paid via cash. Leave blank to use Company default cash account."
   }
  ],
  "permissions": [

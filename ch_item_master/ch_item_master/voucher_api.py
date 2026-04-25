@@ -214,52 +214,59 @@ def redeem_voucher(voucher_code, amount, pos_invoice=None, reference_doctype=Non
 
 	frappe.has_permission("CH Voucher", "write", throw=True)
 
-	# IM-2 fix: Use SELECT FOR UPDATE to prevent race condition on concurrent redemptions
 	voucher_name = frappe.db.get_value("CH Voucher", {"voucher_code": voucher_code}, "name")
 	if not voucher_name:
 		frappe.throw(_("Voucher not found"), title=_("API Error"))
 
-	frappe.db.sql(
-		"SELECT name FROM `tabCH Voucher` WHERE name=%s FOR UPDATE",
-		voucher_name,
+	# Acquire row-level lock before reading — prevents concurrent redemptions from
+	# reading the same stale balance and both succeeding.
+	frappe.db.sql("SELECT name FROM `tabCH Voucher` WHERE name=%s FOR UPDATE", voucher_name)
+
+	# Read balance fields directly from DB *after* the lock (bypasses Frappe's document
+	# cache which may hold a pre-lock snapshot).
+	locked = frappe.db.get_value(
+		"CH Voucher", voucher_name,
+		["docstatus", "status", "balance", "valid_upto", "single_use", "applicable_item_group"],
+		as_dict=True,
 	)
 
-	voucher = frappe.get_doc("CH Voucher", voucher_name)
-	if not voucher:
-		frappe.throw(_("Voucher not found"), title=_("API Error"))
-
-	if voucher.docstatus != 1:
+	if locked.docstatus != 1:
 		frappe.throw(_("Voucher has not been activated (not submitted)"), title=_("API Error"))
 
-	if voucher.status not in ("Active", "Partially Used"):
-		frappe.throw(_("Voucher is {0} and cannot be redeemed").format(voucher.status), title=_("API Error"))
+	if locked.status not in ("Active", "Partially Used"):
+		frappe.throw(
+			_("Voucher is {0} and cannot be redeemed").format(locked.status),
+			title=_("API Error"),
+		)
 
-	# IM-10 fix: Check voucher expiry on redemption
-	if voucher.valid_upto and getdate(voucher.valid_upto) < getdate(nowdate()):
-		frappe.throw(_("Voucher expired on {0}").format(voucher.valid_upto), title=_("API Error"))
+	# Expiry check
+	if locked.valid_upto and getdate(locked.valid_upto) < getdate(nowdate()):
+		frappe.throw(
+			_("Voucher expired on {0}").format(frappe.format(locked.valid_upto, "Date")),
+			title=_("API Error"),
+		)
 
-	# Enforce item group restriction (e.g. VAS vouchers → Accessories only)
-	if voucher.applicable_item_group:
-		allowed_group = voucher.applicable_item_group
-		# If caller passes cart_items, validate item groups; otherwise log a warning
-		if pos_invoice:
-			_validate_voucher_item_groups(pos_invoice, allowed_group)
-
-	balance = flt(voucher.balance)
+	# Balance check on the freshly locked row
+	balance = flt(locked.balance)
 	if balance <= 0:
 		frappe.throw(_("Voucher has no remaining balance"), title=_("API Error"))
 
-	# Single-use vouchers: must redeem in one shot, forfeit entire balance
-	if voucher.single_use:
-		# Check this is the first redemption
+	# Load full doc now (only for append/save — validations above used the locked row)
+	voucher = frappe.get_doc("CH Voucher", voucher_name)
+
+	# Enforce item group restriction (e.g. VAS vouchers → Accessories only)
+	if locked.applicable_item_group and pos_invoice:
+		_validate_voucher_item_groups(pos_invoice, locked.applicable_item_group)
+
+	# Single-use: forfeit entire balance on first redemption
+	if locked.single_use:
 		existing_redeems = [t for t in (voucher.transactions or [])
 		                    if t.transaction_type == "Redeem"]
 		if existing_redeems:
 			frappe.throw(_("This voucher has already been redeemed (single-use)"), title=_("API Error"))
 		redeem_amount = min(amount, balance)
-		new_balance = 0  # Forfeit remainder
+		new_balance = 0
 	else:
-		# Cap at available balance
 		redeem_amount = min(amount, balance)
 		new_balance = balance - redeem_amount
 
