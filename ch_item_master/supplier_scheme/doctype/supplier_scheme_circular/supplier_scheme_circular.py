@@ -130,6 +130,25 @@ class SupplierSchemeCircular(Document):
 		return generate_claim_summary(self.name)
 
 	@frappe.whitelist()
+	def link_existing_maps(self, names_json) -> dict:
+		"""Bulk-link unlinked Scheme Product Map records to this scheme.
+
+		Args:
+			names_json: JSON array of Scheme Product Map names to link.
+		Returns:
+			dict with 'linked' count.
+		"""
+		import json
+		frappe.has_permission("Supplier Scheme Circular", "write", throw=True)
+		names = json.loads(names_json) if isinstance(names_json, str) else names_json
+		linked = 0
+		for name in names:
+			if frappe.db.exists("Scheme Product Map", name):
+				frappe.db.set_value("Scheme Product Map", name, "scheme", self.name, update_modified=False)
+				linked += 1
+		return {"linked": linked}
+
+	@frappe.whitelist()
 	def submit_for_review(self) -> None:
 		"""Maker step: move a Draft scheme into Pending Approval for manager sign-off."""
 		if self.docstatus != 0:

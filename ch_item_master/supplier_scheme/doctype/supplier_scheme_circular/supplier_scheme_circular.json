@@ -30,6 +30,8 @@
   "circular_attachment",
   "section_rules",
   "rules",
+  "section_product_scope",
+  "html_product_scope",
   "section_totals",
   "total_eligible_qty",
   "total_claim_amount",
@@ -207,6 +209,16 @@
    "fieldtype": "Table",
    "label": "Rules",
    "options": "Supplier Scheme Rule"
+  },
+  {
+   "fieldname": "section_product_scope",
+   "fieldtype": "Section Break",
+   "label": "Product Scope"
+  },
+  {
+   "fieldname": "html_product_scope",
+   "fieldtype": "HTML",
+   "label": "Product Scope Grid"
   },
   {
    "fieldname": "section_totals",

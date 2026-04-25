@@ -5,6 +5,7 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
+  "scheme",
   "brand",
   "supplier_product_name",
   "column_break_source",
@@ -29,6 +30,15 @@
   "amended_from"
  ],
  "fields": [
+  {
+   "fieldname": "scheme",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Scheme",
+   "options": "Supplier Scheme Circular",
+   "search_index": 1
+  },
   {
    "fieldname": "brand",
    "fieldtype": "Link",
@@ -190,7 +200,7 @@
  "links": [
   {
    "link_doctype": "Supplier Scheme Circular",
-   "link_fieldname": "brand"
+   "link_fieldname": "scheme"
   }
  ],
  "modified": "2026-04-11 10:00:00.000000",

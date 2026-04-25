@@ -121,13 +121,14 @@ def resolve_scheme_products(brand, schemes_json) -> dict:
 
 
 @frappe.whitelist()
-def save_mappings(mappings_json) -> dict:
+def save_mappings(mappings_json, scheme=None) -> dict:
 	"""Save confirmed product mappings to the Scheme Product Map table.
 
 	Args:
 		mappings_json: JSON array of mapping dicts, each with:
 			brand, supplier_product_name, match_level, item_code/model/item_group,
 			supplier_series, supplier_variant, mapping_source, confidence_score, ai_reasoning
+		scheme: optional Supplier Scheme Circular name to link mappings to
 	Returns:
 		dict with saved count
 	"""
@@ -141,16 +142,15 @@ def save_mappings(mappings_json) -> dict:
 		if not m.get("brand") or not m.get("supplier_product_name"):
 			continue
 
+		# Prefer scheme-scoped duplicate check, fall back to brand-only
+		dup_filters = {"brand": m["brand"], "supplier_product_name": m["supplier_product_name"]}
+		if scheme:
+			dup_filters["scheme"] = scheme
+
 		# Skip if already exists
-		if frappe.db.exists("Scheme Product Map", {
-			"brand": m["brand"],
-			"supplier_product_name": m["supplier_product_name"],
-		}):
+		if frappe.db.exists("Scheme Product Map", dup_filters):
 			# Update existing
-			existing_name = frappe.db.get_value("Scheme Product Map", {
-				"brand": m["brand"],
-				"supplier_product_name": m["supplier_product_name"],
-			}, "name")
+			existing_name = frappe.db.get_value("Scheme Product Map", dup_filters, "name")
 			doc = frappe.get_doc("Scheme Product Map", existing_name)
 			doc.match_level = m.get("match_level", doc.match_level)
 			doc.item_code = m.get("item_code", doc.item_code)
@@ -159,11 +159,14 @@ def save_mappings(mappings_json) -> dict:
 			doc.mapping_source = m.get("mapping_source", "AI Verified")
 			doc.confidence_score = flt(m.get("confidence_score", doc.confidence_score))
 			doc.ai_reasoning = m.get("ai_reasoning", doc.ai_reasoning)
+			if scheme and not doc.scheme:
+				doc.scheme = scheme
 			doc.save(ignore_permissions=True)
 			saved += 1
 			continue
 
 		doc = frappe.new_doc("Scheme Product Map")
+		doc.scheme = scheme or ""
 		doc.brand = m["brand"]
 		doc.supplier_product_name = m["supplier_product_name"]
 		doc.supplier_series = m.get("supplier_series", "")

@@ -46,14 +46,18 @@ class SchemeProductMap(Document):
 			self.mapped_item_count = 0
 
 	def _check_duplicate(self):
-		"""Warn if brand + supplier_product_name already exists (different record)."""
+		"""Warn if scheme + supplier_product_name (or brand + name) already exists (different record)."""
+		filters = {
+			"supplier_product_name": self.supplier_product_name,
+			"name": ("!=", self.name),
+		}
+		if self.scheme:
+			filters["scheme"] = self.scheme
+		else:
+			filters["brand"] = self.brand
 		existing = frappe.db.get_value(
 			"Scheme Product Map",
-			{
-				"brand": self.brand,
-				"supplier_product_name": self.supplier_product_name,
-				"name": ("!=", self.name),
-			},
+			filters,
 			"name",
 		)
 		if existing:

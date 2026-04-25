@@ -10,9 +10,22 @@ frappe.ui.form.on("Scheme Product Map", {
 							message: __("Mapping verified"),
 							indicator: "green",
 						});
+						// Return to scheme if opened from the scheme form
+						if (frm.doc.scheme) {
+							setTimeout(() => {
+								frappe.set_route("Form", "Supplier Scheme Circular", frm.doc.scheme);
+							}, 1500);
+						}
 					});
 				}
 			);
+		}
+
+		// "Back to Scheme" breadcrumb button
+		if (!frm.is_new() && frm.doc.scheme) {
+			frm.add_custom_button(__("Back to Scheme"), () => {
+				frappe.set_route("Form", "Supplier Scheme Circular", frm.doc.scheme);
+			});
 		}
 
 		// Show item count indicator
@@ -38,6 +51,19 @@ frappe.ui.form.on("Scheme Product Map", {
 
 	onload(frm) {
 		_set_brand_filters(frm);
+		// Auto-fill scheme & brand when opened via "Add Model Mapping" from scheme form
+		if (frm.is_new()) {
+			const p = frappe.utils.get_url_params();
+			if (p.scheme) {
+				frm.set_value("scheme", decodeURIComponent(p.scheme));
+				frappe.db.get_value("Supplier Scheme Circular", decodeURIComponent(p.scheme), "brand")
+					.then(r => {
+						if (r && r.message && r.message.brand) {
+							frm.set_value("brand", r.message.brand);
+						}
+					});
+			}
+		}
 	},
 });
 
