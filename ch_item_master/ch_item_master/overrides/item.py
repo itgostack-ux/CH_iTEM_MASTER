@@ -179,6 +179,20 @@ def before_insert(doc, method=None):
     # where user only selects a model and everything else is derived)
     _populate_from_model(doc)
 
+    # Auto-detect variant: if this model's template already exists and
+    # _populate_from_model auto-set has_variants=1, this MUST be a variant
+    # (one template per model is strict).  Handle import/API rows where the
+    # variant_of column was omitted by routing to the variant code-path.
+    if not doc.variant_of and doc.ch_model and doc.has_variants:
+        existing_tpl = frappe.db.get_value(
+            "Item", {"ch_model": doc.ch_model, "has_variants": 1}, "name"
+        )
+        if existing_tpl:
+            doc.variant_of = existing_tpl
+            doc.has_variants = 0
+            _copy_ch_fields_from_template(doc)
+            return
+
     placeholder_code = (doc.item_code or "").strip().lower() == "__autoname"
 
     # Template/simple items — need ch_sub_category to proceed
@@ -345,14 +359,23 @@ def before_save(doc, method=None):
 
     # Safety: if variant name is identical to the template name (specs not
     # appended — e.g. sub-category has no in_item_name specs configured),
-    # force-append all attribute values so the variant is distinguishable.
+    # force-append attribute values so the variant is distinguishable.
     if display_name and doc.variant_of:
         tpl_name = frappe.db.get_value("Item", doc.variant_of, "item_name")
-        if display_name == tpl_name and doc.attributes:
-            attr_parts = [str(r.attribute_value).strip() for r in doc.attributes if r.attribute_value]
-            if attr_parts:
-                display_name = f"{display_name} {' '.join(attr_parts)}"
-                doc.ch_display_name = display_name
+        if display_name == tpl_name:
+            if doc.attributes:
+                attr_parts = [str(r.attribute_value).strip() for r in doc.attributes if r.attribute_value]
+                if attr_parts:
+                    display_name = f"{display_name} {' '.join(attr_parts)}"
+                    doc.ch_display_name = display_name
+            else:
+                # No attribute rows populated (e.g. Data Import without the
+                # attributes child table in the CSV).  Use the item_code suffix
+                # to keep the variant name unique and human-readable.
+                code_suffix = (doc.item_code or "").replace(doc.variant_of or "", "").strip("-_ ")
+                if code_suffix:
+                    display_name = f"{display_name} [{code_suffix}]"
+                    doc.ch_display_name = display_name
 
     if display_name:
         doc.item_name = display_name
@@ -371,9 +394,12 @@ def _check_duplicate_template(doc):
     if not doc.ch_model:
         return
 
+    # doc.name may be blank before the first INSERT (autoname not yet applied).
+    # Fall back to item_code so re-importing the same template row is allowed.
+    exclude_name = doc.name or doc.item_code or ""
     existing = frappe.db.get_value(
         "Item",
-        {"ch_model": doc.ch_model, "has_variants": 1, "name": ("!=", doc.name or "")},
+        {"ch_model": doc.ch_model, "has_variants": 1, "name": ("!=", exclude_name)},
         ["name", "item_name"],
         as_dict=True,
     )
