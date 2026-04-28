@@ -76,10 +76,26 @@ def on_buyback_assessment_update(doc, method=None):
 
 def _log_store_visit(customer, company, visit_type, reference_doctype=None,
 					 reference_name=None, store=None, staff=None):
-	"""Create a CH Customer Store Visit entry in the Customer's child table."""
+	"""Create a CH Customer Store Visit entry in the Customer's child table.
+
+	Uses direct child-row insert + frappe.db.set_value for parent fields to avoid
+	a full Customer.save() (which can trigger unrelated mandatory/validate errors
+	such as tax_category, GST, or address validations on legacy customers).
+	"""
 	try:
-		cust_doc = frappe.get_doc("Customer", customer)
-		cust_doc.append("ch_stores_visited", {
+		# Determine next idx for the child table
+		next_idx = (frappe.db.sql(
+			"""SELECT IFNULL(MAX(idx), 0) + 1 FROM `tabCH Customer Store Visit`
+			WHERE parent = %s AND parenttype = 'Customer' AND parentfield = 'ch_stores_visited'""",
+			customer,
+		) or [[1]])[0][0]
+
+		child = frappe.get_doc({
+			"doctype": "CH Customer Store Visit",
+			"parent": customer,
+			"parenttype": "Customer",
+			"parentfield": "ch_stores_visited",
+			"idx": next_idx,
 			"visit_date": today(),
 			"store": store,
 			"company": company,
@@ -88,13 +104,18 @@ def _log_store_visit(customer, company, visit_type, reference_doctype=None,
 			"reference_name": reference_name,
 			"staff": staff,
 		})
+		child.flags.ignore_permissions = True
+		child.flags.ignore_validate = True
+		child.flags.ignore_mandatory = True
+		child.db_insert()
 
-		# Update last visit info
-		cust_doc.ch_last_visit_date = today()
+		# Update last visit info on parent (no validations / no save)
+		updates = {"ch_last_visit_date": today()}
 		if store:
-			cust_doc.ch_last_visit_store = frappe.db.get_value("Warehouse", store, "warehouse_name") or store
-
-		cust_doc.save(ignore_permissions=True)
+			updates["ch_last_visit_store"] = (
+				frappe.db.get_value("Warehouse", store, "warehouse_name") or store
+			)
+		frappe.db.set_value("Customer", customer, updates, update_modified=False)
 	except Exception:
 		frappe.log_error(
 			title=f"CH Customer Store Visit Error: {customer}",

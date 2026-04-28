@@ -128,6 +128,13 @@ doc_events = {
 	"Buyback Assessment": {
 		"on_update": "ch_item_master.ch_customer_master.hooks.on_buyback_assessment_update",
 	},
+	# Cache invalidation for active-scheme lookup (perf: avoids per-invoice DB scan)
+	"Supplier Scheme Circular": {
+		"on_update": "ch_item_master.supplier_scheme.engine.invalidate_active_schemes_cache",
+		"on_submit": "ch_item_master.supplier_scheme.engine.invalidate_active_schemes_cache",
+		"on_cancel": "ch_item_master.supplier_scheme.engine.invalidate_active_schemes_cache",
+		"on_trash": "ch_item_master.supplier_scheme.engine.invalidate_active_schemes_cache",
+	},
 	"CH Sold Plan": {
 		"on_submit": "ch_item_master.ch_customer_master.hooks.on_sold_plan_change",
 		"on_cancel": "ch_item_master.ch_customer_master.hooks.on_sold_plan_change",

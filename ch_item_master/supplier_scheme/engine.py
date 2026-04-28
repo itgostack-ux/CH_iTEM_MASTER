@@ -100,8 +100,18 @@ def _extract_invoice_items(doc):
 
 
 def _get_active_schemes(invoice_date):
-	"""Return names of submitted schemes whose period covers the invoice date."""
-	return frappe.get_all(
+	"""Return names of submitted schemes whose period covers the invoice date.
+
+	Cached per-day in Redis (TTL 5 min). Schemes are low-volume and rarely
+	change mid-day, so the cache avoids a full-scan on every invoice submit.
+	Cache is invalidated on Supplier Scheme Circular save (see hooks below).
+	"""
+	cache_key = f"active_supplier_schemes::{invoice_date}"
+	cached = frappe.cache().get_value(cache_key)
+	if cached is not None:
+		return cached
+
+	schemes = frappe.get_all(
 		"Supplier Scheme Circular",
 		filters={
 			"docstatus": 1,
@@ -111,6 +121,22 @@ def _get_active_schemes(invoice_date):
 		},
 		pluck="name",
 	)
+	frappe.cache().set_value(cache_key, schemes, expires_in_sec=300)
+	return schemes
+
+
+def invalidate_active_schemes_cache(doc=None, method=None):
+	"""Drop the cached active-scheme list when a Supplier Scheme Circular changes.
+
+	Wired via doc_events on Supplier Scheme Circular: on_update / on_submit /
+	on_cancel / on_trash. Uses delete_keys with a wildcard to clear all per-day
+	entries.
+	"""
+	try:
+		frappe.cache().delete_keys("active_supplier_schemes::")
+	except Exception:
+		# Non-fatal — next read will simply repopulate
+		pass
 
 
 def _match_and_create_entry(scheme, item_row, invoice_doc):

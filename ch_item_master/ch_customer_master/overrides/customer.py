@@ -26,6 +26,7 @@ def before_insert(doc, method=None):
 	_generate_referral_code(doc)
 	_assign_customer_id(doc)
 	_generate_membership_id(doc)
+	_default_tax_category(doc)
 	if not doc.get("ch_customer_since"):
 		doc.ch_customer_since = today()
 
@@ -40,6 +41,17 @@ def validate(doc, method=None):
 	_track_phone_change(doc)
 	_check_phone_dedup(doc)
 	_set_kyc_verified_info(doc)
+	_default_tax_category(doc)
+
+
+def _default_tax_category(doc):
+	"""Default tax_category to 'In-State' so the mandatory Property Setter rule
+	(introduced for GST compliance) does not block downstream save flows
+	(POS billing, store-visit logging, etc.) when callers don't set one."""
+	if doc.get("tax_category"):
+		return
+	if frappe.db.exists("Tax Category", "In-State"):
+		doc.tax_category = "In-State"
 
 
 def _validate_phone_format(doc):
