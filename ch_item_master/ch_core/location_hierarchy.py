@@ -76,8 +76,14 @@ def backfill_location_hierarchy():
 
 
 @frappe.whitelist()
-def get_company_location_tree(company=None):
-	"""Return Company → City → Zone → Warehouses / Stores / Offices."""
+def get_company_location_tree(company=None, warehouse_view="all"):
+	"""Return Company → City → Zone → Warehouses / Stores / Offices.
+
+	warehouse_view:
+	- all: include all warehouses
+	- location: only Store/Zone warehouses
+	- operational: everything except Store/Zone warehouses
+	"""
 	company_filters = {"disabled": 0}
 	if company:
 		company_filters["company"] = company
@@ -119,6 +125,8 @@ def get_company_location_tree(company=None):
 	):
 		if company and warehouse.company != company:
 			continue
+		if not _warehouse_matches_view(warehouse, warehouse_view):
+			continue
 		_zone_bucket(companies, warehouse.company, warehouse.ch_city, warehouse.ch_zone)["warehouses"].append(warehouse)
 
 	store_filters = {"disabled": 0}
@@ -147,6 +155,18 @@ def _zone_bucket(companies, company, city, zone):
 		zone_key,
 		{"zone": zone_key, "zone_name": zone_key, "source_warehouse": None, "warehouses": [], "stores": [], "offices": []},
 	)
+
+
+def _warehouse_matches_view(warehouse, warehouse_view):
+	location_types = {"Store Warehouse", "Zone Warehouse"}
+	view = (warehouse_view or "all").strip().lower()
+	w_type = (warehouse.ch_location_type or "").strip()
+
+	if view == "location":
+		return w_type in location_types
+	if view == "operational":
+		return w_type not in location_types
+	return True
 
 
 def _serialize_tree(companies):

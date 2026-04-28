@@ -13,6 +13,7 @@ class LocationHierarchyView {
 	constructor(page) {
 		this.page = page;
 		this.company = null;
+		this.warehouse_view = 'location';
 		this.tree = [];
 		this.companies = [];
 
@@ -75,13 +76,25 @@ class LocationHierarchyView {
 				this.render();
 			}
 		});
+
+		this.warehouse_view_field = this.page.add_field({
+			label: __('Warehouses'),
+			fieldtype: 'Select',
+			fieldname: 'warehouse_view',
+			options: 'all\nlocation\noperational',
+			default: 'location',
+			change: () => {
+				this.warehouse_view = this.warehouse_view_field.get_value() || 'all';
+				this.render();
+			}
+		});
 	}
 
 	async render() {
 		this.$container.html('<div class="text-muted" style="padding:30px;">Loading…</div>');
 		const r = await frappe.call({
 			method: 'ch_item_master.ch_core.location_hierarchy.get_company_location_tree',
-			args: { company: this.company || null }
+			args: { company: this.company || null, warehouse_view: this.warehouse_view || 'all' }
 		});
 		this.tree = r.message || [];
 		this.draw();
