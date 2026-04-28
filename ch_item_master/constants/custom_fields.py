@@ -11,6 +11,78 @@ from frappe import _
 
 CUSTOM_FIELDS = {
 	# ──────────────────────────────────────────────
+	# Location hierarchy: Company → City → Zone → Warehouses / Offices
+	# ──────────────────────────────────────────────
+	"Warehouse": [
+		{
+			"fieldname": "ch_location_section",
+			"label": _("CH Location Hierarchy"),
+			"fieldtype": "Section Break",
+			"insert_after": "company",
+			"collapsible": 1,
+		},
+		{
+			"fieldname": "ch_city",
+			"label": _("City"),
+			"fieldtype": "Link",
+			"options": "CH City",
+			"insert_after": "ch_location_section",
+			"in_standard_filter": 1,
+			"description": _("City this warehouse belongs to."),
+		},
+		{
+			"fieldname": "ch_zone",
+			"label": _("Zone"),
+			"fieldtype": "Link",
+			"options": "CH Store Zone",
+			"insert_after": "ch_city",
+			"in_standard_filter": 1,
+			"description": _("Zone this warehouse belongs to."),
+		},
+		{
+			"fieldname": "ch_location_type",
+			"label": _("Location Type"),
+			"fieldtype": "Select",
+			"options": "\nStore Warehouse\nZone Warehouse\nTransit Warehouse\nService Warehouse\nOther",
+			"insert_after": "ch_zone",
+			"in_standard_filter": 1,
+		},
+	],
+	"Branch": [
+		{
+			"fieldname": "ch_location_section",
+			"label": _("CH Location Hierarchy"),
+			"fieldtype": "Section Break",
+			"insert_after": "branch",
+			"collapsible": 1,
+		},
+		{
+			"fieldname": "ch_company",
+			"label": _("Company"),
+			"fieldtype": "Link",
+			"options": "Company",
+			"insert_after": "ch_location_section",
+			"in_standard_filter": 1,
+		},
+		{
+			"fieldname": "ch_city",
+			"label": _("City"),
+			"fieldtype": "Link",
+			"options": "CH City",
+			"insert_after": "ch_company",
+			"in_standard_filter": 1,
+		},
+		{
+			"fieldname": "ch_zone",
+			"label": _("Zone"),
+			"fieldtype": "Link",
+			"options": "CH Store Zone",
+			"insert_after": "ch_city",
+			"in_standard_filter": 1,
+			"description": _("Zone this office/branch belongs to."),
+		},
+	],
+	# ──────────────────────────────────────────────
 	# Manufacturer: Add integer ID for mobile/API
 	# ──────────────────────────────────────────────
 	"Manufacturer": [

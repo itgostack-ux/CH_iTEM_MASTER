@@ -8,6 +8,7 @@
   "zone_name",
   "column_break_01",
   "company",
+    "city",
   "section_break_wh",
   "source_warehouse",
   "column_break_02",
@@ -39,6 +40,17 @@
    "in_standard_filter": 1,
    "search_index": 1
   },
+    {
+     "fieldname": "city",
+     "fieldtype": "Link",
+     "label": "City",
+     "options": "CH City",
+     "reqd": 1,
+     "in_list_view": 1,
+     "in_standard_filter": 1,
+     "search_index": 1,
+     "description": "City this zone belongs to."
+    },
   {
    "fieldname": "section_break_wh",
    "fieldtype": "Section Break",
@@ -100,7 +112,7 @@
    "role": "Stock User"
   }
  ],
- "search_fields": "company,source_warehouse",
+ "search_fields": "company,city,source_warehouse",
  "sort_field": "zone_name",
  "sort_order": "ASC",
  "states": [],
