@@ -222,10 +222,11 @@ def _copy_ch_fields_from_template(doc):
 
     Uses targeted queries instead of loading the full template doc to avoid
     unnecessary overhead (child tables, computed fields, etc.).
+    Also copies gst_hsn_code so India Compliance validation passes for variants.
     """
     ch_fields = frappe.db.get_value(
         "Item", doc.variant_of,
-        ["ch_model", "ch_sub_category", "ch_category"],
+        ["ch_model", "ch_sub_category", "ch_category", "gst_hsn_code"],
         as_dict=True,
     )
     if not ch_fields:
@@ -234,6 +235,10 @@ def _copy_ch_fields_from_template(doc):
     for field in ("ch_model", "ch_sub_category", "ch_category"):
         if not getattr(doc, field, None) and ch_fields.get(field):
             setattr(doc, field, ch_fields[field])
+
+    # Copy gst_hsn_code from template so India Compliance HSN validation passes
+    if not doc.get("gst_hsn_code") and ch_fields.get("gst_hsn_code"):
+        doc.gst_hsn_code = ch_fields["gst_hsn_code"]
 
     # Copy property spec values from the saved template via targeted query
     doc.set("ch_spec_values", [])
