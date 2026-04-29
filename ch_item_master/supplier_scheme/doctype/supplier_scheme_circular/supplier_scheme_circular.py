@@ -166,14 +166,19 @@ class SupplierSchemeCircular(Document):
 		""", as_list=True)
 		if approver_emails:
 			recipients = [row[0] for row in approver_emails]
+			scheme_url = frappe.utils.get_url_to_form("Supplier Scheme Circular", self.name)
 			frappe.sendmail(
 				recipients=recipients,
 				subject=_("Scheme Approval Required: {0}").format(self.scheme_name or self.name),
 				message=_(
-					"<p>Scheme <b>{name}</b> – <b>{scheme}</b> ({brand}) has been submitted for your approval.</p>"
-					"<p>Please review and Approve or Reject it.</p>"
-					'<p><a href="/app/supplier-scheme-circular/{name}">Open Scheme ›</a></p>'
-				).format(name=self.name, scheme=self.scheme_name or "", brand=self.brand or ""),
+					"<div style='font-family:Segoe UI,Arial,sans-serif;max-width:680px;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden'>"
+					"<div style='background:#0f172a;color:#ffffff;padding:12px 16px;font-weight:600'>Congruence Holdings - Scheme Approval</div>"
+					"<div style='padding:16px'>"
+					"<p>Scheme <b>{name}</b> - <b>{scheme}</b> ({brand}) has been submitted for your approval.</p>"
+					"<p>Please review and approve or reject the scheme.</p>"
+					"<p><a href='{scheme_url}' style='background:#0b57d0;color:#ffffff;text-decoration:none;padding:10px 14px;border-radius:6px;display:inline-block;font-weight:600'>Open Scheme</a></p>"
+					"</div></div>"
+				).format(name=self.name, scheme=self.scheme_name or "", brand=self.brand or "", scheme_url=scheme_url),
 				delayed=False,
 			)
 		frappe.msgprint(_("Scheme submitted for review. Approvers have been notified."), indicator="blue", alert=True)

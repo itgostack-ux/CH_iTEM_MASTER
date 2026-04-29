@@ -163,21 +163,28 @@ class CHSoldPlan(Document):
 			if not customer_email:
 				return
 
-			subject = _("Welcome to {0}!").format(self.plan_title or self.warranty_plan)
+			subject = _("Congruence Holdings | Plan Activated | {0}").format(self.name)
+			plan_url = frappe.utils.get_url_to_form("CH Sold Plan", self.name)
 			message = _(
-				"Dear {customer},\n\n"
-				"Your {plan} is now active.\n"
-				"Coverage: {start} to {end}\n"
-				"Claims allowed: {claims}\n"
-				"Deductible: ₹{deductible}\n\n"
-				"Thank you for choosing GoGizmo!"
+				"<div style='font-family:Segoe UI,Arial,sans-serif;max-width:680px;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden'>"
+				"<div style='background:#0f172a;color:#ffffff;padding:12px 16px;font-weight:600'>Congruence Holdings - GoGizmo Protection</div>"
+				"<div style='padding:16px'>"
+				"<p>Dear {customer},</p>"
+				"<p>Your <b>{plan}</b> is now active.</p>"
+				"<p><b>Coverage:</b> {start} to {end}<br>"
+				"<b>Claims Allowed:</b> {claims}<br>"
+				"<b>Deductible:</b> Rs {deductible}</p>"
+				"<p><a href='{plan_url}' style='background:#0b57d0;color:#ffffff;text-decoration:none;padding:10px 14px;border-radius:6px;display:inline-block;font-weight:600'>Open Plan</a></p>"
+				"<p>Thank you for choosing GoGizmo.</p>"
+				"</div></div>"
 			).format(
-				customer=self.customer_name or self.customer,
-				plan=self.plan_title or self.warranty_plan,
+				customer=frappe.utils.escape_html(self.customer_name or self.customer or "Customer"),
+				plan=frappe.utils.escape_html(self.plan_title or self.warranty_plan or self.name),
 				start=self.start_date,
 				end=self.end_date,
 				claims=self.max_claims or _("Unlimited"),
 				deductible=flt(self.deductible_amount),
+				plan_url=plan_url,
 			)
 
 			frappe.sendmail(

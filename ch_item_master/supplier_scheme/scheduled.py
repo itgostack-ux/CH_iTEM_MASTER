@@ -66,7 +66,7 @@ def send_expiry_claim_reminders():
 
 	rows_html = "".join(
 		f"<tr>"
-		f"<td style='padding:6px 12px'><a href='/app/supplier-scheme-circular/{s.name}'>{s.name}</a></td>"
+		f"<td style='padding:6px 12px'><a href='{frappe.utils.get_url_to_form("Supplier Scheme Circular", s.name)}'>{s.name}</a></td>"
 		f"<td style='padding:6px 12px'>{s.scheme_name or ''}</td>"
 		f"<td style='padding:6px 12px'>{s.brand or ''}</td>"
 		f"<td style='padding:6px 12px;font-weight:bold;color:#ef4444'>{s.days_left} days</td>"
@@ -74,9 +74,14 @@ def send_expiry_claim_reminders():
 		for s in expiring
 	)
 
+	active_schemes_url = f"{frappe.utils.get_url()}/app/supplier-scheme-circular?status=Active"
+
 	body = _("""
+		<div style='font-family:Segoe UI,Arial,sans-serif;max-width:760px;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden'>
+		<div style='background:#0f172a;color:#ffffff;padding:12px 16px;font-weight:600'>Congruence Holdings — Supplier Scheme Alert</div>
+		<div style='padding:16px'>
 		<p>The following schemes are expiring soon but have <strong>no claims recorded yet</strong>.
-		Please ensure achievement data is entered before they close.</p>
+		Please update achievement data before closure.</p>
 		<table border='1' cellspacing='0' cellpadding='0' style='border-collapse:collapse;font-size:14px;width:100%'>
 			<thead style='background:#f1f5f9'>
 				<tr>
@@ -88,9 +93,8 @@ def send_expiry_claim_reminders():
 			</thead>
 			<tbody>{rows}</tbody>
 		</table>
-		<p style='margin-top:16px'>
-			<a href='/app/supplier-scheme-circular?status=Active'>View All Active Schemes</a>
-		</p>
+		<p style='margin-top:16px'><a href='{active_schemes_url}' style='background:#0b57d0;color:#ffffff;text-decoration:none;padding:10px 14px;border-radius:6px;display:inline-block;font-weight:600'>Open Active Schemes</a></p>
+		</div></div>
 	""").format(rows=rows_html)
 
 	frappe.sendmail(

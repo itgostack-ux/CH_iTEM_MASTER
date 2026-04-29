@@ -968,14 +968,18 @@ class CHWarrantyClaim(Document):
 			subject = subject.replace("{{claim}}", self.name)
 
 		if not body:
+			claim_url = frappe.utils.get_url_to_form("CH Warranty Claim", self.name)
 			body = _(
+				"<div style='font-family:Segoe UI,Arial,sans-serif;max-width:680px;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden'>"
+				"<div style='background:#0f172a;color:#ffffff;padding:12px 16px;font-weight:600'>Congruence Holdings - GoGizmo Service</div>"
+				"<div style='padding:16px'>"
 				"<p>Dear Customer,</p>"
-				"<p>Your warranty claim <b>{0}</b> requires a processing fee of "
-				"<b>₹{1}</b>.</p>"
-				"<p><a href='{2}' style='padding:10px 20px;background:#7c3aed;"
-				"color:#fff;text-decoration:none;border-radius:4px'>Pay Now</a></p>"
+				"<p>Your warranty claim <b>{0}</b> requires a processing fee of <b>Rs {1}</b>.</p>"
+				"<p><a href='{2}' style='padding:10px 14px;background:#0b57d0;color:#fff;text-decoration:none;border-radius:6px;display:inline-block;font-weight:600'>Pay Processing Fee</a></p>"
+				"<p><a href='{3}' style='padding:10px 14px;background:#ffffff;color:#0b57d0;text-decoration:none;border:1px solid #0b57d0;border-radius:6px;display:inline-block;font-weight:600'>Open Claim</a></p>"
 				"<p>Thank you,<br>GoGizmo Service Team</p>"
-			).format(self.name, self.processing_fee_amount, link_url)
+				"</div></div>"
+			).format(self.name, self.processing_fee_amount, link_url, claim_url)
 		else:
 			body = body.replace("{{claim}}", self.name).replace(
 				"{{amount}}", str(self.processing_fee_amount or 0)

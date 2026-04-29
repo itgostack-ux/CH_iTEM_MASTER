@@ -198,18 +198,23 @@ def send_dunning_notice(receivable_name) -> dict:
 
 	company_name = frappe.db.get_value("Company", doc.company, "company_name") or doc.company
 	subject = _("Payment Due: {0} Claim #{1}").format(doc.scheme_type or "Scheme", receivable_name)
+	claim_url = frappe.utils.get_url_to_form("CH Scheme Receivable", receivable_name)
 	message = (
-		f"Dear {doc.party},\n\n"
-		f"This is a reminder that the following claim is outstanding:\n\n"
-		f"  Receivable  : {receivable_name}\n"
-		f"  Scheme Type : {doc.scheme_type or 'N/A'}\n"
-		f"  Claim Amount: ₹{flt(doc.claim_amount):,.2f}\n"
-		f"  Received    : ₹{flt(doc.received_amount):,.2f}\n"
-		f"  Outstanding : ₹{outstanding:,.2f}\n"
-		f"  Due Date    : {due_date or 'Not set'}\n"
-		f"  Days Overdue: {days_overdue}\n\n"
-		f"Please arrange payment and share the UTR/reference.\n\n"
-		f"Regards,\n{company_name}"
+		"<div style='font-family:Segoe UI,Arial,sans-serif;max-width:700px;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden'>"
+		f"<div style='background:#0f172a;color:#ffffff;padding:12px 16px;font-weight:600'>{frappe.utils.escape_html(company_name)} - Receivable Reminder</div>"
+		"<div style='padding:16px'>"
+		f"<p>Dear {frappe.utils.escape_html(doc.party)},</p>"
+		"<p>This is a reminder that the following claim is outstanding:</p>"
+		f"<p><b>Receivable:</b> {receivable_name}<br>"
+		f"<b>Scheme Type:</b> {frappe.utils.escape_html(doc.scheme_type or 'N/A')}<br>"
+		f"<b>Claim Amount:</b> ₹{flt(doc.claim_amount):,.2f}<br>"
+		f"<b>Received:</b> ₹{flt(doc.received_amount):,.2f}<br>"
+		f"<b>Outstanding:</b> ₹{outstanding:,.2f}<br>"
+		f"<b>Due Date:</b> {due_date or 'Not set'}<br>"
+		f"<b>Days Overdue:</b> {days_overdue}</p>"
+		"<p>Please arrange payment and share the UTR/reference.</p>"
+		f"<p><a href='{claim_url}' style='background:#0b57d0;color:#ffffff;text-decoration:none;padding:10px 14px;border-radius:6px;display:inline-block;font-weight:600'>Open Receivable</a></p>"
+		"</div></div>"
 	)
 
 	frappe.sendmail(
