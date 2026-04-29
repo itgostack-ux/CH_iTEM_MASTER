@@ -1,4 +1,5 @@
 {
+ "app": "ch_item_master",
  "charts": [],
  "content": "[{\"id\":\"cm_hdr_0\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Dashboard</b></span>\",\"col\":12}},{\"id\":\"cm_sc_0\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Customer Intelligence Dashboard\",\"col\":4}},{\"id\":\"cm_sp_0\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"cm_hdr_1\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Quick Access</b></span>\",\"col\":12}},{\"id\":\"cm_sc_1\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Customer\",\"col\":3}},{\"id\":\"cm_sc_2\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"CH Customer Device\",\"col\":3}},{\"id\":\"cm_sc_3\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"CH Loyalty Transaction\",\"col\":3}},{\"id\":\"cm_sp_1\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"cm_hdr_2\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Masters</b></span>\",\"col\":12}},{\"id\":\"cm_cd_1\",\"type\":\"card\",\"data\":{\"card_name\":\"Customer Management\",\"col\":4}},{\"id\":\"cm_cd_2\",\"type\":\"card\",\"data\":{\"card_name\":\"Devices & Warranty\",\"col\":4}},{\"id\":\"cm_cd_3\",\"type\":\"card\",\"data\":{\"card_name\":\"Loyalty & Engagement\",\"col\":4}}]",
  "creation": "2026-03-02 10:00:00",
@@ -118,9 +119,19 @@
    "link_type": "DocType",
    "onboard": 0,
    "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Customer Intelligence Dashboard",
+   "link_count": 0,
+   "link_to": "ch-customer-dashboard",
+   "link_type": "Page",
+   "onboard": 0,
+   "type": "Link"
   }
  ],
- "modified": "2026-03-02 13:04:53.190740",
+ "modified": "2026-04-29 10:47:20.179009",
  "modified_by": "Administrator",
  "module": "CH Customer Master",
  "name": "CH Customer Master",
@@ -131,7 +142,7 @@
  "quick_lists": [],
  "restrict_to_domain": "",
  "roles": [],
- "sequence_id": 25.0,
+ "sequence_id": 2.2,
  "shortcuts": [
   {
    "color": "Blue",
@@ -166,5 +177,6 @@
    "type": "Page"
   }
  ],
- "title": "CH Customer Master"
+ "title": "CH Customer Master",
+ "type": "Workspace"
 }
