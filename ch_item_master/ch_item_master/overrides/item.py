@@ -162,6 +162,49 @@ def _get_spec_values_from_attributes(doc):
     ]
 
 
+def _category_allows_custom_name(doc):
+    """Return True if doc's CH Category has allow_custom_item_name=1.
+
+    The flag only applies to simple (non-variant) items. Templates and
+    variants ALWAYS auto-generate names regardless of the flag because:
+      - templates anchor variant naming
+      - variants need spec/attribute suffixes for uniqueness
+    """
+    if doc.has_variants or doc.variant_of:
+        return False
+    if not doc.ch_category:
+        return False
+    return bool(
+        frappe.db.get_value(
+            "CH Category", doc.ch_category, "allow_custom_item_name"
+        )
+    )
+
+
+def _should_preserve_user_name(doc, generated_name, prev_display=None):
+    """Decide whether to keep doc.item_name (user-supplied) instead of overwriting.
+
+    Preserve only when ALL of:
+      - Category flag allows custom names (simple item only).
+      - doc.item_name is set, not the '__autoname' placeholder, not blank.
+      - doc.item_name differs from the freshly generated name (else it's
+        already auto, keep refresh-on-spec-edit semantics).
+      - doc.item_name does not match the previously stored generated value
+        (prev_display) — i.e. the user actually typed something custom
+        rather than just re-saving an auto-generated row.
+    """
+    if not _category_allows_custom_name(doc):
+        return False
+    current = (doc.item_name or "").strip()
+    if not current or current.lower() == "__autoname":
+        return False
+    if generated_name and current == generated_name:
+        return False
+    prev = (prev_display or "").strip()
+    if prev and current == prev:
+        return False
+    return True
+
 def before_insert(doc, method=None):
     """Auto-generate item_code for CH items.
 
@@ -360,6 +403,10 @@ def before_save(doc, method=None):
     if display_name and doc.get("ch_item_type"):
         display_name = f"{display_name} {doc.get('ch_item_type')}"
 
+    # Capture previous persisted display name BEFORE overwriting — used by
+    # the preserve-user-name check to detect "auto-managed" rows.
+    prev_display = (doc.get("ch_display_name") or "").strip()
+
     doc.ch_display_name = display_name
 
     # Safety: if variant name is identical to the template name (specs not
@@ -383,9 +430,18 @@ def before_save(doc, method=None):
                     doc.ch_display_name = display_name
 
     if display_name:
-        doc.item_name = display_name
-        # Keep description in sync — replaces hyphenated default set by ERPNext variant creation
-        doc.description = display_name
+        preserve = _should_preserve_user_name(doc, display_name, prev_display=prev_display)
+        if not preserve:
+            doc.item_name = display_name
+            # Keep description in sync — replaces hyphenated default set by ERPNext variant creation
+            doc.description = display_name
+        else:
+            # User-supplied custom name on a category that opted in.
+            # Sync description only when description was blank or matched the
+            # previously generated label (i.e. user never customized it).
+            current_desc = (doc.description or "").strip()
+            if not current_desc or current_desc == prev_display:
+                doc.description = doc.item_name
 
     # Validate generated name is unique (on every save)
     _check_duplicate_item_name(doc)
@@ -519,9 +575,12 @@ def _set_item_name(doc):
         generated = f"{generated} {doc.get('ch_item_type')}"
 
     if generated:
-        doc.item_name = generated
-        # ch_display_name is set by before_save which runs immediately after
+        # Always set ch_display_name to the generated descriptive label
         doc.ch_display_name = generated
+        # Preserve user-supplied item_name only when category opts in AND
+        # the user actually typed a real name (not blank/__autoname).
+        if not _should_preserve_user_name(doc, generated):
+            doc.item_name = generated
 
 
 def _populate_master_ids(doc):

@@ -14,6 +14,7 @@
   "column_break_mgr",
   "category_manager",
   "category_manager_name",
+  "allow_custom_item_name",
   "disabled"
  ],
  "fields": [
@@ -74,6 +75,13 @@
    "label": "Manager Name",
    "fetch_from": "category_manager.full_name",
    "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "allow_custom_item_name",
+   "fieldtype": "Check",
+   "label": "Allow Custom Item Name",
+   "description": "If enabled, user-provided Item Name is preserved on simple (non-variant) items in this category. Templates and variants always auto-generate. WARNING: disabling this later will overwrite custom names on next save."
   },
   {
    "default": "0",
