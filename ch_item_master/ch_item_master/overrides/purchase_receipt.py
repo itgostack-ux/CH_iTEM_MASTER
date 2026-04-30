@@ -19,7 +19,17 @@ from frappe.utils import nowdate, now_datetime
 
 
 def on_submit(doc, method):
-	"""Create Serial No and CH Serial Lifecycle records from IMEI Tracking rows."""
+	"""Create Serial No and CH Serial Lifecycle records from IMEI Tracking rows.
+
+	Also stamps `ch_is_imei` on every Serial No created/touched by this PR:
+	  * Real IMEIs from `custom_track` table  → ch_is_imei = 1
+	  * PR Item.serial_no with custom_imei="Yes" → ch_is_imei = 1
+	  * Auto-generated barcode serials (custom_imei="No") → ch_is_imei = 0
+	"""
+	# Stamp ch_is_imei on every serial referenced by this PR's items.
+	# This covers both auto-generated barcodes and manually-entered IMEIs.
+	_stamp_imei_flag_on_pr_serials(doc)
+
 	if not doc.get("custom_track"):
 		return
 
@@ -86,6 +96,8 @@ def on_submit(doc, method):
 
 		# Update the IMEI Tracking row with serial_no reference
 		row.db_set("serial_no", serial_no, update_modified=False)
+		# Real IMEI from custom_track table → flag explicitly
+		frappe.db.set_value("Serial No", serial_no, "ch_is_imei", 1, update_modified=False)
 		created_serials.append(serial_no)
 
 	if created_serials:
@@ -138,3 +150,26 @@ def _get_item_rate(doc, item_code):
 		if item.item_code == item_code:
 			return item.rate or item.base_rate or 0
 	return 0
+
+
+def _stamp_imei_flag_on_pr_serials(doc):
+	"""Set Serial No.ch_is_imei based on parent PR Item's custom_imei flag.
+
+	custom_imei is a Select on PR Item:
+	  - "Yes"     → real IMEI manually entered     → ch_is_imei = 1
+	  - "No"/None → auto-generated barcode serial  → ch_is_imei = 0
+	"""
+	for item in doc.items:
+		serial_blob = (item.serial_no or "").strip()
+		if not serial_blob:
+			continue
+		is_imei = 1 if (item.get("custom_imei") or "No") == "Yes" else 0
+		serials = [s.strip() for s in serial_blob.split("\n") if s.strip()]
+		if not serials:
+			continue
+		# Bulk update in one query for performance
+		placeholders = ", ".join(["%s"] * len(serials))
+		frappe.db.sql(
+			f"UPDATE `tabSerial No` SET ch_is_imei=%s WHERE name IN ({placeholders})",
+			[is_imei] + serials,
+		)

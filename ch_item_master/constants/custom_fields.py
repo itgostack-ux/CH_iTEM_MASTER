@@ -434,4 +434,26 @@ CUSTOM_FIELDS = {
 			"description": _("The CH Item Price that last wrote this record"),
 		},
 	],
+	# ──────────────────────────────────────────────
+	# Serial No: Real IMEI vs system-generated barcode flag
+	# Set when Purchase Receipt creates the serial:
+	#   - PR Item.custom_imei = "Yes" → real IMEI (manual entry)  → ch_is_imei = 1
+	#   - PR Item.custom_imei = "No"  → system-generated barcode  → ch_is_imei = 0
+	# Used by IMEI Tracker hub to filter "Real IMEI" vs "Non-IMEI Serial".
+	# ──────────────────────────────────────────────
+	"Serial No": [
+		{
+			"fieldname": "ch_is_imei",
+			"label": _("Is Real IMEI"),
+			"fieldtype": "Check",
+			"insert_after": "warranty_expiry_date",
+			"default": "0",
+			"in_standard_filter": 1,
+			"in_list_view": 1,
+			"description": _(
+				"Checked when this serial is a real IMEI (15-digit manufacturer ID) "
+				"as opposed to a system-generated barcode."
+			),
+		},
+	],
 }
