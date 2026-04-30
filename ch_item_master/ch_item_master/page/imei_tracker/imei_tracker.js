@@ -40,8 +40,11 @@ ch_item_master.imei_tracker.View = class IMEITrackerView {
 		this.selected_serials = new Set();
 		this.api_base = "ch_item_master.ch_item_master.page.imei_tracker.imei_tracker_api";
 
-		this.setup_layout();
+		// IMPORTANT ORDER: filters first (they prepend a `.page-form` div to
+		// page.body). Layout must APPEND to page.body — never replace it,
+		// or the page-form (cascade filters) gets destroyed.
 		this.setup_filters();
+		this.setup_layout();
 		this.setup_actions();
 		this.refresh();
 	}
@@ -49,7 +52,10 @@ ch_item_master.imei_tracker.View = class IMEITrackerView {
 	// ── Layout ────────────────────────────────────────────────────────────────
 	setup_layout() {
 		const $body = $(this.page.body);
-		$body.html(`
+		// Append (do NOT use .html()) — page.body also hosts the .page-form
+		// element where the cascade filters live, and replacing innerHTML
+		// would destroy them.
+		const $root = $(`
 			<div class="imei-tracker">
 				<div class="imei-tracker-controls">
 					<div class="imei-mode-group btn-group btn-group-sm" role="group" aria-label="IMEI mode">
@@ -90,6 +96,8 @@ ch_item_master.imei_tracker.View = class IMEITrackerView {
 				</div>
 			</div>
 		`);
+		$body.append($root);
+		this.$root = $root;
 
 		// Inject scoped styles (kept inline so the hub works even without a bundle build)
 		if (!$("#imei-tracker-style").length) {
@@ -172,6 +180,12 @@ ch_item_master.imei_tracker.View = class IMEITrackerView {
 			include_dates: true,
 			on_change: () => this.refresh(),
 		});
+		// Make sure the page-form (filter row) is visible — frappe hides it by
+		// default until you call show_form() on some single-column pages.
+		try {
+			if (this.page.page_form) this.page.page_form.removeClass("hide").show();
+			if (typeof this.page.show_form === "function") this.page.show_form();
+		} catch (e) { /* noop */ }
 	}
 
 	setup_actions() {
