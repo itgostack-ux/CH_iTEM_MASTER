@@ -69,7 +69,7 @@ class CHCustomerDevice(Document):
 		if self.active_warranty_plan:
 			try:
 				plan = frappe.get_cached_doc("CH Sold Plan", self.active_warranty_plan)
-				self.warranty_plan_name = plan.plan_name
+				self.warranty_plan_name = plan.plan_title or plan.warranty_plan
 				self.warranty_expiry = plan.valid_to
 				if plan.status == "Active":
 					self.warranty_status = "In Warranty"

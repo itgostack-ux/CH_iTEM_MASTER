@@ -357,7 +357,7 @@ def _get_sold_plans(customer, company=None):
 		"CH Sold Plan",
 		filters=filters,
 		fields=[
-			"name", "plan_name", "plan_type", "item_code", "item_name",
+			"name", "plan_title", "plan_type", "item_code", "item_name",
 			"serial_no", "start_date", "end_date", "status",
 			"sales_invoice", "company",
 		],
