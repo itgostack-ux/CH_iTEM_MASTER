@@ -2,6 +2,26 @@
 // For license information, please see license.txt
 
 frappe.ui.form.on("CH Exception Request", {
+	item_code(frm) {
+		if (!frm.doc.item_code || frm.doc.original_value) return;
+		// Auto-fetch item name
+		if (!frm.doc.item_name) {
+			frappe.db.get_value("Item", frm.doc.item_code, "item_name").then(r => {
+				if (r.message) frm.set_value("item_name", r.message.item_name);
+			});
+		}
+		// Auto-fetch standard selling price as original_value
+		frappe.xcall("ch_item_master.ch_item_master.exception_api.get_item_original_value", {
+			item_code: frm.doc.item_code,
+			company: frm.doc.company || frappe.defaults.get_default("company"),
+		}).then(r => {
+			if (r && flt(r) > 0) {
+				frm.set_value("original_value", flt(r));
+				frappe.show_alert({ message: __("Original value fetched: ₹{0}", [format_number(r)]), indicator: "blue" });
+			}
+		});
+	},
+
 	refresh(frm) {
 		if (frm.doc.docstatus === 0 && frm.doc.status === "Pending") {
 			frm.add_custom_button(__("Approve"), () => {

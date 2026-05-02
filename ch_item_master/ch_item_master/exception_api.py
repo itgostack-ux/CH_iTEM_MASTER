@@ -200,6 +200,13 @@ def request_exception_otp(exception_name, mobile_no) -> dict:
 		reference_doctype="CH Exception Request",
 		reference_name=exception_name,
 	)
+	# Send OTP via email alongside any SMS/WhatsApp
+	try:
+		from buyback.buyback.whatsapp_notifications import send_otp_email, _get_email_for_mobile
+		approver_email = _get_email_for_mobile(mobile_no)
+		send_otp_email(approver_email, otp_code, exc.exception_type, exception_name)
+	except Exception:
+		frappe.log_error(title="Exception OTP email delivery failed")
 	return {"otp_sent": True, "mobile_no": mobile_no}
 
 
@@ -293,3 +300,28 @@ def expire_stale_exceptions():
 
 	if stale:
 		frappe.db.commit()
+
+@frappe.whitelist()
+def get_item_original_value(item_code: str, company: str | None = None) -> float:
+        """Return the standard selling price for an item (for Exception Request auto-fill)."""
+        frappe.has_permission("CH Exception Request", "create", throw=True)
+
+        # 1. Try CH Item Price (POS channel, Active)
+        price = frappe.db.get_value(
+                "CH Item Price",
+                {"item_code": item_code, "channel": "POS", "status": "Active"},
+                "selling_price",
+        )
+        if price and flt(price) > 0:
+                return flt(price)
+
+        # 2. Fallback: ERPNext Item Price (Standard Selling price list)
+        filters = {"item_code": item_code, "selling": 1}
+        if company:
+                price_list = frappe.db.get_value(
+                        "Company", company, "default_selling_price_list"
+                ) or "Standard Selling"
+                filters["price_list"] = price_list
+
+        price = frappe.db.get_value("Item Price", filters, "price_list_rate")
+        return flt(price) if price else 0.0
