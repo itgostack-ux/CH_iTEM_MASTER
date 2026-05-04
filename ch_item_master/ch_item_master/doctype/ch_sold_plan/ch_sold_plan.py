@@ -26,6 +26,14 @@ from ch_item_master.ch_item_master.exceptions import (
 
 
 class CHSoldPlan(Document):
+	@property
+	def valid_to(self):
+		return self.end_date
+
+	@valid_to.setter
+	def valid_to(self, value):
+		self.end_date = value
+
 	def autoname(self):
 		"""Auto-generate sold_plan_id if not set."""
 		if not self.sold_plan_id:
