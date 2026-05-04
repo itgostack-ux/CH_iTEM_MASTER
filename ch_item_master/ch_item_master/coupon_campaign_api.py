@@ -43,10 +43,14 @@ def _build_date_filters(from_date=None, to_date=None):
 # ── KPIs ─────────────────────────────────────────────────────────────────────
 
 def _get_kpis(filters):
-	company_cond = "AND cc.company = %s" if filters.get("company") else ""
-	params = [filters["company"]] if filters.get("company") else []
+	cond = ["cc.docstatus = 1"]
+	params = []
+	if filters.get("company"):
+		cond.append("cc.company = %s")
+		params.append(filters["company"])
 
-	row = frappe.db.sql(f"""
+	row = frappe.db.sql(
+		"""
 		SELECT
 			COUNT(*) as total_campaigns,
 			SUM(CASE WHEN cc.status = 'Active' THEN 1 ELSE 0 END) as active_campaigns,
@@ -55,8 +59,11 @@ def _get_kpis(filters):
 			COALESCE(SUM(cc.total_discount_given), 0) as total_discount,
 			COALESCE(SUM(cc.total_revenue_generated), 0) as total_revenue
 		FROM `tabCH Coupon Campaign` cc
-		WHERE cc.docstatus = 1 {company_cond}
-	""", params, as_dict=True)[0]
+		WHERE """
+		+ " AND ".join(cond),
+		params,
+		as_dict=True,
+	)[0]
 
 	total_codes = cint(row.total_codes)
 	total_redeemed = cint(row.total_redeemed)
@@ -75,15 +82,22 @@ def _get_kpis(filters):
 # ── Pipeline ─────────────────────────────────────────────────────────────────
 
 def _get_pipeline(filters):
-	company_cond = "AND company = %s" if filters.get("company") else ""
-	params = [filters["company"]] if filters.get("company") else []
+	cond = ["docstatus = 1"]
+	params = []
+	if filters.get("company"):
+		cond.append("company = %s")
+		params.append(filters["company"])
 
-	rows = frappe.db.sql(f"""
+	rows = frappe.db.sql(
+		"""
 		SELECT status, COUNT(*) as count
 		FROM `tabCH Coupon Campaign`
-		WHERE docstatus = 1 {company_cond}
-		GROUP BY status ORDER BY FIELD(status, 'Draft','Active','Paused','Completed','Expired','Cancelled')
-	""", params, as_dict=True)
+		WHERE """
+		+ " AND ".join(cond)
+		+ " GROUP BY status ORDER BY FIELD(status, 'Draft','Active','Paused','Completed','Expired','Cancelled')",
+		params,
+		as_dict=True,
+	)
 
 	return [{"status": r.status, "count": cint(r["count"])} for r in rows]
 
@@ -91,50 +105,64 @@ def _get_pipeline(filters):
 # ── Active Campaigns ─────────────────────────────────────────────────────────
 
 def _get_active_campaigns(filters):
-	company_cond = "AND company = %s" if filters.get("company") else ""
-	params = [filters["company"]] if filters.get("company") else []
+	cond = ["docstatus = 1", "status IN ('Active', 'Paused')"]
+	params = []
+	if filters.get("company"):
+		cond.append("company = %s")
+		params.append(filters["company"])
 
-	return frappe.db.sql(f"""
+	return frappe.db.sql(
+		"""
 		SELECT
 			name, campaign_name, campaign_type, company,
 			valid_from, valid_upto, status,
 			total_codes_generated, total_distributed, total_redeemed,
 			total_discount_given, total_revenue_generated, redemption_rate
 		FROM `tabCH Coupon Campaign`
-		WHERE docstatus = 1 AND status IN ('Active', 'Paused') {company_cond}
-		ORDER BY creation DESC
-		LIMIT 30
-	""", params, as_dict=True)
+		WHERE """
+		+ " AND ".join(cond)
+		+ " ORDER BY creation DESC LIMIT 30",
+		params,
+		as_dict=True,
+	)
 
 
 # ── Top Campaigns by Revenue ─────────────────────────────────────────────────
 
 def _get_top_campaigns(filters):
-	company_cond = "AND company = %s" if filters.get("company") else ""
-	params = [filters["company"]] if filters.get("company") else []
+	cond = ["docstatus = 1", "total_redeemed > 0"]
+	params = []
+	if filters.get("company"):
+		cond.append("company = %s")
+		params.append(filters["company"])
 
-	return frappe.db.sql(f"""
+	return frappe.db.sql(
+		"""
 		SELECT
 			name, campaign_name, campaign_type, status,
 			total_codes_generated, total_redeemed,
 			total_discount_given, total_revenue_generated, redemption_rate
 		FROM `tabCH Coupon Campaign`
-		WHERE docstatus = 1 AND total_redeemed > 0 {company_cond}
-		ORDER BY total_revenue_generated DESC
-		LIMIT 10
-	""", params, as_dict=True)
+		WHERE """
+		+ " AND ".join(cond)
+		+ " ORDER BY total_revenue_generated DESC LIMIT 10",
+		params,
+		as_dict=True,
+	)
 
 
 # ── Recent Redemptions ───────────────────────────────────────────────────────
 
 def _get_recent_redemptions(filters, date_filters):
 	"""Get recent coupon/voucher redemptions across all campaigns."""
-	company_cond = "AND pi.company = %(company)s" if filters.get("company") else ""
 	if filters.get("company"):
 		date_filters["company"] = filters["company"]
 
+	company_clause = "AND pi.company = %(company)s" if filters.get("company") else ""
+
 	# Coupon redemptions from POS Invoice
-	coupon_redeem = frappe.db.sql(f"""
+	coupon_redeem = frappe.db.sql(
+		"""
 		SELECT
 			pi.name as invoice, pi.posting_date, pi.grand_total,
 			pi.discount_amount, pi.coupon_code as code_ref,
@@ -149,13 +177,16 @@ def _get_recent_redemptions(filters, date_filters):
 		WHERE pi.docstatus = 1
 			AND pi.coupon_code IS NOT NULL AND pi.coupon_code != ''
 			AND pi.posting_date BETWEEN %(from_date)s AND %(to_date)s
-			{company_cond}
-		ORDER BY pi.posting_date DESC
-		LIMIT 20
-	""", date_filters, as_dict=True)
+		"""
+		+ company_clause
+		+ " ORDER BY pi.posting_date DESC LIMIT 20",
+		date_filters,
+		as_dict=True,
+	)
 
 	# Voucher redemptions from CH Voucher Transaction
-	voucher_redeem = frappe.db.sql(f"""
+	voucher_redeem = frappe.db.sql(
+		"""
 		SELECT
 			vt.pos_invoice as invoice,
 			DATE(vt.transaction_date) as posting_date,
@@ -170,9 +201,11 @@ def _get_recent_redemptions(filters, date_filters):
 		LEFT JOIN `tabCH Coupon Campaign` camp ON camp.name = ccode.parent
 		WHERE vt.transaction_type = 'Redeem'
 			AND DATE(vt.transaction_date) BETWEEN %(from_date)s AND %(to_date)s
-		ORDER BY vt.transaction_date DESC
-		LIMIT 20
-	""", date_filters, as_dict=True)
+		ORDER BY vt.transaction_date DESC LIMIT 20
+		""",
+		date_filters,
+		as_dict=True,
+	)
 
 	combined = coupon_redeem + voucher_redeem
 	combined.sort(key=lambda x: str(x.get("posting_date", "")), reverse=True)
@@ -182,45 +215,54 @@ def _get_recent_redemptions(filters, date_filters):
 # ── Expiring Soon ────────────────────────────────────────────────────────────
 
 def _get_expiring_soon(filters):
-	company_cond = "AND company = %(company)s" if filters.get("company") else ""
 	soon = add_days(nowdate(), 7)
 	params = {"soon": soon}
+	company_clause = ""
 	if filters.get("company"):
 		params["company"] = filters["company"]
+		company_clause = "AND company = %(company)s"
 
-	return frappe.db.sql(f"""
+	return frappe.db.sql(
+		"""
 		SELECT
 			name, campaign_name, campaign_type, valid_upto,
 			total_codes_generated, total_redeemed, redemption_rate
 		FROM `tabCH Coupon Campaign`
 		WHERE docstatus = 1 AND status = 'Active'
 			AND valid_upto BETWEEN CURDATE() AND %(soon)s
-			{company_cond}
-		ORDER BY valid_upto ASC
-		LIMIT 10
-	""", params, as_dict=True)
+		"""
+		+ company_clause
+		+ " ORDER BY valid_upto ASC LIMIT 10",
+		params,
+		as_dict=True,
+	)
 
 
 # ── AI Insights ──────────────────────────────────────────────────────────────
 
 def _get_insights(filters):
 	insights = []
-	company_cond = "AND company = %(company)s" if filters.get("company") else ""
 	params = {}
+	company_clause = ""
 	if filters.get("company"):
 		params["company"] = filters["company"]
+		company_clause = "AND company = %(company)s"
 
 	# 1. Low redemption campaigns
-	low_redeem = frappe.db.sql(f"""
+	low_redeem = frappe.db.sql(
+		"""
 		SELECT campaign_name, redemption_rate, total_codes_generated
 		FROM `tabCH Coupon Campaign`
 		WHERE docstatus = 1 AND status = 'Active'
 			AND total_codes_generated > 0
 			AND redemption_rate < 5
 			AND DATEDIFF(CURDATE(), valid_from) > 7
-			{company_cond}
-		ORDER BY redemption_rate ASC LIMIT 3
-	""", params, as_dict=True)
+		"""
+		+ company_clause
+		+ " ORDER BY redemption_rate ASC LIMIT 3",
+		params,
+		as_dict=True,
+	)
 	for c in low_redeem:
 		insights.append({
 			"type": "warning",
@@ -232,16 +274,20 @@ def _get_insights(filters):
 	# 2. Expiring soon with unused codes
 	soon = add_days(nowdate(), 3)
 	exp_params = {"soon": soon, **params}
-	expiring = frappe.db.sql(f"""
+	expiring = frappe.db.sql(
+		"""
 		SELECT campaign_name, valid_upto,
 			total_codes_generated - total_redeemed as unused
 		FROM `tabCH Coupon Campaign`
 		WHERE docstatus = 1 AND status = 'Active'
 			AND valid_upto BETWEEN CURDATE() AND %(soon)s
 			AND total_codes_generated > total_redeemed
-			{company_cond}
-		LIMIT 3
-	""", exp_params, as_dict=True)
+		"""
+		+ company_clause
+		+ " LIMIT 3",
+		exp_params,
+		as_dict=True,
+	)
 	for c in expiring:
 		insights.append({
 			"type": "alert",
@@ -251,14 +297,18 @@ def _get_insights(filters):
 		})
 
 	# 3. High performers
-	top = frappe.db.sql(f"""
+	top = frappe.db.sql(
+		"""
 		SELECT campaign_name, redemption_rate, total_revenue_generated
 		FROM `tabCH Coupon Campaign`
 		WHERE docstatus = 1 AND status = 'Active'
 			AND redemption_rate > 30 AND total_redeemed >= 5
-			{company_cond}
-		ORDER BY total_revenue_generated DESC LIMIT 2
-	""", params, as_dict=True)
+		"""
+		+ company_clause
+		+ " ORDER BY total_revenue_generated DESC LIMIT 2",
+		params,
+		as_dict=True,
+	)
 	for c in top:
 		insights.append({
 			"type": "success",
