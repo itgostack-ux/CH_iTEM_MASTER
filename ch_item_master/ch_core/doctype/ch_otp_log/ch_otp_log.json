@@ -55,9 +55,10 @@
   },
   {
    "fieldname": "otp_code",
-   "fieldtype": "Password",
+   "fieldtype": "Data",
    "label": "OTP Code",
-   "hidden": 1
+   "hidden": 0,
+   "read_only": 1
   },
   {
    "fieldname": "column_break_01",

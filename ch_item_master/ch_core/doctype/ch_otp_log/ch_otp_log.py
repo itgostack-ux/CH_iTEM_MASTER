@@ -118,8 +118,16 @@ class CHOTPLog(Document):
 
         doc.attempts += 1
 
-        # Verify code
-        if doc.get_password("otp_code") == otp_code:
+        # Verify code: support both Password and Data field storage.
+        stored_otp = ""
+        try:
+            stored_otp = doc.get_password("otp_code") or ""
+        except Exception:
+            stored_otp = ""
+        if not stored_otp:
+            stored_otp = (doc.get("otp_code") or "").strip()
+
+        if str(stored_otp) == str(otp_code or "").strip():
             doc.status = "Verified"
             doc.verified_at = now_datetime()
             doc.save(ignore_permissions=True)
