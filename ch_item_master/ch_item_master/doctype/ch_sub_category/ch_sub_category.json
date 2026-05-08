@@ -107,6 +107,16 @@
    "label": "Disabled"
   },
   {
+   "default": "Active",
+   "description": "Draft: setup in progress, no items can be created. Active: live and available for item creation. Discontinued: no new items allowed, existing items unaffected.",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Draft\nActive\nDiscontinued"
+  },
+  {
    "fieldname": "tax_section",
    "fieldtype": "Section Break",
    "label": "Tax & HSN"

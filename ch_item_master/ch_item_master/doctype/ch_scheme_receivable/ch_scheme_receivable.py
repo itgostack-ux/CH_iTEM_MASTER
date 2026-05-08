@@ -12,7 +12,7 @@ Lifecycle:  Pending → Claimed → Partially Received → Settled
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import flt, nowdate, getdate, date_diff
+from frappe.utils import flt, nowdate, getdate, date_diff, validate_email_address
 
 
 class CHSchemeReceivable(Document):
@@ -189,6 +189,7 @@ def send_dunning_notice(receivable_name) -> dict:
 	days_overdue = date_diff(nowdate(), str(due_date)) if due_date else 0
 
 	party_email = frappe.db.get_value("Contact", {"company_name": doc.party}, "email_id")
+	party_email = validate_email_address(party_email) if party_email else ""
 	if not party_email:
 		frappe.msgprint(
 			_("No email found for party '{0}'. Dunning not sent.").format(doc.party),
@@ -217,13 +218,21 @@ def send_dunning_notice(receivable_name) -> dict:
 		"</div></div>"
 	)
 
-	frappe.sendmail(
-		recipients=[party_email],
-		subject=subject,
-		message=message,
-		reference_doctype="CH Scheme Receivable",
-		reference_name=receivable_name,
-	)
+	try:
+		frappe.sendmail(
+			recipients=[party_email],
+			subject=subject,
+			message=message,
+			reference_doctype="CH Scheme Receivable",
+			reference_name=receivable_name,
+			delayed=True,
+		)
+	except Exception:
+		frappe.log_error(
+			frappe.get_traceback(),
+			f"Dunning send failed: {receivable_name}",
+		)
+		return {"sent_to": None, "days_overdue": days_overdue}
 
 	doc.db_set("last_dunning_date", nowdate(), update_modified=False)
 	return {"sent_to": party_email, "days_overdue": days_overdue}

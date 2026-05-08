@@ -52,6 +52,7 @@ class CHSubCategory(Document):
 			self.sub_category_name = " ".join(self.sub_category_name.split())
 		self._populate_ids()
 		self._auto_fill_hsn_from_item_group()
+		self._sync_is_variant_from_spec_type()
 		self.validate_unique_name_per_category()
 		self.validate_case_insensitive_duplicate()
 		self.validate_duplicate_manufacturers()
@@ -59,6 +60,8 @@ class CHSubCategory(Document):
 		self.validate_name_order_sequential()
 		self.validate_spec_changes_after_items_exist()
 		self.validate_hsn_code()
+		self.validate_unique_prefix()
+		self._normalise_prefix()
 
 	def _populate_ids(self):
 		"""Copy numeric IDs from linked master records for API."""
@@ -77,6 +80,21 @@ class CHSubCategory(Document):
 				self.item_group_id = frappe.db.get_value(
 					"Item Group", self.item_group, "item_group_id"
 				) or 0
+
+	def _sync_is_variant_from_spec_type(self):
+		"""Keep the hidden is_variant Check in sync with the user-facing spec_type Select.
+
+		This keeps backward compatibility (all existing code reads is_variant)
+		while giving users a clearer 'Variant / Property' label in the UI (FIX-7).
+		"""
+		for row in self.specifications or []:
+			if row.spec_type == "Variant":
+				row.is_variant = 1
+			elif row.spec_type == "Property":
+				row.is_variant = 0
+			else:
+				# Backfill spec_type from is_variant for legacy rows (no spec_type set)
+				row.spec_type = "Variant" if row.is_variant else "Property"
 
 	def _auto_fill_hsn_from_item_group(self):
 		"""Auto-fill HSN from Item Group if not already set.
@@ -388,6 +406,33 @@ class CHSubCategory(Document):
 				title=_("Spec Changes — Please Review"),
 				indicator="orange",
 			)
+
+	def validate_unique_prefix(self):
+		"""Ensure no two sub-categories share the same item code prefix (FIX-5).
+
+		Duplicate prefixes cause _next_item_code to merge counters across
+		unrelated categories and eventually produce duplicate item codes.
+		"""
+		if not self.prefix:
+			return
+		normalised = self.prefix.strip().upper()
+		existing = frappe.db.get_value(
+			"CH Sub Category",
+			{"prefix": normalised, "name": ("!=", self.name)},
+			"name",
+		)
+		if existing:
+			frappe.throw(
+				_("Prefix {0} is already used by Sub Category {1}. "
+				  "Each sub-category must have a unique item code prefix."
+				).format(frappe.bold(normalised), frappe.bold(existing)),
+				title=_("Duplicate Prefix"),
+			)
+
+	def _normalise_prefix(self):
+		"""Force prefix to uppercase and strip whitespace."""
+		if self.prefix:
+			self.prefix = self.prefix.strip().upper()
 
 	def on_trash(self):
 		"""Block deletion if models or items depend on this sub-category."""

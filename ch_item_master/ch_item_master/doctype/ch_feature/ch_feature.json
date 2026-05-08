@@ -10,6 +10,7 @@
   "feature_id",
   "feature_group",
   "feature_name",
+  "feature_type",
   "column_break_01",
   "disabled"
  ],
@@ -44,6 +45,17 @@
    "reqd": 1,
    "description": "e.g. Type, Size, Resolution, Weight, Chipset, CPU, GPU",
    "search_index": 1
+  },
+  {
+   "default": "Technical",
+   "description": "Technical: structured specs (display, memory, connectivity). Marketing: descriptive bullets for catalog/POS. Accessory: compatibility info.",
+   "fieldname": "feature_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Feature Type",
+   "options": "Technical\nMarketing\nConnectivity\nAccessory",
+   "reqd": 1
   },
   {
    "fieldname": "column_break_01",

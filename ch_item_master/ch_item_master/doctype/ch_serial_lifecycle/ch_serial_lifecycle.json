@@ -82,7 +82,8 @@
    "in_standard_filter": 1,
    "label": "IMEI 1",
    "description": "15-digit IMEI for slot 1 (if different from serial)",
-   "search_index": 1
+   "search_index": 1,
+   "unique": 1
   },
   {
    "fieldname": "imei_number_2",

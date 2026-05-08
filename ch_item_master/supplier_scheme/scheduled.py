@@ -3,6 +3,7 @@
 import frappe
 from frappe import _
 from frappe.utils import getdate, nowdate, add_days
+from frappe.utils import validate_email_address
 
 
 def auto_close_expired_schemes():
@@ -62,7 +63,17 @@ def send_expiry_claim_reminders():
 	if not manager_emails:
 		return
 
-	recipients = [row[0] for row in manager_emails]
+	recipients = []
+	for row in manager_emails:
+		email = validate_email_address(row[0]) if row and row[0] else ""
+		if email:
+			recipients.append(email)
+
+	if not recipients:
+		frappe.logger("supplier_scheme").warning(
+			"Expiry reminder skipped: no valid manager emails found"
+		)
+		return
 
 	rows_html = "".join(
 		f"<tr>"
@@ -97,12 +108,19 @@ def send_expiry_claim_reminders():
 		</div></div>
 	""").format(rows=rows_html)
 
-	frappe.sendmail(
-		recipients=recipients,
-		subject=_("⚠ {count} Scheme(s) Expiring Soon With No Claims").format(count=len(expiring)),
-		message=body,
-		delayed=False,
-	)
+	try:
+		frappe.sendmail(
+			recipients=recipients,
+			subject=_("⚠ {count} Scheme(s) Expiring Soon With No Claims").format(count=len(expiring)),
+			message=body,
+			delayed=True,
+		)
+	except Exception:
+		frappe.log_error(
+			frappe.get_traceback(),
+			"Supplier Scheme: expiry reminder send failed",
+		)
+		return
 
 	# Mark last_expiry_reminder to prevent duplicate emails
 	for s in expiring:

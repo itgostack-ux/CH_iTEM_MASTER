@@ -48,6 +48,7 @@ class CHModel(Document):
 		self.validate_spec_values()
 		self.validate_variant_specs_have_values()
 		self.validate_deactivation()
+		self._default_status()
 
 	def _populate_ids(self):
 		"""Copy numeric IDs from linked master records for API."""
@@ -305,3 +306,8 @@ class CHModel(Document):
 				title=_("Model In Use"),
 				exc=ModelInUseError,
 			)
+
+	def _default_status(self):
+		"""Set status to Active for existing records with no status (migration safety)."""
+		if not self.status:
+			self.status = "Active"

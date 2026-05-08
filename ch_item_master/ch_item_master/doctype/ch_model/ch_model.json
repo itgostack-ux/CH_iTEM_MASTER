@@ -93,6 +93,16 @@
    "label": "Disabled"
   },
   {
+   "default": "Active",
+   "description": "Draft: model under setup, no items can be created. Active: ready for item creation. Discontinued: no new items, existing items unaffected.",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Draft\nActive\nDiscontinued"
+  },
+  {
    "fieldname": "api_ids_section",
    "fieldtype": "Section Break",
    "label": "API IDs",

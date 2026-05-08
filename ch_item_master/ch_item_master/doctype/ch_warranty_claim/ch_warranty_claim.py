@@ -36,7 +36,7 @@ Gate control for GoFix ticket:
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import nowdate, now_datetime, getdate, flt
+from frappe.utils import nowdate, now_datetime, getdate, flt, validate_email_address
 
 from ch_item_master.ch_item_master.utils import validate_indian_phone
 from ch_item_master.ch_item_master.doctype.ch_vas_settings.ch_vas_settings import (
@@ -949,6 +949,7 @@ class CHWarrantyClaim(Document):
 		IM-14 fix: Use configurable subject/body from VAS Settings if available.
 		"""
 		customer_email = frappe.db.get_value("Customer", self.customer, "email_id")
+		customer_email = validate_email_address(customer_email) if customer_email else ""
 		if not customer_email:
 			frappe.msgprint(_("No email on file for customer. Link: {0}").format(link_url),
 			                indicator="orange", alert=True)
@@ -985,12 +986,18 @@ class CHWarrantyClaim(Document):
 				"{{amount}}", str(self.processing_fee_amount or 0)
 			).replace("{{link}}", link_url)
 
-		frappe.sendmail(
-			recipients=[customer_email],
-			subject=subject,
-			message=body,
-			now=True,
-		)
+		try:
+			frappe.sendmail(
+				recipients=[customer_email],
+				subject=subject,
+				message=body,
+				now=True,
+			)
+		except Exception:
+			frappe.log_error(
+				frappe.get_traceback(),
+				f"Processing fee email failed for claim {self.name}",
+			)
 
 	def _send_fee_whatsapp(self, link_url):
 		"""Send processing fee link via WhatsApp (wa.me deep link or Frappe WhatsApp integration)."""

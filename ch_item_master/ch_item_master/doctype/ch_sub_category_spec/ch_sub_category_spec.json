@@ -5,6 +5,7 @@
  "engine": "InnoDB",
  "field_order": [
   "spec",
+  "spec_type",
   "is_variant",
   "affects_price",
   "in_item_name",
@@ -20,11 +21,22 @@
    "reqd": 1
   },
   {
+   "default": "Variant",
+   "description": "Variant: each value creates a separate SKU (e.g. Color, Storage). Property: shared metadata on all items (e.g. SIM Type, Network Protocol).",
+   "fieldname": "spec_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Spec Type",
+   "options": "Variant\nProperty",
+   "reqd": 1
+  },
+  {
    "default": "1",
-   "description": "If checked, this spec drives variant creation (e.g. Color, Storage). If unchecked, it is a property stored on the item (e.g. SIM Type).",
+   "description": "If checked, this spec drives variant creation (e.g. Color, Storage). If unchecked, it is a property stored on the item (e.g. SIM Type). Auto-set from Spec Type.",
    "fieldname": "is_variant",
    "fieldtype": "Check",
-   "in_list_view": 1,
+   "hidden": 1,
+   "in_list_view": 0,
    "label": "Variant"
   },
   {

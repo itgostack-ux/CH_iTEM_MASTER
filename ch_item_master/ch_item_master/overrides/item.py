@@ -92,6 +92,8 @@ def _populate_from_model(doc):
             doc.append("attributes", {"attribute": s["spec"]})
 
     # ── Property specs (non-variant) ──────────────────────────────────
+    # Always populate with the first available value from the model so filters
+    # and reports on RAM / SIM type etc. work out of the box (FIX-1).
     if not doc.get("ch_spec_values"):
         property_specs = _get_property_specs(
             doc.ch_sub_category, doc.ch_model, grouped=grouped_specs
@@ -99,7 +101,8 @@ def _populate_from_model(doc):
         if property_specs:
             doc.set("ch_spec_values", [])
             for ps in property_specs:
-                doc.append("ch_spec_values", {"spec": ps["spec"]})
+                value = ps["values"][0] if ps.get("values") else ""
+                doc.append("ch_spec_values", {"spec": ps["spec"], "spec_value": value})
 
     # ── Model features ────────────────────────────────────────────────
     if not doc.get("ch_model_features"):
@@ -218,6 +221,22 @@ def before_insert(doc, method=None):
         _copy_ch_fields_from_template(doc)
         return
 
+    # Block item creation from Draft or Discontinued models (FIX-9)
+    if doc.ch_model:
+        model_status = frappe.db.get_value("CH Model", doc.ch_model, "status")
+        if model_status == "Draft":
+            frappe.throw(
+                _("Model {0} is in Draft status. Activate the model before creating items.")
+                .format(frappe.bold(doc.ch_model)),
+                title=_("Model Not Active"),
+            )
+        elif model_status == "Discontinued":
+            frappe.throw(
+                _("Model {0} is Discontinued. No new items can be created from a discontinued model.")
+                .format(frappe.bold(doc.ch_model)),
+                title=_("Model Discontinued"),
+            )
+
     # Auto-populate fields from CH Model (supports quick entry flow
     # where user only selects a model and everything else is derived)
     _populate_from_model(doc)
@@ -283,14 +302,27 @@ def _copy_ch_fields_from_template(doc):
     if not doc.get("gst_hsn_code") and ch_fields.get("gst_hsn_code"):
         doc.gst_hsn_code = ch_fields["gst_hsn_code"]
 
-    # Copy property spec values from the saved template via targeted query
+    # Copy property spec values from the saved template (FIX-10: always carry
+    # the value, not just the spec name, so variants have complete data).
     doc.set("ch_spec_values", [])
-    for row in frappe.get_all(
+    template_specs = frappe.get_all(
         "CH Item Spec Value",
         filters={"parent": doc.variant_of, "parenttype": "Item"},
         fields=["spec", "spec_value"],
         order_by="idx asc",
-    ):
+    )
+    if not template_specs:
+        # Template may have been inserted without property specs (legacy data).
+        # Fall back to reading directly from the CH Model spec_values.
+        model_link = frappe.db.get_value("Item", doc.variant_of, "ch_model")
+        sub_cat = frappe.db.get_value("Item", doc.variant_of, "ch_sub_category")
+        if model_link and sub_cat:
+            grouped = _group_model_spec_values(model_link)
+            template_specs = [
+                frappe._dict(spec=ps["spec"], spec_value=(ps["values"][0] if ps.get("values") else ""))
+                for ps in _get_property_specs(sub_cat, model_link, grouped=grouped)
+            ]
+    for row in template_specs:
         doc.append("ch_spec_values", {"spec": row.spec, "spec_value": row.spec_value})
 
     # Copy model features from the template
@@ -311,25 +343,15 @@ def _copy_ch_fields_from_template(doc):
 def _validate_ch_spec_values(doc):
     """Validate ch_spec_values on the Item.
 
-    1. Property specs (is_variant=0) must have at least one value.
-    2. No duplicate spec entries allowed in ch_spec_values.
+    1. No duplicate spec entries allowed in ch_spec_values.
+    2. Spec values must exist in Item Attribute Value master (FIX-2).
+    3. Auto-fill missing property specs from the model so we never leave
+       blank rows (FIX-1 / FIX-10 — defence-in-depth on before_save).
     """
-    if not doc.ch_sub_category:
+    if not doc.ch_sub_category or not doc.ch_model:
         return
 
-    # Get property specs (non-variant) for this sub category
-    property_specs = frappe.get_all(
-        "CH Sub Category Spec",
-        filters={
-            "parent": doc.ch_sub_category,
-            "parenttype": "CH Sub Category",
-            "is_variant": 0,
-        },
-        pluck="spec",
-        ignore_permissions=True,
-    )
-
-    # Check for duplicate specs in ch_spec_values
+    # ── De-duplicate ───────────────────────────────────────────────────────
     seen_specs = set()
     for row in (doc.ch_spec_values or []):
         if row.spec in seen_specs:
@@ -341,18 +363,41 @@ def _validate_ch_spec_values(doc):
             )
         seen_specs.add(row.spec)
 
-    # For non-variant items (templates or variants with property specs),
-    # require all property specs to have a value
-    if property_specs:
-        filled_specs = {row.spec for row in (doc.ch_spec_values or []) if row.spec_value}
-        missing = [s for s in property_specs if s not in filled_specs]
-        if missing:
-            frappe.throw(
-                _("Property spec(s) {0} require a value. "
-                  "Add them in the Spec Values table."
-                ).format(", ".join(frappe.bold(s) for s in missing)),
-                title=_("Missing Property Spec Values"),
-            )
+    # ── Validate spec_value against Item Attribute Value master (FIX-2) ───
+    for row in (doc.ch_spec_values or []):
+        if row.spec and row.spec_value:
+            if not frappe.db.exists(
+                "Item Attribute Value",
+                {"parent": row.spec, "attribute_value": row.spec_value},
+            ):
+                frappe.throw(
+                    _("Row #{0}: Value {1} is not a valid option for {2}. "
+                      "Go to <b>Item Attribute → {2}</b> to add this value first."
+                    ).format(row.idx, frappe.bold(row.spec_value), frappe.bold(row.spec)),
+                    title=_("Invalid Spec Value"),
+                )
+
+    # ── Auto-fill any missing property specs from model (FIX-1 defence) ───
+    property_spec_defs = frappe.get_all(
+        "CH Sub Category Spec",
+        filters={"parent": doc.ch_sub_category, "parenttype": "CH Sub Category", "is_variant": 0},
+        pluck="spec",
+        ignore_permissions=True,
+    )
+    if not property_spec_defs:
+        return
+
+    existing_specs = {row.spec: row for row in (doc.ch_spec_values or [])}
+    missing_specs = [s for s in property_spec_defs if s not in existing_specs]
+    if not missing_specs:
+        return
+
+    # Pull model values for the missing specs
+    grouped = _group_model_spec_values(doc.ch_model)
+    for spec_name in missing_specs:
+        values = grouped.get(spec_name, [])
+        value = values[0] if values else ""
+        doc.append("ch_spec_values", {"spec": spec_name, "spec_value": value})
 
 
 def before_save(doc, method=None):
