@@ -60,7 +60,11 @@
   "manufacturers_section",
   "manufacturers",
   "specifications_section",
-  "specifications"
+  "specifications",
+  "uom_conversion_section",
+  "ch_uom_conversions",
+  "shelf_life_section",
+  "ch_default_shelf_life_days"
  ],
  "fields": [
   {
@@ -427,6 +431,32 @@
    "fieldtype": "Table",
    "label": "Specifications",
    "options": "CH Sub Category Spec"
+  },
+  {
+   "fieldname": "uom_conversion_section",
+   "fieldtype": "Section Break",
+   "label": "UOM Conversion Defaults",
+   "collapsible": 1,
+   "description": "Default UOM conversion factors applied to new items in this sub-category."
+  },
+  {
+   "fieldname": "ch_uom_conversions",
+   "fieldtype": "Table",
+   "label": "UOM Conversions",
+   "options": "CH UOM Conversion Rule",
+   "description": "Conversion factor table: from stock UOM to alternate UOM. Copied to new items automatically."
+  },
+  {
+   "fieldname": "shelf_life_section",
+   "fieldtype": "Section Break",
+   "label": "Perishable / Expiry Defaults",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "ch_default_shelf_life_days",
+   "fieldtype": "Int",
+   "label": "Default Shelf Life (Days)",
+   "description": "Copied to new items if shelf_life_in_days is empty. 0 = not perishable."
   }
  ],
  "links": [],

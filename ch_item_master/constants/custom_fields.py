@@ -408,6 +408,62 @@ CUSTOM_FIELDS = {
 			"insert_after": "ch_msp_effective_from",
 			"description": _("Allow this item to be sold at ₹0 in POS (e.g. bags, carry items)."),
 		},
+		# ── Tier B: Standard Cost ────────────────────────────────────────────
+		{
+			"fieldname": "ch_standard_cost",
+			"label": _("Standard Cost"),
+			"fieldtype": "Currency",
+			"insert_after": "ch_allow_zero_rate",
+			"description": _("SAP-style standard (frozen) cost. Changes are audited automatically."),
+		},
+		{
+			"fieldname": "ch_standard_cost_updated_on",
+			"label": _("Standard Cost Updated On"),
+			"fieldtype": "Date",
+			"insert_after": "ch_standard_cost",
+			"read_only": 1,
+			"description": _("Date of last standard cost change."),
+		},
+		# ── Tier B: Expiry Enforcement ───────────────────────────────────────
+		{
+			"fieldname": "ch_enforce_expiry",
+			"label": _("Enforce Expiry on Delivery"),
+			"fieldtype": "Check",
+			"insert_after": "ch_standard_cost_updated_on",
+			"description": _("Block delivery of expired batches for this item."),
+		},
+		# ── Tier B: Item Substitutes & Cross-References ──────────────────────
+		{
+			"fieldname": "ch_substitutes_section",
+			"label": _("Substitutes & Cross-References"),
+			"fieldtype": "Section Break",
+			"insert_after": "ch_enforce_expiry",
+			"collapsible": 1,
+		},
+		{
+			"fieldname": "ch_item_substitutes",
+			"label": _("Item Substitutes & Cross-References"),
+			"fieldtype": "Table",
+			"insert_after": "ch_substitutes_section",
+			"options": "CH Item Substitute",
+			"description": _("Alternate items, supersessions, and cross-reference part numbers."),
+		},
+		# ── Tier B: Regulatory / Country HS Codes ───────────────────────────
+		{
+			"fieldname": "ch_regulatory_section",
+			"label": _("Regulatory & Compliance"),
+			"fieldtype": "Section Break",
+			"insert_after": "ch_item_substitutes",
+			"collapsible": 1,
+		},
+		{
+			"fieldname": "ch_country_hs_codes",
+			"label": _("Country HS Codes"),
+			"fieldtype": "Table",
+			"insert_after": "ch_regulatory_section",
+			"options": "CH Item Country HS",
+			"description": _("Per-country tariff classification codes for cross-border compliance."),
+		},
 	],
 	# ──────────────────────────────────────────────
 	# Item Price: Add MRP and MOP alongside selling price

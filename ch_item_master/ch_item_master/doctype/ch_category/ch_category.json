@@ -9,6 +9,7 @@
  "field_order": [
   "category_id",
   "category_name",
+  "parent_category",
   "item_group",
   "item_group_id",
   "column_break_mgr",
@@ -38,6 +39,14 @@
    "reqd": 1,
    "unique": 1,
    "search_index": 1
+  },
+  {
+   "fieldname": "parent_category",
+   "fieldtype": "Link",
+   "label": "Parent Category",
+   "options": "CH Category",
+   "in_standard_filter": 1,
+   "description": "Optional parent for deep category hierarchy (SAP S/4 material group tree)"
   },
   {
    "fieldname": "item_group",
