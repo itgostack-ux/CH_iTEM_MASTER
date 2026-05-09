@@ -549,3 +549,68 @@ def search_models(doctype, txt, searchfield, start, page_len, filters) -> list:
         """.format(where=where),  # noqa: UP032
         {**values, "start": int(start), "page_len": int(page_len)},
     )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# item_nature link queries — used by set_query() in CH Warranty Plan,
+# GoFix Service Request, etc. Centralised so the filter rule lives in ONE
+# place: "items whose CH Sub Category has the right item_nature/flag".
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+@frappe.whitelist()
+@frappe.validate_and_sanitize_search_inputs
+def items_by_subcategory_nature(doctype, txt, searchfield, start, page_len, filters):
+    """Return Items whose CH Sub Category matches one of the given natures
+    and (optional) companion flags.
+
+    filters keys (all optional):
+      - natures: list[str] of item_nature values to include
+      - is_warranty_plan: 1 to require sub-cat.is_warranty_plan = 1
+      - is_vas_plan: 1 to require sub-cat.is_vas_plan = 1
+      - is_repair_labour: 1 to require sub-cat.is_repair_labour = 1
+      - is_amc: 1 to require sub-cat.is_amc = 1
+      - is_stock_item: 0/1 fallback when sub-cat is not yet classified
+
+    Result columns (Frappe link query convention): name, item_name, ch_sub_category
+    """
+    filters = filters or {}
+    natures = filters.get("natures") or []
+    if isinstance(natures, str):
+        natures = [natures]
+
+    where = ["i.disabled = 0"]
+    values = {"txt": f"%{txt or ''}%", "start": int(start or 0), "page_len": int(page_len or 20)}
+
+    if natures:
+        placeholders = ", ".join([f"%(n{i})s" for i in range(len(natures))])
+        where.append(f"sc.item_nature IN ({placeholders})")
+        for i, n in enumerate(natures):
+            values[f"n{i}"] = n
+
+    flag_map = {
+        "is_warranty_plan": "sc.is_warranty_plan = 1",
+        "is_vas_plan": "sc.is_vas_plan = 1",
+        "is_repair_labour": "sc.is_repair_labour = 1",
+        "is_amc": "sc.is_amc = 1",
+    }
+    for key, clause in flag_map.items():
+        if int(filters.get(key) or 0):
+            where.append(clause)
+
+    if "is_stock_item" in filters:
+        where.append("i.is_stock_item = %(is_stock_item)s")
+        values["is_stock_item"] = int(filters["is_stock_item"])
+
+    if txt:
+        where.append("(i.name LIKE %(txt)s OR i.item_name LIKE %(txt)s)")
+
+    sql = f"""
+        SELECT i.name, i.item_name, i.ch_sub_category
+        FROM `tabItem` i
+        LEFT JOIN `tabCH Sub Category` sc ON sc.name = i.ch_sub_category
+        WHERE {' AND '.join(where)}
+        ORDER BY i.item_name ASC
+        LIMIT %(page_len)s OFFSET %(start)s
+    """
+    return frappe.db.sql(sql, values)

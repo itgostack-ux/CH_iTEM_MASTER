@@ -61,6 +61,18 @@ class NamingOrderLockedError(frappe.ValidationError):
 	pass
 
 
+class InvalidItemNatureError(frappe.ValidationError):
+	"""Raised when item_nature is missing or set to a value that is incompatible
+	with the sub-category's spec / behavior configuration."""
+	pass
+
+
+class ItemNatureLockedError(frappe.ValidationError):
+	"""Raised when item_nature is changed after items already exist for the
+	sub-category in a way that would break existing data."""
+	pass
+
+
 # ── CH Model ─────────────────────────────────────────────────────────────────
 class DuplicateModelError(frappe.ValidationError):
 	pass

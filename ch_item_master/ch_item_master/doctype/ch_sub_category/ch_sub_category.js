@@ -3,6 +3,17 @@
 
 frappe.ui.form.on('CH Sub Category', {
 
+    refresh(frm) {
+        _apply_nature_visibility(frm);
+        _show_nature_summary(frm);
+    },
+
+    item_nature(frm) {
+        _apply_nature_visibility(frm);
+        _apply_nature_defaults(frm);
+        _show_nature_summary(frm);
+    },
+
     // ── Client-side UX validation ──────────────────────────────────────
     // Pure local checks that save a round-trip. All business-rule
     // validation lives server-side in ch_sub_category.py via frappe.throw().
@@ -25,3 +36,52 @@ frappe.ui.form.on('CH Sub Category', {
     },
 });
 
+function _apply_nature_visibility(frm) {
+    const nature = frm.doc.item_nature || 'Variant Template';
+    const non_stock = (nature === 'Service' || nature === 'Subscription');
+    // Sections handled by JSON depends_on; fine-tune fields not in those sections.
+    frm.toggle_display('include_manufacturer_in_name', !non_stock);
+    frm.toggle_display('include_brand_in_name', !non_stock);
+    frm.toggle_display('include_model_in_name', !non_stock);
+}
+
+function _apply_nature_defaults(frm) {
+    const nature = frm.doc.item_nature;
+    if (!nature) return;
+    const uom_defaults = {
+        'Service': 'Hour',
+        'Subscription': 'Month',
+        'Asset / Capital': 'Nos',
+        'Simple Auto-Named': 'Nos',
+        'Simple Custom-Named': 'Nos',
+        'Variant Template': 'Nos',
+    };
+    if (!frm.doc.default_uom && uom_defaults[nature]) {
+        frm.set_value('default_uom', uom_defaults[nature]);
+    }
+    if (nature === 'Service' || nature === 'Subscription') {
+        frm.set_value('is_stock_item_default', 0);
+    } else if (!frm.doc.is_stock_item_default) {
+        frm.set_value('is_stock_item_default', 1);
+    }
+    if (nature === 'Asset / Capital' && !frm.doc.serial_required) {
+        frm.set_value('serial_required', 1);
+    }
+}
+
+function _show_nature_summary(frm) {
+    const nature = frm.doc.item_nature;
+    if (!nature || frm.is_new()) return;
+    const summary = {
+        'Variant Template': 'Items will be created as <b>variants</b> from CH Models. Each spec combination = one Item.',
+        'Simple Auto-Named': 'Items created with <b>auto-generated names</b>. No variants — one Item per row.',
+        'Simple Custom-Named': '<b>User-typed Item Names</b> are preserved. Use for produce, loose goods, deli items.',
+        'Service': '<b>Non-stock</b> labour / time-based services. Used by GoFix Service Request.',
+        'Subscription': '<b>Non-stock</b> time-bound plans. Used by CH Warranty Plan / VAS Ledger.',
+        'Asset / Capital': '<b>Stock items with serial-tracking</b>. Demo units, fixed assets, capex.',
+    };
+    if (summary[nature] && frm.dashboard) {
+        frm.dashboard.clear_headline();
+        frm.dashboard.set_headline_alert(summary[nature], 'blue');
+    }
+}

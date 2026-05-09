@@ -16,6 +16,37 @@
   "sub_category_name",
   "prefix",
   "disabled",
+  "item_nature_section",
+  "item_nature",
+  "item_nature_help",
+  "column_break_nature",
+  "requires_approval_to_create",
+  "stock_defaults_section",
+  "default_uom",
+  "default_purchase_uom",
+  "is_stock_item_default",
+  "valuation_method",
+  "min_qty_decimals",
+  "column_break_stock",
+  "serial_required",
+  "batch_required",
+  "has_expiry",
+  "weight_per_unit_required",
+  "pack_size",
+  "service_section",
+  "is_repair_labour",
+  "is_amc",
+  "column_break_service",
+  "gofix_service_category",
+  "subscription_section",
+  "is_warranty_plan",
+  "is_vas_plan",
+  "column_break_subscription",
+  "subscription_duration_months_default",
+  "accounting_section",
+  "income_account",
+  "column_break_accounting",
+  "expense_account",
   "tax_section",
   "hsn_code",
   "column_break_tax",
@@ -24,6 +55,7 @@
   "include_manufacturer_in_name",
   "include_brand_in_name",
   "include_model_in_name",
+  "allow_custom_item_name",
   "manufacturers_section",
   "manufacturers",
   "specifications_section",
@@ -117,6 +149,193 @@
    "options": "Draft\nActive\nDiscontinued"
   },
   {
+   "fieldname": "item_nature_section",
+   "fieldtype": "Section Break",
+   "label": "Item Nature",
+   "description": "Defines what kind of items this sub-category creates. Drives form behavior, defaults, and validation."
+  },
+  {
+   "default": "Variant Template",
+   "fieldname": "item_nature",
+   "fieldtype": "Select",
+   "label": "Item Nature",
+   "options": "Variant Template\nSimple Auto-Named\nSimple Custom-Named\nService\nSubscription\nAsset / Capital",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "description": "Variant Template = phones/ACs (cartesian variants). Simple Auto-Named = cables (auto name). Simple Custom-Named = produce/loose goods (user types name). Service = GoFix labour (non-stock). Subscription = warranty/VAS plans (non-stock, time-bound). Asset/Capital = demo units."
+  },
+  {
+   "fieldname": "item_nature_help",
+   "fieldtype": "HTML",
+   "options": "<div class='text-muted small'>Once items exist, switching nature is restricted. Choose carefully.</div>"
+  },
+  {
+   "fieldname": "column_break_nature",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "requires_approval_to_create",
+   "fieldtype": "Check",
+   "label": "Requires Approval to Create New Items",
+   "description": "Maker-checker on item creation (used for high-value or compliance-sensitive sub-categories)"
+  },
+  {
+   "fieldname": "stock_defaults_section",
+   "fieldtype": "Section Break",
+   "label": "Stock & UOM Defaults",
+   "depends_on": "eval:doc.item_nature && doc.item_nature != 'Service' && doc.item_nature != 'Subscription'"
+  },
+  {
+   "fieldname": "default_uom",
+   "fieldtype": "Link",
+   "label": "Default Stock UOM",
+   "options": "UOM",
+   "description": "Auto-set on Item.stock_uom on insert (Nos, Kg, Litre, Box, etc.)"
+  },
+  {
+   "fieldname": "default_purchase_uom",
+   "fieldtype": "Link",
+   "label": "Default Purchase UOM",
+   "options": "UOM",
+   "description": "Optional — set when buy unit differs from sell unit (e.g. buy Box, sell Nos)"
+  },
+  {
+   "default": "1",
+   "fieldname": "is_stock_item_default",
+   "fieldtype": "Check",
+   "label": "Is Stock Item (default)"
+  },
+  {
+   "fieldname": "valuation_method",
+   "fieldtype": "Select",
+   "label": "Valuation Method",
+   "options": "\nFIFO\nMoving Average\nLIFO"
+  },
+  {
+   "default": "0",
+   "fieldname": "min_qty_decimals",
+   "fieldtype": "Int",
+   "label": "Qty Precision (decimals)",
+   "description": "0 = whole units (phones), 3 = loose goods (coriander/grains)"
+  },
+  {
+   "fieldname": "column_break_stock",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "serial_required",
+   "fieldtype": "Check",
+   "label": "Serial No Required"
+  },
+  {
+   "default": "0",
+   "fieldname": "batch_required",
+   "fieldtype": "Check",
+   "label": "Batch Required"
+  },
+  {
+   "default": "0",
+   "fieldname": "has_expiry",
+   "fieldtype": "Check",
+   "label": "Has Shelf-Life / Expiry"
+  },
+  {
+   "default": "0",
+   "fieldname": "weight_per_unit_required",
+   "fieldtype": "Check",
+   "label": "Weight per Unit Required"
+  },
+  {
+   "fieldname": "pack_size",
+   "fieldtype": "Float",
+   "label": "Default Pack Size",
+   "precision": "3"
+  },
+  {
+   "fieldname": "service_section",
+   "fieldtype": "Section Break",
+   "label": "Service Settings",
+   "depends_on": "eval:doc.item_nature == 'Service'"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_repair_labour",
+   "fieldtype": "Check",
+   "label": "Is GoFix Repair Labour",
+   "description": "Marks items as eligible for GoFix Service Request labour lines"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_amc",
+   "fieldtype": "Check",
+   "label": "Is AMC / Maintenance Contract"
+  },
+  {
+   "fieldname": "column_break_service",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "gofix_service_category",
+   "fieldtype": "Select",
+   "label": "GoFix Service Category",
+   "options": "\nDiagnostics\nRepair\nInstallation\nPickup-Drop\nConsultation\nOther"
+  },
+  {
+   "fieldname": "subscription_section",
+   "fieldtype": "Section Break",
+   "label": "Subscription / Warranty Plan Settings",
+   "depends_on": "eval:doc.item_nature == 'Subscription'"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_warranty_plan",
+   "fieldtype": "Check",
+   "label": "Is Warranty Plan",
+   "description": "Items in this sub-category appear as eligible service_item in CH Warranty Plan"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_vas_plan",
+   "fieldtype": "Check",
+   "label": "Is VAS Plan"
+  },
+  {
+   "fieldname": "column_break_subscription",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "subscription_duration_months_default",
+   "fieldtype": "Int",
+   "label": "Default Duration (Months)",
+   "description": "Pre-fills CH Warranty Plan / new items in this sub-category"
+  },
+  {
+   "fieldname": "accounting_section",
+   "fieldtype": "Section Break",
+   "label": "Accounting Defaults",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "income_account",
+   "fieldtype": "Link",
+   "label": "Default Income Account",
+   "options": "Account",
+   "description": "Optional — overrides company default for items in this sub-category"
+  },
+  {
+   "fieldname": "column_break_accounting",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "expense_account",
+   "fieldtype": "Link",
+   "label": "Default Expense Account",
+   "options": "Account"
+  },
+  {
    "fieldname": "tax_section",
    "fieldtype": "Section Break",
    "label": "Tax & HSN"
@@ -165,7 +384,16 @@
    "label": "Include Model in Name"
   },
   {
+   "default": "0",
+   "fieldname": "allow_custom_item_name",
+   "fieldtype": "Check",
+   "label": "Allow Custom Item Name",
+   "depends_on": "eval:doc.item_nature == 'Simple Custom-Named' || doc.item_nature == 'Service' || doc.item_nature == 'Subscription' || doc.item_nature == 'Asset / Capital'",
+   "description": "Auto-enabled (and required) for Simple Custom-Named, Service, Subscription, Asset/Capital. Templates and variants always auto-generate names."
+  },
+  {
    "fieldname": "manufacturers_section",
+   "depends_on": "eval:doc.item_nature != 'Service' && doc.item_nature != 'Subscription'",
    "fieldtype": "Section Break",
    "label": "Allowed Manufacturers"
   },
@@ -179,7 +407,8 @@
   {
    "fieldname": "specifications_section",
    "fieldtype": "Section Break",
-   "label": "Specifications Mapping"
+   "label": "Specifications Mapping",
+   "depends_on": "eval:doc.item_nature != 'Service' && doc.item_nature != 'Subscription'"
   },
   {
    "description": "Specifications applicable to this sub-category. These will appear as fields when creating items.",

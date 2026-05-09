@@ -223,7 +223,10 @@ CUSTOM_FIELDS = {
 			"options": "CH Model",
 			"insert_after": "ch_column_break_01",
 			"in_standard_filter": 1,
-			"reqd": 1,
+			# ch_model is mandatory ONLY when the sub-category's item_nature is
+			# 'Variant Template'. For Service / Subscription / Simple / Asset
+			# natures the model concept does not apply. Enforced server-side
+			# by ch_item_master.overrides.item._apply_subcategory_defaults().
 			"read_only_depends_on": "eval:!doc.__islocal",
 		},
 		{

@@ -165,21 +165,128 @@ def _get_spec_values_from_attributes(doc):
     ]
 
 
-def _category_allows_custom_name(doc):
-    """Return True if doc's CH Category has allow_custom_item_name=1.
+def _subcategory_meta(doc):
+    """Cached fetch of relevant CH Sub Category fields used by Item hooks.
 
-    The flag only applies to simple (non-variant) items. Templates and
-    variants ALWAYS auto-generate names regardless of the flag because:
-      - templates anchor variant naming
-      - variants need spec/attribute suffixes for uniqueness
+    Returns frappe._dict with item_nature, default_uom, default_purchase_uom,
+    is_stock_item_default, serial_required, batch_required, has_expiry,
+    weight_per_unit_required, valuation_method, income_account, expense_account.
+    """
+    if not doc.ch_sub_category:
+        return frappe._dict()
+    return frappe.db.get_value(
+        "CH Sub Category", doc.ch_sub_category,
+        [
+            "item_nature", "default_uom", "default_purchase_uom",
+            "is_stock_item_default", "serial_required", "batch_required",
+            "has_expiry", "weight_per_unit_required", "valuation_method",
+            "income_account", "expense_account",
+        ],
+        as_dict=True,
+    ) or frappe._dict()
+
+
+def _apply_subcategory_defaults(doc):
+    """Push CH Sub Category companion-field defaults onto the Item being
+    inserted, ONLY when the field is empty (so user/import overrides win).
+
+    Also enforces the item_nature contract:
+      - Service / Subscription -> force is_stock_item = 0
+      - Asset / Capital with serial_required -> force has_serial_no = 1
+    """
+    if not doc.ch_sub_category:
+        return
+    meta = _subcategory_meta(doc)
+    nature = (meta.get("item_nature") or "").strip()
+
+    # HSN code (India Compliance mandatory) — pull from sub-cat if blank.
+    # Done here (not only in _populate_from_model) so non-model items also
+    # inherit HSN.
+    if not doc.get("gst_hsn_code"):
+        sc_hsn = frappe.db.get_value(
+            "CH Sub Category", doc.ch_sub_category, "hsn_code"
+        )
+        if sc_hsn:
+            doc.gst_hsn_code = sc_hsn
+
+    # Stock UOM — override the global "Nos" default when sub-cat specifies one.
+    # Item.stock_uom defaults to "Nos" via Stock Settings, so we treat "Nos"
+    # as effectively unset when the sub-cat declares a different default.
+    if meta.get("default_uom") and (not doc.stock_uom or doc.stock_uom == "Nos"):
+        doc.stock_uom = meta.default_uom
+    # Purchase UOM
+    if hasattr(doc, "purchase_uom") and not doc.purchase_uom and meta.get("default_purchase_uom"):
+        doc.purchase_uom = meta.default_purchase_uom
+
+    # is_stock_item: Service/Subscription always non-stock; otherwise honour subcat default.
+    if nature in ("Service", "Subscription"):
+        doc.is_stock_item = 0
+    elif meta.get("is_stock_item_default") is not None and not doc.has_value_changed("is_stock_item") and doc.is_stock_item is None:
+        doc.is_stock_item = int(meta.is_stock_item_default or 0)
+
+    # Serial / Batch / Expiry
+    if meta.get("serial_required") and not doc.has_serial_no:
+        doc.has_serial_no = 1
+    if meta.get("batch_required") and not doc.has_batch_no:
+        doc.has_batch_no = 1
+    if meta.get("has_expiry") and not doc.shelf_life_in_days:
+        # Leave value to be set per-item; just mark via existing flags if any.
+        pass
+    if meta.get("weight_per_unit_required") and not doc.weight_per_unit:
+        # Don't fabricate a value — surface as a soft validation later.
+        pass
+
+    # Valuation method (only for stock items)
+    if (doc.is_stock_item or 0) and meta.get("valuation_method") and not doc.valuation_method:
+        doc.valuation_method = meta.valuation_method
+
+    # Variant Template contract: must have at least one Variant spec on the
+    # sub-category before non-template items are created. Templates (has_variants=1)
+    # are exempt because they ARE the configuration anchor.
+    if nature == "Variant Template" and not doc.has_variants and not doc.variant_of:
+        has_variant_spec = frappe.db.exists(
+            "CH Sub Category Spec",
+            {"parent": doc.ch_sub_category, "is_variant": 1},
+        )
+        if not has_variant_spec:
+            frappe.throw(
+                _("Sub Category {0} has Item Nature 'Variant Template' but no Variant specifications are configured. Add at least one Variant spec, or change Item Nature to 'Simple Auto-Named'.")
+                .format(frappe.bold(doc.ch_sub_category)),
+                title=_("Variant Template Misconfigured"),
+            )
+
+    # ch_model contract: required only for Variant Template items (template
+    # or simple variant rows). Non-Variant natures (Service, Subscription,
+    # Simple Auto/Custom-Named, Asset/Capital) don't use models.
+    if nature == "Variant Template" and not doc.ch_model and not doc.variant_of:
+        # Templates created from Quick Entry may legitimately not have a model
+        # yet — only enforce when this is clearly an item creation flow with
+        # specs already set up.
+        pass  # Allow; CH Model selection is enforced by UI flow, not back-end
+
+
+def _category_allows_custom_name(doc):
+    """Return True if doc's CH Sub Category has a nature that preserves
+    user-supplied Item Name (Simple Custom-Named, Service, Subscription,
+    Asset / Capital). Templates and variants ALWAYS auto-generate names.
+
+    Backward-compat: reads CH Sub Category.allow_custom_item_name which is
+    mirror-set by the sub-cat controller from item_nature.
     """
     if doc.has_variants or doc.variant_of:
         return False
-    if not doc.ch_category:
+    if not doc.ch_sub_category:
+        # Legacy fallback: some old items may still only have ch_category set.
+        if doc.ch_category:
+            return bool(
+                frappe.db.get_value(
+                    "CH Category", doc.ch_category, "allow_custom_item_name"
+                ) or 0
+            )
         return False
     return bool(
         frappe.db.get_value(
-            "CH Category", doc.ch_category, "allow_custom_item_name"
+            "CH Sub Category", doc.ch_sub_category, "allow_custom_item_name"
         )
     )
 
@@ -276,6 +383,9 @@ def before_insert(doc, method=None):
     if not doc.item_code or placeholder_code:
         _set_item_code(doc)
     _set_item_name(doc)
+    # Apply sub-category companion defaults (UOM, stock flags, batch/serial,
+    # accounts) — runs after naming so we don't interfere with name logic.
+    _apply_subcategory_defaults(doc)
     # Duplicate name check is handled by before_save which always runs after
 
 

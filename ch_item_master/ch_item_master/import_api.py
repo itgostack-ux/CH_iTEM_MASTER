@@ -332,6 +332,19 @@ def _validate_and_import(payload):
                 "prefix": prefix,
                 "hsn_code": hsn_code,
                 "gst_rate": float(sc.get("gst_rate", 0)),
+                "item_nature": _norm(sc.get("item_nature", "")) or _infer_item_nature(sc),
+                "default_uom": _norm(sc.get("default_uom", "")),
+                "default_purchase_uom": _norm(sc.get("default_purchase_uom", "")),
+                "is_stock_item_default": int(sc.get("is_stock_item_default", 1)),
+                "valuation_method": _norm(sc.get("valuation_method", "")),
+                "min_qty_decimals": int(sc.get("min_qty_decimals", 0)),
+                "serial_required": int(sc.get("serial_required", 0)),
+                "batch_required": int(sc.get("batch_required", 0)),
+                "has_expiry": int(sc.get("has_expiry", 0)),
+                "is_warranty_plan": int(sc.get("is_warranty_plan", 0)),
+                "is_vas_plan": int(sc.get("is_vas_plan", 0)),
+                "is_repair_labour": int(sc.get("is_repair_labour", 0)),
+                "is_amc": int(sc.get("is_amc", 0)),
                 "include_manufacturer_in_name": int(sc.get("include_manufacturer_in_name", 1)),
                 "include_brand_in_name": int(sc.get("include_brand_in_name", 0)),
                 "include_model_in_name": int(sc.get("include_model_in_name", 1)),
@@ -381,6 +394,22 @@ def _validate_and_import(payload):
                 sc_doc.prefix = sc_data["prefix"]
                 sc_doc.hsn_code = sc_data["hsn_code"] or ""
                 sc_doc.gst_rate = sc_data["gst_rate"]
+                sc_doc.item_nature = sc_data.get("item_nature") or "Variant Template"
+                if sc_data.get("default_uom"):
+                    sc_doc.default_uom = sc_data["default_uom"]
+                if sc_data.get("default_purchase_uom"):
+                    sc_doc.default_purchase_uom = sc_data["default_purchase_uom"]
+                sc_doc.is_stock_item_default = sc_data.get("is_stock_item_default", 1)
+                if sc_data.get("valuation_method"):
+                    sc_doc.valuation_method = sc_data["valuation_method"]
+                sc_doc.min_qty_decimals = sc_data.get("min_qty_decimals", 0)
+                sc_doc.serial_required = sc_data.get("serial_required", 0)
+                sc_doc.batch_required = sc_data.get("batch_required", 0)
+                sc_doc.has_expiry = sc_data.get("has_expiry", 0)
+                sc_doc.is_warranty_plan = sc_data.get("is_warranty_plan", 0)
+                sc_doc.is_vas_plan = sc_data.get("is_vas_plan", 0)
+                sc_doc.is_repair_labour = sc_data.get("is_repair_labour", 0)
+                sc_doc.is_amc = sc_data.get("is_amc", 0)
                 sc_doc.include_manufacturer_in_name = sc_data["include_manufacturer_in_name"]
                 sc_doc.include_brand_in_name = sc_data["include_brand_in_name"]
                 sc_doc.include_model_in_name = sc_data["include_model_in_name"]
@@ -446,7 +475,9 @@ def _validate_and_import(payload):
 
 _CSV_COLUMNS = [
     "category", "item_group", "sub_category_name", "hsn_code", "gst_rate",
-    "prefix", "include_manufacturer_in_name", "include_brand_in_name",
+    "prefix", "item_nature", "default_uom", "is_stock_item_default",
+    "is_warranty_plan", "is_vas_plan", "is_repair_labour", "is_amc",
+    "include_manufacturer_in_name", "include_brand_in_name",
     "include_model_in_name", "manufacturer", "brand", "model_name",
     "spec", "spec_value", "is_variant", "in_item_name", "name_order",
 ]
@@ -499,6 +530,13 @@ def _csv_to_payload(rows):
                 "hsn_code": _norm(row.get("hsn_code", "")),
                 "gst_rate": _to_float(row.get("gst_rate", 0)),
                 "prefix": _norm(row.get("prefix", "")).upper(),
+                "item_nature": _norm(row.get("item_nature", "")),
+                "default_uom": _norm(row.get("default_uom", "")),
+                "is_stock_item_default": _to_int(row.get("is_stock_item_default", 1)),
+                "is_warranty_plan": _to_int(row.get("is_warranty_plan", 0)),
+                "is_vas_plan": _to_int(row.get("is_vas_plan", 0)),
+                "is_repair_labour": _to_int(row.get("is_repair_labour", 0)),
+                "is_amc": _to_int(row.get("is_amc", 0)),
                 "include_manufacturer_in_name": _to_int(row.get("include_manufacturer_in_name", 1)),
                 "include_brand_in_name": _to_int(row.get("include_brand_in_name", 0)),
                 "include_model_in_name": _to_int(row.get("include_model_in_name", 1)),
@@ -563,6 +601,13 @@ def _csv_to_payload(rows):
                 "hsn_code": sc["hsn_code"],
                 "gst_rate": sc["gst_rate"],
                 "prefix": sc["prefix"],
+                "item_nature": sc.get("item_nature", ""),
+                "default_uom": sc.get("default_uom", ""),
+                "is_stock_item_default": sc.get("is_stock_item_default", 1),
+                "is_warranty_plan": sc.get("is_warranty_plan", 0),
+                "is_vas_plan": sc.get("is_vas_plan", 0),
+                "is_repair_labour": sc.get("is_repair_labour", 0),
+                "is_amc": sc.get("is_amc", 0),
                 "include_manufacturer_in_name": sc["include_manufacturer_in_name"],
                 "include_brand_in_name": sc["include_brand_in_name"],
                 "include_model_in_name": sc["include_model_in_name"],
@@ -590,6 +635,25 @@ def _to_float(val):
         return float(val)
     except (ValueError, TypeError):
         return 0.0
+
+
+def _infer_item_nature(sc):
+    """Infer item_nature when caller didn't supply it.
+
+    Inference rules (first match wins):
+      - is_warranty_plan or is_vas_plan flag set    -> Subscription
+      - is_repair_labour or is_amc flag set         -> Service
+      - any spec marked as variant in spec list     -> Variant Template
+      - default                                     -> Simple Auto-Named
+    """
+    if int(sc.get("is_warranty_plan", 0)) or int(sc.get("is_vas_plan", 0)):
+        return "Subscription"
+    if int(sc.get("is_repair_labour", 0)) or int(sc.get("is_amc", 0)):
+        return "Service"
+    for spec in sc.get("specs") or []:
+        if int(spec.get("is_variant", 1)):
+            return "Variant Template"
+    return "Simple Auto-Named"
 
 
 # ─────────────────────────────────────────────────────────────────────────────

@@ -3,12 +3,12 @@
 
 frappe.ui.form.on('CH Warranty Plan', {
 	setup(frm) {
-		// Service item must be a non-stock item.
-		// Use ERPNext's item_query so search works by both item_code AND item_name.
-		// Plain filters: {} bypasses item_query and only matches item_code (name field).
+		// service_item must be a Subscription-nature item (CH Sub Category.item_nature
+		// = 'Subscription' OR is_warranty_plan = 1). Falls back to non-stock items
+		// for sub-categories that haven't been classified yet (legacy data).
 		frm.set_query('service_item', () => ({
-			query: 'erpnext.controllers.queries.item_query',
-			filters: { is_stock_item: 0, disabled: 0 }
+			query: 'ch_item_master.ch_item_master.api.items_by_subcategory_nature',
+			filters: { natures: ['Subscription'], is_stock_item: 0 }
 		}));
 	},
 

@@ -10,13 +10,23 @@ from ch_item_master.ch_item_master.exceptions import (
 	DuplicateSpecError,
 	DuplicateSubCategoryError,
 	InvalidHSNCodeError,
+	InvalidItemNatureError,
 	InvalidNameOrderError,
+	ItemNatureLockedError,
 	NamingOrderLockedError,
 	SpecInUseError,
 	SubCategoryInUseError,
 	VariantFlagLockedError,
 	VariantSpecRemovalError,
 )
+
+
+# Item natures that produce non-stock items (Service / Subscription).
+_NON_STOCK_NATURES = {"Service", "Subscription"}
+# Item natures that ALWAYS preserve user-entered Item Name (no auto-naming).
+_CUSTOM_NAMED_NATURES = {"Simple Custom-Named", "Service", "Subscription", "Asset / Capital"}
+# Item natures that may NOT have variant specifications.
+_NO_VARIANT_NATURES = {"Service", "Subscription"}
 
 
 _TRANSACTION_TABLES = [
@@ -53,6 +63,7 @@ class CHSubCategory(Document):
 		self._populate_ids()
 		self._auto_fill_hsn_from_item_group()
 		self._sync_is_variant_from_spec_type()
+		self._validate_item_nature_contract()
 		self.validate_unique_name_per_category()
 		self.validate_case_insensitive_duplicate()
 		self.validate_duplicate_manufacturers()
@@ -95,6 +106,71 @@ class CHSubCategory(Document):
 			else:
 				# Backfill spec_type from is_variant for legacy rows (no spec_type set)
 				row.spec_type = "Variant" if row.is_variant else "Property"
+
+	def _validate_item_nature_contract(self):
+		"""Enforce the item_nature contract.
+
+		Rules:
+		  - item_nature is required (default 'Variant Template' from JSON).
+		  - Service / Subscription cannot have variant specs and must default
+		    is_stock_item_default = 0.
+		  - allow_custom_item_name is force-set on natures that require it
+		    so existing controllers behave correctly.
+		  - Changing item_nature after items exist is restricted to safe
+		    transitions only.
+		"""
+		nature = (self.item_nature or "").strip()
+		if not nature:
+			raise InvalidItemNatureError(
+				_("Item Nature is required on Sub Category {0}.").format(
+					self.name or self.sub_category_name
+				)
+			)
+
+		# Force allow_custom_item_name to mirror the chosen nature so that
+		# downstream Item naming logic Just Works without each call site
+		# duplicating the rule.
+		self.allow_custom_item_name = 1 if nature in _CUSTOM_NAMED_NATURES else 0
+
+		# Service / Subscription -> must be non-stock and must not carry variant specs.
+		if nature in _NO_VARIANT_NATURES:
+			has_variant_spec = any(
+				(row.is_variant or 0) for row in (self.specifications or [])
+			)
+			if has_variant_spec:
+				raise InvalidItemNatureError(
+					_(
+						"Sub Category {0}: Item Nature '{1}' cannot have Variant"
+						" specifications. Remove variant specs or change Item Nature."
+					).format(self.name or self.sub_category_name, nature)
+				)
+			self.is_stock_item_default = 0
+
+		# Asset / Capital -> default serial_required to 1 if user hasn't set it
+		if nature == "Asset / Capital" and not self.serial_required:
+			self.serial_required = 1
+
+		# Lock check: prevent dangerous transitions when items already exist.
+		if not self.is_new() and self.has_value_changed("item_nature"):
+			before = self.get_doc_before_save()
+			old_nature = before.get("item_nature") if before else None
+			if old_nature and old_nature != nature and self._has_existing_items():
+				safe_transitions = {
+					("Simple Auto-Named", "Simple Custom-Named"),
+					("Simple Custom-Named", "Simple Auto-Named"),
+				}
+				if (old_nature, nature) not in safe_transitions:
+					raise ItemNatureLockedError(
+						_(
+							"Cannot change Item Nature from '{0}' to '{1}' on Sub"
+							" Category {2}: items already exist. Allowed transitions:"
+							" Simple Auto-Named <-> Simple Custom-Named."
+						).format(old_nature, nature, self.name)
+					)
+
+	def _has_existing_items(self):
+		"""True if any Item is linked to this sub-category."""
+		return bool(frappe.db.exists("Item", {"ch_sub_category": self.name}))
 
 	def _auto_fill_hsn_from_item_group(self):
 		"""Auto-fill HSN from Item Group if not already set.
