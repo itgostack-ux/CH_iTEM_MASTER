@@ -90,10 +90,14 @@ doc_events = {
 		"before_save": [
 			"ch_item_master.ch_item_master.overrides.item.before_save",
 			"ch_item_master.ch_item_master.governance.on_item_before_save",
+			"ch_item_master.ch_item_master.tier_c.enforce_approval_gate",
+			"ch_item_master.ch_item_master.tier_c.validate_gtin",
+			"ch_item_master.ch_item_master.tier_c.validate_plm_transition",
 		],
 		"on_update": [
 			"ch_item_master.ch_item_master.governance.on_item_after_save",
 			"ch_item_master.ch_item_master.tier_b.track_standard_cost",
+			"ch_item_master.ch_item_master.tier_c.snapshot_item_version",
 		],
 	},
 	"Manufacturer": {
@@ -115,6 +119,7 @@ doc_events = {
 		"validate": [
 			"ch_item_master.ch_item_master.governance.validate_transaction_items",
 			"ch_item_master.ch_item_master.tier_b.enforce_msp",
+			"ch_item_master.ch_item_master.tier_c.enforce_plm_on_transaction",
 		],
 		"on_submit": [
 			"ch_item_master.ch_customer_master.hooks.on_sales_invoice_submit",
@@ -127,6 +132,7 @@ doc_events = {
 		"validate": [
 			"ch_item_master.ch_item_master.governance.validate_transaction_items",
 			"ch_item_master.ch_item_master.tier_b.enforce_msp",
+			"ch_item_master.ch_item_master.tier_c.enforce_plm_on_transaction",
 		],
 		"on_submit": [
 			"ch_item_master.ch_item_master.doctype.ch_scheme_receivable.ch_scheme_receivable.create_from_pos_invoice",
@@ -135,18 +141,25 @@ doc_events = {
 		"on_cancel": "ch_item_master.supplier_scheme.engine.reverse_invoice_items",
 	},
 	"Purchase Order": {
-		"validate": "ch_item_master.ch_item_master.governance.validate_transaction_items",
+		"validate": [
+			"ch_item_master.ch_item_master.governance.validate_transaction_items",
+			"ch_item_master.ch_item_master.tier_c.enforce_plm_on_transaction",
+		],
 	},
 	"Purchase Invoice": {
 		"validate": "ch_item_master.ch_item_master.governance.validate_transaction_items",
 	},
 	"Stock Entry": {
-		"validate": "ch_item_master.ch_item_master.governance.validate_transaction_items",
+		"validate": [
+			"ch_item_master.ch_item_master.governance.validate_transaction_items",
+			"ch_item_master.ch_item_master.tier_c.enforce_plm_on_transaction",
+		],
 	},
 	"Delivery Note": {
 		"validate": [
 			"ch_item_master.ch_item_master.governance.validate_transaction_items",
 			"ch_item_master.ch_item_master.tier_b.enforce_expiry",
+			"ch_item_master.ch_item_master.tier_c.enforce_plm_on_transaction",
 		],
 	},
 	"Purchase Receipt": {

@@ -1,0 +1,71 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-05-09 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "partner_type",
+  "partner",
+  "partner_item_code",
+  "partner_item_name",
+  "is_primary",
+  "notes"
+ ],
+ "fields": [
+  {
+   "fieldname": "partner_type",
+   "fieldtype": "Select",
+   "label": "Partner Type",
+   "options": "Supplier\nCustomer",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "partner",
+   "fieldtype": "Dynamic Link",
+   "label": "Partner",
+   "options": "partner_type",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "partner_item_code",
+   "fieldtype": "Data",
+   "label": "Partner Item Code",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "partner_item_name",
+   "fieldtype": "Data",
+   "label": "Partner Item Name",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "is_primary",
+   "fieldtype": "Check",
+   "label": "Primary",
+   "default": "0"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes"
+  }
+ ],
+ "icon": "fa fa-exchange",
+ "index_web_pages_for_search": 0,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-05-09 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "CH Item Master",
+ "name": "CH Item Trading Partner Alias",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "partner_type",
+ "sort_order": "ASC",
+ "track_changes": 0
+}

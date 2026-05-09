@@ -1,0 +1,137 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "format:VER-{item_code}-{####}",
+ "creation": "2026-05-09 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": [
+  "item_code",
+  "version_number",
+  "snapshot_date",
+  "changed_by",
+  "col_break1",
+  "ch_lifecycle_status",
+  "ch_plm_status",
+  "ch_category",
+  "ch_sub_category",
+  "ch_item_type",
+  "ch_standard_cost",
+  "remarks",
+  "snapshot_json"
+ ],
+ "fields": [
+  {
+   "fieldname": "item_code",
+   "fieldtype": "Link",
+   "label": "Item",
+   "options": "Item",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "version_number",
+   "fieldtype": "Int",
+   "label": "Version #",
+   "reqd": 1,
+   "in_list_view": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "snapshot_date",
+   "fieldtype": "Datetime",
+   "label": "Snapshot Date",
+   "reqd": 1,
+   "in_list_view": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "changed_by",
+   "fieldtype": "Link",
+   "label": "Changed By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "col_break1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "ch_lifecycle_status",
+   "fieldtype": "Data",
+   "label": "Lifecycle Status (at snapshot)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ch_plm_status",
+   "fieldtype": "Data",
+   "label": "PLM Status (at snapshot)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ch_category",
+   "fieldtype": "Data",
+   "label": "Category (at snapshot)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ch_sub_category",
+   "fieldtype": "Data",
+   "label": "Sub Category (at snapshot)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ch_item_type",
+   "fieldtype": "Data",
+   "label": "Item Type (at snapshot)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ch_standard_cost",
+   "fieldtype": "Currency",
+   "label": "Standard Cost (at snapshot)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "remarks",
+   "fieldtype": "Small Text",
+   "label": "Change Remarks"
+  },
+  {
+   "fieldname": "snapshot_json",
+   "fieldtype": "Long Text",
+   "label": "Full Snapshot (JSON)",
+   "read_only": 1,
+   "description": "JSON blob of all key Item fields at the time of snapshot."
+  }
+ ],
+ "icon": "fa fa-history",
+ "index_web_pages_for_search": 0,
+ "istable": 0,
+ "links": [],
+ "modified": "2026-05-09 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "CH Item Master",
+ "name": "CH Item Version",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "email": 1,
+   "export": 1,
+   "permlevel": 0,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "All",
+   "share": 1
+  }
+ ],
+ "sort_field": "version_number",
+ "sort_order": "DESC",
+ "track_changes": 0,
+ "track_seen": 0,
+ "track_views": 0
+}
