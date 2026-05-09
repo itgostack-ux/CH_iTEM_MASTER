@@ -66,6 +66,7 @@ CSV flat format (one row per model-spec-value):
 """
 
 import csv
+import hashlib
 import io
 import json
 from collections import OrderedDict, defaultdict
@@ -73,6 +74,49 @@ from collections import OrderedDict, defaultdict
 import frappe
 from frappe import _
 from frappe.utils import escape_html
+
+from ch_item_master.ch_item_master.exceptions import ImportIdempotencyError
+
+# Idempotency cache TTL (seconds). Keys live in frappe.cache so they survive
+# across requests but auto-expire to prevent unbounded growth.
+_IDEMPOTENCY_TTL = 60 * 60  # 1 hour
+_IDEMPOTENCY_NS = "ch_item_master.import_idempotency"
+
+
+def _idempotency_check(key: str | None, payload_hash: str) -> dict | None:
+    """Return cached response if this idempotency key was already processed.
+
+    Raises ImportIdempotencyError if the same key was used with a different
+    payload (replay attack / accidental param swap).
+    """
+    if not key:
+        return None
+    cache_key = f"{_IDEMPOTENCY_NS}:{key}"
+    cached = frappe.cache().get_value(cache_key)
+    if not cached:
+        return None
+    if cached.get("payload_hash") != payload_hash:
+        raise ImportIdempotencyError(
+            _("Idempotency key '{0}' was previously used with a different payload.").format(key)
+        )
+    return cached.get("response")
+
+
+def _idempotency_store(key: str | None, payload_hash: str, response: dict) -> None:
+    if not key:
+        return
+    cache_key = f"{_IDEMPOTENCY_NS}:{key}"
+    frappe.cache().set_value(
+        cache_key,
+        {"payload_hash": payload_hash, "response": response},
+        expires_in_sec=_IDEMPOTENCY_TTL,
+    )
+
+
+def _payload_hash(payload) -> str:
+    """Stable SHA256 of a JSON-serialisable payload."""
+    blob = json.dumps(payload, sort_keys=True, default=str).encode("utf-8")
+    return hashlib.sha256(blob).hexdigest()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -661,21 +705,59 @@ def _infer_item_nature(sc):
 # ─────────────────────────────────────────────────────────────────────────────
 
 @frappe.whitelist()
-def import_masters(data) -> dict:
+def import_masters(data, dry_run: int = 0, idempotency_key: str | None = None) -> dict:
     """Import CH masters from a structured JSON payload.
 
     Args:
         data: JSON string or dict with the hierarchical payload.
+        dry_run: When truthy, run validation only and return the diff/error
+            report without creating/modifying anything.
+        idempotency_key: Optional client-supplied key. If supplied and seen
+            within the TTL window, the previous response is replayed (or an
+            error is raised if the payload differs).
 
     Returns:
-        dict with success, summary, and errors.
+        dict with success, summary, errors, dry_run, idempotency_key.
     """
     frappe.only_for(["System Manager", "CH Master Manager"])
 
     if isinstance(data, str):
         data = json.loads(data)
 
-    return _validate_and_import(data)
+    dry_run = bool(int(dry_run or 0))
+    payload_hash = _payload_hash({"data": data, "dry_run": dry_run})
+
+    cached = _idempotency_check(idempotency_key, payload_hash)
+    if cached is not None:
+        return {**cached, "replayed": True}
+
+    if dry_run:
+        result = _dry_run_validate(data)
+    else:
+        result = _validate_and_import(data)
+
+    result["dry_run"] = dry_run
+    result["idempotency_key"] = idempotency_key or ""
+    _idempotency_store(idempotency_key, payload_hash, result)
+    return result
+
+
+def _dry_run_validate(payload) -> dict:
+    """Run the same Phase-1 validation but never persist anything.
+
+    Wraps _validate_and_import in a savepoint that we always roll back so
+    duplicate-detection lookups still work against committed data.
+    """
+    savepoint = "ch_item_master_import_dryrun"
+    frappe.db.savepoint(savepoint)
+    try:
+        result = _validate_and_import(payload)
+    finally:
+        try:
+            frappe.db.rollback(save_point=savepoint)
+        except Exception:
+            frappe.db.rollback()
+    return result
 
 
 @frappe.whitelist()

@@ -7,3 +7,4 @@
 ch_item_master.patches.backfill_city_state
 ch_item_master.patches.v1_market_standard_backfill
 ch_item_master.patches.v2_item_nature_classification
+ch_item_master.patches.v3_lifecycle_and_indexes

@@ -8,6 +8,7 @@ from ch_item_master.ch_customer_master.customer_custom_fields import CUSTOMER_CU
 
 CH_ROLES = [
     {"role_name": "CH Master Manager",   "desk_access": 1, "is_custom": 1},
+    {"role_name": "CH Master Approver",  "desk_access": 1, "is_custom": 1},
     {"role_name": "CH Price Manager",    "desk_access": 1, "is_custom": 1},
     {"role_name": "CH Offer Manager",    "desk_access": 1, "is_custom": 1},
     {"role_name": "CH Warranty Manager", "desk_access": 1, "is_custom": 1},

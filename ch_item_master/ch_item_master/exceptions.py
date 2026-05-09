@@ -73,6 +73,37 @@ class ItemNatureLockedError(frappe.ValidationError):
 	pass
 
 
+# ── Governance / Lifecycle ──────────────────────────────────────────────────
+class ItemNotActiveError(frappe.ValidationError):
+	"""Raised when a transaction tries to use an Item whose lifecycle_status is
+	not 'Active' (Draft / Pending Review / Obsolete / Blocked)."""
+	pass
+
+
+class InvalidLifecycleTransitionError(frappe.ValidationError):
+	"""Raised when lifecycle_status is changed in a non-allowed direction or
+	by a user without the right approver role."""
+	pass
+
+
+class SoftDuplicateError(frappe.ValidationError):
+	"""Raised when a strict duplicate-prevention check finds another Item with
+	the same normalized signature (manufacturer + model + brand + name)."""
+	pass
+
+
+class IncompleteItemMasterError(frappe.ValidationError):
+	"""Raised when an Item is activated without satisfying the completeness
+	profile required by its item_nature."""
+	pass
+
+
+class ImportIdempotencyError(frappe.ValidationError):
+	"""Raised when a bulk-import call replays an idempotency key already seen
+	within the dedup window."""
+	pass
+
+
 # ── CH Model ─────────────────────────────────────────────────────────────────
 class DuplicateModelError(frappe.ValidationError):
 	pass

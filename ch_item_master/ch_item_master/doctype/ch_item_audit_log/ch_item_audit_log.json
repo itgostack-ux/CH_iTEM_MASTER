@@ -1,0 +1,142 @@
+{
+ "actions": [],
+ "autoname": "format:CIAL-{YYYY}-{#####}",
+ "creation": "2026-05-09 00:00:00.000000",
+ "doctype": "DocType",
+ "document_type": "System",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": [
+  "item",
+  "action",
+  "field_name",
+  "column_break_1",
+  "changed_by",
+  "changed_on",
+  "section_break_values",
+  "old_value",
+  "new_value",
+  "section_break_meta",
+  "remarks",
+  "trace_id"
+ ],
+ "fields": [
+  {
+   "fieldname": "item",
+   "fieldtype": "Link",
+   "label": "Item",
+   "options": "Item",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "search_index": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "action",
+   "fieldtype": "Select",
+   "label": "Action",
+   "options": "Create\nUpdate\nLifecycle Change\nApprove\nBlock\nObsolete\nReactivate\nNature Change\nStock Flag Change",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "field_name",
+   "fieldtype": "Data",
+   "label": "Field",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "changed_by",
+   "fieldtype": "Link",
+   "label": "Changed By",
+   "options": "User",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "changed_on",
+   "fieldtype": "Datetime",
+   "label": "Changed On",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_break_values",
+   "fieldtype": "Section Break",
+   "label": "Values"
+  },
+  {
+   "fieldname": "old_value",
+   "fieldtype": "Long Text",
+   "label": "Old Value"
+  },
+  {
+   "fieldname": "new_value",
+   "fieldtype": "Long Text",
+   "label": "New Value"
+  },
+  {
+   "fieldname": "section_break_meta",
+   "fieldtype": "Section Break",
+   "label": "Context"
+  },
+  {
+   "fieldname": "remarks",
+   "fieldtype": "Small Text",
+   "label": "Remarks"
+  },
+  {
+   "fieldname": "trace_id",
+   "fieldtype": "Data",
+   "label": "Trace ID",
+   "description": "Idempotency / request trace identifier"
+  }
+ ],
+ "in_create": 1,
+ "links": [],
+ "modified": "2026-05-09 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "CH Item Master",
+ "name": "CH Item Audit Log",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "create": 1,
+   "delete": 0,
+   "export": 1,
+   "report": 1
+  },
+  {
+   "role": "CH Master Manager",
+   "read": 1,
+   "create": 0,
+   "export": 1,
+   "report": 1
+  },
+  {
+   "role": "CH Master Approver",
+   "read": 1,
+   "create": 0,
+   "export": 1,
+   "report": 1
+  },
+  {
+   "role": "CH Viewer",
+   "read": 1,
+   "export": 0
+  }
+ ],
+ "sort_field": "changed_on",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}

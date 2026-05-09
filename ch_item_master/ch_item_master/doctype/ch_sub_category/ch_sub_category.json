@@ -16,6 +16,7 @@
   "sub_category_name",
   "prefix",
   "disabled",
+  "lifecycle_status",
   "item_nature_section",
   "item_nature",
   "item_nature_help",
@@ -137,6 +138,16 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Disabled"
+  },
+  {
+   "default": "Draft",
+   "fieldname": "lifecycle_status",
+   "fieldtype": "Select",
+   "label": "Lifecycle Status",
+   "options": "Draft\nPending Review\nActive\nObsolete\nBlocked",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "description": "Governance lifecycle. Items cannot be created/transacted unless this is Active."
   },
   {
    "default": "Active",
