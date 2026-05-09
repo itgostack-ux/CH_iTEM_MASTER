@@ -56,6 +56,16 @@ frappe.ui.form.on('Item', {
     refresh(frm) {
         _toggle_property_specs_section(frm);
 
+        // CH Item Master — Status Dashboard (lifecycle / PLM / approval badges + completeness)
+        if (frm.doc.ch_model) {
+            _render_ch_status_dashboard(frm);
+        }
+
+        // Quick action buttons (Submit/Approve/Reject/PLM/History) for saved CH items
+        if (frm.doc.ch_model && !frm.is_new()) {
+            _render_ch_quick_actions(frm);
+        }
+
         // Ensure attribute_value column is visible on variant items
         // ERPNext's toggle_attributes does this too, but reinforce it here
         // so the user always sees which value each attribute has
@@ -581,4 +591,313 @@ function _update_variant_count(me, attr_val_fields) {
         me.multiple_variant_dialog.get_primary_btn().html(msg);
         me.multiple_variant_dialog.enable_primary_action();
     }
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  CH Item Master — Status Dashboard & Quick Actions (UI modernization)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Color maps for status indicators
+const _LIFECYCLE_COLORS = {
+    'Draft':          'gray',
+    'Pending Review': 'orange',
+    'Active':         'green',
+    'Obsolete':       'red',
+    'Blocked':        'red',
+};
+
+const _PLM_COLORS = {
+    'NPI':               'gray',
+    'Under Review':      'orange',
+    'Sample Testing':    'yellow',
+    'Approved':          'blue',
+    'Active Production': 'green',
+    'End of Life':       'orange',
+    'Discontinued':      'red',
+};
+
+const _APPROVAL_COLORS = {
+    'Draft':                'gray',
+    'Submitted for Review': 'orange',
+    'Approved':             'green',
+    'Rejected':             'red',
+};
+
+function _lifecycle_color(status) {
+    return _LIFECYCLE_COLORS[status] || 'gray';
+}
+
+function _plm_color(status) {
+    return _PLM_COLORS[status] || 'gray';
+}
+
+function _approval_color(status) {
+    return _APPROVAL_COLORS[status] || 'gray';
+}
+
+/**
+ * Calculate a completeness score (0–100) based on key Item fields.
+ * Weighted: required fields count double.
+ */
+function _calc_completeness(doc) {
+    const required = [
+        'ch_model', 'ch_category', 'ch_sub_category', 'item_group',
+        'brand', 'stock_uom',
+    ];
+    const optional = [
+        'gst_hsn_code', 'country_of_origin', 'description', 'image',
+        'ch_standard_cost', 'ch_minimum_selling_price', 'ch_gtin',
+    ];
+
+    let req_filled = required.filter(f => doc[f] && doc[f] !== '__autoname').length;
+    let opt_filled = optional.filter(f => doc[f]).length;
+
+    // Spec values: bonus if all spec rows are filled
+    let specs = doc.ch_spec_values || [];
+    let specs_filled = specs.length > 0 && specs.every(r => r.spec_value);
+    if (specs_filled) opt_filled += 1;
+
+    // Weighted score: required fields = 2 pts each, optional = 1 pt each
+    const max_score = required.length * 2 + optional.length + 1;
+    const score = (req_filled * 2 + opt_filled) / max_score * 100;
+    return Math.round(score);
+}
+
+/**
+ * Render colored status indicator pills on the form dashboard.
+ * Shows Lifecycle, PLM, Approval statuses and a completeness score.
+ */
+function _render_ch_status_dashboard(frm) {
+    // Clear existing CH-added indicators before re-rendering
+    frm.dashboard.clear_headline();
+
+    const lifecycle = frm.doc.ch_lifecycle_status || 'Draft';
+    frm.dashboard.add_indicator(
+        __('Lifecycle: {0}', [__(lifecycle)]),
+        _lifecycle_color(lifecycle)
+    );
+
+    if (frm.doc.ch_plm_status) {
+        frm.dashboard.add_indicator(
+            __('PLM: {0}', [__(frm.doc.ch_plm_status)]),
+            _plm_color(frm.doc.ch_plm_status)
+        );
+    }
+
+    if (frm.doc.ch_approval_status) {
+        frm.dashboard.add_indicator(
+            __('Approval: {0}', [__(frm.doc.ch_approval_status)]),
+            _approval_color(frm.doc.ch_approval_status)
+        );
+    }
+
+    // Completeness score
+    const score = _calc_completeness(frm.doc);
+    const score_color = score >= 80 ? 'green' : score >= 50 ? 'orange' : 'red';
+    frm.dashboard.add_indicator(
+        __('Complete: {0}%', [score]),
+        score_color
+    );
+}
+
+/**
+ * Render context-aware quick action buttons.
+ * Grouped under "CH Actions" in the form's custom buttons area.
+ */
+function _render_ch_quick_actions(frm) {
+    const approval = frm.doc.ch_approval_status || 'Draft';
+    const roles = frappe.user_roles || [];
+
+    const is_approver = roles.includes('CH Master Approver') ||
+        roles.includes('System Manager');
+
+    // ── Approval workflow ──────────────────────────────────────────────────
+    if (approval === 'Draft' || approval === 'Rejected') {
+        frm.add_custom_button(__('Submit for Review'), function () {
+            _ch_submit_for_review(frm);
+        }, __('CH Actions'));
+    }
+
+    if (approval === 'Submitted for Review' && is_approver) {
+        frm.add_custom_button(__('Approve'), function () {
+            _ch_approve(frm);
+        }, __('CH Actions'));
+
+        frm.add_custom_button(__('Reject'), function () {
+            _ch_reject(frm);
+        }, __('CH Actions'));
+    }
+
+    // ── PLM transition ─────────────────────────────────────────────────────
+    const plm_next = _plm_next_states(frm.doc.ch_plm_status);
+    if (plm_next.length) {
+        plm_next.forEach(function (next_state) {
+            frm.add_custom_button(__('PLM → {0}', [__(next_state)]), function () {
+                _ch_plm_advance(frm, next_state);
+            }, __('CH Actions'));
+        });
+    }
+
+    // ── Version History ────────────────────────────────────────────────────
+    frm.add_custom_button(__('Version History'), function () {
+        _show_version_history_dialog(frm);
+    }, __('CH Actions'));
+}
+
+/** Returns the allowed next PLM states from a given state. */
+function _plm_next_states(current) {
+    const transitions = {
+        'NPI':               ['Under Review'],
+        'Under Review':      ['Sample Testing', 'NPI'],
+        'Sample Testing':    ['Approved', 'Under Review'],
+        'Approved':          ['Active Production', 'Under Review'],
+        'Active Production': ['End of Life'],
+        'End of Life':       ['Discontinued'],
+        'Discontinued':      [],
+    };
+    return transitions[current] || [];
+}
+
+/** Prompt for remarks and call submit_for_approval. */
+function _ch_submit_for_review(frm) {
+    frappe.prompt(
+        [{ fieldname: 'remarks', fieldtype: 'Small Text', label: __('Remarks (optional)') }],
+        function (values) {
+            frappe.call({
+                method: 'ch_item_master.ch_item_master.tier_c.submit_for_approval',
+                args: { item_code: frm.doc.name, remarks: values.remarks || '' },
+                freeze: true,
+                freeze_message: __('Submitting for review…'),
+                callback: function (r) {
+                    if (!r.exc) {
+                        frappe.show_alert({ message: __('Submitted for Review'), indicator: 'green' });
+                        frm.reload_doc();
+                    }
+                },
+            });
+        },
+        __('Submit for Review'),
+        __('Submit')
+    );
+}
+
+/** Prompt for remarks and call approve_item. */
+function _ch_approve(frm) {
+    frappe.prompt(
+        [{ fieldname: 'remarks', fieldtype: 'Small Text', label: __('Approval Remarks (optional)') }],
+        function (values) {
+            frappe.call({
+                method: 'ch_item_master.ch_item_master.tier_c.approve_item',
+                args: { item_code: frm.doc.name, remarks: values.remarks || '' },
+                freeze: true,
+                freeze_message: __('Approving item…'),
+                callback: function (r) {
+                    if (!r.exc) {
+                        frappe.show_alert({ message: __('Item Approved'), indicator: 'green' });
+                        frm.reload_doc();
+                    }
+                },
+            });
+        },
+        __('Approve Item'),
+        __('Approve')
+    );
+}
+
+/** Prompt for rejection reason and call reject_item. */
+function _ch_reject(frm) {
+    frappe.prompt(
+        [{ fieldname: 'remarks', fieldtype: 'Small Text', label: __('Rejection Reason'), reqd: 1 }],
+        function (values) {
+            frappe.call({
+                method: 'ch_item_master.ch_item_master.tier_c.reject_item',
+                args: { item_code: frm.doc.name, remarks: values.remarks },
+                freeze: true,
+                freeze_message: __('Rejecting item…'),
+                callback: function (r) {
+                    if (!r.exc) {
+                        frappe.show_alert({ message: __('Item Rejected'), indicator: 'red' });
+                        frm.reload_doc();
+                    }
+                },
+            });
+        },
+        __('Reject Item'),
+        __('Reject')
+    );
+}
+
+/** Advance the PLM state machine to the next state. */
+function _ch_plm_advance(frm, next_state) {
+    frappe.confirm(
+        __('Move PLM status from <b>{0}</b> to <b>{1}</b>?',
+            [frm.doc.ch_plm_status, next_state]),
+        function () {
+            // Set the field and save — validate_plm_transition runs on before_save
+            frappe.model.set_value(frm.doctype, frm.docname, 'ch_plm_status', next_state);
+            frm.save(null, function () {
+                frappe.show_alert({ message: __('PLM status updated to {0}', [next_state]), indicator: 'blue' });
+            });
+        }
+    );
+}
+
+/**
+ * Show a timeline dialog with all item versions.
+ * Displays version number, date, changed by, lifecycle/PLM status, cost.
+ */
+function _show_version_history_dialog(frm) {
+    frappe.call({
+        method: 'ch_item_master.ch_item_master.tier_c.get_item_versions',
+        args: { item_code: frm.doc.name },
+        callback: function (r) {
+            const versions = r.message || [];
+            if (!versions.length) {
+                frappe.msgprint(__('No version history available for this item.'));
+                return;
+            }
+
+            // Build HTML timeline
+            let html = '<div class="ch-version-timeline" style="max-height:480px;overflow-y:auto;padding:8px 0;">';
+            versions.forEach(function (v) {
+                const date_str = v.snapshot_date
+                    ? frappe.datetime.str_to_user(v.snapshot_date)
+                    : '—';
+                const lc_color = _lifecycle_color(v.ch_lifecycle_status || '');
+                const plm_color = _plm_color(v.ch_plm_status || '');
+
+                html += `
+                <div style="display:flex;gap:12px;margin-bottom:14px;align-items:flex-start;">
+                    <div style="min-width:36px;text-align:center;">
+                        <span class="badge badge-pill" style="background:var(--blue-500);color:#fff;font-size:11px;">
+                            v${v.version_number}
+                        </span>
+                    </div>
+                    <div style="flex:1;border-left:2px solid var(--border-color);padding-left:12px;">
+                        <div style="font-weight:600;font-size:13px;color:var(--heading-color);">
+                            ${frappe.utils.escape_html(date_str)}
+                            <span style="font-weight:400;color:var(--text-muted);font-size:12px;margin-left:8px;">
+                                by ${frappe.utils.escape_html(v.changed_by || '—')}
+                            </span>
+                        </div>
+                        <div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:6px;">
+                            ${v.ch_lifecycle_status ? `<span class="indicator-pill ${lc_color}" style="font-size:11px;">${frappe.utils.escape_html(v.ch_lifecycle_status)}</span>` : ''}
+                            ${v.ch_plm_status ? `<span class="indicator-pill ${plm_color}" style="font-size:11px;">PLM: ${frappe.utils.escape_html(v.ch_plm_status)}</span>` : ''}
+                            ${v.ch_standard_cost ? `<span style="font-size:11px;color:var(--text-muted);">Cost: ${format_currency(v.ch_standard_cost)}</span>` : ''}
+                        </div>
+                        ${v.remarks ? `<div style="margin-top:4px;font-size:12px;color:var(--text-muted);">${frappe.utils.escape_html(v.remarks)}</div>` : ''}
+                    </div>
+                </div>`;
+            });
+            html += '</div>';
+
+            const d = new frappe.ui.Dialog({
+                title: __('Version History — {0}', [frm.doc.name]),
+                size: 'large',
+            });
+            d.body.innerHTML = html;
+            d.show();
+        },
+    });
 }

@@ -223,10 +223,10 @@ CUSTOM_FIELDS = {
 			"options": "CH Model",
 			"insert_after": "ch_column_break_01",
 			"in_standard_filter": 1,
-			# ch_model is mandatory ONLY when the sub-category's item_nature is
-			# 'Variant Template'. For Service / Subscription / Simple / Asset
-			# natures the model concept does not apply. Enforced server-side
-			# by ch_item_master.overrides.item._apply_subcategory_defaults().
+			# ch_model is NOT universally required at the meta level because
+			# ERPNext may have non-CH items. Conditional enforcement is handled
+			# server-side by ch_item_master.overrides.item._apply_subcategory_defaults().
+			"reqd": 0,
 			"read_only_depends_on": "eval:!doc.__islocal",
 		},
 		{

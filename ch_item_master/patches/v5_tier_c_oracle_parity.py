@@ -22,7 +22,11 @@ def execute():
 # ─── Indexes ─────────────────────────────────────────────────────────────────
 
 def _add_tier_c_item_indexes():
-	"""Add indexes for new Tier C fields on tabItem and tabCH Item Version."""
+	"""Add indexes for new Tier C fields on tabItem and tabCH Item Version.
+
+	NOTE: frappe.db.table_exists() takes the DocType name WITHOUT the 'tab' prefix.
+	Frappe adds the prefix internally. Using "tabItem" would check for "tabtabItem" → always False.
+	"""
 	index_specs = [
 		("tabItem", "Item", "ch_plm_status"),
 		("tabItem", "Item", "ch_approval_status"),
@@ -34,7 +38,8 @@ def _add_tier_c_item_indexes():
 	]
 	for table, doctype, col in index_specs:
 		try:
-			if not frappe.db.table_exists(table):
+			# Use doctype name (without tab) — Frappe adds the prefix internally
+			if not frappe.db.table_exists(doctype):
 				continue
 			if not frappe.db.has_column(doctype, col):
 				continue

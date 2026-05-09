@@ -27,9 +27,12 @@ CH_ROLES = [
 
 
 def create_ch_custom_fields():
-    """Create or update custom fields on ERPNext doctypes (Brand, Item, Item Group, Customer)."""
-    create_custom_fields(CUSTOM_FIELDS, ignore_validate=True, update=False)
-    create_custom_fields(CUSTOMER_CUSTOM_FIELDS, ignore_validate=True, update=False)
+    """Create or update custom fields on ERPNext doctypes (Brand, Item, Item Group, Customer).
+
+    update=True ensures code changes (options, permlevel, etc.) are pushed to existing installs.
+    """
+    create_custom_fields(CUSTOM_FIELDS, ignore_validate=True, update=True)
+    create_custom_fields(CUSTOMER_CUSTOM_FIELDS, ignore_validate=True, update=True)
 
 
 def setup_roles():

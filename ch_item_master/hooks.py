@@ -54,15 +54,13 @@ scheduler_events = {
 		"ch_item_master.ch_item_master.doctype.ch_coupon_campaign.ch_coupon_campaign.expire_campaigns",
 		"ch_item_master.supplier_scheme.scheduled.auto_close_expired_schemes",
 		"ch_item_master.supplier_scheme.scheduled.send_expiry_claim_reminders",
+		"ch_item_master.ch_item_master.rbac.expire_role_assignments",
 	],
 	"hourly": [
 		"ch_item_master.ch_item_master.exception_api.expire_stale_exceptions",
 	],
 	"weekly": [
 		"ch_item_master.ch_item_master.doctype.ch_scheme_receivable.ch_scheme_receivable.run_scheduled_dunning",
-	],
-	"daily_long": [
-		"ch_item_master.ch_item_master.rbac.expire_role_assignments",
 	],
 }
 
