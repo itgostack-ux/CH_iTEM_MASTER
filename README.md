@@ -2,6 +2,10 @@
 
 Common Item Master
 
+### User Guide
+
+- [CH Item Master User Guide](./USER_GUIDE.md)
+
 ### Installation
 
 You can install this app using the [bench](https://github.com/frappe/bench) CLI:

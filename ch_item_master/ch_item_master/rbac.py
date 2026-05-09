@@ -29,6 +29,7 @@ _APPROVER_ROLES = frozenset({"CH Master Approver", "System Manager", "Administra
 _MANAGER_ROLES  = frozenset({"CH Master Manager", "CH Master Approver", "System Manager", "Administrator"})
 _PLM_ROLES      = frozenset({"CH PLM Manager", "CH Master Approver", "CH Master Manager", "System Manager", "Administrator"})
 _VENDOR_ROLES   = frozenset({"CH Vendor Manager", "CH Master Manager", "System Manager", "Administrator"})
+_VENDOR_VIEW_ROLES = frozenset({"CH Vendor Manager", "CH Master Manager", "CH Master Approver", "CH Viewer", "System Manager", "Administrator"})
 _GTIN_ROLES     = frozenset({"CH GTIN Editor", "CH Master Manager", "CH Master Approver", "System Manager", "Administrator"})
 _PRICE_ROLES    = frozenset({"CH Price Manager", "CH Master Manager", "CH Master Approver", "System Manager", "Administrator"})
 _MRP_ROLES      = frozenset({"CH MRP Planner", "CH Master Manager", "System Manager", "Administrator"})
@@ -122,6 +123,16 @@ def check_vendor_manager_role(user: str | None = None) -> None:
 		frappe.throw(
 			_("CH Vendor Manager role is required to create or update Vendor Info Records."),
 			title=_("Vendor Manager Role Required"),
+			exc=RoleGateError,
+		)
+
+
+def check_vendor_view_role(user: str | None = None) -> None:
+	"""Raise if user doesn't have read access to Vendor Info Records."""
+	if not bool(_roles(user) & _VENDOR_VIEW_ROLES):
+		frappe.throw(
+			_("You are not permitted to view Vendor Info Records."),
+			title=_("Vendor Info Access Denied"),
 			exc=RoleGateError,
 		)
 

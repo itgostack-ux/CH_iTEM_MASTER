@@ -431,6 +431,58 @@ class TestTierCVendorInfoRecord(unittest.TestCase):
 		self.assertGreaterEqual(len(all_info), 2)
 		self.assertEqual(all_info[0].preferred, 1)
 
+	def test_16_effective_vendor_source_respects_moq(self):
+		"""When qty is below MOQ, source resolver skips that vendor."""
+		from ch_item_master.ch_item_master.tier_c import upsert_vendor_info, get_effective_vendor_source
+
+		item = _make_item("TC-VIR-16")
+
+		# Ensure second supplier
+		if not frappe.db.exists("Supplier", "VIR Test Supplier 3"):
+			sg = frappe.db.get_value("Supplier Group", {}, "name") or "All Supplier Groups"
+			frappe.get_doc({
+				"doctype": "Supplier",
+				"supplier_name": "VIR Test Supplier 3",
+				"supplier_group": sg,
+			}).insert(ignore_permissions=True, ignore_mandatory=True)
+
+		for row in frappe.get_all("CH Vendor Info Record", {"item_code": item.name}):
+			frappe.delete_doc("CH Vendor Info Record", row.name, ignore_permissions=True)
+
+		upsert_vendor_info(item.name, "VIR Test Supplier", standard_price=900.0, min_order_qty=10, preferred=1)
+		upsert_vendor_info(item.name, "VIR Test Supplier 3", standard_price=950.0, min_order_qty=1, preferred=0)
+
+		chosen = get_effective_vendor_source(item.name, qty=5)
+		self.assertIsNotNone(chosen)
+		self.assertEqual(chosen.get("supplier"), "VIR Test Supplier 3")
+
+	def test_17_effective_vendor_source_uses_price_break(self):
+		"""Quantity break price should override standard vendor price when matched."""
+		from ch_item_master.ch_item_master.tier_c import upsert_vendor_info, get_effective_vendor_source
+
+		item = _make_item("TC-VIR-17")
+
+		for row in frappe.get_all("CH Vendor Info Record", {"item_code": item.name}):
+			frappe.delete_doc("CH Vendor Info Record", row.name, ignore_permissions=True)
+
+		name = upsert_vendor_info(item.name, "VIR Test Supplier", standard_price=1000.0, min_order_qty=1, preferred=1)
+		rec = frappe.get_doc("CH Vendor Info Record", name)
+		rec.append(
+			"price_breaks",
+			{
+				"min_qty": 10,
+				"max_qty": 9999,
+				"unit_price": 840.0,
+				"is_active": 1,
+			},
+		)
+		rec.save(ignore_permissions=True)
+
+		chosen = get_effective_vendor_source(item.name, qty=20)
+		self.assertIsNotNone(chosen)
+		self.assertEqual(chosen.get("supplier"), "VIR Test Supplier")
+		self.assertEqual(float(chosen.get("effective_unit_price")), 840.0)
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 6. Full PLM State Machine

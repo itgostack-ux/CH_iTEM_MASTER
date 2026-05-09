@@ -25,7 +25,7 @@ import json
 
 import frappe
 from frappe import _
-from frappe.utils import now_datetime, today, getdate, flt
+from frappe.utils import now_datetime, today, getdate, flt, cint
 
 from ch_item_master.ch_item_master.exceptions import ItemNotActiveError
 
@@ -272,30 +272,60 @@ def get_site_defaults(item_code: str, warehouse: str | None = None) -> list[dict
 # ─────────────────────────────────────────────────────────────────────────────
 
 @frappe.whitelist()
-def get_vendor_info(item_code: str, supplier: str | None = None) -> list[dict] | dict | None:
+def get_vendor_info(
+	item_code: str,
+	supplier: str | None = None,
+	company: str | None = None,
+	purchase_org: str | None = None,
+	supplier_site: str | None = None,
+	as_of_date: str | None = None,
+) -> list[dict] | dict | None:
 	"""
 	Return CH Vendor Info Record(s) for an item.
 	If supplier is given, return the matching record or None.
 	Returns preferred/active records first.
 	"""
+	from ch_item_master.ch_item_master.rbac import check_vendor_view_role
+	check_vendor_view_role()
 	filters: dict = {"item_code": item_code, "active": 1}
+	as_of = getdate(as_of_date) if as_of_date else getdate(today())
 	if supplier:
 		filters["supplier"] = supplier
+	if company:
+		filters["company"] = company
+	if purchase_org:
+		filters["purchase_org"] = purchase_org
+	if supplier_site:
+		filters["supplier_site"] = supplier_site
+	filters["approval_status"] = "Approved"
 	rows = frappe.get_all(
 		"CH Vendor Info Record",
 		filters=filters,
 		fields=["name", "supplier", "vendor_item_code", "vendor_item_name",
-		        "currency", "standard_price", "price_valid_from", "price_valid_to",
-		        "lead_time_days", "min_order_qty", "preferred"],
-		order_by="preferred desc, modified desc",
+		        "currency", "standard_price", "price_valid_from", "price_valid_to", "company",
+		        "purchase_org", "supplier_site", "source_rank", "allocation_pct",
+		        "lead_time_days", "min_order_qty", "preferred", "approval_status"],
+		order_by="preferred desc, source_rank asc, standard_price asc, modified desc",
 	)
+	rows = [
+		r for r in rows
+		if (not r.price_valid_from or getdate(r.price_valid_from) <= as_of)
+		and (not r.price_valid_to or getdate(r.price_valid_to) >= as_of)
+	]
 	if supplier:
 		return rows[0] if rows else None
 	return rows
 
 
 @frappe.whitelist()
-def upsert_vendor_info(item_code: str, supplier: str, **kwargs) -> str:
+def upsert_vendor_info(
+	item_code: str,
+	supplier: str,
+	company: str | None = None,
+	purchase_org: str | None = None,
+	supplier_site: str | None = None,
+	**kwargs,
+) -> str:
 	"""
 	Create or update a CH Vendor Info Record for an item+supplier pair.
 	Accepts same field names as the doctype.
@@ -304,9 +334,16 @@ def upsert_vendor_info(item_code: str, supplier: str, **kwargs) -> str:
 	# Role gate: CH Vendor Manager or higher required
 	from ch_item_master.ch_item_master.rbac import check_vendor_manager_role
 	check_vendor_manager_role()
+	lookup_filters = {"item_code": item_code, "supplier": supplier}
+	if company:
+		lookup_filters["company"] = company
+	if purchase_org:
+		lookup_filters["purchase_org"] = purchase_org
+	if supplier_site:
+		lookup_filters["supplier_site"] = supplier_site
 	existing = frappe.db.get_value(
 		"CH Vendor Info Record",
-		{"item_code": item_code, "supplier": supplier},
+		lookup_filters,
 		"name",
 	)
 	if existing:
@@ -321,10 +358,128 @@ def upsert_vendor_info(item_code: str, supplier: str, **kwargs) -> str:
 			"doctype": "CH Vendor Info Record",
 			"item_code": item_code,
 			"supplier": supplier,
+			"company": company,
+			"purchase_org": purchase_org,
+			"supplier_site": supplier_site,
+			"approval_status": kwargs.pop("approval_status", "Approved"),
 			**kwargs,
 		})
 		doc.insert(ignore_permissions=True)
 		return doc.name
+
+
+@frappe.whitelist()
+def submit_vendor_info_for_approval(name: str) -> str:
+	"""Submit a vendor info record for approval."""
+	from ch_item_master.ch_item_master.rbac import check_vendor_manager_role
+	check_vendor_manager_role()
+	doc = frappe.get_doc("CH Vendor Info Record", name)
+	if doc.approval_status not in ("Draft", "Rejected"):
+		frappe.throw(_("Only Draft or Rejected records can be submitted."))
+	doc.approval_status = "Submitted"
+	doc.submitted_by = frappe.session.user
+	doc.submitted_on = now_datetime()
+	doc.save(ignore_permissions=True)
+	return "Submitted"
+
+
+@frappe.whitelist()
+def approve_vendor_info(name: str, remarks: str = "") -> str:
+	"""Approve a vendor info record (maker-checker with SoD)."""
+	from ch_item_master.ch_item_master.rbac import check_sod, is_effective_approver
+	if not is_effective_approver():
+		frappe.throw(_("Only CH Master Approver (or valid delegate) can approve vendor info."))
+	doc = frappe.get_doc("CH Vendor Info Record", name)
+	if doc.approval_status != "Submitted":
+		frappe.throw(_("Vendor info must be in Submitted state to approve."))
+	check_sod(submitted_by=doc.submitted_by or "")
+	doc.approval_status = "Approved"
+	doc.approved_by = frappe.session.user
+	doc.approved_on = now_datetime()
+	if remarks:
+		doc.notes = (doc.notes or "") + f"\n[Approval] {remarks}" if doc.notes else f"[Approval] {remarks}"
+	doc.save(ignore_permissions=True)
+	return "Approved"
+
+
+@frappe.whitelist()
+def get_effective_vendor_source(
+	item_code: str,
+	qty: float,
+	company: str | None = None,
+	purchase_org: str | None = None,
+	uom: str | None = None,
+	as_of_date: str | None = None,
+) -> dict | None:
+	"""
+	Return the best vendor source for requested quantity.
+	Respects active+approved records, validity window, MOQ, preferred/source rank,
+	and quantity price breaks where available.
+	"""
+	vendors = get_vendor_info(
+		item_code=item_code,
+		company=company,
+		purchase_org=purchase_org,
+		as_of_date=as_of_date,
+	)
+	if not vendors:
+		return None
+
+	requested_qty = flt(qty)
+	as_of = getdate(as_of_date) if as_of_date else getdate(today())
+	candidates = []
+
+	for vendor in vendors:
+		if requested_qty < flt(vendor.min_order_qty):
+			continue
+
+		effective_price = flt(vendor.standard_price)
+		matched_break = None
+		rec = frappe.get_doc("CH Vendor Info Record", vendor.name)
+		for br in rec.get("price_breaks") or []:
+			if not br.is_active:
+				continue
+			if br.valid_from and getdate(br.valid_from) > as_of:
+				continue
+			if br.valid_to and getdate(br.valid_to) < as_of:
+				continue
+			if uom and br.uom and br.uom != uom:
+				continue
+			if requested_qty < flt(br.min_qty):
+				continue
+			if br.max_qty and flt(br.max_qty) > 0 and requested_qty > flt(br.max_qty):
+				continue
+			effective_price = flt(br.unit_price)
+			matched_break = br.name
+			break
+
+		candidates.append(
+			{
+				"vendor_record": vendor.name,
+				"supplier": vendor.supplier,
+				"company": vendor.company,
+				"purchase_org": vendor.purchase_org,
+				"supplier_site": vendor.supplier_site,
+				"preferred": vendor.preferred,
+				"source_rank": vendor.source_rank,
+				"allocation_pct": vendor.allocation_pct,
+				"min_order_qty": vendor.min_order_qty,
+				"effective_unit_price": effective_price,
+				"matched_price_break": matched_break,
+			}
+		)
+
+	if not candidates:
+		return None
+
+	candidates.sort(
+		key=lambda x: (
+			0 if cint(x.get("preferred")) else 1,
+			cint(x.get("source_rank") or 999999),
+			flt(x.get("effective_unit_price") or 0),
+		)
+	)
+	return candidates[0]
 
 
 # ─────────────────────────────────────────────────────────────────────────────

@@ -9,9 +9,15 @@
  "field_order": [
   "item_code",
   "supplier",
+  "company",
+  "purchase_org",
+  "supplier_site",
   "col_break1",
   "preferred",
   "active",
+  "source_rank",
+  "allocation_pct",
+  "approval_status",
   "vendor_details_section",
   "vendor_item_code",
   "vendor_item_name",
@@ -24,7 +30,14 @@
   "col_break3",
   "lead_time_days",
   "min_order_qty",
-  "notes"
+  "notes",
+  "governance_section",
+  "submitted_by",
+  "submitted_on",
+  "approved_by",
+  "approved_on",
+  "pricing_breaks_section",
+  "price_breaks"
  ],
  "fields": [
   {
@@ -46,6 +59,25 @@
    "in_standard_filter": 1
   },
   {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "purchase_org",
+   "fieldtype": "Data",
+   "label": "Purchase Org",
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "supplier_site",
+   "fieldtype": "Data",
+   "label": "Supplier Site",
+   "in_standard_filter": 1
+  },
+  {
    "fieldname": "col_break1",
    "fieldtype": "Column Break"
   },
@@ -61,6 +93,28 @@
    "fieldtype": "Check",
    "label": "Active",
    "default": "1"
+  },
+  {
+   "fieldname": "source_rank",
+   "fieldtype": "Int",
+   "label": "Source Rank",
+   "default": "1",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "allocation_pct",
+   "fieldtype": "Float",
+   "label": "Allocation %",
+   "default": "100"
+  },
+  {
+   "fieldname": "approval_status",
+   "fieldtype": "Select",
+   "label": "Approval Status",
+   "options": "Draft\nSubmitted\nApproved\nRejected",
+   "default": "Draft",
+   "read_only": 1,
+   "in_list_view": 1
   },
   {
    "fieldname": "vendor_details_section",
@@ -129,6 +183,48 @@
    "fieldname": "notes",
    "fieldtype": "Small Text",
    "label": "Notes"
+  },
+  {
+   "fieldname": "governance_section",
+   "fieldtype": "Section Break",
+   "label": "Governance"
+  },
+  {
+   "fieldname": "submitted_by",
+   "fieldtype": "Link",
+   "label": "Submitted By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "submitted_on",
+   "fieldtype": "Datetime",
+   "label": "Submitted On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "approved_by",
+   "fieldtype": "Link",
+   "label": "Approved By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "approved_on",
+   "fieldtype": "Datetime",
+   "label": "Approved On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "pricing_breaks_section",
+   "fieldtype": "Section Break",
+   "label": "Price Breaks"
+  },
+  {
+   "fieldname": "price_breaks",
+   "fieldtype": "Table",
+   "label": "Vendor Price Breaks",
+   "options": "CH Vendor Price Break"
   }
  ],
  "icon": "fa fa-truck",
@@ -148,21 +244,59 @@
  "owner": "Administrator",
  "permissions": [
   {
+     "create": 1,
    "email": 1,
    "export": 1,
    "permlevel": 0,
    "print": 1,
    "read": 1,
    "report": 1,
-   "role": "All",
+     "role": "CH Vendor Manager",
    "share": 1,
-   "write": 1,
-   "create": 1
+     "write": 1
+    },
+    {
+     "email": 1,
+     "export": 1,
+     "permlevel": 0,
+     "print": 1,
+     "read": 1,
+     "report": 1,
+     "role": "CH Master Manager",
+     "share": 1
+    },
+    {
+     "email": 1,
+     "export": 1,
+     "permlevel": 0,
+     "print": 1,
+     "read": 1,
+     "report": 1,
+     "role": "CH Master Approver",
+     "share": 1
+    },
+    {
+     "email": 1,
+     "export": 1,
+     "permlevel": 0,
+     "print": 1,
+     "read": 1,
+     "report": 1,
+     "role": "CH Viewer",
+     "share": 1
   },
   {
+     "create": 1,
    "delete": 1,
+     "email": 1,
+     "export": 1,
    "permlevel": 0,
-   "role": "System Manager"
+     "print": 1,
+     "read": 1,
+     "report": 1,
+     "role": "System Manager",
+     "share": 1,
+     "write": 1
   }
  ],
  "sort_field": "modified",
