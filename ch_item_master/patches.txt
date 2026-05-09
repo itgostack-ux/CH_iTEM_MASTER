@@ -14,3 +14,4 @@ ch_item_master.patches.v6_rbac_parity
 ch_item_master.patches.v7_fix_missing_indexes
 ch_item_master.patches.v8_vendor_governance_hardening
 ch_item_master.patches.v9_vendor_oracle_parity
+ch_item_master.patches.v10_oracle_procurement_excellence

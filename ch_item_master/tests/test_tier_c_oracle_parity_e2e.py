@@ -558,5 +558,228 @@ class TestTierCPLMStateMachine(unittest.TestCase):
 			self.fail("End of Life should warn, not block, on Sales Invoice")
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# 7. Vendor Performance Scoring (Oracle Procurement Excellence)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestVendorPerformanceScoring(unittest.TestCase):
+
+	def setUp(self):
+		frappe.set_user("Administrator")
+		if not frappe.db.exists("Supplier", "Perf Test Supplier"):
+			sg = frappe.db.get_value("Supplier Group", {}, "name") or "All Supplier Groups"
+			frappe.get_doc({
+				"doctype": "Supplier",
+				"supplier_name": "Perf Test Supplier",
+				"supplier_group": sg,
+			}).insert(ignore_permissions=True, ignore_mandatory=True)
+		# Clean up any leftover VP records for test items to avoid duplicate name errors
+		for item_code in ("TC-PERF-23", "TC-PERF-24"):
+			for row in frappe.get_all(
+				"CH Vendor Performance",
+				{"item_code": item_code, "supplier": "Perf Test Supplier"},
+				pluck="name",
+			):
+				frappe.delete_doc("CH Vendor Performance", row, ignore_permissions=True, force=True)
+		frappe.db.commit()
+
+	def test_23_performance_score_recorded(self):
+		"""record_vendor_performance creates a CH Vendor Performance doc."""
+		from ch_item_master.ch_item_master.tier_c import (
+			record_vendor_performance, get_vendor_performance,
+		)
+
+		item = _make_item("TC-PERF-23")
+		name = record_vendor_performance(
+			item.name,
+			"Perf Test Supplier",
+			evaluation_date=today(),
+			evaluation_period="2026-Q2",
+			otif_pct=92.5,
+			on_time_delivery_pct=95.0,
+			quality_score=88.0,
+			defect_rate=1.5,
+			risk_level="Low",
+		)
+		self.assertTrue(name, "Expected a document name back")
+
+		records = get_vendor_performance(item.name, "Perf Test Supplier", limit=5)
+		self.assertGreaterEqual(len(records), 1)
+		latest = records[0]
+		self.assertAlmostEqual(float(latest.otif_pct), 92.5)
+		self.assertEqual(latest.risk_level, "Low")
+
+	def test_24_critical_risk_auto_blocks_vendor(self):
+		"""When risk_level=Critical, the vendor's info record is auto-deactivated."""
+		from ch_item_master.ch_item_master.tier_c import (
+			upsert_vendor_info, record_vendor_performance,
+		)
+
+		item = _make_item("TC-PERF-24")
+
+		# Create an active vendor info record
+		for row in frappe.get_all("CH Vendor Info Record", {"item_code": item.name}):
+			frappe.delete_doc("CH Vendor Info Record", row.name, ignore_permissions=True)
+
+		vir_name = upsert_vendor_info(
+			item.name,
+			"Perf Test Supplier",
+			standard_price=500.0,
+			active=1,
+		)
+		# Confirm it's active
+		self.assertEqual(
+			frappe.db.get_value("CH Vendor Info Record", vir_name, "active"), 1
+		)
+
+		# Record Critical performance
+		record_vendor_performance(
+			item.name,
+			"Perf Test Supplier",
+			evaluation_date=today(),
+			risk_level="Critical",
+			block_reason="Persistent delivery failures",
+		)
+
+		# Vendor should now be blocked
+		self.assertEqual(
+			frappe.db.get_value("CH Vendor Info Record", vir_name, "active"), 0,
+			"Critical risk should auto-deactivate vendor info record",
+		)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 8. Allocation Automation (Oracle Procurement Excellence)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestAllocationAutomation(unittest.TestCase):
+
+	def setUp(self):
+		frappe.set_user("Administrator")
+		for name in ("Alloc Supplier A", "Alloc Supplier B"):
+			if not frappe.db.exists("Supplier", name):
+				sg = frappe.db.get_value("Supplier Group", {}, "name") or "All Supplier Groups"
+				frappe.get_doc({
+					"doctype": "Supplier",
+					"supplier_name": name,
+					"supplier_group": sg,
+				}).insert(ignore_permissions=True, ignore_mandatory=True)
+
+	def test_25_allocation_check_validates_100pct(self):
+		"""run_allocation_check returns ok=True when allocations sum to 100%."""
+		from ch_item_master.ch_item_master.tier_c import upsert_vendor_info, run_allocation_check
+
+		item = _make_item("TC-ALLOC-25")
+		for row in frappe.get_all("CH Vendor Info Record", {"item_code": item.name}):
+			frappe.delete_doc("CH Vendor Info Record", row.name, ignore_permissions=True)
+
+		upsert_vendor_info(
+			item.name, "Alloc Supplier A",
+			standard_price=100.0, preferred=0, allocation_pct=60.0,
+			source_rank=1, active=1,
+		)
+		upsert_vendor_info(
+			item.name, "Alloc Supplier B",
+			standard_price=110.0, preferred=0, allocation_pct=40.0,
+			source_rank=2, active=1,
+		)
+
+		result = run_allocation_check(item.name)
+		self.assertTrue(result["ok"], f"Expected ok=True but got: {result}")
+		self.assertAlmostEqual(result["total_pct"], 100.0)
+
+	def test_26_sourcing_split_returns_proportional_quantities(self):
+		"""get_sourcing_split splits total qty proportionally by allocation_pct."""
+		from ch_item_master.ch_item_master.tier_c import upsert_vendor_info, get_sourcing_split
+
+		item = _make_item("TC-ALLOC-26")
+		for row in frappe.get_all("CH Vendor Info Record", {"item_code": item.name}):
+			frappe.delete_doc("CH Vendor Info Record", row.name, ignore_permissions=True)
+
+		upsert_vendor_info(
+			item.name, "Alloc Supplier A",
+			standard_price=100.0, preferred=0, allocation_pct=70.0,
+			source_rank=1, active=1,
+		)
+		upsert_vendor_info(
+			item.name, "Alloc Supplier B",
+			standard_price=110.0, preferred=0, allocation_pct=30.0,
+			source_rank=2, active=1,
+		)
+
+		split = get_sourcing_split(item.name, total_qty=100.0)
+		self.assertEqual(len(split), 2)
+
+		total = sum(s["qty"] for s in split)
+		self.assertAlmostEqual(total, 100.0, places=2)
+
+		# Sorted by source_rank: A=70, B=30
+		qty_map = {s["supplier"]: s["qty"] for s in split}
+		self.assertAlmostEqual(qty_map.get("Alloc Supplier A", 0), 70.0, places=2)
+		self.assertAlmostEqual(qty_map.get("Alloc Supplier B", 0), 30.0, places=2)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 9. Contract-Integrated Sourcing (Oracle Procurement Excellence)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestContractIntegratedSourcing(unittest.TestCase):
+
+	def setUp(self):
+		frappe.set_user("Administrator")
+		if not frappe.db.exists("Supplier", "Contract Supplier X"):
+			sg = frappe.db.get_value("Supplier Group", {}, "name") or "All Supplier Groups"
+			frappe.get_doc({
+				"doctype": "Supplier",
+				"supplier_name": "Contract Supplier X",
+				"supplier_group": sg,
+			}).insert(ignore_permissions=True, ignore_mandatory=True)
+
+	def test_27_contract_price_takes_priority_over_standard_price(self):
+		"""Contract price overrides standard price in effective sourcing resolution."""
+		from ch_item_master.ch_item_master.tier_c import (
+			upsert_vendor_info, get_contract_price, get_effective_vendor_source,
+		)
+
+		item = _make_item("TC-CONTRACT-27")
+		for row in frappe.get_all("CH Vendor Info Record", {"item_code": item.name}):
+			frappe.delete_doc("CH Vendor Info Record", row.name, ignore_permissions=True)
+
+		vir_name = upsert_vendor_info(
+			item.name,
+			"Contract Supplier X",
+			standard_price=1000.0,
+			min_order_qty=1,
+			preferred=1,
+			active=1,
+		)
+
+		# Add an active contract with a lower price
+		rec = frappe.get_doc("CH Vendor Info Record", vir_name)
+		rec.append("contracts", {
+			"contract_no": "CT-2026-001",
+			"contract_type": "Blanket",
+			"valid_from": add_days(today(), -10),
+			"valid_to": add_days(today(), 90),
+			"contract_price": 750.0,
+			"currency": "INR",
+		})
+		rec.save(ignore_permissions=True)
+		frappe.db.commit()
+
+		# get_contract_price should return the contract
+		cp = get_contract_price(item.name, "Contract Supplier X")
+		self.assertIsNotNone(cp, "Expected a contract price to be returned")
+		self.assertAlmostEqual(float(cp["contract_price"]), 750.0)
+		self.assertEqual(cp["contract_no"], "CT-2026-001")
+
+		# get_effective_vendor_source should use contract price
+		chosen = get_effective_vendor_source(item.name, qty=10)
+		self.assertIsNotNone(chosen)
+		# Contract price (750) should win over standard (1000)
+		self.assertAlmostEqual(float(chosen["effective_unit_price"]), 750.0,
+			msg="Contract price should override standard price")
+
+
 if __name__ == "__main__":
 	unittest.main()

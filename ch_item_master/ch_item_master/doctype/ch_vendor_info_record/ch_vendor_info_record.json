@@ -37,7 +37,9 @@
   "approved_by",
   "approved_on",
   "pricing_breaks_section",
-  "price_breaks"
+  "price_breaks",
+  "contracts_section",
+  "contracts"
  ],
  "fields": [
   {
@@ -225,6 +227,17 @@
    "fieldtype": "Table",
    "label": "Vendor Price Breaks",
    "options": "CH Vendor Price Break"
+  },
+  {
+   "fieldname": "contracts_section",
+   "fieldtype": "Section Break",
+   "label": "Contracts"
+  },
+  {
+   "fieldname": "contracts",
+   "fieldtype": "Table",
+   "label": "Vendor Contracts",
+   "options": "CH Vendor Contract"
   }
  ],
  "icon": "fa fa-truck",

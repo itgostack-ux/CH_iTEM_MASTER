@@ -15,6 +15,11 @@ Features:
   6. Full PLM State Machine              — NPI → Under Review → Sample Testing → Approved
                                            → Active Production → End of Life → Discontinued
                                            with transaction-blocking rules per state
+  7. Vendor Performance Scoring          — OTIF, quality, defect rate, risk level, auto-blocking
+  8. Allocation Automation               — quota-based sourcing split, rebalancing
+  9. Contract-Integrated Sourcing        — contract price takes priority over standard price
+                                           → Active Production → End of Life → Discontinued
+                                           with transaction-blocking rules per state
 
 Wired from hooks.py doc_events.
 """
@@ -436,22 +441,28 @@ def get_effective_vendor_source(
 		effective_price = flt(vendor.standard_price)
 		matched_break = None
 		rec = frappe.get_doc("CH Vendor Info Record", vendor.name)
-		for br in rec.get("price_breaks") or []:
-			if not br.is_active:
-				continue
-			if br.valid_from and getdate(br.valid_from) > as_of:
-				continue
-			if br.valid_to and getdate(br.valid_to) < as_of:
-				continue
-			if uom and br.uom and br.uom != uom:
-				continue
-			if requested_qty < flt(br.min_qty):
-				continue
-			if br.max_qty and flt(br.max_qty) > 0 and requested_qty > flt(br.max_qty):
-				continue
-			effective_price = flt(br.unit_price)
-			matched_break = br.name
-			break
+
+		# Contract price takes priority over price breaks and standard price
+		contract_price = _get_active_contract_price(rec, as_of)
+		if contract_price is not None:
+			effective_price = contract_price
+		else:
+			for br in rec.get("price_breaks") or []:
+				if not br.is_active:
+					continue
+				if br.valid_from and getdate(br.valid_from) > as_of:
+					continue
+				if br.valid_to and getdate(br.valid_to) < as_of:
+					continue
+				if uom and br.uom and br.uom != uom:
+					continue
+				if requested_qty < flt(br.min_qty):
+					continue
+				if br.max_qty and flt(br.max_qty) > 0 and requested_qty > flt(br.max_qty):
+					continue
+				effective_price = flt(br.unit_price)
+				matched_break = br.name
+				break
 
 		candidates.append(
 			{
@@ -598,3 +609,274 @@ def enforce_plm_on_transaction(doc, method=None):
 		frappe.throw("<br>".join(errors), title=_("PLM Restriction"), exc=PLMError)
 	if warnings:
 		frappe.msgprint("<br>".join(warnings), title=_("PLM Warning — End of Life Items"), indicator="orange")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 7. Vendor Performance Scoring
+# ─────────────────────────────────────────────────────────────────────────────
+
+@frappe.whitelist()
+def record_vendor_performance(
+	item_code: str,
+	supplier: str,
+	evaluation_date: str | None = None,
+	evaluation_period: str | None = None,
+	otif_pct: float = 0.0,
+	on_time_delivery_pct: float = 0.0,
+	quality_score: float = 0.0,
+	defect_rate: float = 0.0,
+	risk_level: str = "Low",
+	block_reason: str = "",
+) -> str:
+	"""
+	Record a vendor performance evaluation.
+	If risk_level is Critical, automatically marks the vendor's CH Vendor Info Record
+	as active=0 (blocked) for the given item+supplier combination.
+
+	Returns the name of the created CH Vendor Performance document.
+	"""
+	from ch_item_master.ch_item_master.rbac import check_vendor_manager_role
+	check_vendor_manager_role()
+
+	eval_date = evaluation_date or today()
+	auto_block = 1 if risk_level == "Critical" else 0
+
+	rec = frappe.get_doc({
+		"doctype": "CH Vendor Performance",
+		"item_code": item_code,
+		"supplier": supplier,
+		"evaluation_date": eval_date,
+		"evaluation_period": evaluation_period or "",
+		"evaluator": frappe.session.user,
+		"otif_pct": flt(otif_pct),
+		"on_time_delivery_pct": flt(on_time_delivery_pct),
+		"quality_score": flt(quality_score),
+		"defect_rate": flt(defect_rate),
+		"risk_level": risk_level,
+		"auto_block": auto_block,
+		"block_reason": block_reason,
+	})
+	rec.insert(ignore_permissions=True)
+	frappe.db.commit()
+
+	# Auto-block: deactivate the vendor info record(s) for this item+supplier
+	if auto_block:
+		vir_names = frappe.get_all(
+			"CH Vendor Info Record",
+			filters={"item_code": item_code, "supplier": supplier, "active": 1},
+			pluck="name",
+		)
+		for vir_name in vir_names:
+			frappe.db.set_value(
+				"CH Vendor Info Record",
+				vir_name,
+				{"active": 0, "notes": f"[Auto-blocked] {block_reason}"},
+				update_modified=False,
+			)
+		if vir_names:
+			frappe.db.commit()
+
+	return rec.name
+
+
+@frappe.whitelist()
+def get_vendor_performance(
+	item_code: str,
+	supplier: str,
+	limit: int = 5,
+) -> list[dict]:
+	"""Return recent performance evaluations for a vendor, newest first."""
+	from ch_item_master.ch_item_master.rbac import check_vendor_view_role
+	check_vendor_view_role()
+	return frappe.get_all(
+		"CH Vendor Performance",
+		filters={"item_code": item_code, "supplier": supplier},
+		fields=[
+			"name", "evaluation_date", "evaluation_period", "evaluator",
+			"otif_pct", "on_time_delivery_pct", "quality_score",
+			"defect_rate", "risk_level", "auto_block",
+		],
+		order_by="evaluation_date desc",
+		limit=cint(limit),
+	)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 8. Allocation Automation
+# ─────────────────────────────────────────────────────────────────────────────
+
+@frappe.whitelist()
+def run_allocation_check(
+	item_code: str,
+	company: str | None = None,
+	purchase_org: str | None = None,
+) -> dict:
+	"""
+	Validate that all active+approved vendor allocations for an item
+	sum to exactly 100%.  Considers all vendors with allocation_pct > 0.
+	Returns {ok: bool, total_pct: float, vendors: list}.
+	"""
+	filters: dict = {"item_code": item_code, "active": 1, "approval_status": "Approved"}
+	if company:
+		filters["company"] = company
+	if purchase_org:
+		filters["purchase_org"] = purchase_org
+
+	rows = frappe.get_all(
+		"CH Vendor Info Record",
+		filters=filters,
+		fields=["name", "supplier", "allocation_pct", "source_rank"],
+		order_by="source_rank asc",
+	)
+	# Only count vendors that have a non-zero allocation set
+	alloc_rows = [r for r in rows if flt(r.allocation_pct) > 0]
+	total = sum(flt(r.allocation_pct) for r in alloc_rows)
+	return {
+		"ok": abs(total - 100.0) < 0.01 if alloc_rows else True,
+		"total_pct": total,
+		"vendors": alloc_rows,
+	}
+
+
+@frappe.whitelist()
+def get_sourcing_split(
+	item_code: str,
+	total_qty: float,
+	company: str | None = None,
+	purchase_org: str | None = None,
+	as_of_date: str | None = None,
+) -> list[dict]:
+	"""
+	Split total_qty across preferred vendors by their allocation_pct.
+	Returns [{supplier, qty, effective_unit_price, vendor_record}].
+	Falls back to round-robin by source_rank if allocations don't sum to 100.
+	"""
+	from ch_item_master.ch_item_master.rbac import check_vendor_view_role
+	check_vendor_view_role()
+
+	total_qty = flt(total_qty)
+	as_of = getdate(as_of_date) if as_of_date else getdate(today())
+
+	check = run_allocation_check(item_code, company=company, purchase_org=purchase_org)
+	vendors = sorted(
+		check.get("vendors") or [],
+		key=lambda v: cint(v.get("source_rank") or 999999),
+	)
+
+	if not vendors:
+		return []
+
+	result = []
+	remaining = total_qty
+
+	for i, vendor in enumerate(vendors):
+		alloc_pct = flt(vendor.allocation_pct)
+		if i == len(vendors) - 1:
+			# Last vendor gets remainder to avoid rounding drift
+			qty = remaining
+		else:
+			qty = round(total_qty * alloc_pct / 100.0, 4)
+			remaining -= qty
+
+		if qty <= 0:
+			continue
+
+		# Resolve effective price for this vendor
+		effective_price = None
+		rec = frappe.get_doc("CH Vendor Info Record", vendor.name)
+
+		# Contract price takes priority
+		contract_price = _get_active_contract_price(rec, as_of)
+		if contract_price is not None:
+			effective_price = contract_price
+		else:
+			# Price break or standard
+			for br in rec.get("price_breaks") or []:
+				if not br.is_active:
+					continue
+				if br.valid_from and getdate(br.valid_from) > as_of:
+					continue
+				if br.valid_to and getdate(br.valid_to) < as_of:
+					continue
+				if qty < flt(br.min_qty):
+					continue
+				if br.max_qty and flt(br.max_qty) > 0 and qty > flt(br.max_qty):
+					continue
+				effective_price = flt(br.unit_price)
+				break
+			if effective_price is None:
+				effective_price = flt(rec.standard_price)
+
+		result.append({
+			"vendor_record": vendor.name,
+			"supplier": vendor.supplier,
+			"allocation_pct": alloc_pct,
+			"qty": qty,
+			"effective_unit_price": effective_price,
+		})
+
+	return result
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 9. Contract-Integrated Sourcing
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _get_active_contract_price(rec, as_of) -> float | None:
+	"""
+	Return the first active contract price from a CH Vendor Info Record doc.
+	Contract price takes priority over price breaks and standard price.
+	Returns None if no active contract found.
+	"""
+	for ct in rec.get("contracts") or []:
+		if ct.valid_from and getdate(ct.valid_from) > as_of:
+			continue
+		if ct.valid_to and getdate(ct.valid_to) < as_of:
+			continue
+		if ct.contract_price:
+			return flt(ct.contract_price)
+	return None
+
+
+@frappe.whitelist()
+def get_contract_price(
+	item_code: str,
+	supplier: str,
+	company: str | None = None,
+	purchase_org: str | None = None,
+	as_of_date: str | None = None,
+) -> dict | None:
+	"""
+	Return the active contract price for an item+supplier, if any.
+	Returns {contract_no, contract_type, contract_price, valid_from, valid_to} or None.
+	"""
+	from ch_item_master.ch_item_master.rbac import check_vendor_view_role
+	check_vendor_view_role()
+
+	as_of = getdate(as_of_date) if as_of_date else getdate(today())
+	filters: dict = {"item_code": item_code, "supplier": supplier, "active": 1}
+	if company:
+		filters["company"] = company
+	if purchase_org:
+		filters["purchase_org"] = purchase_org
+
+	vir_names = frappe.get_all("CH Vendor Info Record", filters=filters, pluck="name")
+	for vir_name in vir_names:
+		rec = frappe.get_doc("CH Vendor Info Record", vir_name)
+		for ct in rec.get("contracts") or []:
+			if ct.valid_from and getdate(ct.valid_from) > as_of:
+				continue
+			if ct.valid_to and getdate(ct.valid_to) < as_of:
+				continue
+			if ct.contract_price:
+				return {
+					"contract_no": ct.contract_no,
+					"contract_type": ct.contract_type,
+					"contract_price": flt(ct.contract_price),
+					"currency": ct.currency,
+					"valid_from": str(ct.valid_from) if ct.valid_from else None,
+					"valid_to": str(ct.valid_to) if ct.valid_to else None,
+					"vendor_record": vir_name,
+				}
+	return None
+

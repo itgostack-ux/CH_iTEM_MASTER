@@ -1,0 +1,167 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "VP-.YYYY.-.#####",
+ "creation": "2026-05-09 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": [
+  "item_code",
+  "supplier",
+  "col_break1",
+  "evaluation_date",
+  "evaluation_period",
+  "evaluator",
+  "performance_section",
+  "otif_pct",
+  "on_time_delivery_pct",
+  "col_break2",
+  "quality_score",
+  "defect_rate",
+  "risk_section",
+  "risk_level",
+  "auto_block",
+  "block_reason"
+ ],
+ "fields": [
+  {
+   "fieldname": "item_code",
+   "fieldtype": "Link",
+   "label": "Item",
+   "options": "Item",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "supplier",
+   "fieldtype": "Link",
+   "label": "Supplier",
+   "options": "Supplier",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "col_break1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "evaluation_date",
+   "fieldtype": "Date",
+   "label": "Evaluation Date",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "evaluation_period",
+   "fieldtype": "Data",
+   "label": "Evaluation Period",
+   "description": "e.g. 2026-Q1, 2026-01"
+  },
+  {
+   "fieldname": "evaluator",
+   "fieldtype": "Link",
+   "label": "Evaluator",
+   "options": "User"
+  },
+  {
+   "fieldname": "performance_section",
+   "fieldtype": "Section Break",
+   "label": "Performance Metrics"
+  },
+  {
+   "fieldname": "otif_pct",
+   "fieldtype": "Float",
+   "label": "OTIF % (On-Time-In-Full)",
+   "description": "0–100. Orders delivered on time and in full.",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "on_time_delivery_pct",
+   "fieldtype": "Float",
+   "label": "On-Time Delivery %",
+   "description": "0–100"
+  },
+  {
+   "fieldname": "col_break2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "quality_score",
+   "fieldtype": "Float",
+   "label": "Quality Score (0–100)"
+  },
+  {
+   "fieldname": "defect_rate",
+   "fieldtype": "Float",
+   "label": "Defect Rate %",
+   "description": "0–100. Lower is better."
+  },
+  {
+   "fieldname": "risk_section",
+   "fieldtype": "Section Break",
+   "label": "Risk Assessment"
+  },
+  {
+   "fieldname": "risk_level",
+   "fieldtype": "Select",
+   "label": "Risk Level",
+   "options": "\nLow\nMedium\nHigh\nCritical",
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "auto_block",
+   "fieldtype": "Check",
+   "label": "Auto-Blocked",
+   "description": "Set automatically when risk_level = Critical."
+  },
+  {
+   "fieldname": "block_reason",
+   "fieldtype": "Small Text",
+   "label": "Block Reason"
+  }
+ ],
+ "in_create": 1,
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-05-09 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Ch Item Master",
+ "name": "CH Vendor Performance",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "CH Vendor Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 0
+  },
+  {
+   "role": "CH Master Manager",
+   "read": 1
+  },
+  {
+   "role": "CH Master Approver",
+   "read": 1
+  },
+  {
+   "role": "CH Viewer",
+   "read": 1
+  },
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
+  }
+ ],
+ "sort_field": "evaluation_date",
+ "sort_order": "DESC",
+ "track_changes": 1
+}
