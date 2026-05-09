@@ -132,11 +132,18 @@ def enforce_approval_gate(doc, method=None):
 
 @frappe.whitelist()
 def submit_for_approval(item_code: str, remarks: str = "") -> str:
-	"""Transition approval status Draft → Submitted for Review."""
+	"""Transition approval status Draft → Submitted for Review. Records SoD submitter."""
 	doc = frappe.get_doc("Item", item_code)
 	if doc.ch_approval_status not in ("Draft", "Rejected"):
 		frappe.throw(_("Can only submit items in Draft or Rejected state for review."))
 	doc.ch_approval_status = "Submitted for Review"
+	# SoD: record who submitted so the same person cannot approve
+	doc.ch_submitted_by = frappe.session.user
+	try:
+		from frappe.utils import now_datetime as _now
+		doc.ch_submitted_on = _now()
+	except Exception:
+		pass
 	if remarks:
 		doc.ch_approval_remarks = remarks
 	doc.flags.ignore_mandatory = True
@@ -146,12 +153,15 @@ def submit_for_approval(item_code: str, remarks: str = "") -> str:
 
 @frappe.whitelist()
 def approve_item(item_code: str, remarks: str = "") -> str:
-	"""Approve an item that is Submitted for Review. Requires approver role."""
-	if not bool(_user_roles() & _APPROVAL_BYPASS_ROLES):
-		frappe.throw(_("Only CH Master Approver or System Manager can approve items."))
+	"""Approve an item that is Submitted for Review. Enforces SoD and delegation."""
+	from ch_item_master.ch_item_master.rbac import check_sod, is_effective_approver
+	if not is_effective_approver():
+		frappe.throw(_("Only CH Master Approver (or a valid delegate) can approve items."))
 	doc = frappe.get_doc("Item", item_code)
 	if doc.ch_approval_status != "Submitted for Review":
 		frappe.throw(_("Item must be in 'Submitted for Review' state to approve."))
+	# SoD: block self-approval
+	check_sod(submitted_by=doc.get("ch_submitted_by") or "")
 	doc.ch_approval_status = "Approved"
 	doc.ch_approval_date = today()
 	if remarks:
@@ -163,12 +173,15 @@ def approve_item(item_code: str, remarks: str = "") -> str:
 
 @frappe.whitelist()
 def reject_item(item_code: str, remarks: str = "") -> str:
-	"""Reject an item that is Submitted for Review. Requires approver role."""
-	if not bool(_user_roles() & _APPROVAL_BYPASS_ROLES):
-		frappe.throw(_("Only CH Master Approver or System Manager can reject items."))
+	"""Reject an item that is Submitted for Review. Enforces SoD and delegation."""
+	from ch_item_master.ch_item_master.rbac import check_sod, is_effective_approver
+	if not is_effective_approver():
+		frappe.throw(_("Only CH Master Approver (or a valid delegate) can reject items."))
 	doc = frappe.get_doc("Item", item_code)
 	if doc.ch_approval_status != "Submitted for Review":
 		frappe.throw(_("Item must be in 'Submitted for Review' state to reject."))
+	# SoD: block self-rejection
+	check_sod(submitted_by=doc.get("ch_submitted_by") or "")
 	doc.ch_approval_status = "Rejected"
 	if remarks:
 		doc.ch_approval_remarks = remarks
@@ -288,6 +301,9 @@ def upsert_vendor_info(item_code: str, supplier: str, **kwargs) -> str:
 	Accepts same field names as the doctype.
 	Returns the document name.
 	"""
+	# Role gate: CH Vendor Manager or higher required
+	from ch_item_master.ch_item_master.rbac import check_vendor_manager_role
+	check_vendor_manager_role()
 	existing = frappe.db.get_value(
 		"CH Vendor Info Record",
 		{"item_code": item_code, "supplier": supplier},
@@ -351,6 +367,7 @@ def validate_plm_transition(doc, method=None):
 	Called from Item before_save.
 	Validates that the PLM state transition is allowed.
 	Also stamps ch_plm_changed_on when the state changes.
+	Requires CH PLM Manager role for any PLM state change on an existing item.
 	"""
 	if doc.is_new():
 		return
@@ -358,6 +375,10 @@ def validate_plm_transition(doc, method=None):
 	plm_old = frappe.db.get_value("Item", doc.name, "ch_plm_status") or "NPI"
 	if plm_old == plm_new:
 		return
+
+	# Role gate: PLM state change requires CH PLM Manager or higher
+	from ch_item_master.ch_item_master.rbac import check_plm_role
+	check_plm_role()
 
 	allowed = _PLM_TRANSITIONS.get(plm_old, set())
 	if plm_new not in allowed:

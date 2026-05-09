@@ -392,6 +392,7 @@ CUSTOM_FIELDS = {
 			"label": _("Minimum Selling Price (MSP)"),
 			"fieldtype": "Currency",
 			"insert_after": "ch_lifecycle_status",
+			"permlevel": 1,
 			"description": _("Floor price below which this item cannot be sold without approval."),
 		},
 		{
@@ -399,6 +400,7 @@ CUSTOM_FIELDS = {
 			"label": _("MSP Effective From"),
 			"fieldtype": "Date",
 			"insert_after": "ch_minimum_selling_price",
+			"permlevel": 1,
 			"description": _("Date from which this MSP applies."),
 		},
 		{
@@ -414,6 +416,7 @@ CUSTOM_FIELDS = {
 			"label": _("Standard Cost"),
 			"fieldtype": "Currency",
 			"insert_after": "ch_allow_zero_rate",
+			"permlevel": 1,
 			"description": _("SAP-style standard (frozen) cost. Changes are audited automatically."),
 		},
 		{
@@ -422,6 +425,7 @@ CUSTOM_FIELDS = {
 			"fieldtype": "Date",
 			"insert_after": "ch_standard_cost",
 			"read_only": 1,
+			"permlevel": 1,
 			"description": _("Date of last standard cost change."),
 		},
 		# ── Tier B: Expiry Enforcement ───────────────────────────────────────
@@ -469,8 +473,7 @@ CUSTOM_FIELDS = {
 			"fieldname": "ch_gtin",
 			"label": _("GTIN / EAN / UPC"),
 			"fieldtype": "Data",
-			"insert_after": "ch_country_hs_codes",
-			"in_standard_filter": 1,
+			"insert_after": "ch_country_hs_codes",			"permlevel": 1,			"in_standard_filter": 1,
 			"description": _("Global Trade Item Number (EAN-13, UPC-A, EAN-8) for cross-border and retail barcode sync."),
 		},
 		# ── Tier C: Trading Partner Aliases ─────────────────────────────────
@@ -611,6 +614,24 @@ CUSTOM_FIELDS = {
 			"label": _("Approval Remarks"),
 			"fieldtype": "Small Text",
 			"insert_after": "ch_approval_date",
+		},
+		# ── RBAC: Maker-Checker SoD tracking ───────────────────────────────────
+		{
+			"fieldname": "ch_submitted_by",
+			"label": _("Submitted By"),
+			"fieldtype": "Link",
+			"options": "User",
+			"insert_after": "ch_approval_remarks",
+			"read_only": 1,
+			"description": _("The user who submitted this item for review. Used for SoD enforcement."),
+		},
+		{
+			"fieldname": "ch_submitted_on",
+			"label": _("Submitted On"),
+			"fieldtype": "Datetime",
+			"insert_after": "ch_submitted_by",
+			"read_only": 1,
+			"description": _("Timestamp when the item was submitted for review."),
 		},
 	],
 	# ──────────────────────────────────────────────

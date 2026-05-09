@@ -61,10 +61,14 @@ scheduler_events = {
 	"weekly": [
 		"ch_item_master.ch_item_master.doctype.ch_scheme_receivable.ch_scheme_receivable.run_scheduled_dunning",
 	],
+	"daily_long": [
+		"ch_item_master.ch_item_master.rbac.expire_role_assignments",
+	],
 }
 
 # Company-wise data security
 permission_query_conditions = {
+	"Item": "ch_item_master.ch_item_master.rbac.get_item_query",
 	"CH Warranty Claim": "ch_item_master.security.get_warranty_claim_query",
 	"CH Sold Plan": "ch_item_master.security.get_sold_plan_query",
 	"CH Customer Device": "ch_item_master.security.get_customer_device_query",

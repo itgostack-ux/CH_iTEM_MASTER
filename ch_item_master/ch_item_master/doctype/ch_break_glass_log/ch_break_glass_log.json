@@ -1,0 +1,117 @@
+{
+ "actions": [],
+ "autoname": "format:BGL-{####}",
+ "creation": "2026-05-09 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "user",
+  "reason",
+  "col_break",
+  "start_time",
+  "end_time",
+  "duration_hours",
+  "review_section",
+  "actions_taken",
+  "reviewed_by",
+  "review_status"
+ ],
+ "fields": [
+  {
+   "fieldname": "user",
+   "fieldtype": "Link",
+   "label": "User",
+   "options": "User",
+   "reqd": 1,
+   "read_only": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "reason",
+   "fieldtype": "Small Text",
+   "label": "Reason / Justification",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "col_break",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "start_time",
+   "fieldtype": "Datetime",
+   "label": "Session Start",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "end_time",
+   "fieldtype": "Datetime",
+   "label": "Session End",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "duration_hours",
+   "fieldtype": "Float",
+   "label": "Duration (Hours)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "review_section",
+   "fieldtype": "Section Break",
+   "label": "Security Review"
+  },
+  {
+   "fieldname": "actions_taken",
+   "fieldtype": "Long Text",
+   "label": "Actions Taken During Session"
+  },
+  {
+   "fieldname": "reviewed_by",
+   "fieldtype": "Link",
+   "label": "Reviewed By",
+   "options": "User"
+  },
+  {
+   "fieldname": "review_status",
+   "fieldtype": "Select",
+   "label": "Review Status",
+   "options": "Pending Review\nReviewed\nEscalated",
+   "default": "Pending Review",
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  }
+ ],
+ "icon": "fa fa-exclamation-triangle",
+ "index_web_pages_for_search": 0,
+ "istable": 0,
+ "links": [],
+ "modified": "2026-05-09 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "CH Item Master",
+ "name": "CH Break Glass Log",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 0,
+   "export": 1,
+   "permlevel": 0,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "write": 1
+  },
+  {
+   "create": 1,
+   "permlevel": 0,
+   "read": 1,
+   "role": "All"
+  }
+ ],
+ "sort_field": "start_time",
+ "sort_order": "DESC",
+ "track_changes": 1
+}

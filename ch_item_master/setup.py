@@ -7,11 +7,21 @@ from ch_item_master.constants.custom_fields import CUSTOM_FIELDS
 from ch_item_master.ch_customer_master.customer_custom_fields import CUSTOMER_CUSTOM_FIELDS
 
 CH_ROLES = [
+    # Tier-0: management / approval
     {"role_name": "CH Master Manager",   "desk_access": 1, "is_custom": 1},
     {"role_name": "CH Master Approver",  "desk_access": 1, "is_custom": 1},
+    # Tier-1: function-specific
     {"role_name": "CH Price Manager",    "desk_access": 1, "is_custom": 1},
     {"role_name": "CH Offer Manager",    "desk_access": 1, "is_custom": 1},
     {"role_name": "CH Warranty Manager", "desk_access": 1, "is_custom": 1},
+    # Tier-2: RBAC-parity granular roles (Oracle/SAP level)
+    {"role_name": "CH Item Creator",     "desk_access": 1, "is_custom": 1},
+    {"role_name": "CH Item Reviewer",    "desk_access": 1, "is_custom": 1},
+    {"role_name": "CH PLM Manager",      "desk_access": 1, "is_custom": 1},
+    {"role_name": "CH Vendor Manager",   "desk_access": 1, "is_custom": 1},
+    {"role_name": "CH MRP Planner",      "desk_access": 1, "is_custom": 1},
+    {"role_name": "CH GTIN Editor",      "desk_access": 1, "is_custom": 1},
+    # Read-only viewer
     {"role_name": "CH Viewer",           "desk_access": 1, "is_custom": 1},
 ]
 
@@ -23,7 +33,7 @@ def create_ch_custom_fields():
 
 
 def setup_roles():
-    """Create CH-specific roles if they don't already exist."""
+    """Create CH-specific roles if they don't already exist, then install field-level DocPerms."""
     import frappe
 
     for role_def in CH_ROLES:
@@ -31,6 +41,13 @@ def setup_roles():
             doc = frappe.new_doc("Role")
             doc.update(role_def)
             doc.insert(ignore_permissions=True)
+
+    # Install permlevel-1 Custom DocPerm records for sensitive Item fields
+    try:
+        from ch_item_master.ch_item_master.rbac import install_custom_docperms
+        install_custom_docperms()
+    except Exception:
+        frappe.log_error(title="setup_roles: install_custom_docperms failed", message=frappe.get_traceback())
     # Note: do NOT call frappe.db.commit() here — after_install manages the
     # outer transaction; an explicit commit here would cut it short prematurely.
 
