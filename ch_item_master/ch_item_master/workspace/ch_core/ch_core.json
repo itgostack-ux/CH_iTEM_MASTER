@@ -112,6 +112,36 @@
   {
    "hidden": 0,
    "is_query_report": 0,
+   "label": "Approval Delegation",
+   "link_count": 0,
+   "link_to": "CH Approval Delegation",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Role Assignment",
+   "link_count": 0,
+   "link_to": "CH Role Assignment",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Break Glass Log",
+   "link_count": 0,
+   "link_to": "CH Break Glass Log",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
    "label": "Finance Reports",
    "link_count": 0,
    "link_type": "DocType",
@@ -157,26 +187,26 @@
    "onboard": 0,
    "type": "Link"
   },
-    {
-     "hidden": 0,
-     "is_query_report": 0,
-     "label": "CH City",
-     "link_count": 0,
-     "link_to": "CH City",
-     "link_type": "DocType",
-     "onboard": 0,
-     "type": "Link"
-    },
-    {
-     "hidden": 0,
-     "is_query_report": 0,
-     "label": "Location Hierarchy",
-     "link_count": 0,
-     "link_to": "location-hierarchy",
-     "link_type": "Page",
-     "onboard": 0,
-     "type": "Link"
-    },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "CH City",
+   "link_count": 0,
+   "link_to": "CH City",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Location Hierarchy",
+   "link_count": 0,
+   "link_to": "location-hierarchy",
+   "link_type": "Page",
+   "onboard": 0,
+   "type": "Link"
+  },
   {
    "hidden": 0,
    "is_query_report": 0,
@@ -198,7 +228,7 @@
    "type": "Link"
   }
  ],
- "modified": "2026-04-11 12:42:23.001493",
+ "modified": "2026-05-11 00:00:00.000000",
  "modified_by": "Administrator",
  "module": "CH Core",
  "name": "CH Core",

@@ -35,6 +35,26 @@
   {
    "hidden": 0,
    "is_query_report": 0,
+   "label": "Vendor Performance",
+   "link_count": 0,
+   "link_to": "CH Vendor Performance",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Vendor Info Record",
+   "link_count": 0,
+   "link_to": "CH Vendor Info Record",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
    "label": "Vendor Rating",
    "link_count": 2,
    "link_type": "DocType",
@@ -228,7 +248,7 @@
    "type": "Link"
   }
  ],
- "modified": "2026-03-18 23:32:50.584567",
+ "modified": "2026-05-11 00:00:00.000000",
  "modified_by": "Administrator",
  "module": "CH Vendor Master",
  "name": "CH Vendor Master",

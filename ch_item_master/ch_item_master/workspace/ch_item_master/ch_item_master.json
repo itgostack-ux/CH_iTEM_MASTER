@@ -252,6 +252,26 @@
   {
    "hidden": 0,
    "is_query_report": 0,
+   "label": "Item Audit Log",
+   "link_count": 0,
+   "link_to": "CH Item Audit Log",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Item Version",
+   "link_count": 0,
+   "link_to": "CH Item Version",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
    "label": "Dashboard",
    "link_count": 1,
    "link_type": "DocType",
@@ -416,7 +436,7 @@
    "type": "Link"
   }
  ],
- "modified": "2026-03-13 00:11:11.427537",
+ "modified": "2026-05-11 00:00:00.000000",
  "modified_by": "Administrator",
  "module": "CH Item Master",
  "name": "CH Item Master",
