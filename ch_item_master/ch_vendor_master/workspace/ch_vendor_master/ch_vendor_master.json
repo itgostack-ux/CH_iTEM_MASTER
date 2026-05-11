@@ -1,4 +1,5 @@
 {
+ "app": "ch_item_master",
  "charts": [],
  "content": "[{\"id\":\"vm_hdr_quick\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Quick Links</b></span>\",\"col\":12}},{\"id\":\"vm_sc_sup\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Supplier\",\"col\":3}},{\"id\":\"vm_sc_scorecard\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Supplier Scorecard\",\"col\":3}},{\"id\":\"vm_sc_circ\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Supplier Scheme Circular\",\"col\":3}},{\"id\":\"vm_sc_claim\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Scheme Claim Summary\",\"col\":3}},{\"id\":\"vm_spacer1\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"vm_hdr_mgmt\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Vendor Management</b></span>\",\"col\":12}},{\"id\":\"vm_card_vendor\",\"type\":\"card\",\"data\":{\"card_name\":\"Vendor Master\",\"col\":4}},{\"id\":\"vm_card_rating\",\"type\":\"card\",\"data\":{\"card_name\":\"Vendor Rating\",\"col\":4}},{\"id\":\"vm_spacer2\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"vm_hdr_scheme\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Scheme Management</b></span>\",\"col\":12}},{\"id\":\"vm_card_scheme\",\"type\":\"card\",\"data\":{\"card_name\":\"Schemes\",\"col\":4}},{\"id\":\"vm_card_claims\",\"type\":\"card\",\"data\":{\"card_name\":\"Claims & Settlement\",\"col\":4}},{\"id\":\"vm_spacer3\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"vm_hdr_reports\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Reports</b></span>\",\"col\":12}},{\"id\":\"vm_card_rpt\",\"type\":\"card\",\"data\":{\"card_name\":\"Scheme Reports\",\"col\":6}},{\"id\":\"vm_card_alerts\",\"type\":\"card\",\"data\":{\"card_name\":\"Alerts\",\"col\":6}}]",
  "creation": "2026-03-18 23:32:50.584567",
@@ -248,7 +249,7 @@
    "type": "Link"
   }
  ],
- "modified": "2026-05-11 00:00:00.000000",
+ "modified": "2026-05-11 12:06:11.065770",
  "modified_by": "Administrator",
  "module": "CH Vendor Master",
  "name": "CH Vendor Master",
@@ -294,5 +295,6 @@
    "type": "DocType"
   }
  ],
- "title": "CH Vendor Master"
+ "title": "CH Vendor Master",
+ "type": "Workspace"
 }
