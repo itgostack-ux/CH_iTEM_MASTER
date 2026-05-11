@@ -44,16 +44,6 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "CH OTP Log",
-   "link_count": 0,
-   "link_to": "CH OTP Log",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
    "label": "Exception Approval",
    "link_count": 0,
    "link_type": "DocType",
