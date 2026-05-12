@@ -375,3 +375,16 @@ class TestRBACBreakGlass(unittest.TestCase):
 
 		with self.assertRaises(frappe.ValidationError):
 			open_break_glass("   ")  # whitespace only
+
+
+def run_all():
+    import sys
+    import unittest
+    loader = unittest.TestLoader()
+    suite = loader.loadTestsFromModule(sys.modules[__name__])
+    runner = unittest.TextTestRunner(verbosity=2)
+    result = runner.run(suite)
+    if result.failures or result.errors:
+        raise Exception(
+            f"{__name__}: {len(result.failures)} failure(s), {len(result.errors)} error(s)"
+        )

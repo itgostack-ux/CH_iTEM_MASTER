@@ -7,7 +7,7 @@
  "doctype": "Workspace",
  "for_user": "",
  "hide_custom": 0,
- "icon": "organization",
+ "icon": "build",
  "idx": 0,
  "is_hidden": 0,
  "label": "CH Core",
@@ -282,5 +282,6 @@
    "type": "DocType"
   }
  ],
- "title": "CH Core"
+ "title": "CH Core",
+ "indicator_color": "grey"
 }

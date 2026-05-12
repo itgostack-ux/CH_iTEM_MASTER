@@ -7,9 +7,9 @@
  "doctype": "Workspace",
  "for_user": "",
  "hide_custom": 0,
- "icon": "file",
+ "icon": "share_management",
  "idx": 0,
- "indicator_color": "blue",
+ "indicator_color": "orange",
  "is_hidden": 0,
  "label": "Scheme Management",
  "links": [

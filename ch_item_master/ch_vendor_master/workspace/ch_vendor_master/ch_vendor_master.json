@@ -8,9 +8,9 @@
  "doctype": "Workspace",
  "for_user": "",
  "hide_custom": 0,
- "icon": "stock",
+ "icon": "buying",
  "idx": 0,
- "indicator_color": "green",
+ "indicator_color": "teal",
  "is_hidden": 0,
  "label": "CH Vendor Master",
  "links": [

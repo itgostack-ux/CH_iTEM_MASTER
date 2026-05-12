@@ -422,3 +422,5 @@ def _print_summary():
         for e in ERRORS:
             print(f"  {e}")
     print()
+
+run_all = run_e2e

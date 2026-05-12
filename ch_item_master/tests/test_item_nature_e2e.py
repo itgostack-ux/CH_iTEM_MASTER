@@ -273,3 +273,16 @@ class TestItemNatureUniverse(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def run_all():
+    import sys
+    import unittest
+    loader = unittest.TestLoader()
+    suite = loader.loadTestsFromModule(sys.modules[__name__])
+    runner = unittest.TextTestRunner(verbosity=2)
+    result = runner.run(suite)
+    if result.failures or result.errors:
+        raise Exception(
+            f"{__name__}: {len(result.failures)} failure(s), {len(result.errors)} error(s)"
+        )
