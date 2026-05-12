@@ -151,6 +151,10 @@ def validate_lifecycle_transition(doc) -> None:
 	if not doc.has_value_changed("ch_lifecycle_status"):
 		return
 
+	# Allow approval action to auto-advance lifecycle without re-checking roles
+	if doc.flags.get("ignore_lifecycle_transition"):
+		return
+
 	before = doc.get_doc_before_save()
 	old_status = (before.get("ch_lifecycle_status") if before else "") or "Draft"
 

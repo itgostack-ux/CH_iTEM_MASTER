@@ -171,6 +171,14 @@ def approve_item(item_code: str, remarks: str = "") -> str:
 	doc.ch_approval_date = today()
 	if remarks:
 		doc.ch_approval_remarks = remarks
+	# Auto-activate: approval gate is the formal gate; advance lifecycle and PLM status
+	# so the item is immediately usable in Sales Invoice / POS Invoice.
+	doc.ch_lifecycle_status = "Active"
+	_plm = getattr(doc, "ch_plm_status", None) or "NPI"
+	if _plm not in ("Approved", "Active Production", "End of Life", "Discontinued"):
+		doc.ch_plm_status = "Approved"
+		doc.flags.ignore_plm_transition = True  # approval action skips intermediate PLM steps
+	doc.flags.ignore_lifecycle_transition = True  # role already validated above; allow delegated approvers
 	doc.flags.ignore_mandatory = True
 	doc.save(ignore_permissions=True)
 	return "Approved"
@@ -535,6 +543,9 @@ def validate_plm_transition(doc, method=None):
 	Also stamps ch_plm_changed_on when the state changes.
 	Requires CH PLM Manager role for any PLM state change on an existing item.
 	"""
+	# Skip transition validation when approval action auto-advances PLM status
+	if doc.flags.get("ignore_plm_transition"):
+		return
 	if doc.is_new():
 		return
 	plm_new = getattr(doc, "ch_plm_status", None) or "NPI"
