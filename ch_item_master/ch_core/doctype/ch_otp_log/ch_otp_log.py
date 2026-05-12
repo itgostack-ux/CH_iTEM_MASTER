@@ -97,6 +97,36 @@ class CHOTPLog(Document):
         )
 
         if not logs:
+            # Idempotency (Oracle Fusion / Stripe pattern):
+            # If the same caller already verified an OTP for this (mobile, purpose, ref)
+            # within the last 10 minutes, treat the retry as a successful no-op instead
+            # of confusing the user with "No pending OTP found". This protects against
+            # double-clicks, network retries, and resumed flows.
+            verified_filters = {
+                "mobile_no": mobile_no,
+                "purpose": purpose,
+                "status": "Verified",
+                "verified_at": (">=", add_to_date(now_datetime(), minutes=-10)),
+            }
+            if reference_doctype:
+                verified_filters["reference_doctype"] = reference_doctype
+            if reference_name:
+                verified_filters["reference_name"] = reference_name
+
+            recent_verified = frappe.get_all(
+                "CH OTP Log",
+                filters=verified_filters,
+                fields=["name"],
+                order_by="verified_at desc",
+                limit=1,
+            )
+            if recent_verified:
+                return {
+                    "valid": True,
+                    "already_verified": True,
+                    "message": _("OTP already verified."),
+                }
+
             return {"valid": False, "message": _("No pending OTP found for this mobile number.")}
 
         log = logs[0]

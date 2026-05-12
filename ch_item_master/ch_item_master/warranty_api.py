@@ -1520,3 +1520,159 @@ def _get_customer_from_serial(serial_no):
 		return {"customer": customer, "customer_name": customer_name, "sale_date": "", "sale_document": ""}
 
 	return None
+
+
+# ── VAS Claims Dashboard ─────────────────────────────────────────────────────
+# Surfaces VAS-specific claim activity to the POS Claims workspace so users
+# don't only see purchase data. Joins CH Sold Plan (for plan_type ∈ VAS family)
+# with CH Warranty Claim (per sold plan) and any redemption activity.
+
+VAS_PLAN_TYPES = ("Value Added Service", "Protection Plan", "Extended Warranty")
+
+
+@frappe.whitelist()
+def get_vas_claims_dashboard(company=None, customer=None, serial_no=None,
+                             pos_profile=None, limit=25) -> dict:
+	"""Return a structured VAS claims dashboard for the POS Claims workspace.
+
+	Sections:
+	  * sold_plans: active VAS sold plans with utilisation (claims used vs limit)
+	  * recent_claims: recent VAS-flavoured warranty claims (coverage_type
+	    indicates a VAS/Extended/Protection plan)
+	  * voucher_redemptions: voucher activity tied to VAS plans (when CH Voucher
+	    Redemption / CH VAS Ledger doctypes are present)
+
+	Filters are optional — when provided they narrow the scope (e.g. open the
+	dashboard for one customer or one device).
+	"""
+	from ch_item_master.security import get_company_filter_value as _scope
+
+	limit = int(limit or 25)
+	scope = _scope(company)
+
+	# ── Sold Plans (VAS family) ─────────────────────────────────────
+	sold_plans = []
+	if frappe.db.exists("DocType", "CH Sold Plan"):
+		sp_filters = {
+			"docstatus": 1,
+			"plan_type": ("in", VAS_PLAN_TYPES),
+		}
+		if scope:
+			sp_filters["company"] = ("in", scope) if isinstance(scope, list) else scope
+		if customer:
+			sp_filters["customer"] = customer
+		if serial_no:
+			sp_filters["serial_no"] = serial_no
+		sold_plans = frappe.get_all(
+			"CH Sold Plan",
+			filters=sp_filters,
+			fields=[
+				"name", "membership_id", "customer", "customer_name", "customer_phone",
+				"plan_title", "plan_type", "warranty_plan", "item_code", "item_name",
+				"serial_no", "brand", "start_date", "end_date", "status",
+			],
+			order_by="modified desc",
+			limit_page_length=limit,
+		) or []
+
+		# Per-plan claim count (utilisation) — single roundtrip
+		if sold_plans:
+			plan_names = [p["name"] for p in sold_plans]
+			rows = frappe.db.sql(
+				"""SELECT coverage_reference_id AS sold_plan, COUNT(*) AS claim_count,
+					   SUM(CASE WHEN claim_status NOT IN ('Closed','Cancelled','Rejected')
+					            THEN 1 ELSE 0 END) AS open_count
+				   FROM `tabCH Warranty Claim`
+				   WHERE coverage_reference_doctype = 'CH Sold Plan'
+				     AND coverage_reference_id IN %(names)s
+				     AND docstatus != 2
+				   GROUP BY coverage_reference_id""",
+				{"names": tuple(plan_names)},
+				as_dict=True,
+			)
+			counts = {r["sold_plan"]: r for r in rows}
+			for plan in sold_plans:
+				c = counts.get(plan["name"], {})
+				plan["claim_count"] = int(c.get("claim_count") or 0)
+				plan["open_claims"] = int(c.get("open_count") or 0)
+
+	# ── Recent VAS Claims ───────────────────────────────────────────
+	recent_claims = []
+	if frappe.db.exists("DocType", "CH Warranty Claim"):
+		# Match on coverage_type that maps to VAS-family OR coverage_source
+		# linking back to a CH Sold Plan whose plan_type is in VAS_PLAN_TYPES.
+		claim_filters = {
+			"docstatus": ("!=", 2),
+		}
+		if scope:
+			claim_filters["company"] = ("in", scope) if isinstance(scope, list) else scope
+		if customer:
+			claim_filters["customer"] = customer
+		if serial_no:
+			claim_filters["serial_no"] = serial_no
+		# Limit to VAS-flavoured coverage types — keep the OR via SQL for
+		# flexibility (Frappe ORM doesn't support OR cleanly here).
+		conditions = ["docstatus != 2"]
+		params = {}
+		if scope:
+			if isinstance(scope, list):
+				conditions.append("company IN %(scope)s")
+				params["scope"] = tuple(scope)
+			else:
+				conditions.append("company = %(scope)s")
+				params["scope"] = scope
+		if customer:
+			conditions.append("customer = %(customer)s")
+			params["customer"] = customer
+		if serial_no:
+			conditions.append("serial_no = %(serial_no)s")
+			params["serial_no"] = serial_no
+		conditions.append(
+			"(coverage_type IN %(vas_types)s OR coverage_reference_doctype = 'CH Sold Plan')"
+		)
+		params["vas_types"] = ("Extended Warranty", "Value Added Service", "Protection Plan", "Post-Repair Warranty")
+
+		recent_claims = frappe.db.sql(
+			f"""SELECT name, claim_date, claim_status, coverage_type, plan_type,
+				       customer, customer_name, serial_no, item_name, item_code,
+				       coverage_reference_id
+			   FROM `tabCH Warranty Claim`
+			   WHERE {' AND '.join(conditions)}
+			   ORDER BY modified DESC
+			   LIMIT {limit}""",
+			params,
+			as_dict=True,
+		) or []
+
+	# ── Voucher Redemptions (optional) ──────────────────────────────
+	voucher_redemptions = []
+	if frappe.db.exists("DocType", "CH VAS Ledger"):
+		v_filters = {}
+		if customer:
+			v_filters["customer"] = customer
+		if serial_no:
+			v_filters["serial_no"] = serial_no
+		try:
+			voucher_redemptions = frappe.get_all(
+				"CH VAS Ledger",
+				filters=v_filters,
+				fields=["name", "posting_date", "customer", "customer_name", "serial_no",
+				        "warranty_plan", "transaction_type", "amount", "remarks"],
+				order_by="posting_date desc, modified desc",
+				limit_page_length=limit,
+			) or []
+		except Exception:
+			voucher_redemptions = []
+
+	return {
+		"sold_plans": sold_plans,
+		"recent_claims": recent_claims,
+		"voucher_redemptions": voucher_redemptions,
+		"summary": {
+			"active_plans": len([p for p in sold_plans if (p.get("status") or "").lower() in ("active", "issued")]),
+			"total_plans": len(sold_plans),
+			"open_claims": sum(int(p.get("open_claims") or 0) for p in sold_plans),
+			"total_claims": len(recent_claims),
+		},
+	}
+

@@ -699,6 +699,12 @@ function _render_ch_status_dashboard(frm) {
         __('Complete: {0}%', [score]),
         score_color
     );
+
+    // Sales Readiness — SAP "material status" pattern. Tells users at a glance
+    // whether the item can actually be added to a Sales Invoice today.
+    if (!frm.is_new()) {
+        _render_ch_sales_readiness(frm);
+    }
 }
 
 /**
@@ -900,4 +906,153 @@ function _show_version_history_dialog(frm) {
             d.show();
         },
     });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sales Readiness — SAP/Oracle/Dynamics-style checklist
+// Renders a single dashboard indicator ("Sellable" / "Not Sellable — N issues")
+// and a "Sales Readiness" custom button that opens a checklist dialog with
+// one-click deep links to fix each gap. Does NOT bypass PLM — it just exposes
+// what's blocking the item from being added to a Sales Invoice today.
+// ─────────────────────────────────────────────────────────────────────────────
+
+function _render_ch_sales_readiness(frm) {
+    const company = frappe.defaults.get_user_default('Company') || frappe.defaults.get_global_default('company');
+    if (!company) return;
+
+    frappe.call({
+        method: 'ch_item_master.ch_item_master.readiness.get_item_readiness',
+        args: { item_code: frm.doc.name, company: company },
+        callback: function (r) {
+            if (r.exc || !r.message) return;
+            const data = r.message;
+            const label = data.is_sellable
+                ? __('Sellable in {0}', [data.company || company])
+                : __('Not Sellable — {0} issue(s)', [data.blockers]);
+            const color = data.is_sellable ? 'green' : (data.blockers ? 'red' : 'orange');
+            frm.dashboard.add_indicator(label, color);
+
+            // Add the checklist button (idempotent — remove existing first)
+            frm.remove_custom_button(__('Sales Readiness'), __('CH Actions'));
+            frm.add_custom_button(__('Sales Readiness'), function () {
+                _show_ch_sales_readiness_dialog(frm, data);
+            }, __('CH Actions'));
+        },
+    });
+}
+
+function _show_ch_sales_readiness_dialog(frm, data) {
+    const checks = data.checks || [];
+    const sev_color = { blocker: 'red', warning: 'orange', info: 'gray' };
+
+    const rows = checks.map(function (c) {
+        const status_html = c.passed
+            ? '<span class="indicator-pill green" style="font-size:11px;">OK</span>'
+            : `<span class="indicator-pill ${sev_color[c.severity] || 'orange'}" style="font-size:11px;">${frappe.utils.escape_html(c.severity)}</span>`;
+
+        const fix_btn = !c.passed && c.fix && c.fix.type !== 'info'
+            ? `<button class="btn btn-xs btn-default ch-readiness-fix" data-key="${frappe.utils.escape_html(c.key)}">${__('Fix')}</button>`
+            : '';
+
+        return `
+            <tr>
+                <td style="width:80px;">${status_html}</td>
+                <td><b>${frappe.utils.escape_html(c.label)}</b><br>
+                    <span style="font-size:12px;color:var(--text-muted);">${frappe.utils.escape_html(c.message || '')}</span></td>
+                <td style="width:60px;text-align:right;">${fix_btn}</td>
+            </tr>`;
+    }).join('');
+
+    const summary = data.is_sellable
+        ? `<div class="alert alert-success" style="margin-bottom:10px;">${__('This item is ready to add to Sales Invoice in {0}.', [data.company])}</div>`
+        : `<div class="alert alert-danger" style="margin-bottom:10px;">${__('{0} blocker(s) must be cleared before this item can be sold in {1}.', [data.blockers, data.company])}</div>`;
+
+    const html = `
+        ${summary}
+        <table class="table table-bordered" style="font-size:13px;">
+            <thead><tr>
+                <th>${__('Status')}</th>
+                <th>${__('Check')}</th>
+                <th></th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+        </table>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:8px;">
+            ${__('Following SAP S/4HANA Material Status + Oracle Item Lifecycle pattern. PLM gates are enforced — this dialog only surfaces gaps.')}
+        </div>`;
+
+    const d = new frappe.ui.Dialog({
+        title: __('Sales Readiness — {0}', [frm.doc.name]),
+        size: 'large',
+    });
+    d.body.innerHTML = html;
+    $(d.body).find('.ch-readiness-fix').on('click', function () {
+        const key = $(this).data('key');
+        const c = checks.find(function (x) { return x.key === key; });
+        if (!c || !c.fix) return;
+        d.hide();
+        _apply_ch_readiness_fix(frm, c);
+    });
+    d.show();
+}
+
+function _apply_ch_readiness_fix(frm, check) {
+    const fix = check.fix;
+    if (!fix) return;
+
+    if (fix.type === 'field') {
+        frappe.set_route('Form', fix.doctype, fix.name).then(function () {
+            setTimeout(function () {
+                if (cur_frm && cur_frm.doc.name === fix.name) {
+                    cur_frm.scroll_to_field(fix.field);
+                    if (typeof fix.value !== 'undefined') {
+                        cur_frm.set_value(fix.field, fix.value);
+                    }
+                    frappe.show_alert({
+                        message: __('Update "{0}" and save.', [fix.field]),
+                        indicator: 'blue',
+                    });
+                }
+            }, 600);
+        });
+    } else if (fix.type === 'child') {
+        frappe.set_route('Form', fix.doctype, fix.name).then(function () {
+            setTimeout(function () {
+                if (cur_frm && cur_frm.doc.name === fix.name) {
+                    cur_frm.scroll_to_field(fix.field);
+                    const grid = cur_frm.fields_dict[fix.field] && cur_frm.fields_dict[fix.field].grid;
+                    if (grid) {
+                        const row = cur_frm.add_child(fix.field);
+                        if (fix.company) row.company = fix.company;
+                        cur_frm.refresh_field(fix.field);
+                        grid.grid_rows[grid.grid_rows.length - 1].toggle_view(true);
+                    }
+                    frappe.show_alert({
+                        message: __('Fill the new {0} row and save.', [fix.field]),
+                        indicator: 'blue',
+                    });
+                }
+            }, 600);
+        });
+    } else if (fix.type === 'new_doc') {
+        const defaults = fix.defaults || {};
+        frappe.new_doc(fix.doctype, defaults);
+    } else if (fix.type === 'action') {
+        frappe.confirm(
+            __('Run "{0}" now?', [fix.label || check.label]),
+            function () {
+                frappe.call({
+                    method: fix.method,
+                    args: fix.args || {},
+                    freeze: true,
+                    callback: function (r) {
+                        if (!r.exc) {
+                            frappe.show_alert({ message: __('Done'), indicator: 'green' });
+                            frm.reload_doc();
+                        }
+                    },
+                });
+            },
+        );
+    }
 }
