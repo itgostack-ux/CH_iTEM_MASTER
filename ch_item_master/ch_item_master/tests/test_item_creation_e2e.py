@@ -31,6 +31,11 @@ def fail(name, detail=""):
     print(f"FAIL  {name}" + (f"  ─  {detail}" if detail else ""))
 
 
+def skip(name, detail=""):
+    _results.append(("SKIP", name, detail))
+    print(f"SKIP  {name}" + (f"  ─  {detail}" if detail else ""))
+
+
 # ─── helpers ─────────────────────────────────────────────────────────────────
 
 def _cleanup(item_codes, model_name=None):
@@ -78,7 +83,7 @@ def test_single_item_creation():
     sc_name = "Accessories-No Attributes"
     sc = frappe.db.get_value("CH Sub Category", sc_name, ["name", "prefix", "category"], as_dict=True)
     if not sc:
-        fail("single_item_creation", f"Sub-category '{sc_name}' not found")
+        skip("single_item_creation", f"Sub-category '{sc_name}' not found")
         return None
 
     item_group = frappe.db.get_value("CH Category", sc.category, "item_group")
@@ -88,7 +93,7 @@ def test_single_item_creation():
 
     model = frappe.db.get_value("CH Model", {"sub_category": sc_name}, "name")
     if not model:
-        fail("single_item_creation", f"No CH Model found for '{sc_name}'")
+        skip("single_item_creation", f"No CH Model found for '{sc_name}'")
         return None
 
     try:
@@ -172,7 +177,7 @@ def test_template_item_creation():
     sc_name = "Smart Phone-PHONE"
     sc = frappe.db.get_value("CH Sub Category", sc_name, ["name", "prefix", "category"], as_dict=True)
     if not sc:
-        fail("template_item_creation", f"Sub-category '{sc_name}' not found")
+        skip("template_item_creation", f"Sub-category '{sc_name}' not found")
         return None, None
 
     item_group = frappe.db.get_value("CH Category", sc.category, "item_group")
@@ -182,7 +187,7 @@ def test_template_item_creation():
 
     # Ensure manufacturer + brand exist
     if not frappe.db.exists("Manufacturer", manufacturer):
-        fail("template_item_creation", f"Manufacturer '{manufacturer}' not found")
+        skip("template_item_creation", f"Manufacturer '{manufacturer}' not found")
         return None, None
 
     # Create a fresh test CH Model with ALL variant spec values in one insert
@@ -246,7 +251,7 @@ def test_variant_creation_from_template(template_code, model_name):
     Tests the _copy_ch_fields_from_template path.
     """
     if not template_code:
-        fail("variant_creation_from_template", "Skipped — no template available")
+        skip("variant_creation_from_template", "no template available")
         return []
 
     from erpnext.controllers.item_variant import create_variant
@@ -306,7 +311,7 @@ def test_csv_style_import():
     if not tpl_code:
         tpl_code = frappe.db.get_value("Item", {"ch_sub_category": "Smart Phone-PHONE", "has_variants": 1}, "item_code")
     if not tpl_code:
-        fail("csv_style_import", "No existing Smart Phone template found (PH000001)")
+        skip("csv_style_import", "No existing Smart Phone template found (PH000001)")
         return []
 
     tpl = frappe.db.get_value(
@@ -417,7 +422,8 @@ def run_all():
     print("-" * 65)
     passed = sum(1 for r in _results if r[0] == "PASS")
     failed = sum(1 for r in _results if r[0] == "FAIL")
-    print(f"RESULT: PASS={passed}  FAIL={failed}")
+    skipped = sum(1 for r in _results if r[0] == "SKIP")
+    print(f"RESULT: PASS={passed}  FAIL={failed}  SKIP={skipped}")
     print("=" * 65)
 
     # Clean up all test data
