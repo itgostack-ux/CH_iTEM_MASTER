@@ -685,7 +685,7 @@ function _buyback_price_dialog(item_code, on_success, existing_data) {
             { fieldtype: 'Column Break' },
             { fieldtype: 'Currency', fieldname: 'c_grade_iw_0_3', label: 'C Grade', default: bb.c_grade_iw_0_3 || 0 },
 
-            { fieldtype: 'Section Break', label: 'IW 0-6 Months (In Warranty)' },
+            { fieldtype: 'Section Break', label: 'IW 4-6 Months (In Warranty)' },
             { fieldtype: 'Currency', fieldname: 'a_grade_iw_0_6', label: 'A Grade', default: bb.a_grade_iw_0_6 || 0 },
             { fieldtype: 'Column Break' },
             { fieldtype: 'Currency', fieldname: 'b_grade_iw_0_6', label: 'B Grade', default: bb.b_grade_iw_0_6 || 0 },
