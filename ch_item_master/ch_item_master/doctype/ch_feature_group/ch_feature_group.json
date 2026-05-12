@@ -1,4 +1,5 @@
 {
+ "allow_import": 1,
  "actions": [],
  "autoname": "field:group_name",
  "naming_rule": "By fieldname",

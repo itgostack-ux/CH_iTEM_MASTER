@@ -12,6 +12,7 @@
  "editable_grid": 0,
  "track_changes": 0,
  "in_create": 1,
+ "allow_import": 1,
  "allow_rename": 0,
  "sort_field": "creation",
  "sort_order": "DESC",

@@ -1564,6 +1564,7 @@
   }
  ],
  "links": [],
+ "allow_import": 1,
  "actions": [],
  "states": [
   {

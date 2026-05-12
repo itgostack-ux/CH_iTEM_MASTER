@@ -1,4 +1,5 @@
 {
+ "allow_import": 1,
  "actions": [],
  "autoname": "field:store_code",
  "creation": "2026-03-05 10:00:00.000000",

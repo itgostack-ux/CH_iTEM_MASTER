@@ -13,9 +13,17 @@ from ch_item_master.ch_item_master.exceptions import (
 
 class CHCategory(Document):
 	def autoname(self):
-		"""Auto-generate category_id before insert"""
 		if self.category_name:
 			self.category_name = " ".join(self.category_name.split())
+
+	def before_insert(self):
+		"""Auto-generate category_id.
+
+		Must be in before_insert (not autoname) so it runs even when Data
+		Import pre-sets doc.name from the CSV — Frappe skips autoname() in
+		that case, leaving the Int field at its default 0 and triggering a
+		UNIQUE constraint violation.
+		"""
 		if not self.category_id:
 			lock_name = "ch_category_autoname"
 			try:

@@ -14,6 +14,7 @@ class CHSubCategorySpec(Document):
 		from frappe.types import DF
 
 		in_item_name: DF.Check
+		is_mandatory: DF.Check
 		name_order: DF.Int
 		spec: DF.Link
 		parent: DF.Data

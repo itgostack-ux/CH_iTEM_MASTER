@@ -499,6 +499,7 @@
    "export": 1
   }
  ],
+ "allow_import": 1,
  "allow_rename": 1,
  "show_name_in_global_search": 1,
  "show_title_field_in_link": 1,

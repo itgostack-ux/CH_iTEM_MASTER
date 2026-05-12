@@ -86,6 +86,7 @@ has_permission = {
 doc_events = {
 	"Item": {
 		"before_insert": [
+			"ch_item_master.ch_item_master.bulk_import.apply_active_defaults",
 			"ch_item_master.ch_item_master.overrides.item.before_insert",
 			"ch_item_master.ch_item_master.tier_b.apply_uom_defaults",
 		],
@@ -112,6 +113,12 @@ doc_events = {
 	},
 	"Item Group": {
 		"before_insert": "ch_item_master.ch_item_master.overrides.item_group.before_insert",
+	},
+	"CH Category": {
+		"before_insert": "ch_item_master.ch_item_master.bulk_import.apply_active_defaults",
+	},
+	"CH Sub Category": {
+		"before_insert": "ch_item_master.ch_item_master.bulk_import.apply_active_defaults",
 	},
 	"Customer": {
 		"before_insert": "ch_item_master.ch_customer_master.overrides.customer.before_insert",

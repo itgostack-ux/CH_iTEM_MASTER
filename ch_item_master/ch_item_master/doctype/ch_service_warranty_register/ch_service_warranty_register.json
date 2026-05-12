@@ -1,4 +1,5 @@
 {
+ "allow_import": 1,
  "name": "CH Service Warranty Register",
  "module": "CH Item Master",
  "doctype": "DocType",

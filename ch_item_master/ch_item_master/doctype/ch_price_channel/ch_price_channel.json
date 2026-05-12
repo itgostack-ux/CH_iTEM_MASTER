@@ -106,6 +106,7 @@
    "export": 0
   }
  ],
+ "allow_import": 1,
  "allow_rename": 1,
  "sort_field": "channel_name",
  "sort_order": "ASC",

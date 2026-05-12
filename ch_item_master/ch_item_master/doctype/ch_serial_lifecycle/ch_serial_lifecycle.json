@@ -1,5 +1,6 @@
 {
  "actions": [],
+ "allow_import": 1,
  "allow_rename": 0,
  "autoname": "field:serial_no",
  "creation": "2026-01-01 00:00:00.000000",

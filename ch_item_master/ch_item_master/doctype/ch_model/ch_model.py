@@ -17,15 +17,21 @@ from ch_item_master.ch_item_master.exceptions import (
 
 class CHModel(Document):
 	def autoname(self):
-		"""Set document name and auto-generate model_id.
+		"""Set document name.
 
 		Name = '{sub_category}-{brand}-{model_name}' so the primary key
 		naturally enforces uniqueness per (sub_category, brand, model_name).
 		"""
-		# Set document name — must precede the model_id block so that the
-		# advisory-lock section never runs without a proper name.
 		self.name = f"{self.sub_category}-{self.brand}-{self.model_name}"
 
+	def before_insert(self):
+		"""Auto-generate model_id.
+
+		Must be in before_insert (not autoname) so it runs even when Data
+		Import pre-sets doc.name from the CSV — Frappe skips autoname() in
+		that case, leaving the Int field at its default 0 and triggering a
+		UNIQUE constraint violation.
+		"""
 		if not self.model_id:
 			lock_name = "ch_model_autoname"
 			frappe.db.sql("SELECT GET_LOCK(%s, 10)", lock_name)
@@ -229,7 +235,7 @@ class CHModel(Document):
 				"parent": self.sub_category,
 				"parenttype": "CH Sub Category",
 			},
-			fields=["spec", "is_variant"],
+			fields=["spec", "is_variant", "is_mandatory"],
 			ignore_permissions=True,
 		)
 		if not all_specs:
@@ -237,8 +243,17 @@ class CHModel(Document):
 
 		model_specs = {row.spec for row in self.spec_values or []}
 
-		missing_variant = [s.spec for s in all_specs if s.is_variant and s.spec not in model_specs]
-		missing_property = [s.spec for s in all_specs if not s.is_variant and s.spec not in model_specs]
+		# Only enforce presence of a value for mandatory specs.
+		# Non-mandatory specs (is_mandatory=0) are optional — a model may
+		# legitimately omit "Output Watt" or "Includes" if not applicable.
+		missing_variant = [
+			s.spec for s in all_specs
+			if s.is_variant and s.is_mandatory and s.spec not in model_specs
+		]
+		missing_property = [
+			s.spec for s in all_specs
+			if not s.is_variant and s.is_mandatory and s.spec not in model_specs
+		]
 
 		if missing_variant:
 			frappe.throw(

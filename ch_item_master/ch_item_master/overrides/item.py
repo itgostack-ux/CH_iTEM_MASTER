@@ -487,6 +487,46 @@ def _validate_ch_spec_values(doc):
                     title=_("Invalid Spec Value"),
                 )
 
+    # ── Enforce mandatory specs have values (variants only, not templates) ──
+    # Template items (has_variants=1) are the variant axes — they carry no
+    # spec values themselves. Only actual variant items (variant_of is set)
+    # or standalone non-variant items must satisfy mandatory specs.
+    mandatory_specs = [] if doc.has_variants else frappe.get_all(
+        "CH Sub Category Spec",
+        filters={"parent": doc.ch_sub_category, "parenttype": "CH Sub Category", "is_mandatory": 1},
+        fields=["spec"],
+        ignore_permissions=True,
+    )
+    if mandatory_specs:
+        # Variant items store their values in ERPNext's native `attributes`
+        # child table (tabItem Variant Attribute), not ch_spec_values.
+        # Collect values from BOTH tables so variants with proper attributes
+        # are not wrongly rejected.
+        existing_values = {
+            row.spec: (row.spec_value or "").strip()
+            for row in (doc.ch_spec_values or [])
+        }
+        for row in (doc.get("attributes") or []):
+            attr = (row.attribute or "").strip()
+            val = (row.attribute_value or "").strip()
+            if attr and val and attr not in existing_values:
+                existing_values[attr] = val
+
+        missing_mandatory = [
+            s["spec"] for s in mandatory_specs
+            if not existing_values.get(s["spec"])
+        ]
+        if missing_mandatory:
+            frappe.throw(
+                _("The following mandatory specifications have no value: {0}. "
+                  "These specs are required by Sub Category {1}."
+                ).format(
+                    ", ".join(frappe.bold(s) for s in missing_mandatory),
+                    frappe.bold(doc.ch_sub_category),
+                ),
+                title=_("Missing Mandatory Spec Values"),
+            )
+
     # ── Auto-fill any missing property specs from model (FIX-1 defence) ───
     property_spec_defs = frappe.get_all(
         "CH Sub Category Spec",

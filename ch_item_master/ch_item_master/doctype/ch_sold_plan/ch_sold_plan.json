@@ -383,6 +383,7 @@
    "link_fieldname": "plan"
   }
  ],
+ "allow_import": 1,
  "actions": [],
  "states": [
   {

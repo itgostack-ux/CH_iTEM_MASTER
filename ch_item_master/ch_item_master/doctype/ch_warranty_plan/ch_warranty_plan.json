@@ -385,6 +385,7 @@
    "link_fieldname": "warranty_plan"
   }
  ],
+ "allow_import": 1,
  "actions": [],
  "modified": "2026-01-01 00:00:00.000000",
  "creation": "2026-01-01 00:00:00.000000"

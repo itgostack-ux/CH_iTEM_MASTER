@@ -8,9 +8,17 @@ from frappe.model.document import Document
 
 class CHPriceChannel(Document):
 	def autoname(self):
-		"""Auto-generate channel_id before insert"""
 		if self.channel_name:
 			self.channel_name = " ".join(self.channel_name.split())
+
+	def before_insert(self):
+		"""Auto-generate channel_id.
+
+		Must be in before_insert (not autoname) so it runs even when Data
+		Import pre-sets doc.name from the CSV — Frappe skips autoname() in
+		that case, leaving the Int field at its default 0 and triggering a
+		UNIQUE constraint violation.
+		"""
 		if not self.channel_id:
 			last_id = frappe.db.sql("""
 				SELECT COALESCE(MAX(channel_id), 0) 

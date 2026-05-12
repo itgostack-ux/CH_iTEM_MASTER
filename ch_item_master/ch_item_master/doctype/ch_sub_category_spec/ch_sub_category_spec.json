@@ -9,6 +9,7 @@
   "is_variant",
   "affects_price",
   "in_item_name",
+  "is_mandatory",
   "name_order"
  ],
  "fields": [
@@ -56,6 +57,14 @@
    "fieldtype": "Check",
    "in_list_view": 1,
    "label": "Include in Item Name"
+  },
+  {
+   "default": "0",
+   "description": "Mandatory: item cannot be saved without a value for this spec. Optional: value is not required — if provided and Include in Name is checked, it will appear in the item name; if blank, it is silently skipped.",
+   "fieldname": "is_mandatory",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Mandatory"
   },
   {
    "default": "0",

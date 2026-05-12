@@ -42,9 +42,17 @@ _TRANSACTION_TABLES = [
 
 class CHSubCategory(Document):
 	def autoname(self):
-		"""Auto-generate sub_category_id before insert"""
 		if self.sub_category_name:
 			self.sub_category_name = " ".join(self.sub_category_name.split())
+
+	def before_insert(self):
+		"""Auto-generate sub_category_id.
+
+		Must be in before_insert (not autoname) so it runs even when Data
+		Import pre-sets doc.name from the CSV — Frappe skips autoname() in
+		that case, leaving the Int field at its default 0 and triggering a
+		UNIQUE constraint violation.
+		"""
 		if not self.sub_category_id:
 			lock_name = "ch_sub_category_autoname"
 			try:
@@ -71,7 +79,6 @@ class CHSubCategory(Document):
 		self.validate_name_order_sequential()
 		self.validate_spec_changes_after_items_exist()
 		self.validate_hsn_code()
-		self.validate_unique_prefix()
 		self._normalise_prefix()
 
 	def _populate_ids(self):
@@ -393,7 +400,9 @@ class CHSubCategory(Document):
 				continue
 			if old.is_variant != row.is_variant:
 				changed_variant_flag.append(spec_name)
-			if old.in_item_name != row.in_item_name or str(old.name_order or 0) != str(row.name_order or 0):
+			if (old.in_item_name != row.in_item_name
+					or str(old.name_order or 0) != str(row.name_order or 0)
+					or old.is_mandatory != row.is_mandatory):
 				changed_naming.append(spec_name)
 
 		# If nothing changed, skip
@@ -481,28 +490,6 @@ class CHSubCategory(Document):
 				"<br>".join(warnings),
 				title=_("Spec Changes — Please Review"),
 				indicator="orange",
-			)
-
-	def validate_unique_prefix(self):
-		"""Ensure no two sub-categories share the same item code prefix (FIX-5).
-
-		Duplicate prefixes cause _next_item_code to merge counters across
-		unrelated categories and eventually produce duplicate item codes.
-		"""
-		if not self.prefix:
-			return
-		normalised = self.prefix.strip().upper()
-		existing = frappe.db.get_value(
-			"CH Sub Category",
-			{"prefix": normalised, "name": ("!=", self.name)},
-			"name",
-		)
-		if existing:
-			frappe.throw(
-				_("Prefix {0} is already used by Sub Category {1}. "
-				  "Each sub-category must have a unique item code prefix."
-				).format(frappe.bold(normalised), frappe.bold(existing)),
-				title=_("Duplicate Prefix"),
 			)
 
 	def _normalise_prefix(self):
