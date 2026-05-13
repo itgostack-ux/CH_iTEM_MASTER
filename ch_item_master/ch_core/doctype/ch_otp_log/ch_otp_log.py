@@ -44,14 +44,18 @@ class CHOTPLog(Document):
         """
         otp_code = "".join(random.choices(string.digits, k=6))
 
-        # BB-3 fix: Rate limit OTP generation — max 5 OTPs per mobile per hour
+        # BB-3 fix: Rate limit OTP generation — max 5 *unconsumed* OTPs per mobile per hour.
+        # Verified OTPs were legitimately used by the customer, so they don't count toward
+        # the throttle (otherwise a customer who completes 5 verifications is locked out
+        # for a full hour).
         recent_count = frappe.db.count("CH OTP Log", {
             "mobile_no": mobile_no,
             "generated_at": (">=", add_to_date(now_datetime(), hours=-1)),
+            "status": ("!=", "Verified"),
         })
         if recent_count >= 5:
             frappe.throw(
-                _("Too many OTP requests for {0}. Please wait before trying again.").format(mobile_no),
+                _("Too many OTP requests for {0}. Please wait a few minutes before trying again.").format(mobile_no),
                 title=_("Rate Limit Exceeded"),
             )
 
