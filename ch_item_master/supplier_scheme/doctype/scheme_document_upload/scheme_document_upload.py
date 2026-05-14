@@ -10,15 +10,39 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 from frappe.utils import flt, getdate
+import urllib.parse
+
+# Allowlisted AI endpoints (SSRF defence — C7)
+ALLOWED_AI_HOSTS = {"api.openai.com"}
 
 
 class SchemeDocumentUpload(Document):
 	pass
 
 
-# ---------------------------------------------------------------------------
-# AI Extraction API
-# ---------------------------------------------------------------------------
+def _validate_ai_endpoint(url: str) -> None:
+	"""Enforce SSRF defence: only allow OpenAI official API."""
+	if not url:
+		frappe.throw("AI endpoint URL is required")
+	try:
+		parsed = urllib.parse.urlparse(url)
+		hostname = parsed.hostname
+		if hostname not in ALLOWED_AI_HOSTS:
+			frappe.throw(
+				f"AI endpoint '{hostname}' is not whitelisted. "
+				f"Only {', '.join(ALLOWED_AI_HOSTS)} is allowed.",
+				title="SSRF Protection",
+			)
+		if parsed.scheme != "https":
+			frappe.throw(
+				"AI endpoint must use HTTPS",
+				title="Security Requirement",
+			)
+	except ValueError as e:
+		frappe.throw(f"Invalid AI endpoint URL: {e}", title="URL Validation Error")
+
+
+
 
 @frappe.whitelist()
 def extract_scheme_data(upload_name) -> dict:
@@ -211,7 +235,13 @@ def _add_log(doc, level, step, message, traceback=None, ai_model=None):
 
 
 def _read_file_content(file_url):
-	"""Read file and return base64 content + mime type for AI vision."""
+	"""Read file and return base64 content + mime type for AI vision.
+
+	Validation (H16):
+	  - Max 10 MB file size
+	  - MIME type must be PDF / image (PNG, JPEG, GIF, WebP)
+	  - Magic bytes must match MIME type (prevent spoofed extensions)
+	"""
 	import base64
 	import mimetypes
 
@@ -223,6 +253,37 @@ def _read_file_content(file_url):
 
 	with open(file_path, "rb") as f:
 		raw = f.read()
+
+	# Size cap: 10 MB (H16)
+	if len(raw) > 10_000_000:
+		frappe.throw(
+			_("File is too large. Maximum 10 MB allowed."),
+			title=_("File Size Error"),
+		)
+
+	# MIME type whitelist (H16)
+	allowed_mimes = {"application/pdf", "image/png", "image/jpeg", "image/gif", "image/webp"}
+	if mime_type not in allowed_mimes:
+		frappe.throw(
+			_("File type not supported. Please upload PDF or image (PNG, JPEG, GIF, WebP)."),
+			title=_("File Type Error"),
+		)
+
+	# Magic byte validation (H16) — prevent spoofed file extensions
+	magic_checks = {
+		"application/pdf": b"%PDF",
+		"image/png": b"\x89PNG",
+		"image/jpeg": b"\xff\xd8\xff",
+		"image/gif": b"GIF8",
+		"image/webp": b"RIFF",  # partial — more complex, but catches most spoofs
+	}
+
+	expected_magic = magic_checks.get(mime_type)
+	if expected_magic and not raw.startswith(expected_magic):
+		frappe.throw(
+			_("File content does not match the declared type. Possible file spoofing."),
+			title=_("File Validation Error"),
+		)
 
 	# For PDFs, try text extraction first (cheaper, faster)
 	text_content = ""
@@ -373,8 +434,12 @@ def _send_ai_request(messages, ai_settings):
 	"""POST messages to OpenAI and return parsed JSON response."""
 	import requests
 
+	endpoint = ai_settings["endpoint"]
+	# Validate endpoint against SSRF allowlist (C7) — before any HTTP call
+	_validate_ai_endpoint(endpoint)
+
 	resp = requests.post(
-		ai_settings["endpoint"],
+		endpoint,
 		headers={
 			"Authorization": f"Bearer {ai_settings['api_key']}",
 			"Content-Type": "application/json",

@@ -131,9 +131,12 @@ doc_events = {
 			"ch_item_master.ch_item_master.tier_c.enforce_plm_on_transaction",
 		],
 		"on_submit": [
-			"ch_item_master.ch_customer_master.hooks.on_sales_invoice_submit",
-			"ch_item_master.ch_item_master.doctype.ch_scheme_receivable.ch_scheme_receivable.create_from_pos_invoice",
-			"ch_item_master.supplier_scheme.engine.process_invoice_items",
+			# Heavy post-submit work — dispatched to background queue
+			# (enqueue_after_commit=True) so the POS request returns fast.
+			# See ch_item_master/async_dispatch.py for trampoline details.
+			"ch_item_master.async_dispatch.customer_activity_after_submit",
+			"ch_item_master.async_dispatch.scheme_receivable_after_submit",
+			"ch_item_master.async_dispatch.supplier_scheme_after_submit",
 		],
 		"on_cancel": "ch_item_master.supplier_scheme.engine.reverse_invoice_items",
 	},
@@ -144,8 +147,8 @@ doc_events = {
 			"ch_item_master.ch_item_master.tier_c.enforce_plm_on_transaction",
 		],
 		"on_submit": [
-			"ch_item_master.ch_item_master.doctype.ch_scheme_receivable.ch_scheme_receivable.create_from_pos_invoice",
-			"ch_item_master.supplier_scheme.engine.process_invoice_items",
+			"ch_item_master.async_dispatch.scheme_receivable_after_submit",
+			"ch_item_master.async_dispatch.supplier_scheme_after_submit",
 		],
 		"on_cancel": "ch_item_master.supplier_scheme.engine.reverse_invoice_items",
 	},

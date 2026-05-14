@@ -111,6 +111,8 @@ def approve_exception(exception_name, approver_user=None, channel=None,
 	"""Approve an exception request.
 
 	If the exception type requires OTP, validates it first.
+	Enforces Segregation of Duties — the user who raised the exception
+	cannot also approve it (System Manager bypass is audited).
 	"""
 	exc = frappe.get_doc("CH Exception Request", exception_name)
 	if exc.status != "Pending":
@@ -123,6 +125,10 @@ def approve_exception(exception_name, approver_user=None, channel=None,
 
 	etype = frappe.get_cached_doc("CH Exception Type", exc.exception_type)
 	approver_user = approver_user or frappe.session.user
+
+	# SoD enforcement — the requester cannot approve their own exception.
+	from ch_item_master.ch_item_master.rbac import check_sod
+	check_sod(submitted_by=exc.requested_by, approver=approver_user)
 
 	# OTP validation
 	otp_ref = None

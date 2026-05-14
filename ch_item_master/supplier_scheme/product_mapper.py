@@ -12,10 +12,36 @@ Usage:
 """
 
 import json
+import urllib.parse
 
 import frappe
 from frappe import _
 from frappe.utils import flt
+
+# Allowlisted AI endpoints (SSRF defence — C7)
+ALLOWED_AI_HOSTS = {"api.openai.com"}
+
+
+def _validate_ai_endpoint(url: str) -> None:
+	"""Enforce SSRF defence: only allow OpenAI official API."""
+	if not url:
+		frappe.throw("AI endpoint URL is required")
+	try:
+		parsed = urllib.parse.urlparse(url)
+		hostname = parsed.hostname
+		if hostname not in ALLOWED_AI_HOSTS:
+			frappe.throw(
+				f"AI endpoint '{hostname}' is not whitelisted. "
+				f"Only {', '.join(ALLOWED_AI_HOSTS)} is allowed.",
+				title="SSRF Protection",
+			)
+		if parsed.scheme != "https":
+			frappe.throw(
+				"AI endpoint must use HTTPS",
+				title="Security Requirement",
+			)
+	except ValueError as e:
+		frappe.throw(f"Invalid AI endpoint URL: {e}", title="URL Validation Error")
 
 
 # ---------------------------------------------------------------------------
@@ -346,8 +372,12 @@ Return ONLY valid JSON:
 	try:
 		import requests
 
+		endpoint = ai_settings["endpoint"]
+		# Validate endpoint against SSRF allowlist (C7) — before any HTTP call
+		_validate_ai_endpoint(endpoint)
+
 		resp = requests.post(
-			ai_settings["endpoint"],
+			endpoint,
 			headers={
 				"Authorization": f"Bearer {ai_settings['api_key']}",
 				"Content-Type": "application/json",

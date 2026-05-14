@@ -17,6 +17,51 @@ Usage:
 import frappe
 import requests
 from frappe.utils import now_datetime
+import urllib.parse
+import re
+
+# Allowlisted WhatsApp gateway hosts (SSRF defence — C8)
+ALLOWED_WHATSAPP_HOSTS = {"server.gallabox.com"}
+
+
+def _validate_whatsapp_url(url: str) -> None:
+    """Enforce SSRF defence: only allow Gallabox official server."""
+    if not url:
+        frappe.throw("WhatsApp base URL is required")
+    try:
+        parsed = urllib.parse.urlparse(url)
+        hostname = parsed.hostname
+        if hostname not in ALLOWED_WHATSAPP_HOSTS:
+            frappe.throw(
+                f"WhatsApp endpoint '{hostname}' is not whitelisted. "
+                f"Only {', '.join(ALLOWED_WHATSAPP_HOSTS)} is allowed.",
+                title="SSRF Protection",
+            )
+        if parsed.scheme != "https":
+            frappe.throw(
+                "WhatsApp endpoint must use HTTPS",
+                title="Security Requirement",
+            )
+    except ValueError as e:
+        frappe.throw(f"Invalid WhatsApp URL: {e}", title="URL Validation Error")
+
+
+def _redact_otp_from_body_values(body_values: dict | None) -> dict | None:
+    """Mask OTP codes in body_values before logging (H14 redaction).
+
+    OTPs are typically 4-6 digit sequences. Redact them to prevent
+    PII leakage to support staff reading logs.
+    """
+    if not body_values:
+        return body_values
+    redacted = {}
+    otp_pattern = re.compile(r"\b\d{4,6}\b")  # 4-6 digit sequences
+    for k, v in body_values.items():
+        if isinstance(v, str) and otp_pattern.search(v):
+            redacted[k] = "[REDACTED_OTP]"
+        else:
+            redacted[k] = v
+    return redacted
 
 
 def _normalize_phone(phone: str) -> str:
@@ -121,12 +166,15 @@ def _send_now(
     api_secret = settings.get_password("api_secret") or ""
     base_url = settings.base_url or "https://server.gallabox.com/devapi/messages/whatsapp"
 
+    # Validate base_url against SSRF allowlist (C8) — before any HTTP call
+    _validate_whatsapp_url(base_url)
+
     log_doc = frappe.get_doc({
         "doctype": "CH WhatsApp Log",
         "recipient_phone": phone,
         "recipient_name": customer_name,
         "template_name": template_name,
-        "body_values": json.dumps(body_values),
+        "body_values": json.dumps(_redact_otp_from_body_values(body_values)),
         "reference_doctype": ref_doctype,
         "reference_name": ref_name,
         "status": "Queued",
