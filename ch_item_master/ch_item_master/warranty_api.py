@@ -1051,3 +1051,164 @@ def need_more_info_claim(claim_name, remarks=None) -> dict:
 
 # Note: payment gateway functions (pay_processing_fee, _mark_processing_fee_paid, etc.)
 # have been moved to a separate module for maintenance. See warranty payment logic in imports.
+
+
+# ── VAS Claims Dashboard (POS Claims workspace) ──────────────────────────────
+
+@frappe.whitelist()
+def get_vas_claims_dashboard(company=None, limit=15) -> dict:
+	"""Aggregate VAS lifecycle data for the POS Claims workspace.
+
+	Returns sold-plan rollup, recent claims, and voucher redemptions scoped to
+	the active company. Used by claims_workspace.js → _load_vas_activity().
+
+	Args:
+		company: Company filter (defaults to active POS company / session default).
+		limit: Max rows per list (sold_plans, recent_claims, voucher_redemptions).
+
+	Returns:
+		dict with keys: summary, sold_plans, recent_claims, voucher_redemptions.
+	"""
+	try:
+		limit = int(limit or 15)
+	except (TypeError, ValueError):
+		limit = 15
+	limit = max(1, min(limit, 100))
+
+	company = (company or "").strip() or get_company_filter_value()
+
+	# ── Sold plans ────────────────────────────────────────────────────────
+	plan_filters = {"docstatus": 1}
+	if company:
+		plan_filters["company"] = company
+
+	sold_plans = frappe.get_all(
+		"CH Sold Plan",
+		filters=plan_filters,
+		fields=[
+			"name",
+			"status",
+			"plan_title",
+			"warranty_plan",
+			"customer",
+			"customer_name",
+			"serial_no",
+			"item_code",
+			"start_date",
+			"end_date",
+		],
+		order_by="modified desc",
+		limit=limit,
+	) or []
+
+	plan_names = [p["name"] for p in sold_plans]
+	claim_counts = {}
+	open_counts = {}
+	if plan_names:
+		# CH Warranty Claim is linked to a sold plan via the `sold_plan` field
+		# (fallback: by serial_no + warranty_plan). Use sold_plan when present.
+		rows = frappe.db.sql(
+			"""
+			SELECT sold_plan,
+			       COUNT(*) AS total,
+			       SUM(CASE WHEN claim_status NOT IN ('Closed','Cancelled','Rejected','Delivered')
+			                THEN 1 ELSE 0 END) AS open_count
+			FROM `tabCH Warranty Claim`
+			WHERE docstatus < 2 AND sold_plan IN %(names)s
+			GROUP BY sold_plan
+			""",
+			{"names": tuple(plan_names)},
+			as_dict=True,
+		) or []
+		for r in rows:
+			claim_counts[r["sold_plan"]] = int(r["total"] or 0)
+			open_counts[r["sold_plan"]] = int(r["open_count"] or 0)
+
+	for p in sold_plans:
+		p["claim_count"] = claim_counts.get(p["name"], 0)
+		p["open_claims"] = open_counts.get(p["name"], 0)
+
+	# ── Recent claims ─────────────────────────────────────────────────────
+	claim_filters = {"docstatus": ("<", 2)}
+	if company:
+		# CH Warranty Claim may or may not have a company field depending on schema;
+		# only filter when the column exists to avoid 1054 errors.
+		if frappe.db.has_column("CH Warranty Claim", "company"):
+			claim_filters["company"] = company
+
+	recent_claims = frappe.get_all(
+		"CH Warranty Claim",
+		filters=claim_filters,
+		fields=[
+			"name",
+			"claim_id",
+			"claim_status",
+			"customer",
+			"customer_name",
+			"serial_no",
+			"warranty_plan",
+			"creation",
+			"modified",
+		],
+		order_by="modified desc",
+		limit=limit,
+	) or []
+
+	# ── Voucher redemptions (CH VAS Ledger — claim/redeem events) ─────────
+	voucher_redemptions = []
+	if frappe.db.exists("DocType", "CH VAS Ledger"):
+		ledger_filters = {
+			"event_type": ("in", ["Claim", "Redemption", "Voucher Redemption", "Redeem"]),
+		}
+		voucher_redemptions = frappe.get_all(
+			"CH VAS Ledger",
+			filters=ledger_filters,
+			fields=[
+				"name",
+				"sold_plan",
+				"event_type",
+				"claim_amount",
+				"reference_doctype",
+				"reference_name",
+				"creation",
+			],
+			order_by="creation desc",
+			limit=limit,
+		) or []
+		# Hydrate posting_date / customer for display from the linked sold plan.
+		plan_lookup = {}
+		need_lookup = {v["sold_plan"] for v in voucher_redemptions if v.get("sold_plan")}
+		need_lookup -= set(plan_names)  # already in sold_plans payload
+		if need_lookup:
+			extra = frappe.get_all(
+				"CH Sold Plan",
+				filters={"name": ("in", list(need_lookup))},
+				fields=["name", "customer", "customer_name"],
+			)
+			plan_lookup = {p["name"]: p for p in extra}
+		for v in voucher_redemptions:
+			ref = next((p for p in sold_plans if p["name"] == v.get("sold_plan")), None) or \
+				plan_lookup.get(v.get("sold_plan")) or {}
+			v["customer"] = ref.get("customer") or ""
+			v["customer_name"] = ref.get("customer_name") or ""
+			v["amount"] = flt(v.get("claim_amount") or 0)
+			v["transaction_type"] = v.get("event_type") or ""
+			v["posting_date"] = (v.get("creation") or "")[:10] if v.get("creation") else ""
+
+	# ── Summary roll-up ───────────────────────────────────────────────────
+	summary = {
+		"total_plans": len(sold_plans),
+		"active_plans": sum(1 for p in sold_plans if (p.get("status") or "").lower() == "active"),
+		"total_claims": len(recent_claims),
+		"open_claims": sum(
+			1 for c in recent_claims
+			if (c.get("claim_status") or "") not in ("Closed", "Cancelled", "Rejected", "Delivered")
+		),
+	}
+
+	return {
+		"summary": summary,
+		"sold_plans": sold_plans,
+		"recent_claims": recent_claims,
+		"voucher_redemptions": voucher_redemptions,
+	}

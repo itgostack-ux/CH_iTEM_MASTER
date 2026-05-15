@@ -90,14 +90,29 @@ def _build_where(f, alias_lc="lc", alias_sn="sn"):
         params["company"] = f["company"]
 
     if f.get("store"):
-        where.append(f"{alias_lc}.current_warehouse = %(store)s")
-        params["store"] = f["store"]
+        # Resolve CH Store → Warehouse so the filter works whether the caller
+        # passes a CH Store name or a raw Warehouse name (cascade picker passes Store).
+        store_wh = frappe.db.get_value("CH Store", f["store"], "warehouse") or f["store"]
+        where.append(f"{alias_lc}.current_warehouse = %(store_wh)s")
+        params["store_wh"] = store_wh
     elif f.get("zone"):
         where.append("wh.ch_zone = %(zone)s")
         params["zone"] = f["zone"]
     elif f.get("city"):
         where.append("wh.ch_city = %(city)s")
         params["city"] = f["city"]
+    elif f.get("_allowed_warehouses") is not None:
+        # Scope intersection result (set by get_imei_tracker_data). Caller has no
+        # explicit store/zone/city, so constrain to the user's allowed warehouses
+        # (or — for unscoped users — to all warehouses of the requested company).
+        wlist = f["_allowed_warehouses"]
+        if not wlist:
+            where.append("1=0")
+        else:
+            placeholders = ", ".join([f"%(wh_{i})s" for i in range(len(wlist))])
+            where.append(f"{alias_lc}.current_warehouse IN ({placeholders})")
+            for i, w in enumerate(wlist):
+                params[f"wh_{i}"] = w
 
     if f.get("from_date"):
         where.append(f"({alias_lc}.purchase_date >= %(from_date)s OR {alias_lc}.modified >= %(from_date)s)")
@@ -163,10 +178,68 @@ def _join_clause():
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
+def _apply_scope(f):
+    """Resolve user scope + company-warehouse list and stash it onto f.
+
+    Mutates `f` in place by adding `_allowed_warehouses` (list[str] or None).
+    Behaviour:
+      * System Manager / unrestricted user with company filter → all warehouses
+        of that company (so the dashboard shows the full company, not just one
+        store).
+      * Scoped user → intersection of company-warehouses and CH User Scope
+        allowed_warehouses.
+      * Explicit store/zone/city filter takes precedence (handled in _build_where).
+    """
+    try:
+        from ch_erp15.ch_erp15.scope import intersect_filters
+        eff = intersect_filters(
+            company=f.get("company"),
+            city=f.get("city"),
+            zone=f.get("zone"),
+            store=f.get("store"),
+        )
+    except Exception:
+        # Fallback: no scope module available — leave unfiltered
+        f["_allowed_warehouses"] = None
+        return
+
+    if f.get("store") or f.get("zone") or f.get("city"):
+        # Explicit filter wins; _build_where already handles it
+        f["_allowed_warehouses"] = None
+        return
+
+    if eff.get("bypass"):
+        # Unrestricted user: still scope by company (if provided) so the dashboard
+        # shows all warehouses of THAT company, not the entire system.
+        if f.get("company"):
+            company_wh = frappe.get_all(
+                "Warehouse",
+                filters={"company": f["company"], "disabled": 0},
+                pluck="name",
+            )
+            f["_allowed_warehouses"] = company_wh or ["__none__"]
+        else:
+            f["_allowed_warehouses"] = None  # truly unrestricted
+        return
+
+    # Scoped user: use intersected allowed_warehouses
+    aw = eff.get("allowed_warehouses")
+    if aw is None:
+        # Scoped but no warehouse constraint resolved: fall back to company
+        if f.get("company"):
+            aw = frappe.get_all(
+                "Warehouse",
+                filters={"company": f["company"], "disabled": 0},
+                pluck="name",
+            )
+    f["_allowed_warehouses"] = aw or []
+
+
 @frappe.whitelist()
 def get_imei_tracker_data(filters=None):
     """Return KPIs + table rows for the IMEI Tracker hub."""
     f = _norm_filters(filters)
+    _apply_scope(f)
     where, params = _build_where(f)
 
     # ── KPIs (counts per bucket) ──
@@ -441,6 +514,7 @@ def export_imei_data(filters=None, file_format="csv"):
     import base64
 
     f = _norm_filters(filters)
+    _apply_scope(f)
     where, params = _build_where(f)
 
     sql = f"""

@@ -684,5 +684,15 @@ CUSTOM_FIELDS = {
 				"as opposed to a system-generated barcode."
 			),
 		},
+		{
+			"fieldname": "custom_barcode_series",
+			"label": _("Barcode Series"),
+			"fieldtype": "Data",
+			"insert_after": "ch_is_imei",
+			"description": _(
+				"Auto-generated barcode series captured at Purchase Receipt time "
+				"for non-IMEI serialised items (Item.custom_imei = No)."
+			),
+		},
 	],
 }

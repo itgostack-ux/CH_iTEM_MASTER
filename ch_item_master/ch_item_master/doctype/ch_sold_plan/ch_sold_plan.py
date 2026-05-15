@@ -117,17 +117,20 @@ class CHSoldPlan(Document):
 			)
 
 	def _validate_duplicate(self):
-		"""Prevent duplicate active sold plans for the same serial + plan type."""
+		"""Prevent duplicate active sold plans for the same serial + warranty plan template.
+
+		Multiple distinct VAS plans (different warranty_plan templates) may co-exist
+		on the same serial — e.g. ADLD + Extended Warranty + Screen Protect. Only
+		two active rows of the *same* warranty plan template are blocked.
+		"""
 		if not self.serial_no or not self.warranty_plan:
 			return
-
-		plan_type = frappe.db.get_value("CH Warranty Plan", self.warranty_plan, "plan_type")
 
 		existing = frappe.db.get_value(
 			"CH Sold Plan",
 			{
 				"serial_no": self.serial_no,
-				"plan_type": plan_type,
+				"warranty_plan": self.warranty_plan,
 				"status": "Active",
 				"docstatus": 1,
 				"name": ("!=", self.name),
@@ -135,11 +138,15 @@ class CHSoldPlan(Document):
 			"name",
 		)
 		if existing:
+			plan_title = (
+				frappe.db.get_value("CH Warranty Plan", self.warranty_plan, "plan_title")
+				or self.warranty_plan
+			)
 			frappe.throw(
 				_("Serial {0} already has an active {1} plan ({2}). "
 				  "Void or cancel the existing plan first.").format(
 					frappe.bold(self.serial_no),
-					frappe.bold(plan_type),
+					frappe.bold(plan_title),
 					existing,
 				),
 				exc=DuplicateSoldPlanError,
