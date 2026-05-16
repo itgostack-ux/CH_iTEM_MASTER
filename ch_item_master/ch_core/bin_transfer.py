@@ -320,8 +320,231 @@ def get_pos_bin_summary(store: str | None = None, item_code: str | None = None) 
 	return result
 
 
+@frappe.whitelist()
+def get_store_bin_serials(
+	bin_type: str,
+	store: str | None = None,
+	item_code: str | None = None,
+	search_text: str | None = None,
+	limit: int = 100,
+) -> dict:
+	"""Return serial-level rows currently sitting in one store bin.
+
+	Used by the CH POS Bin Manager tabs.
+	"""
+	store = store or get_store_for_user()
+	if not store:
+		frappe.throw(_("Cannot determine store for current user."))
+
+	warehouse = get_store_bin(store, bin_type)
+	limit = max(1, min(int(limit or 100), 500))
+
+	conditions = ["warehouse = %(warehouse)s"]
+	params = {"warehouse": warehouse, "limit": limit}
+
+	if item_code:
+		conditions.append("item_code = %(item_code)s")
+		params["item_code"] = item_code
+
+	if search_text:
+		st = f"%{search_text.strip()}%"
+		conditions.append("(name LIKE %(search)s OR item_code LIKE %(search)s OR item_name LIKE %(search)s)")
+		params["search"] = st
+
+	rows = frappe.db.sql(
+		"""
+		SELECT
+			name AS serial_no,
+			item_code,
+			item_name,
+			status,
+			warehouse
+		FROM `tabSerial No`
+		WHERE {where_clause}
+		ORDER BY modified DESC
+		LIMIT %(limit)s
+		""".format(where_clause=" AND ".join(conditions)),
+		params,
+		as_dict=True,
+	)
+
+	return {
+		"store": store,
+		"bin_type": bin_type,
+		"warehouse": warehouse,
+		"count": len(rows),
+		"serials": rows,
+	}
+
+
+@frappe.whitelist()
+def get_serial_bin_context(serial_no: str, store: str | None = None) -> dict:
+	"""Resolve a serial to its current store bin context (item + bin type)."""
+	store = store or get_store_for_user()
+	if not store:
+		frappe.throw(_("Cannot determine store for current user."))
+	if not serial_no:
+		frappe.throw(_("Serial number is required."))
+
+	serial = frappe.db.get_value(
+		"Serial No",
+		serial_no,
+		["name", "item_code", "item_name", "warehouse", "status"],
+		as_dict=True,
+	)
+	if not serial or not serial.warehouse:
+		return {}
+
+	wh = frappe.db.get_value(
+		"Warehouse",
+		{"name": serial.warehouse, "ch_store": store},
+		["name", "ch_bin_type", "ch_store"],
+		as_dict=True,
+	)
+	if not wh:
+		return {}
+
+	return {
+		"serial_no": serial.name,
+		"item_code": serial.item_code,
+		"item_name": serial.item_name,
+		"warehouse": wh.name,
+		"bin_type": wh.ch_bin_type,
+		"store": wh.ch_store,
+		"status": serial.status,
+	}
+
+
 # ──────────────────────────────────────────────────────────────────────────
 # 5. Default reason seeding (called from setup.after_install/after_migrate)
+# ──────────────────────────────────────────────────────────────────────────
+
+# ──────────────────────────────────────────────────────────────────────────
+# 6. One-shot backfill: move existing stock from legacy parent warehouses
+#    into the per-store Sellable bin.
+# ──────────────────────────────────────────────────────────────────────────
+
+@frappe.whitelist()
+def backfill_existing_stock_to_sellable(store: str | None = None, dry_run: int = 0) -> dict:
+	"""For each CH Store, move all stock currently sitting in the parent store
+	warehouse (or any warehouse linked to the store but not a bin) into that
+	store's Sellable bin via a single Stock Entry per source warehouse.
+
+	Args:
+		store: limit to a single CH Store (else all enabled stores).
+		dry_run: if truthy, only report what would be moved.
+
+	Returns: {"moved": [...], "skipped": [...], "errors": [...]}.
+	"""
+	dry_run = int(dry_run or 0)
+	moved, skipped, errors = [], [], []
+
+	store_filters = {"disabled": 0}
+	if store:
+		store_filters["name"] = store
+
+	stores = frappe.get_all(
+		"CH Store",
+		filters=store_filters,
+		fields=["name", "warehouse", "company"],
+	)
+
+	for st in stores:
+		if not st.warehouse:
+			skipped.append({"store": st.name, "reason": "no parent warehouse"})
+			continue
+
+		sellable = frappe.db.get_value(
+			"Warehouse",
+			{"ch_store": st.name, "ch_bin_type": "Sellable", "disabled": 0},
+			"name",
+		)
+		if not sellable:
+			errors.append({"store": st.name, "reason": "missing Sellable bin"})
+			continue
+
+		# Candidate source warehouses: parent warehouse and any warehouse linked
+		# to the store that is NOT one of the 5 bins.
+		linked_whs = frappe.get_all(
+			"Warehouse",
+			filters={"ch_store": st.name, "disabled": 0},
+			fields=["name", "ch_bin_type"],
+		)
+		source_whs = {w.name for w in linked_whs if not (w.ch_bin_type or "").strip()}
+		source_whs.add(st.warehouse)
+		source_whs.discard(sellable)
+
+		for src in source_whs:
+			bins = frappe.get_all(
+				"Bin",
+				filters={"warehouse": src, "actual_qty": (">", 0)},
+				fields=["item_code", "actual_qty"],
+			)
+			if not bins:
+				continue
+
+			if dry_run:
+				moved.append({
+					"store": st.name, "from": src, "to": sellable,
+					"items": len(bins), "dry_run": True,
+				})
+				continue
+
+			# ERPNext blocks group warehouses from transactions. If the source is a
+			# group node holding legacy stock, temporarily flip is_group, post the
+			# Stock Entry, then restore the group flag.
+			was_group = frappe.db.get_value("Warehouse", src, "is_group")
+			if was_group:
+				frappe.db.set_value("Warehouse", src, "is_group", 0, update_modified=False)
+				frappe.db.commit()
+
+			try:
+				se = frappe.new_doc("Stock Entry")
+				se.stock_entry_type = "Material Transfer"
+				se.purpose = "Material Transfer"
+				se.company = st.company
+				se.from_warehouse = src
+				se.to_warehouse = sellable
+				if frappe.db.exists("Custom Field", {"dt": "Stock Entry", "fieldname": "ch_bin_transfer_reason"}):
+					se.ch_from_bin_type = ""
+					se.ch_to_bin_type = "Sellable"
+					se.ch_store = st.name
+				for b in bins:
+					row = se.append("items", {})
+					row.item_code = b.item_code
+					row.qty = flt(b.actual_qty)
+					row.s_warehouse = src
+					row.t_warehouse = sellable
+					# Attach serials if this item is serialized at this warehouse
+					serials = frappe.get_all(
+						"Serial No",
+						filters={"item_code": b.item_code, "warehouse": src, "status": "Active"},
+						pluck="name",
+					)
+					if serials:
+						row.serial_no = "\n".join(serials)
+				se.flags.ignore_permissions = True
+				se.insert()
+				se.submit()
+				frappe.db.commit()
+				moved.append({
+					"store": st.name, "from": src, "to": sellable,
+					"items": len(bins), "stock_entry": se.name,
+					"restored_group": bool(was_group),
+				})
+			except Exception as exc:
+				frappe.db.rollback()
+				errors.append({"store": st.name, "from": src, "error": str(exc)})
+			finally:
+				if was_group:
+					frappe.db.set_value("Warehouse", src, "is_group", 1, update_modified=False)
+					frappe.db.commit()
+
+	return {"moved": moved, "skipped": skipped, "errors": errors}
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# 7. Default reason seeding (called from setup.after_install/after_migrate)
 # ──────────────────────────────────────────────────────────────────────────
 
 DEFAULT_REASONS = [
