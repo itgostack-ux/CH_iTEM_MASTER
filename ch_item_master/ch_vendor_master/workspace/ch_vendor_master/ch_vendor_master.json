@@ -10,7 +10,7 @@
  "hide_custom": 0,
  "icon": "buying",
  "idx": 0,
- "indicator_color": "teal",
+ "indicator_color": "cyan",
  "is_hidden": 0,
  "label": "CH Vendor Master",
  "links": [
