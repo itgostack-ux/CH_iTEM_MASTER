@@ -179,6 +179,44 @@ def backfill_zone_hubs():
 		)
 
 
+def backfill_bin_zones():
+	"""Propagate ch_zone/ch_city from a store warehouse to its orphaned child bins.
+
+	Runs after backfill_zone_hubs so all store warehouses already have ch_zone
+	stamped.  For every Store Bin whose ch_zone is NULL, look up its
+	parent_warehouse; if that parent has ch_zone set, copy zone + city down.
+
+	Idempotent.  Safe to run repeatedly from after_migrate.
+	"""
+	if not frappe.db.table_exists("Warehouse"):
+		return
+	if not frappe.db.exists("Custom Field", {"dt": "Warehouse", "fieldname": "ch_zone"}):
+		return
+
+	orphan_bins = frappe.db.sql(
+		"""
+		SELECT w.name, w.parent_warehouse
+		FROM `tabWarehouse` w
+		WHERE w.is_group = 0
+		  AND (w.ch_zone IS NULL OR w.ch_zone = '')
+		  AND w.parent_warehouse IS NOT NULL
+		  AND w.parent_warehouse != ''
+		""",
+		as_dict=True,
+	)
+	for bin_ in orphan_bins:
+		parent = frappe.db.get_value(
+			"Warehouse", bin_.parent_warehouse, ["ch_zone", "ch_city"], as_dict=True
+		)
+		if parent and parent.ch_zone:
+			frappe.db.set_value(
+				"Warehouse", bin_.name,
+				{"ch_zone": parent.ch_zone, "ch_city": parent.ch_city or None},
+				update_modified=False,
+			)
+	frappe.db.commit()
+
+
 
 @frappe.whitelist()
 def get_company_location_tree(company=None, warehouse_view="all"):
@@ -424,6 +462,18 @@ def assign_warehouse(warehouse, company=None, city=None, zone=None, location_typ
 		frappe.throw(f"Warehouse {warehouse} not found")
 	updates = {"ch_city": city or None, "ch_zone": zone or None, "ch_location_type": location_type or None}
 	frappe.db.set_value("Warehouse", warehouse, updates)
+	# Cascade zone/city to child bins so they don't appear as Unassigned
+	children = frappe.get_all(
+		"Warehouse",
+		filters={"parent_warehouse": warehouse, "is_group": 0},
+		fields=["name"],
+	)
+	for child in children:
+		frappe.db.set_value(
+			"Warehouse", child.name,
+			{"ch_city": city or None, "ch_zone": zone or None},
+			update_modified=False,
+		)
 	return True
 
 

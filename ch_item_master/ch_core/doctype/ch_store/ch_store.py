@@ -97,7 +97,7 @@ class CHStore(Document):
                     )
 
     def after_insert(self):
-        """Auto-create the 5 stock-state bins under the store warehouse."""
+        """Auto-create the operational stock-state bins as siblings of the store warehouse."""
         ensure_store_bins(self)
 
     def on_update(self):
@@ -106,22 +106,30 @@ class CHStore(Document):
             ensure_store_bins(self)
 
 
-# Standard stock-state bins created under each Store warehouse.
+# Operational stock-state bins created as siblings of the store warehouse.
+# The store warehouse itself is the implicit "Sellable" bin (it carries
+# ch_bin_type='Sellable' so all existing resolvers keep working).
 # (Bin type label, suffix used in warehouse name)
 STORE_BIN_TYPES = (
-    ("Sellable", "Sellable"),
     ("In-Transit", "InTransit"),
     ("Damaged", "Damaged"),
     ("Disposed", "Disposed"),
     ("Reserved", "Reserved"),
+    ("Buyback", "Buyback"),
 )
 
 
 def ensure_store_bins(store):
-    """Create the 5 stock-state bins under the store's base warehouse.
+    """Create the operational stock-state bins for a store.
 
-    Idempotent. Promotes the base warehouse to a group warehouse if needed,
-    and stamps location-hierarchy fields on every bin.
+    Architecture (post-v12 collapse):
+      - The store's base warehouse IS the Sellable bin (kept as a leaf so it
+        can post Stock Ledger Entries directly from POS / Sales).
+      - In-Transit / Damaged / Disposed / Reserved / Buyback bins are created
+        as SIBLINGS of the base warehouse (parented to the same node), linked
+        back to the store via the ``ch_store`` custom field.
+
+    Idempotent.
     """
     if not store.warehouse or not store.company:
         return
@@ -129,13 +137,13 @@ def ensure_store_bins(store):
     base = frappe.db.get_value(
         "Warehouse",
         store.warehouse,
-        ["name", "company", "is_group"],
+        ["name", "company", "is_group", "parent_warehouse"],
         as_dict=True,
     )
     if not base:
         return
 
-    # Stamp hierarchy fields on the base warehouse.
+    # Stamp hierarchy fields on the base warehouse and mark it as the Sellable bin.
     frappe.db.set_value(
         "Warehouse",
         base.name,
@@ -144,23 +152,21 @@ def ensure_store_bins(store):
             "ch_zone": store.zone,
             "ch_location_type": "Store Warehouse",
             "ch_store": store.name,
+            "ch_bin_type": "Sellable",
         },
         update_modified=False,
     )
 
-    # Promote to group so it can hold the 5 bins as children.
-    if not base.is_group:
-        try:
-            frappe.db.set_value("Warehouse", base.name, "is_group", 1, update_modified=False)
-        except Exception:
-            frappe.log_error(frappe.get_traceback(), "CH Store: promote warehouse to group failed")
+    # Operational bins are siblings of the store warehouse so the store can
+    # remain a leaf and accept direct Stock Ledger Entries.
+    sibling_parent = base.parent_warehouse or None
 
     for bin_type, suffix in STORE_BIN_TYPES:
         existing = frappe.db.exists(
             "Warehouse",
             {
                 "company": store.company,
-                "parent_warehouse": base.name,
+                "ch_store": store.name,
                 "ch_bin_type": bin_type,
             },
         )
@@ -169,7 +175,8 @@ def ensure_store_bins(store):
 
         wh = frappe.new_doc("Warehouse")
         wh.warehouse_name = f"{store.store_code}-{suffix}"
-        wh.parent_warehouse = base.name
+        if sibling_parent:
+            wh.parent_warehouse = sibling_parent
         wh.company = store.company
         wh.is_group = 0
         wh.ch_city = store.city

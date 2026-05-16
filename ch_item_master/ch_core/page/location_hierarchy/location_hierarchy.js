@@ -33,11 +33,17 @@ class LocationHierarchyView {
 		.lh-city:first-child { border-top:none; }
 		.lh-city-header { display:flex; justify-content:space-between; align-items:center; cursor:pointer; }
 		.lh-city-title { font-weight:600; }
-		.lh-zone { margin:8px 0 8px 18px; padding:8px 12px; border:1px dashed var(--border-color); border-radius:6px; background:var(--fg-color); }
-		.lh-zone-header { display:flex; justify-content:space-between; align-items:center; gap:6px; }
-		.lh-zone-title { font-weight:600; }
-		.lh-zone-meta { color:var(--text-muted); font-size:12px; margin-left:6px; }
-		.lh-section-title { font-weight:500; font-size:12px; text-transform:uppercase; color:var(--text-muted); margin:8px 0 4px; letter-spacing:0.4px;}
+		.lh-zone { margin:10px 0 10px 18px; padding:10px 14px; border:1px solid var(--border-color); border-radius:8px; background:var(--fg-color); }
+		.lh-zone-header { display:flex; justify-content:space-between; align-items:flex-start; gap:6px; margin-bottom:6px; }
+		.lh-zone-title { font-weight:600; font-size:13px; }
+		.lh-zone-meta { color:var(--text-muted); font-size:11px; margin-left:6px; }
+		.lh-zone-stats { display:flex; flex-wrap:wrap; gap:6px; margin:4px 0 8px; font-size:11px; color:var(--text-muted); }
+		.lh-zone-stat { display:inline-flex; align-items:center; gap:3px; padding:1px 8px; border-radius:10px; background:var(--bg-light-gray); }
+		.lh-zone-stat b { color:var(--text-color); font-weight:600; }
+		.lh-zone-stat.lh-zero { opacity:0.45; }
+		.lh-section { margin:6px 0; }
+		.lh-section-title { font-weight:500; font-size:11px; text-transform:uppercase; color:var(--text-muted); margin:6px 0 3px; letter-spacing:0.5px; display:flex; justify-content:space-between; align-items:center; }
+		.lh-section-empty { display:flex; justify-content:space-between; align-items:center; padding:2px 0; font-size:11px; color:var(--text-muted); }
 		.lh-pill { display:inline-flex; align-items:center; gap:4px; background:var(--bg-light-gray); border:1px solid var(--border-color); padding:2px 8px; border-radius:14px; margin:2px 4px 2px 0; font-size:12px;}
 		.lh-pill .lh-actions { display:none; margin-left:4px; }
 		.lh-pill:hover .lh-actions { display:inline-flex; gap:4px;}
@@ -48,13 +54,13 @@ class LocationHierarchyView {
 		.lh-pill.lh-warehouse-hub { background:#ffd9b3; font-weight:600; border-color:#e69500;}
 		.lh-pill.lh-warehouse-bin { background:#f2f2f2; color:var(--text-muted); font-size:11px;}
 		.lh-pill.lh-office { background:#eaffea; }
-		.lh-pill.lh-empty { background:transparent; border:1px dashed var(--border-color); color:var(--text-muted);}
 		.lh-bins-toggle { cursor:pointer; color:var(--text-muted); font-size:11px; user-select:none;}
 		.lh-bins-toggle:hover { color:var(--primary);}
 		.lh-bins-collapsed .lh-bins-body { display:none;}
 		.lh-actions a { margin-left:6px; font-size:12px; }
 		.lh-empty-state { padding:40px; text-align:center; color:var(--text-muted); }
-		.lh-add-btn { font-size:12px; }
+		.lh-add-btn { font-size:11px; color:var(--primary); cursor:pointer; }
+		.lh-add-btn:hover { text-decoration:underline; }
 		.lh-row { display:flex; flex-wrap:wrap; align-items:center; gap:4px;}
 		`;
 		const style = document.createElement('style');
@@ -169,16 +175,50 @@ class LocationHierarchyView {
 	draw_zone($parent, company, city, zone) {
 		const $z = $(`<div class="lh-zone"></div>`).appendTo($parent);
 		const isSynthetic = zone.zone === 'Unassigned';
+
+		// Split warehouses by retail role (ch_location_type).
+		// Post-v12 the store base warehouse IS the Sellable bin and is
+		// already represented by the CH Store record below, so we omit
+		// a separate "Store Warehouses" section to avoid duplication.
+		const buckets = { hub: [], bin: [], other: [] };
+		for (const w of zone.warehouses) {
+			const t = (w.ch_location_type || '').trim();
+			if (t === 'Zone Warehouse' || t === 'Transit Warehouse' || t === 'Service Warehouse') {
+				buckets.hub.push(w);
+			} else if (t === 'Store Bin') {
+				buckets.bin.push(w);
+			} else if (t === 'Store Warehouse') {
+				// Skip — already covered by the CH Store pill below.
+				continue;
+			} else {
+				buckets.other.push(w);
+			}
+		}
+
+		// ── Header with counts ───────────────────────────────────────
 		$(`<div class="lh-zone-header">
 			<div>
 				<span class="lh-zone-title"><i class="fa fa-th-large"></i> ${frappe.utils.escape_html(zone.zone_name || zone.zone)}</span>
-				<span class="lh-zone-meta">${zone.source_warehouse ? 'Source: ' + frappe.utils.escape_html(zone.source_warehouse) : ''}</span>
 			</div>
 			${isSynthetic ? '' : `<div class="lh-actions">
 				<a href="#" data-act="edit-zone">${__('Edit')}</a>
 				<a href="#" data-act="del-zone" class="text-danger">${__('Delete')}</a>
 			</div>`}
 		</div>`).appendTo($z);
+
+		const stats = [
+			{ icon: 'fa-shopping-bag', label: __('Stores'),  n: zone.stores.length },
+			{ icon: 'fa-cube',         label: __('Hub'),     n: buckets.hub.length },
+			{ icon: 'fa-archive',      label: __('Bins'),    n: buckets.bin.length },
+			{ icon: 'fa-briefcase',    label: __('Offices'), n: zone.offices.length },
+		];
+		const $stats = $(`<div class="lh-zone-stats"></div>`).appendTo($z);
+		for (const s of stats) {
+			$stats.append(`<span class="lh-zone-stat${s.n ? '' : ' lh-zero'}"><i class="fa ${s.icon}"></i> <b>${s.n}</b> ${s.label}</span>`);
+		}
+		if (buckets.other.length) {
+			$stats.append(`<span class="lh-zone-stat"><i class="fa fa-warehouse"></i> <b>${buckets.other.length}</b> ${__('Other')}</span>`);
+		}
 
 		if (!isSynthetic) {
 			$z.find('[data-act="edit-zone"]').on('click', (e) => { e.preventDefault(); this.edit_zone(zone.zone, company, city.city); });
@@ -190,51 +230,59 @@ class LocationHierarchyView {
 			</div>`).appendTo($z);
 		}
 
-		// Split warehouses by retail role (ch_location_type).
-		// "Hub" / "DC" sit at zone level (back-end); "Store Warehouse" is
-		// the customer-facing outlet container; "Store Bin" is the leaf
-		// stock-state bucket (Sellable/Reserved/...). Everything else is
-		// labelled generically.
-		const buckets = { hub: [], store: [], bin: [], other: [] };
-		for (const w of zone.warehouses) {
-			const t = (w.ch_location_type || '').trim();
-			if (t === 'Zone Warehouse' || t === 'Transit Warehouse' || t === 'Service Warehouse') {
-				buckets.hub.push(w);
-			} else if (t === 'Store Warehouse') {
-				buckets.store.push(w);
-			} else if (t === 'Store Bin') {
-				buckets.bin.push(w);
-			} else {
-				buckets.other.push(w);
+		// ── Stores (primary list) ────────────────────────────────────
+		if (zone.stores.length || !isSynthetic) {
+			const $sSec = $(`<div class="lh-section"></div>`).appendTo($z);
+			const addLink = isSynthetic ? '' : `<span class="lh-add-btn" data-act="add-store">+ ${__('Add Store')}</span>`;
+			$sSec.append(`<div class="lh-section-title"><span>${__('Stores')}</span>${addLink}</div>`);
+			if (!isSynthetic) $sSec.find('[data-act="add-store"]').on('click', () => this.add_store_dialog(company, city.city, zone.zone));
+			if (zone.stores.length) {
+				const $sRow = $(`<div class="lh-row"></div>`).appendTo($sSec);
+				for (const s of zone.stores) {
+					const storeActions = isSynthetic
+						? `<a href="#" data-act="move-store" class="btn-link text-primary">${__('→ Assign Zone')}</a>`
+						: `<a href="#" data-act="del-store" class="btn-link text-danger">×</a>`;
+					const $p = $(`<span class="lh-pill lh-store">
+						<a href="/app/ch-store/${encodeURIComponent(s.name)}" target="_blank">${frappe.utils.escape_html(s.store_code || s.name)}</a>
+						<small class="text-muted">${s.store_name ? '· ' + s.store_name : ''}</small>
+						<span class="lh-actions">${storeActions}</span>
+					</span>`).appendTo($sRow);
+					if (isSynthetic) {
+						$p.find('[data-act="move-store"]').on('click', (e) => { e.preventDefault(); this.move_store_zone_dialog(s, company); });
+					} else {
+						$p.find('[data-act="del-store"]').on('click', (e) => { e.preventDefault(); this.delete_store(s.name); });
+					}
+				}
 			}
 		}
 
-		// ── Distribution Hub ─────────────────────────────────────────
-		const assignHubLink = isSynthetic ? '' : `<a href="#" data-act="assign-wh-hub" class="lh-add-btn"> + ${__('Assign')}</a>`;
-		const $hSec = $(`<div><div class="lh-section-title">${__('Distribution Hub')}${assignHubLink}</div><div class="lh-row"></div></div>`).appendTo($z);
-		const $hRow = $hSec.find('.lh-row');
-		if (!isSynthetic) $hSec.find('[data-act="assign-wh-hub"]').on('click', (e) => { e.preventDefault(); this.assign_warehouse_dialog(company, city.city, zone.zone); });
-		if (!buckets.hub.length) {
-			$hRow.append(`<span class="lh-pill lh-empty">${__('None')}</span>`);
-		}
-		for (const w of buckets.hub) {
-			this._draw_warehouse_pill($hRow, w, 'lh-warehouse-hub', company, city, zone);
-		}
-
-		// ── Store Warehouses (customer-facing outlets) ───────────────
-		// Render only when present — the "Stores" section below (driven by
-		// CH Store records) already lists outlets for most users.
-		if (buckets.store.length) {
-			const $swSec = $(`<div><div class="lh-section-title">${__('Store Warehouses')}</div><div class="lh-row"></div></div>`).appendTo($z);
-			const $swRow = $swSec.find('.lh-row');
-			for (const w of buckets.store) {
-				this._draw_warehouse_pill($swRow, w, 'lh-warehouse', company, city, zone);
+		// ── Hub (only when present, or single inline assign link) ────
+		if (buckets.hub.length) {
+			const $hSec = $(`<div class="lh-section"></div>`).appendTo($z);
+			const assignLink = isSynthetic ? '' : `<span class="lh-add-btn" data-act="assign-hub">+ ${__('Assign')}</span>`;
+			$hSec.append(`<div class="lh-section-title"><span>${__('Hub')}</span>${assignLink}</div>`);
+			if (!isSynthetic) $hSec.find('[data-act="assign-hub"]').on('click', () => this.assign_warehouse_dialog(company, city.city, zone.zone));
+			const $hRow = $(`<div class="lh-row"></div>`).appendTo($hSec);
+			for (const w of buckets.hub) {
+				this._draw_warehouse_pill($hRow, w, 'lh-warehouse-hub', company, city, zone);
 			}
 		}
 
-		// ── Stock Bins (collapsed by default) ────────────────────────
+		// ── Other / unclassified warehouses ──────────────────────────
+		if (buckets.other.length) {
+			const $oSec = $(`<div class="lh-section"></div>`).appendTo($z);
+			const assignLink = isSynthetic ? '' : `<span class="lh-add-btn" data-act="assign-other">+ ${__('Assign')}</span>`;
+			$oSec.append(`<div class="lh-section-title"><span>${__('Other Warehouses')}</span>${assignLink}</div>`);
+			if (!isSynthetic) $oSec.find('[data-act="assign-other"]').on('click', () => this.assign_warehouse_dialog(company, city.city, zone.zone));
+			const $oWhRow = $(`<div class="lh-row"></div>`).appendTo($oSec);
+			for (const w of buckets.other) {
+				this._draw_warehouse_pill($oWhRow, w, 'lh-warehouse', company, city, zone);
+			}
+		}
+
+		// ── Stock Bins (collapsed by default, only when present) ─────
 		if (buckets.bin.length) {
-			const $bWrap = $(`<div class="lh-bins-collapsed"></div>`).appendTo($z);
+			const $bWrap = $(`<div class="lh-section lh-bins-collapsed"></div>`).appendTo($z);
 			const $bHdr = $(`<div class="lh-section-title">
 				<span class="lh-bins-toggle">▸ ${__('Stock Bins')} (${buckets.bin.length})</span>
 			</div>`).appendTo($bWrap);
@@ -251,67 +299,45 @@ class LocationHierarchyView {
 			}
 		}
 
-		// ── Other / unclassified warehouses ──────────────────────────
-		if (buckets.other.length) {
-			const $oSec = $(`<div><div class="lh-section-title">${__('Other Warehouses')}
-				<a href="#" data-act="assign-wh-other" class="lh-add-btn"> + ${__('Assign')}</a></div><div class="lh-row"></div></div>`).appendTo($z);
-			const $oWhRow = $oSec.find('.lh-row');
-			$oSec.find('[data-act="assign-wh-other"]').on('click', (e) => { e.preventDefault(); this.assign_warehouse_dialog(company, city.city, zone.zone); });
-			for (const w of buckets.other) {
-				this._draw_warehouse_pill($oWhRow, w, 'lh-warehouse', company, city, zone);
+		// ── Offices (only when present, or footer link) ──────────────
+		if (zone.offices.length) {
+			const $oSec = $(`<div class="lh-section"></div>`).appendTo($z);
+			const assignLink = isSynthetic ? '' : `<span class="lh-add-btn" data-act="assign-office">+ ${__('Assign')}</span>`;
+			$oSec.append(`<div class="lh-section-title"><span>${__('Offices')}</span>${assignLink}</div>`);
+			if (!isSynthetic) $oSec.find('[data-act="assign-office"]').on('click', () => this.assign_office_dialog(company, city.city, zone.zone));
+			const $oRow = $(`<div class="lh-row"></div>`).appendTo($oSec);
+			for (const o of zone.offices) {
+				const $p = $(`<span class="lh-pill lh-office">
+					<a href="/app/branch/${encodeURIComponent(o.name)}" target="_blank">${frappe.utils.escape_html(o.branch || o.name)}</a>
+					<span class="lh-actions">
+						<a href="#" data-act="unassign-office" class="btn-link text-danger">×</a>
+					</span>
+				</span>`).appendTo($oRow);
+				$p.find('[data-act="unassign-office"]').on('click', (e) => { e.preventDefault(); this.unassign_office(o.name); });
 			}
 		}
 
-		// Stores
-		const addStoreLink = isSynthetic ? '' : `<a href="#" data-act="add-store" class="lh-add-btn"> + ${__('Add')}</a>`;
-		const $sSec = $(`<div><div class="lh-section-title">${__('Stores')}${addStoreLink}</div><div class="lh-row"></div></div>`).appendTo($z);
-		const $sRow = $sSec.find('.lh-row');
-		if (!isSynthetic) $sSec.find('[data-act="add-store"]').on('click', (e) => { e.preventDefault(); this.add_store_dialog(company, city.city, zone.zone); });
-		if (!zone.stores.length) {
-			$sRow.append(`<span class="lh-pill lh-empty">${__('None')}</span>`);
-		}
-		for (const s of zone.stores) {
-			const storeActions = isSynthetic
-				? `<a href="#" data-act="move-store" class="btn-link text-primary">${__('→ Assign Zone')}</a>`
-				: `<a href="#" data-act="del-store" class="btn-link text-danger">×</a>`;
-			const $p = $(`<span class="lh-pill lh-store">
-				<a href="/app/ch-store/${encodeURIComponent(s.name)}" target="_blank">${frappe.utils.escape_html(s.store_code || s.name)}</a>
-				<small class="text-muted">${s.store_name ? '· ' + s.store_name : ''}</small>
-				<span class="lh-actions">${storeActions}</span>
-			</span>`).appendTo($sRow);
-			if (isSynthetic) {
-				$p.find('[data-act="move-store"]').on('click', (e) => { e.preventDefault(); this.move_store_zone_dialog(s, company); });
-			} else {
-				$p.find('[data-act="del-store"]').on('click', (e) => { e.preventDefault(); this.delete_store(s.name); });
+		// ── Footer: quick add-links for whatever is missing ──────────
+		if (!isSynthetic) {
+			const missing = [];
+			if (!buckets.hub.length)    missing.push({ label: __('+ Hub'),    act: () => this.assign_warehouse_dialog(company, city.city, zone.zone) });
+			if (!zone.offices.length)   missing.push({ label: __('+ Office'), act: () => this.assign_office_dialog(company, city.city, zone.zone) });
+			if (missing.length) {
+				const $footer = $(`<div class="lh-section-empty"><span class="text-muted">${__('Add to zone:')}</span><span></span></div>`).appendTo($z);
+				const $right = $footer.find('span').last();
+				for (const m of missing) {
+					const $a = $(`<span class="lh-add-btn" style="margin-left:10px;">${m.label}</span>`).appendTo($right);
+					$a.on('click', m.act);
+				}
 			}
-		}
-
-		// Offices
-		const assignOfficeLink = isSynthetic ? '' : `<a href="#" data-act="assign-office" class="lh-add-btn"> + ${__('Assign')}</a>`;
-		const $oSec = $(`<div><div class="lh-section-title">${__('Offices')}${assignOfficeLink}</div><div class="lh-row"></div></div>`).appendTo($z);
-		const $oRow = $oSec.find('.lh-row');
-		if (!isSynthetic) $oSec.find('[data-act="assign-office"]').on('click', (e) => { e.preventDefault(); this.assign_office_dialog(company, city.city, zone.zone); });
-		if (!zone.offices.length) {
-			$oRow.append(`<span class="lh-pill lh-empty">${__('None')}</span>`);
-		}
-		for (const o of zone.offices) {
-			const $p = $(`<span class="lh-pill lh-office">
-				<a href="/app/branch/${encodeURIComponent(o.name)}" target="_blank">${frappe.utils.escape_html(o.branch || o.name)}</a>
-				<span class="lh-actions">
-					<a href="#" data-act="unassign-office" class="btn-link text-danger">×</a>
-				</span>
-			</span>`).appendTo($oRow);
-			$p.find('[data-act="unassign-office"]').on('click', (e) => { e.preventDefault(); this.unassign_office(o.name); });
 		}
 	}
 
 	_draw_warehouse_pill($parent, w, extraClass, company, city, zone) {
 		const isSynthetic = zone.zone === 'Unassigned';
-		const typeLbl = w.ch_location_type ? '· ' + w.ch_location_type : '';
 		const editLabel = isSynthetic ? __('→ Assign Zone') : __('Edit');
-		const $p = $(`<span class="lh-pill ${extraClass}">
+		const $p = $(`<span class="lh-pill ${extraClass}" title="${frappe.utils.escape_html(w.name)}">
 			<a href="/app/warehouse/${encodeURIComponent(w.name)}" target="_blank">${frappe.utils.escape_html(w.warehouse_name || w.name)}</a>
-			<small class="text-muted">${frappe.utils.escape_html(typeLbl)}</small>
 			<span class="lh-actions">
 				<a href="#" data-act="edit-wh" class="btn-link${isSynthetic ? ' text-primary' : ''}">${editLabel}</a>
 				${isSynthetic ? '' : '<a href="#" data-act="unassign-wh" class="btn-link text-danger">×</a>'}

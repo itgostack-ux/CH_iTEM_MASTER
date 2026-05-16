@@ -54,13 +54,35 @@ DEFAULT_ALLOCATION_RULES = {
 # ──────────────────────────────────────────────────────────────────────────
 
 def get_store_bin(store: str, bin_type: str) -> str:
-	"""Return warehouse name for the given store + bin_type. Throws if missing."""
+	"""Return warehouse name for the given store + bin_type. Throws if missing.
+
+	Post-v12 collapse: the Sellable bin IS the store's base warehouse (no
+	separate child). We resolve via CH Store.warehouse for ``Sellable`` and
+	fall back to the legacy lookup (ch_store + ch_bin_type) for other bins.
+	"""
 	if not store or not bin_type:
 		frappe.throw(_("Store and bin type are required."))
 
 	if bin_type not in BIN_TYPES:
 		frappe.throw(
 			_("Invalid bin type {0}. Must be one of: {1}").format(bin_type, ", ".join(BIN_TYPES))
+		)
+
+	if bin_type == "Sellable":
+		base = frappe.db.get_value("CH Store", store, "warehouse")
+		if base:
+			return base
+		# Backward-compat: site not yet migrated.
+		legacy = frappe.db.get_value(
+			"Warehouse",
+			{"ch_store": store, "ch_bin_type": "Sellable", "disabled": 0},
+			"name",
+		)
+		if legacy:
+			return legacy
+		frappe.throw(
+			_("Store {0} has no base warehouse configured.").format(frappe.bold(store)),
+			title=_("Bin Missing"),
 		)
 
 	wh = frappe.db.get_value(
