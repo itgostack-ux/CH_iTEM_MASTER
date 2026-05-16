@@ -151,6 +151,7 @@ def sync_workspace():
 
         ws.content = file_data.get("content", "")
         ws.icon = file_data.get("icon", "")
+        ws.indicator_color = file_data.get("indicator_color", "blue")
         ws.module = file_data.get("module", ws_def.get("module", ""))
         ws.parent_page = file_data.get("parent_page", "")
         ws.public = file_data.get("public", 1)
