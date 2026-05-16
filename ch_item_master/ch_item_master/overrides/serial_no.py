@@ -66,6 +66,13 @@ def on_update(doc, method=None):
 	if company and lc_row.current_company != company:
 		updates["current_company"] = company
 
+	# Keep current_store in sync with the warehouse so the IMEI Tracker
+	# shows the correct store after an inter-store transfer.
+	if sn_warehouse and sn_warehouse != lc_row.current_warehouse:
+		store_name = frappe.db.get_value("CH Store", {"warehouse": sn_warehouse}, "name")
+		if store_name and store_name != lc_row.get("current_store"):
+			updates["current_store"] = store_name
+
 	# When stock arrives in a warehouse and the lifecycle is still in the
 	# initial "Received" state, promote it to "In Stock" so it appears in
 	# the dashboard's In-Stock bucket.
@@ -100,6 +107,12 @@ def _create_minimal_lifecycle(sn_doc, warehouse, company):
 		lc.current_warehouse = warehouse
 		lc.current_company = company
 		lc.lifecycle_status = "In Stock" if warehouse else "Received"
+
+		# Resolve warehouse → CH Store so the IMEI Tracker shows the correct store
+		if warehouse:
+			store_name = frappe.db.get_value("CH Store", {"warehouse": warehouse}, "name")
+			if store_name:
+				lc.current_store = store_name
 
 		# Optional IMEI auto-detect — exactly 15 digits
 		cleaned = str(sn_doc.name).strip().replace(" ", "").replace("-", "")

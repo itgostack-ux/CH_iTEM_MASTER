@@ -125,7 +125,18 @@ def _sync_serial_lifecycle(doc):
 			return
 
 	if not frappe.db.exists("CH Serial Lifecycle", serial_no):
-		return
+		# Device arrived at service without going through the PR-tracked path
+		# (e.g. customer walk-in with existing device). Auto-create the lifecycle
+		# row so the tracker reflects the in-service state.
+		if not frappe.db.exists("Serial No", serial_no):
+			return  # serial doesn't exist at all — nothing to do
+		from ch_item_master.ch_item_master.overrides.serial_no import _create_minimal_lifecycle
+		sn_doc = frappe.get_doc("Serial No", serial_no)
+		warehouse = sn_doc.warehouse
+		company = frappe.db.get_value("Warehouse", warehouse, "company") if warehouse else None
+		_create_minimal_lifecycle(sn_doc, warehouse, company)
+		if not frappe.db.exists("CH Serial Lifecycle", serial_no):
+			return  # creation failed (lock timeout / no item_code) — skip
 
 	current_status = frappe.db.get_value("CH Serial Lifecycle", serial_no, "lifecycle_status")
 	if current_status == new_lifecycle_status:
