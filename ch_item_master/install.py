@@ -20,6 +20,7 @@ def after_install():
 	setup_vas_settings()
 	sync_workspace()
 	seed_discount_reasons()
+	seed_bin_transfer_reasons()
 
 
 def before_uninstall():
@@ -57,4 +58,13 @@ def seed_discount_reasons():
 			doc.enabled = 1
 			doc.insert(ignore_permissions=True)
 
+	frappe.db.commit()
+
+
+def seed_bin_transfer_reasons():
+	"""Seed default CH Bin Transfer Reason records."""
+	import frappe
+	from ch_item_master.ch_core.bin_transfer import seed_default_reasons
+
+	seed_default_reasons()
 	frappe.db.commit()

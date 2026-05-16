@@ -66,6 +66,7 @@ def seed_sample():
 		c = frappe.new_doc("CH City")
 		c.city_name = city_name
 		c.company = company
+		c.country = SAMPLE.get("country") or "India"
 		c.state = SAMPLE["state"]
 		c.insert(ignore_permissions=True)
 		city = c.name

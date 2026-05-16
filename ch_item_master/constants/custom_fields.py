@@ -714,4 +714,49 @@ CUSTOM_FIELDS = {
 			),
 		},
 	],
+	# ──────────────────────────────────────────────
+	# Stock Entry: bin transfer metadata (reason + bin types + store)
+	# ──────────────────────────────────────────────
+	"Stock Entry": [
+		{
+			"fieldname": "ch_bin_transfer_section",
+			"label": _("CH Bin Transfer"),
+			"fieldtype": "Section Break",
+			"insert_after": "remarks",
+			"collapsible": 1,
+			"description": _("Populated when this Stock Entry is a bin-to-bin transfer raised from POS or backend."),
+		},
+		{
+			"fieldname": "ch_store",
+			"label": _("CH Store"),
+			"fieldtype": "Link",
+			"options": "CH Store",
+			"insert_after": "ch_bin_transfer_section",
+			"in_standard_filter": 1,
+		},
+		{
+			"fieldname": "ch_from_bin_type",
+			"label": _("From Bin Type"),
+			"fieldtype": "Select",
+			"options": "\nSellable\nIn-Transit\nDamaged\nDisposed\nReserved",
+			"insert_after": "ch_store",
+			"in_standard_filter": 1,
+		},
+		{
+			"fieldname": "ch_to_bin_type",
+			"label": _("To Bin Type"),
+			"fieldtype": "Select",
+			"options": "\nSellable\nIn-Transit\nDamaged\nDisposed\nReserved",
+			"insert_after": "ch_from_bin_type",
+			"in_standard_filter": 1,
+		},
+		{
+			"fieldname": "ch_bin_transfer_reason",
+			"label": _("Bin Transfer Reason"),
+			"fieldtype": "Link",
+			"options": "CH Bin Transfer Reason",
+			"insert_after": "ch_to_bin_type",
+			"in_standard_filter": 1,
+		},
+	],
 }

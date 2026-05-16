@@ -9,6 +9,7 @@
   "city_name",
   "column_break_01",
   "company",
+  "country",
   "state",
   "disabled",
   "description"
@@ -36,6 +37,14 @@
    "options": "Company",
    "reqd": 1,
    "search_index": 1
+  },
+  {
+   "default": "India",
+   "fieldname": "country",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Country",
+   "options": "Country"
   },
   {
    "fieldname": "state",
