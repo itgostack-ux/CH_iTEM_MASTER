@@ -121,7 +121,7 @@ def _get_active_schemes(invoice_date):
 		},
 		pluck="name",
 	)
-	frappe.cache().set_value(cache_key, schemes, expires_in_sec=300)
+	frappe.cache().set_value(cache_key, schemes, expires_in_sec=60)
 	return schemes
 
 

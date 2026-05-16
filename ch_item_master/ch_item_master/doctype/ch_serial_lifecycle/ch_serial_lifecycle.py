@@ -123,27 +123,40 @@ def update_lifecycle_status(serial_no, new_status, company=None,
             message=f"Cannot update lifecycle to '{new_status}' — CH Serial Lifecycle '{serial_no}' does not exist.",
         )
         return {"status": "skipped", "serial_no": serial_no, "reason": "not_found"}
-    doc = frappe.get_doc("CH Serial Lifecycle", serial_no)
-    doc.lifecycle_status = new_status
-    if company:
-        doc.current_company = company
-    if warehouse:
-        doc.current_warehouse = warehouse
-    if remarks:
-        doc.notes = remarks
 
-    # Set any additional fields passed by caller
-    allowed_extra_fields = {
-        "sale_date", "sale_document", "sale_rate", "customer", "customer_name",
-        "buyback_date", "buyback_value", "buyback_grade", "buyback_document",
-        "stock_condition",
-    }
-    for key, value in kwargs.items():
-        if key in allowed_extra_fields:
-            doc.set(key, value)
+    lock_key = f"serial_lifecycle_{frappe.scrub(str(serial_no))}"
+    lock_result = frappe.db.sql("SELECT GET_LOCK(%s, 10)", (lock_key,))[0][0]
+    if not lock_result:
+        frappe.log_error(
+            f"Could not acquire lifecycle lock for {serial_no}",
+            "Serial Lifecycle Lock",
+        )
+        return {"status": "skipped", "serial_no": serial_no, "reason": "lock_timeout"}
+    try:
+        doc = frappe.get_doc("CH Serial Lifecycle", serial_no)
+        doc.lifecycle_status = new_status
+        if company:
+            doc.current_company = company
+        if warehouse:
+            doc.current_warehouse = warehouse
+        if remarks:
+            doc.notes = remarks
 
-    doc.save(ignore_permissions=False)
-    # v16: do not call frappe.db.commit() — caller or request lifecycle handles it
+        # Set any additional fields passed by caller
+        allowed_extra_fields = {
+            "sale_date", "sale_document", "sale_rate", "customer", "customer_name",
+            "buyback_date", "buyback_value", "buyback_grade", "buyback_document",
+            "stock_condition",
+        }
+        for key, value in kwargs.items():
+            if key in allowed_extra_fields:
+                doc.set(key, value)
+
+        doc.save(ignore_permissions=False)
+        # v16: do not call frappe.db.commit() — caller or request lifecycle handles it
+    finally:
+        frappe.db.sql("SELECT RELEASE_LOCK(%s)", (lock_key,))
+
     return {"status": "ok", "serial_no": doc.name, "new_status": doc.lifecycle_status}
 
 

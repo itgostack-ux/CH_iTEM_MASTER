@@ -47,52 +47,74 @@ def on_submit(doc, method):
 		# Use IMEI as the serial number
 		serial_no = imei
 
-		# 1. Create ERPNext Serial No if it doesn't exist
-		if not frappe.db.exists("Serial No", serial_no):
-			sn = frappe.new_doc("Serial No")
-			sn.serial_no = serial_no
-			sn.item_code = item_code
-			sn.company = doc.company
-			sn.warehouse = doc.set_warehouse or (doc.items[0].warehouse if doc.items else None)
-			sn.reference_doctype = "Purchase Receipt"
-			sn.reference_name = doc.name
-			sn.posting_date = doc.posting_date
-			sn.purchase_rate = _get_item_rate(doc, item_code)
-			sn.status = "Active"
-			sn.flags.ignore_permissions = True
-			sn.insert()
-
-		# 2. Create CH Serial Lifecycle if it doesn't exist
-		if not frappe.db.exists("CH Serial Lifecycle", serial_no):
-			lc = frappe.new_doc("CH Serial Lifecycle")
-			lc.serial_no = serial_no
-			lc.imei_number = imei
-			lc.item_code = item_code
-			lc.lifecycle_status = "Received"
-			lc.current_company = doc.company
-			lc.current_warehouse = doc.set_warehouse or (
-				doc.items[0].warehouse if doc.items else None
+		# 1. Create ERPNext Serial No if it doesn't exist (advisory lock prevents duplicates)
+		sn_lock_key = f"serial_create_{frappe.scrub(str(serial_no))}"
+		sn_lock_result = frappe.db.sql("SELECT GET_LOCK(%s, 10)", (sn_lock_key,))[0][0]
+		if not sn_lock_result:
+			frappe.log_error(
+				f"Could not acquire lock for serial {serial_no}",
+				"Serial Creation Lock Timeout",
 			)
-			lc.purchase_date = doc.posting_date
-			lc.purchase_document = doc.name
-			lc.purchase_rate = _get_item_rate(doc, item_code)
-			lc.supplier = doc.supplier
-			lc.supplier_invoice = doc.supplier_delivery_note or ""
+			continue
+		try:
+			if not frappe.db.exists("Serial No", serial_no):
+				sn = frappe.new_doc("Serial No")
+				sn.serial_no = serial_no
+				sn.item_code = item_code
+				sn.company = doc.company
+				sn.warehouse = doc.set_warehouse or (doc.items[0].warehouse if doc.items else None)
+				sn.reference_doctype = "Purchase Receipt"
+				sn.reference_name = doc.name
+				sn.posting_date = doc.posting_date
+				sn.purchase_rate = _get_item_rate(doc, item_code)
+				sn.status = "Active"
+				sn.flags.ignore_permissions = True
+				sn.insert()
+		finally:
+			frappe.db.sql("SELECT RELEASE_LOCK(%s)", (sn_lock_key,))
 
-			# Append initial lifecycle log
-			lc.append("lifecycle_log", {
-				"log_timestamp": now_datetime(),
-				"from_status": "",
-				"to_status": "Received",
-				"changed_by": frappe.session.user,
-				"company": doc.company,
-				"warehouse": lc.current_warehouse,
-				"remarks": f"Auto-created from Purchase Receipt {doc.name}",
-			})
+		# 2. Create CH Serial Lifecycle if it doesn't exist (advisory lock prevents duplicates)
+		lc_lock_key = f"serial_create_{frappe.scrub(str(serial_no))}_lifecycle"
+		lc_lock_result = frappe.db.sql("SELECT GET_LOCK(%s, 10)", (lc_lock_key,))[0][0]
+		if not lc_lock_result:
+			frappe.log_error(
+				f"Could not acquire lifecycle lock for serial {serial_no}",
+				"Serial Creation Lock Timeout",
+			)
+			continue
+		try:
+			if not frappe.db.exists("CH Serial Lifecycle", serial_no):
+				lc = frappe.new_doc("CH Serial Lifecycle")
+				lc.serial_no = serial_no
+				lc.imei_number = imei
+				lc.item_code = item_code
+				lc.lifecycle_status = "Received"
+				lc.current_company = doc.company
+				lc.current_warehouse = doc.set_warehouse or (
+					doc.items[0].warehouse if doc.items else None
+				)
+				lc.purchase_date = doc.posting_date
+				lc.purchase_document = doc.name
+				lc.purchase_rate = _get_item_rate(doc, item_code)
+				lc.supplier = doc.supplier
+				lc.supplier_invoice = doc.supplier_delivery_note or ""
 
-			lc.flags.ignore_permissions = True
-			lc.flags.ignore_validate = True
-			lc.insert()
+				# Append initial lifecycle log
+				lc.append("lifecycle_log", {
+					"log_timestamp": now_datetime(),
+					"from_status": "",
+					"to_status": "Received",
+					"changed_by": frappe.session.user,
+					"company": doc.company,
+					"warehouse": lc.current_warehouse,
+					"remarks": f"Auto-created from Purchase Receipt {doc.name}",
+				})
+
+				lc.flags.ignore_permissions = True
+				lc.flags.ignore_validate = True
+				lc.insert()
+		finally:
+			frappe.db.sql("SELECT RELEASE_LOCK(%s)", (lc_lock_key,))
 
 		# Update the IMEI Tracking row with serial_no reference
 		row.db_set("serial_no", serial_no, update_modified=False)

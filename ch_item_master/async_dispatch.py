@@ -17,6 +17,7 @@ hook entry-points.
 """
 
 import frappe
+import uuid
 
 
 # ── module-level fully-qualified handler paths ──────────────────────────
@@ -43,7 +44,7 @@ def _enqueue(method_path, doc, *, queue="default", timeout=600):
             method_path=method_path,
             doctype=doc.doctype,
             docname=doc.name,
-            job_name=f"{method_path}::{doc.name}",
+            job_name=f"{method_path}::{doc.name}::{uuid.uuid4().hex[:8]}",
         )
     except Exception:
         # Never block the submit on enqueue failure — fall back to inline.

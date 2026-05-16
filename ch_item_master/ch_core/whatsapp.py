@@ -104,6 +104,18 @@ def send_template_message(
                  synchronous calls (e.g. OTP delivery where caller needs result).
     """
     if enqueue:
+        # Deduplication: skip if the same message was enqueued for this doc within the last 10 minutes
+        _phone_norm = _normalize_phone(phone or "")
+        dedup_key = (
+            f"wa_dedup_{ref_doctype or ''}_{ref_name or ''}_{template_name}_{_phone_norm}"
+        )
+        if frappe.cache().get_value(dedup_key):
+            frappe.logger("whatsapp").info(
+                f"WhatsApp dedup skip — {template_name} to {_phone_norm} "
+                f"for {ref_doctype}/{ref_name} already enqueued within 10 min"
+            )
+            return
+        frappe.cache().set_value(dedup_key, 1, expires_in_sec=600)
         frappe.enqueue(
             _send_now,
             queue="short",
