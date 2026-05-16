@@ -51,6 +51,21 @@ class CHExceptionRequest(Document):
 		"""Ensure only authorized managers can approve or reject exceptions."""
 		approver = approver or frappe.session.user
 		roles = set(frappe.get_roles(approver))
+		bypass_roles = {"System Manager", "Administrator"}
+
+		# When a specific approver was assigned (e.g. Category Manager routing),
+		# only that user may approve/reject. System Manager / Administrator can
+		# still override (audited via the standard audit log).
+		if self.assigned_approver and approver != self.assigned_approver:
+			if not roles.intersection(bypass_roles):
+				frappe.throw(
+					_("This exception is assigned to {0}. Only that user can approve or reject it.").format(
+						self.assigned_approver
+					),
+					title=_("Unauthorized Approver"),
+				)
+			return approver
+
 		allowed_roles = {
 			"Store Manager",
 			"Sales Manager",

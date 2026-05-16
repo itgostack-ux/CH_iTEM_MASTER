@@ -201,6 +201,9 @@ def is_effective_approver(user: str | None = None) -> bool:
 	Return True if the user has effective approval authority — either via
 	direct CH Master Approver role or through a valid, active CH Approval Delegation
 	from a user who has the CH Master Approver role.
+	
+	SECURITY (H11): When using delegation, ensure delegator ≠ submitter
+	(prevent self-delegation bypass of Segregation of Duties).
 	"""
 	user = user or frappe.session.user
 
@@ -221,6 +224,9 @@ def is_effective_approver(user: str | None = None) -> bool:
 			continue  # expired
 		if d.valid_from and getdate(d.valid_from) > getdate(today_date):
 			continue  # not yet started
+		# SECURITY (H11): Ensure delegator ≠ delegate to prevent self-approval
+		if d.delegator == user:
+			continue  # delegator cannot delegate to themselves
 		# Verify delegator actually has approver authority
 		if bool(_roles(d.delegator) & _APPROVER_ROLES):
 			return True

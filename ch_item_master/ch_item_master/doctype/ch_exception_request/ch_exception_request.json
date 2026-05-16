@@ -20,6 +20,8 @@
   "item_code",
   "item_name",
   "serial_no",
+  "category",
+  "assigned_approver",
   "request_section",
   "requested_by",
   "requested_by_name",
@@ -145,6 +147,22 @@
    "fieldname": "serial_no",
    "fieldtype": "Data",
    "label": "Serial No"
+  },
+  {
+   "fieldname": "category",
+   "fieldtype": "Link",
+   "label": "Category",
+   "options": "CH Category",
+   "read_only": 1,
+   "description": "Auto-resolved from item; used for Category Manager approval routing"
+  },
+  {
+   "fieldname": "assigned_approver",
+   "fieldtype": "Link",
+   "label": "Assigned Approver",
+   "options": "User",
+   "read_only": 1,
+   "description": "Specific user (e.g. Category Manager) who must approve this request"
   },
   {
    "fieldname": "request_section",

@@ -27,18 +27,29 @@ def raise_exception(exception_type, company, reason, requested_value=0,
 
 	frappe.has_permission("CH Exception Request", "create", throw=True)
 
-	# IM-12 fix: Prevent duplicate open exception requests for same item+store+type
-	if item_code and store_warehouse:
-		existing = frappe.db.exists("CH Exception Request", {
+	# IM-12 fix: Prevent duplicate open exception requests for same IMEI+store+type.
+	# Fallback to item-level only when IMEI is not available.
+	if store_warehouse and (serial_no or item_code):
+		dup_filters = {
 			"exception_type": exception_type,
-			"item_code": item_code,
 			"store_warehouse": store_warehouse,
 			"status": ("in", ["Pending", "Awaiting Approval"]),
-		})
+		}
+		dup_scope = _("item")
+		dup_value = item_code
+
+		if serial_no:
+			dup_filters["serial_no"] = serial_no
+			dup_scope = _("IMEI")
+			dup_value = serial_no
+		else:
+			dup_filters["item_code"] = item_code
+
+		existing = frappe.db.exists("CH Exception Request", dup_filters)
 		if existing:
 			frappe.throw(
-				_("An open exception request ({0}) already exists for item {1} at this store. "
-				  "Please wait for it to be resolved.").format(existing, item_code),
+				_("An open exception request ({0}) already exists for {1} {2} at this store. "
+				  "Please wait for it to be resolved.").format(existing, dup_scope, dup_value),
 				title=_("Duplicate Exception Request"),
 			)
 
@@ -73,6 +84,41 @@ def raise_exception(exception_type, company, reason, requested_value=0,
 	exc.pos_profile = pos_profile
 	exc.pos_invoice = pos_invoice
 	exc.customer = customer
+	if customer and not exc.customer_phone:
+		cust = frappe.db.get_value(
+			"Customer",
+			customer,
+			["mobile_no", "ch_alternate_phone"],
+			as_dict=True,
+		)
+		if cust:
+			exc.customer_phone = cust.mobile_no or cust.ch_alternate_phone or ""
+
+	# Category Manager routing — resolve item's category and its manager.
+	# When the exception type is configured for "Category Manager" approval,
+	# the request must carry an item and that item must belong to a CH Category
+	# whose `category_manager` is set. The resolved user is recorded on the
+	# request and is the only one (besides System Manager) allowed to approve it.
+	if (etype.approval_level or "") == "Category Manager":
+		if not item_code:
+			frappe.throw(
+				_("Category Manager approval requires an item. Please raise this exception from a cart line."),
+				title=_("Item Required"),
+			)
+		category = frappe.db.get_value("Item", item_code, "ch_category")
+		if not category:
+			frappe.throw(
+				_("Item {0} is not mapped to a CH Category. Cannot route to a Category Manager.").format(item_code),
+				title=_("Category Not Set"),
+			)
+		manager = frappe.db.get_value("CH Category", category, "category_manager")
+		if not manager:
+			frappe.throw(
+				_("No Category Manager is configured for category {0}. Please set 'Category Manager' on CH Category {0}.").format(category),
+				title=_("Category Manager Missing"),
+			)
+		exc.category = category
+		exc.assigned_approver = manager
 
 	# Auto-approve if value is within threshold
 	if (flt(etype.max_value_without_approval) > 0
@@ -95,13 +141,126 @@ def raise_exception(exception_type, company, reason, requested_value=0,
 
 	exc.insert(ignore_permissions=True)
 
+	# Notify the assigned Category Manager (best-effort; never block the request).
+	if exc.assigned_approver:
+		try:
+			_notify_assigned_approver(exc)
+		except Exception:
+			frappe.log_error(
+				frappe.get_traceback(),
+				f"CH Exception Request approver notification failed for {exc.name}",
+			)
+
 	return {
 		"name": exc.name,
 		"status": "Pending",
 		"requires_otp": bool(etype.requires_otp),
 		"requires_ho_approval": bool(etype.requires_ho_approval),
 		"approval_level": etype.approval_level,
+		"assigned_approver": exc.assigned_approver,
+		"category": exc.category,
 	}
+
+
+def _notify_assigned_approver(exc) -> None:
+	"""Email the user assigned to approve a specific exception request.
+	
+	Includes pricing details (original, requested, cost) for faster approval decision-making.
+	"""
+	approver = exc.assigned_approver
+	approver_name = frappe.db.get_value("User", approver, "full_name") or approver
+	approver_email = frappe.db.get_value("User", approver, "email") or ""
+	if not approver_email:
+		frappe.log_error(
+			f"No email configured for assigned approver {approver}",
+			f"CH Exception Request approver email missing for {exc.name}",
+		)
+		return
+	
+	# Format currency for display
+	def fmt_currency(value):
+		val = flt(value or 0)
+		return f"₹{val:,.2f}" if val else "—"
+	
+	# Calculate discount details for pricing section
+	original_price = flt(exc.original_value or 0)
+	requested_price = flt(exc.requested_value or 0)
+	discount_amount = max(0, original_price - requested_price)
+	discount_pct = (discount_amount / original_price * 100) if original_price > 0 else 0
+	
+	# Build pricing table HTML for clarity
+	pricing_table = (
+		"<table style='width:100%; border-collapse: collapse; margin: 10px 0;'>"
+		"<tr style='background-color: #f5f5f5;'>"
+		"<td style='border: 1px solid #ddd; padding: 8px; font-weight: bold;'>Original Selling Price</td>"
+		f"<td style='border: 1px solid #ddd; padding: 8px; text-align: right;'>{fmt_currency(original_price)}</td>"
+		"</tr>"
+		"<tr>"
+		"<td style='border: 1px solid #ddd; padding: 8px; font-weight: bold;'>Requested Price</td>"
+		f"<td style='border: 1px solid #ddd; padding: 8px; text-align: right;'>{fmt_currency(requested_price)}</td>"
+		"</tr>"
+		"<tr style='background-color: #fff3cd;'>"
+		"<td style='border: 1px solid #ddd; padding: 8px; font-weight: bold;'>Discount</td>"
+		f"<td style='border: 1px solid #ddd; padding: 8px; text-align: right;'>{fmt_currency(discount_amount)} ({discount_pct:.1f}%)</td>"
+		"</tr>"
+		"<tr>"
+		"<td style='border: 1px solid #ddd; padding: 8px; font-weight: bold;'>Purchase Cost</td>"
+		f"<td style='border: 1px solid #ddd; padding: 8px; text-align: right;'>{fmt_currency(exc.purchase_price)}</td>"
+		"</tr>"
+		"</table>"
+	)
+	
+	subject = _("Exception Approval Required | {0} | {1}").format(
+		exc.exception_type, exc.name
+	)
+	message = _(
+		"<p>Hi {0},</p>"
+		"<p>An exception request requires your approval as <b>Category Manager</b>"
+		" for category <b>{1}</b>.</p>"
+		"<hr style='margin: 15px 0;'>"
+		"<p style='font-size: 14px; margin-bottom: 10px;'><b>📱 Device Details</b></p>"
+		"<ul style='margin: 10px 0; padding-left: 20px;'>"
+		"<li><b>Item:</b> {4} ({5})</li>"
+		"<li><b>Serial No (IMEI):</b> {6}</li>"
+		"<li><b>Category:</b> {14}</li>"
+		"</ul>"
+		"<p style='font-size: 14px; margin-bottom: 10px;'><b>💰 Pricing Details</b></p>"
+		"{10}"
+		"<p style='font-size: 14px; margin-bottom: 10px;'><b>👤 Request Information</b></p>"
+		"<ul style='margin: 10px 0; padding-left: 20px;'>"
+		"<li><b>Request ID:</b> {2}</li>"
+		"<li><b>Type:</b> {3}</li>"
+		"<li><b>Customer:</b> {7}</li>"
+		"<li><b>Requested By:</b> {8}</li>"
+		"<li><b>Reason:</b> {9}</li>"
+		"</ul>"
+		"<p><a href='{11}' style='display: inline-block; padding: 10px 20px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 4px;'>"
+		"👉 Review & Approve in ERPNext</a></p>"
+		"<p style='color: #666; font-size: 12px;'><em>CH Exception Request {2}</em></p>"
+	).format(
+		approver_name,
+		exc.category or "",
+		exc.name,
+		exc.exception_type or "",
+		exc.item_name or "",
+		exc.item_code or "",
+		exc.serial_no or "-",
+		exc.customer_name or exc.customer or "-",
+		exc.requested_by_name or exc.requested_by or "",
+		exc.requested_reason or "",
+		pricing_table,
+		frappe.utils.get_url(f"/app/ch-exception-request/{exc.name}"),
+		"",
+		"",
+		exc.category or "-",
+	)
+	frappe.sendmail(
+		recipients=[approver_email],
+		subject=subject,
+		message=message,
+		reference_doctype="CH Exception Request",
+		reference_name=exc.name,
+	)
 
 
 @frappe.whitelist()
@@ -186,6 +345,15 @@ def check_exception_valid(exception_name) -> dict:
 		"valid": valid,
 		"status": exc.status,
 		"approval_expiry": str(exc.approval_expiry) if exc.approval_expiry else None,
+		"item_code": exc.item_code,
+		"serial_no": exc.serial_no,
+		"customer": exc.customer,
+		"customer_name": exc.customer_name,
+		"customer_phone": exc.customer_phone,
+		"original_value": flt(exc.original_value),
+		"requested_value": flt(exc.requested_value),
+		"resolution_value": flt(exc.resolution_value),
+		"exception_type": exc.exception_type,
 	}
 
 
@@ -222,8 +390,17 @@ def request_exception_otp(exception_name, mobile_no) -> dict:
 
 @frappe.whitelist()
 def get_pending_exceptions(company=None, store_warehouse=None, exception_type=None) -> list:
-	"""Return all pending exception requests, optionally filtered."""
-	filters = {"status": "Pending", "docstatus": 0}
+	"""Return pending and recently-approved exception requests for the current user.
+
+	Approved exceptions (not yet consumed) are included so the cashier can use
+	the "Apply & Bill" button without relying solely on the background poll.
+	"""
+	user = frappe.session.user
+	filters = {
+		"requested_by": user,
+		"status": ("in", ["Pending", "Awaiting Approval", "Approved", "Auto-Approved"]),
+		"docstatus": ("!=", 2),
+	}
 	if company:
 		filters["company"] = company
 	if store_warehouse:
@@ -236,8 +413,9 @@ def get_pending_exceptions(company=None, store_warehouse=None, exception_type=No
 		fields=[
 			"name", "exception_type", "company", "store_warehouse",
 			"requested_by", "requested_by_name", "requested_reason",
-			"requested_value", "original_value", "reference_doctype",
-			"reference_name", "item_code", "serial_no", "raised_at",
+			"requested_value", "original_value", "resolution_value",
+			"reference_doctype", "reference_name",
+			"item_code", "serial_no", "raised_at", "status", "pos_invoice",
 		],
 		order_by="raised_at desc",
 		limit_page_length=50,

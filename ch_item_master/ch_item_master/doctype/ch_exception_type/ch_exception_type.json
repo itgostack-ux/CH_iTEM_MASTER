@@ -69,7 +69,8 @@
    "fieldname": "approval_level",
    "fieldtype": "Select",
    "label": "Approval Level",
-   "options": "Store Manager\nArea Manager\nRegional Head\nHO Finance\nCOO\nMD"
+   "options": "Store Manager\nArea Manager\nRegional Head\nHO Finance\nCOO\nMD\nCategory Manager",
+   "description": "If 'Category Manager' is selected, the request is routed to the manager of the item's CH Category."
   },
   {
    "default": "0",

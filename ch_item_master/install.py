@@ -5,6 +5,9 @@ from ch_item_master.setup import (
 	create_ch_custom_fields,
 	setup_item_variant_settings,
 	setup_roles,
+	setup_channels,
+	setup_vas_settings,
+	sync_workspace,
 )
 
 
@@ -13,6 +16,9 @@ def after_install():
 	setup_roles()
 	create_ch_custom_fields()
 	setup_item_variant_settings()
+	setup_channels()
+	setup_vas_settings()
+	sync_workspace()
 	seed_discount_reasons()
 
 
