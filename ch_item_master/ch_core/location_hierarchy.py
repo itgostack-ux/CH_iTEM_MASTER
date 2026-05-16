@@ -75,6 +75,33 @@ def backfill_location_hierarchy():
 			)
 
 
+def backfill_store_bins():
+	"""Ensure every active CH Store with a warehouse has its 5 stock-state bins.
+
+	Idempotent. Safe to run repeatedly from after_migrate.
+	"""
+	if not frappe.db.table_exists("CH Store"):
+		return
+	# Skip if the bin_type custom field hasn't been created yet (first install).
+	if not frappe.db.exists("Custom Field", {"dt": "Warehouse", "fieldname": "ch_bin_type"}):
+		return
+
+	from ch_item_master.ch_core.doctype.ch_store.ch_store import ensure_store_bins
+
+	stores = frappe.get_all(
+		"CH Store",
+		filters={"disabled": 0, "warehouse": ["is", "set"]},
+		fields=["name"],
+	)
+	for row in stores:
+		try:
+			store = frappe.get_doc("CH Store", row.name)
+			ensure_store_bins(store)
+		except Exception:
+			frappe.log_error(frappe.get_traceback(), f"backfill_store_bins failed for {row.name}")
+
+
+
 @frappe.whitelist()
 def get_company_location_tree(company=None, warehouse_view="all"):
 	"""Return Company → City → Zone → Warehouses / Stores / Offices.

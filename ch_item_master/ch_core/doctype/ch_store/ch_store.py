@@ -95,3 +95,91 @@ class CHStore(Document):
                         ),
                         title=frappe._("Invalid Zone"),
                     )
+
+    def after_insert(self):
+        """Auto-create the 5 stock-state bins under the store warehouse."""
+        ensure_store_bins(self)
+
+    def on_update(self):
+        """If warehouse is assigned later, ensure bins are created."""
+        if self.has_value_changed("warehouse") and self.warehouse:
+            ensure_store_bins(self)
+
+
+# Standard stock-state bins created under each Store warehouse.
+# (Bin type label, suffix used in warehouse name)
+STORE_BIN_TYPES = (
+    ("Sellable", "Sellable"),
+    ("In-Transit", "InTransit"),
+    ("Damaged", "Damaged"),
+    ("Disposed", "Disposed"),
+    ("Reserved", "Reserved"),
+)
+
+
+def ensure_store_bins(store):
+    """Create the 5 stock-state bins under the store's base warehouse.
+
+    Idempotent. Promotes the base warehouse to a group warehouse if needed,
+    and stamps location-hierarchy fields on every bin.
+    """
+    if not store.warehouse or not store.company:
+        return
+
+    base = frappe.db.get_value(
+        "Warehouse",
+        store.warehouse,
+        ["name", "company", "is_group"],
+        as_dict=True,
+    )
+    if not base:
+        return
+
+    # Stamp hierarchy fields on the base warehouse.
+    frappe.db.set_value(
+        "Warehouse",
+        base.name,
+        {
+            "ch_city": store.city,
+            "ch_zone": store.zone,
+            "ch_location_type": "Store Warehouse",
+            "ch_store": store.name,
+        },
+        update_modified=False,
+    )
+
+    # Promote to group so it can hold the 5 bins as children.
+    if not base.is_group:
+        try:
+            frappe.db.set_value("Warehouse", base.name, "is_group", 1, update_modified=False)
+        except Exception:
+            frappe.log_error(frappe.get_traceback(), "CH Store: promote warehouse to group failed")
+
+    for bin_type, suffix in STORE_BIN_TYPES:
+        existing = frappe.db.exists(
+            "Warehouse",
+            {
+                "company": store.company,
+                "parent_warehouse": base.name,
+                "ch_bin_type": bin_type,
+            },
+        )
+        if existing:
+            continue
+
+        wh = frappe.new_doc("Warehouse")
+        wh.warehouse_name = f"{store.store_code}-{suffix}"
+        wh.parent_warehouse = base.name
+        wh.company = store.company
+        wh.is_group = 0
+        wh.ch_city = store.city
+        wh.ch_zone = store.zone
+        wh.ch_store = store.name
+        wh.ch_location_type = "Store Bin"
+        wh.ch_bin_type = bin_type
+        try:
+            wh.insert(ignore_permissions=True)
+        except frappe.DuplicateEntryError:
+            # Another save raced us; safe to skip.
+            continue
+
