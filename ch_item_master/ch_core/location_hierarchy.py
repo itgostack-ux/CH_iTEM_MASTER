@@ -101,6 +101,84 @@ def backfill_store_bins():
 			frappe.log_error(frappe.get_traceback(), f"backfill_store_bins failed for {row.name}")
 
 
+def backfill_zone_hubs():
+	"""Ensure every CH Store Zone has a Distribution Hub warehouse.
+
+	A "Hub" is a Warehouse Group sitting at the city level that aggregates
+	stock for all stores in the zone. We don't reparent existing Store
+	Warehouses (that would rewrite the warehouse tree and is risky for
+	in-flight stock); we only:
+
+	  1. Create the Hub warehouse if missing (idempotent — keyed by name).
+	  2. Stamp ch_location_type='Zone Warehouse' + ch_city + ch_zone on it.
+	  3. Point the Zone's source_warehouse at it.
+
+	Result: every zone has a designated central warehouse retail users can
+	think of as the "back-end" / consolidation point, without disturbing
+	stock ledgers on the leaf store warehouses.
+
+	Idempotent. Safe to run repeatedly from after_migrate.
+	"""
+	if not frappe.db.table_exists("CH Store Zone"):
+		return
+	if not frappe.db.exists("Custom Field", {"dt": "Warehouse", "fieldname": "ch_location_type"}):
+		return
+
+	zones = frappe.get_all(
+		"CH Store Zone",
+		fields=["name", "zone_name", "company", "city", "source_warehouse"],
+	)
+	for zone in zones:
+		if not zone.company:
+			continue
+
+		hub = zone.source_warehouse
+		# 1. If a source_warehouse is already set and exists, just stamp it.
+		if hub and frappe.db.exists("Warehouse", hub):
+			frappe.db.set_value(
+				"Warehouse", hub,
+				{
+					"ch_city": zone.city,
+					"ch_zone": zone.name,
+					"ch_location_type": "Zone Warehouse",
+				},
+				update_modified=False,
+			)
+			continue
+
+		# 2. Otherwise, create one — name it after the zone (deterministic
+		#    so re-runs are idempotent even after the zone-row link breaks).
+		company_abbr = frappe.db.get_value("Company", zone.company, "abbr") or ""
+		base_name = f"{zone.zone_name or zone.name} Hub"
+		full_name = f"{base_name} - {company_abbr}" if company_abbr else base_name
+
+		if frappe.db.exists("Warehouse", full_name):
+			hub = full_name
+		else:
+			try:
+				wh = frappe.new_doc("Warehouse")
+				wh.warehouse_name = base_name
+				wh.company = zone.company
+				wh.is_group = 1
+				wh.ch_city = zone.city
+				wh.ch_zone = zone.name
+				wh.ch_location_type = "Zone Warehouse"
+				wh.insert(ignore_permissions=True)
+				hub = wh.name
+			except Exception:
+				frappe.log_error(
+					frappe.get_traceback(),
+					f"backfill_zone_hubs: failed to create hub for {zone.name}",
+				)
+				continue
+
+		# 3. Wire the zone to its hub.
+		frappe.db.set_value(
+			"CH Store Zone", zone.name, "source_warehouse", hub,
+			update_modified=False,
+		)
+
+
 
 @frappe.whitelist()
 def get_company_location_tree(company=None, warehouse_view="all"):
