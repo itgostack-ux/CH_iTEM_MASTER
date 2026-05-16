@@ -206,7 +206,9 @@ class CHSoldPlan(Document):
 				recipients=[customer_email],
 				subject=subject,
 				message=message,
-				now=True,
+				# delayed=True is the default — sends via background email queue worker,
+				# NOT synchronously in after_commit.  Prevents SMTP failures from
+				# surfacing as HTTP 500 "Invoice creation failed" on the POS.
 			)
 		except Exception:
 			frappe.log_error(
