@@ -182,6 +182,14 @@ doc_events = {
 		"on_submit": "ch_item_master.ch_item_master.overrides.purchase_receipt.on_submit",
 		"on_cancel": "ch_item_master.ch_item_master.overrides.purchase_receipt.on_cancel",
 	},
+	# Mirror Serial No.warehouse → CH Serial Lifecycle.current_warehouse on
+	# every stock movement (Stock Entry, Delivery Note, Sales Invoice,
+	# POS Invoice, Stock Reconciliation, …). Also auto-creates a minimal
+	# lifecycle row for serials introduced outside of Purchase Receipt so
+	# they show up in the IMEI Tracker.
+	"Serial No": {
+		"on_update": "ch_item_master.ch_item_master.overrides.serial_no.on_update",
+	},
 	"CH Warranty Claim": {
 		"on_submit": "ch_item_master.ch_item_master.integrations.warranty_claim_hooks.on_submit",
 		"on_cancel": "ch_item_master.ch_item_master.integrations.warranty_claim_hooks.on_cancel",

@@ -17,3 +17,4 @@ ch_item_master.patches.v9_vendor_oracle_parity
 ch_item_master.patches.v10_oracle_procurement_excellence
 ch_item_master.patches.v11_ch_state_master
 ch_item_master.patches.v12_collapse_sellable_bin
+ch_item_master.patches.v13_sync_serial_lifecycle_warehouse
