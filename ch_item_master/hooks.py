@@ -170,6 +170,9 @@ doc_events = {
 			"ch_item_master.ch_item_master.governance.validate_transaction_items",
 			"ch_item_master.ch_item_master.tier_c.enforce_plm_on_transaction",
 		],
+		# Audit-log every serialized movement into CH Serial Lifecycle.lifecycle_log
+		"on_submit": "ch_item_master.ch_item_master.overrides.movement_logger.on_stock_entry_submit",
+		"on_cancel": "ch_item_master.ch_item_master.overrides.movement_logger.on_stock_entry_cancel",
 	},
 	"Delivery Note": {
 		"validate": [
@@ -177,6 +180,11 @@ doc_events = {
 			"ch_item_master.ch_item_master.tier_b.enforce_expiry",
 			"ch_item_master.ch_item_master.tier_c.enforce_plm_on_transaction",
 		],
+		"on_submit": "ch_item_master.ch_item_master.overrides.movement_logger.on_delivery_note_submit",
+		"on_cancel": "ch_item_master.ch_item_master.overrides.movement_logger.on_delivery_note_cancel",
+	},
+	"Stock Reconciliation": {
+		"on_submit": "ch_item_master.ch_item_master.overrides.movement_logger.on_stock_reconciliation_submit",
 	},
 	"Purchase Receipt": {
 		"on_submit": "ch_item_master.ch_item_master.overrides.purchase_receipt.on_submit",
