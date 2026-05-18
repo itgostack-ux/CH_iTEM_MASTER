@@ -39,6 +39,7 @@ after_migrate = [
 	"ch_item_master.ch_item_master.page.imei_tracker.imei_tracker_api.backfill_is_imei_flag",
 	"ch_item_master.ch_item_master.governance.install_workflows",
 	"ch_item_master.ch_item_master.monitoring.install_number_cards",
+	"ch_item_master.print_setup.ensure_print_formats",
 ]
 before_uninstall = "ch_item_master.install.before_uninstall"
 
@@ -93,6 +94,10 @@ doc_events = {
 			"ch_item_master.ch_item_master.bulk_import.apply_active_defaults",
 			"ch_item_master.ch_item_master.overrides.item.before_insert",
 			"ch_item_master.ch_item_master.tier_b.apply_uom_defaults",
+		],
+		"validate": [
+			# SAP/Oracle parity: has_serial_no=1 requires ch_serial_kind set.
+			"ch_item_master.ch_item_master.overrides.item.validate_serial_kind",
 		],
 		"before_save": [
 			"ch_item_master.ch_item_master.overrides.item.before_save",

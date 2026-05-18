@@ -111,6 +111,20 @@ frappe.ui.form.on('Item', {
     // This is the ONLY place where we show user-visible errors for CH fields.
     // frappe.validated = false stops the save without reaching the server.
     validate(frm) {
+        // ── SAP/Oracle parity: Serial Number Profile is mandatory ───────────
+        // Applies to ALL items, not just CH-managed ones, because the
+        // Purchase Receipt / POS / IMEI Tracker pipeline reads this for any
+        // serialised item. Prompts the user instead of just rejecting.
+        if (cint(frm.doc.has_serial_no) && !frm.doc.ch_serial_kind) {
+            frappe.validated = false;
+            _prompt_serial_kind(frm);
+            return;
+        }
+        if (!cint(frm.doc.has_serial_no) && frm.doc.ch_serial_kind) {
+            // Toggled OFF — clear stale classification so it doesn't drift.
+            frm.doc.ch_serial_kind = null;
+        }
+
         if (!frm.doc.ch_model) return; // not a CH-managed item
 
         let errors = [];
@@ -160,6 +174,18 @@ frappe.ui.form.on('Item', {
             if (!frm.doc.item_name || frm.doc.item_name === '__autoname') {
                 frm.doc.item_name = '__autoname';
             }
+        }
+    },
+
+    // ── SAP/Oracle parity: Serial Number Profile classification ─────────────
+    // Triggered the instant the user toggles "Has Serial No" on — opens a
+    // modal forcing them to pick IMEI vs Barcode at the right moment (item
+    // master), by the right person (item creator), not at transaction time.
+    has_serial_no(frm) {
+        if (cint(frm.doc.has_serial_no) && !frm.doc.ch_serial_kind) {
+            _prompt_serial_kind(frm);
+        } else if (!cint(frm.doc.has_serial_no) && frm.doc.ch_serial_kind) {
+            frm.set_value('ch_serial_kind', null);
         }
     },
 
@@ -334,6 +360,77 @@ function _toggle_property_specs_section(frm, show) {
     frm.set_df_property('ch_spec_values_section', 'hidden', show ? 0 : 1);
     frm.set_df_property('ch_spec_values_section', 'label', 'Item Properties (non-variant)');
     frm.set_df_property('ch_spec_values', 'hidden', show ? 0 : 1);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Serial Number Profile classification modal — SAP MARC-SERNP / Oracle
+// mtl_system_items.serial_number_control_code equivalent.
+//
+// Opens a non-dismissible modal forcing the user to classify HOW serials
+// are sourced for this item, the moment they enable "Has Serial No".
+// Suggests "IMEI" when item_group descends from "Mobiles", else "Barcode".
+// ─────────────────────────────────────────────────────────────────────────────
+function _prompt_serial_kind(frm) {
+    // Avoid stacking dialogs if validate fires repeatedly
+    if (frm.__serial_kind_dialog_open) return;
+    frm.__serial_kind_dialog_open = true;
+
+    // Heuristic suggestion based on Item Group ancestry
+    let suggested = 'Barcode';
+    let group = (frm.doc.item_group || '').toLowerCase();
+    if (group.includes('mobile') || group.includes('phone') ||
+        group.includes('tablet') || group.includes('smart watch')) {
+        suggested = 'IMEI';
+    }
+
+    const d = new frappe.ui.Dialog({
+        title: __('Serial Number Kind Required'),
+        fields: [
+            {
+                fieldtype: 'HTML',
+                options: `
+                    <div class="alert alert-warning" style="margin-bottom:15px">
+                        <strong>${__('This item is serial-tracked.')}</strong><br>
+                        ${__('How are serial numbers sourced for this item?')}
+                        ${__('This is a one-time master-data classification — it cannot be inferred at transaction time.')}
+                    </div>
+                    <ul style="font-size:13px;line-height:1.6">
+                        <li><b>IMEI</b> &mdash; ${__('Real 15-digit manufacturer IMEIs scanned/entered at GRN (mobile phones, cellular watches).')}</li>
+                        <li><b>Barcode</b> &mdash; ${__('System-generated barcode serials (accessories, non-cellular devices, peripherals).')}</li>
+                    </ul>
+                `,
+            },
+            {
+                fieldname: 'ch_serial_kind',
+                label: __('Serial Number Kind'),
+                fieldtype: 'Select',
+                options: '\nIMEI\nBarcode',
+                default: suggested,
+                reqd: 1,
+            },
+        ],
+        primary_action_label: __('Apply & Save'),
+        primary_action(values) {
+            if (!values.ch_serial_kind) {
+                frappe.msgprint(__('Please select IMEI or Barcode.'));
+                return;
+            }
+            frm.__serial_kind_dialog_open = false;
+            d.hide();
+            frm.set_value('ch_serial_kind', values.ch_serial_kind).then(() => {
+                frm.save();
+            });
+        },
+        secondary_action_label: __('Cancel — Turn Off Serial Tracking'),
+        secondary_action() {
+            frm.__serial_kind_dialog_open = false;
+            d.hide();
+            frm.set_value('has_serial_no', 0);
+            frm.set_value('ch_serial_kind', null);
+        },
+    });
+    d.$wrapper.find('.modal-header .modal-actions .close').hide(); // force a decision
+    d.show();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

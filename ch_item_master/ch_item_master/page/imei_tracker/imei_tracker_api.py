@@ -86,7 +86,12 @@ def _build_where(f, alias_lc="lc", alias_sn="sn"):
     params = {}
 
     if f.get("company"):
-        where.append(f"{alias_lc}.current_company = %(company)s")
+        # Backward-compatible filter: some historical lifecycle rows were
+        # created before current_company was stamped correctly. Fall back to
+        # Warehouse.company so those rows remain visible in company-scoped views.
+        where.append(
+            f"COALESCE({alias_lc}.current_company, wh.company) = %(company)s"
+        )
         params["company"] = f["company"]
 
     if f.get("store"):

@@ -830,3 +830,78 @@ def _populate_master_ids(doc):
         doc.ch_model_id = cint(r.model_id)
         doc.ch_brand_id = cint(r.brand_id)
         doc.ch_manufacturer_id = cint(r.manufacturer_id)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SAP/Oracle parity guard — Serial Number Profile classification
+# ─────────────────────────────────────────────────────────────────────────────
+def validate_serial_kind(doc, method=None):
+    """Enforce: if Item.has_serial_no = 1, Item.ch_serial_kind MUST be set.
+
+    Mirrors the SAP MARC-SERNP (Serial Number Profile) / Oracle
+    mtl_system_items.serial_number_control_code contract: an item that is
+    declared as serial-tracked at the master level MUST also declare HOW
+    serials are sourced (IMEI vs Barcode). Without this, downstream
+    consumers (Purchase Receipt → Serial No.ch_is_imei stamping, POS
+    picker label selection, IMEI Tracker filters) have no way to render
+    the correct workflow.
+
+    Skipped when:
+      • has_serial_no = 0  (non-serialised — no classification needed)
+      • flags.ignore_validate is set  (patches, migrations, bulk imports)
+    """
+    if getattr(doc.flags, "ignore_validate", False):
+        return
+
+    if not cint(doc.has_serial_no):
+        # Non-serialised items: enforce ch_serial_kind is empty to prevent
+        # stale classification confusing downstream consumers.
+        if doc.get("ch_serial_kind"):
+            doc.ch_serial_kind = None
+        return
+
+    if doc.get("ch_serial_kind") in ("IMEI", "Barcode"):
+        return
+
+    # Variants inherit the Serial Number Profile from their template — SAP
+    # variant configuration / Oracle item template-variant model. ERPNext
+    # creates variants via create_multiple_variants() which calls save()
+    # before our before_save copy hook runs, so we self-heal here.
+    if doc.get("variant_of"):
+        tpl_kind = frappe.db.get_value("Item", doc.variant_of, "ch_serial_kind")
+        if tpl_kind in ("IMEI", "Barcode"):
+            doc.ch_serial_kind = tpl_kind
+            return
+        # Template itself is misclassified — fall through to throw so the
+        # operator fixes the template, not the variant.
+        frappe.throw(
+            _(
+                "Cannot create variant <b>{0}</b>: its template "
+                "<b>{1}</b> has <b>Has Serial No</b> enabled but no "
+                "<b>Serial Number Kind</b> set.<br><br>"
+                "Open the template item and pick <b>IMEI</b> or "
+                "<b>Barcode</b> in the Inventory tab → "
+                "<b>Serial Number Kind</b>, save it, then retry variant "
+                "creation. Variants always inherit the template's "
+                "serial profile (SAP/Oracle variant configuration)."
+            ).format(
+                doc.item_code or doc.name or _("(new)"),
+                doc.variant_of,
+            ),
+            title=_("Template Serial Number Kind Required"),
+        )
+
+    frappe.throw(
+        _(
+            "Item <b>{0}</b> has <b>Has Serial No</b> enabled but no "
+            "<b>Serial Number Kind</b> set.<br><br>"
+            "Pick one in the Inventory tab → <b>Serial Number Kind</b>:<br>"
+            "• <b>IMEI</b> — real 15-digit manufacturer IMEIs scanned at GRN "
+            "(mobile phones, smart watches with cellular).<br>"
+            "• <b>Barcode</b> — system-generated barcode serials "
+            "(accessories, non-cellular devices).<br><br>"
+            "This is a master-data decision and cannot be inferred at "
+            "transaction time."
+        ).format(doc.item_code or doc.name or _("(new)")),
+        title=_("Serial Number Kind Required"),
+    )
