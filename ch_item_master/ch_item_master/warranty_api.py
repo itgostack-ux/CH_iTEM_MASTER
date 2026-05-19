@@ -41,11 +41,18 @@ def check_warranty(serial_no, company=None) -> dict:
 
 	result = check_warranty_status(serial_no, company)
 
-	# Enrich with Serial Lifecycle data
-	if frappe.db.exists("CH Serial Lifecycle", serial_no):
+	# Enrich with Serial Lifecycle data — uses the same resolution helper
+	# as CH Warranty Claim so callers see identical behaviour for
+	# name / imei_number / imei_number_2 lookups.
+	from ch_item_master.ch_item_master.doctype.ch_warranty_claim.ch_warranty_claim import (
+		resolve_lifecycle_name,
+	)
+
+	lc_name = resolve_lifecycle_name(serial_no)
+	if lc_name:
 		lc = frappe.db.get_value(
 			"CH Serial Lifecycle",
-			serial_no,
+			lc_name,
 			[
 				"lifecycle_status", "warranty_status", "warranty_plan",
 				"warranty_start_date", "warranty_end_date", "extended_warranty_end",
@@ -56,27 +63,7 @@ def check_warranty(serial_no, company=None) -> dict:
 		)
 		result["serial_lifecycle"] = lc
 	else:
-		# Try IMEI lookup
-		name = frappe.db.get_value(
-			"CH Serial Lifecycle", {"imei_number": serial_no}, "name"
-		) or frappe.db.get_value(
-			"CH Serial Lifecycle", {"imei_number_2": serial_no}, "name"
-		)
-		if name:
-			lc = frappe.db.get_value(
-				"CH Serial Lifecycle",
-				name,
-				[
-					"lifecycle_status", "warranty_status", "warranty_plan",
-					"warranty_start_date", "warranty_end_date", "extended_warranty_end",
-					"item_code", "item_name", "customer", "customer_name",
-					"service_count", "last_service_date",
-				],
-				as_dict=True,
-			)
-			result["serial_lifecycle"] = lc
-		else:
-			result["serial_lifecycle"] = None
+		result["serial_lifecycle"] = None
 
 	# Deductible from covering plan
 	if result.get("covering_plan"):
@@ -552,16 +539,13 @@ def get_customer_warranty_dashboard(identifier, company=None) -> dict:
 			}
 	else:
 		search_type = "serial"
-		# Try CH Serial Lifecycle first
-		lc_name = None
-		if frappe.db.exists("CH Serial Lifecycle", identifier):
-			lc_name = identifier
-		else:
-			lc_name = frappe.db.get_value(
-				"CH Serial Lifecycle", {"imei_number": identifier}, "name"
-			) or frappe.db.get_value(
-				"CH Serial Lifecycle", {"imei_number_2": identifier}, "name"
-			)
+		# Resolve a CH Serial Lifecycle row using the shared helper so that
+		# IMEI / IMEI-2 / canonical-name lookups behave identically across
+		# the warranty surface.
+		from ch_item_master.ch_item_master.doctype.ch_warranty_claim.ch_warranty_claim import (
+			resolve_lifecycle_name,
+		)
+		lc_name = resolve_lifecycle_name(identifier)
 
 		if lc_name:
 			customer = frappe.db.get_value("CH Serial Lifecycle", lc_name, "customer")

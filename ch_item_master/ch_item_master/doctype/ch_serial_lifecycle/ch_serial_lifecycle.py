@@ -192,23 +192,15 @@ def scan_serial(serial_no) -> dict:
 
     Searches by serial_no, imei_number, or imei_number_2.
     """
-    # Try exact match on name
-    if frappe.db.exists("CH Serial Lifecycle", serial_no):
-        doc = frappe.get_doc("CH Serial Lifecycle", serial_no)
-    else:
-        # Search by IMEI fields
-        name = frappe.db.get_value(
-            "CH Serial Lifecycle",
-            {"imei_number": serial_no},
-            "name"
-        ) or frappe.db.get_value(
-            "CH Serial Lifecycle",
-            {"imei_number_2": serial_no},
-            "name"
-        )
-        if not name:
-            frappe.throw(_("Serial / IMEI not found: {0}").format(serial_no), title=_("Ch Serial Lifecycle Error"))
-        doc = frappe.get_doc("CH Serial Lifecycle", name)
+    # Use the shared resolver so name → imei_number → imei_number_2 order
+    # is identical to CH Warranty Claim and warranty_api.
+    from ch_item_master.ch_item_master.doctype.ch_warranty_claim.ch_warranty_claim import (
+        resolve_lifecycle_name,
+    )
+    name = resolve_lifecycle_name(serial_no)
+    if not name:
+        frappe.throw(_("Serial / IMEI not found: {0}").format(serial_no), title=_("Ch Serial Lifecycle Error"))
+    doc = frappe.get_doc("CH Serial Lifecycle", name)
 
     # Valid next transitions
     allowed_next = VALID_TRANSITIONS.get(doc.lifecycle_status, [])

@@ -90,16 +90,18 @@ class CHModel(Document):
 		"""
 		if not self.sub_category or not self.model_name or not self.brand:
 			return
-		existing = frappe.db.get_value(
-			"CH Model",
-			{
-				"sub_category": self.sub_category,
-				"brand": self.brand,
-				"model_name": self.model_name,
-				"name": ("!=", self.name),
-			},
-			"name",
-		)
+		# For a new doc, autoname() has already set self.name to the deterministic
+		# composite key. Excluding self.name from the lookup would mask a real
+		# duplicate (the existing row has the same PK), letting the request fall
+		# through to a raw MariaDB IntegrityError instead of a friendly throw.
+		filters = {
+			"sub_category": self.sub_category,
+			"brand": self.brand,
+			"model_name": self.model_name,
+		}
+		if not self.is_new():
+			filters["name"] = ("!=", self.name)
+		existing = frappe.db.get_value("CH Model", filters, "name")
 		if existing:
 			frappe.throw(
 				_("Model {0} already exists under Sub Category {1} + Brand {2} ({3})").format(

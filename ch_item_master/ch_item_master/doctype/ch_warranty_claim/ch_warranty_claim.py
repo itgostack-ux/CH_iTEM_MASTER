@@ -48,6 +48,34 @@ from ch_item_master.ch_item_master.doctype.ch_vas_settings.ch_vas_settings impor
 from ch_item_master.security import get_company_filter_value
 
 
+def resolve_lifecycle_name(serial: str | None) -> str | None:
+	"""Resolve a `CH Serial Lifecycle` document name from any identifier the
+	customer / agent might quote.
+
+	Lookup order (uniform regardless of `ch_is_imei` flag):
+	  1. exact match on Lifecycle row name (which is the canonical Serial No)
+	  2. match on `imei_number`  (primary IMEI for dual-SIM devices)
+	  3. match on `imei_number_2` (secondary IMEI for dual-SIM devices)
+
+	Returns the Lifecycle row name, or None if no match.
+
+	This is intentionally a thin helper rather than a method on the document
+	so that `warranty_api.py` and `ch_serial_lifecycle.py` can share the
+	exact same resolution strategy (single source of truth).
+	"""
+	if not serial:
+		return None
+	serial = serial.strip()
+	if not serial:
+		return None
+	if frappe.db.exists("CH Serial Lifecycle", serial):
+		return serial
+	return (
+		frappe.db.get_value("CH Serial Lifecycle", {"imei_number": serial}, "name")
+		or frappe.db.get_value("CH Serial Lifecycle", {"imei_number_2": serial}, "name")
+	)
+
+
 class CHWarrantyClaim(Document):
 	def autoname(self):
 		if not self.claim_id:
@@ -1218,15 +1246,9 @@ class CHWarrantyClaim(Document):
 					self.flags.is_manufacturer_warranty = True
 
 		# Also try enriching from lifecycle
-		lc_name = self.serial_no
-		if not frappe.db.exists("CH Serial Lifecycle", lc_name):
-			lc_name = frappe.db.get_value(
-				"CH Serial Lifecycle", {"imei_number": self.serial_no}, "name"
-			) or frappe.db.get_value(
-				"CH Serial Lifecycle", {"imei_number_2": self.serial_no}, "name"
-			)
+		lc_name = resolve_lifecycle_name(self.serial_no)
 
-		if lc_name and frappe.db.exists("CH Serial Lifecycle", lc_name):
+		if lc_name:
 			lc = frappe.db.get_value(
 				"CH Serial Lifecycle", lc_name,
 				["item_code", "item_name", "imei_number", "customer", "customer_name"],
