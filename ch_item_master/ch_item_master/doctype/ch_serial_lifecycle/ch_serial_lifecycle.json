@@ -9,6 +9,7 @@
  "field_order": [
   "device_section",
   "serial_no",
+  "ch_serial_kind",
   "imei_number",
   "imei_number_2",
   "column_break_device",
@@ -75,6 +76,16 @@
    "label": "Serial / IMEI Number",
    "reqd": 1,
    "unique": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "ch_serial_kind",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Serial Kind",
+   "options": "\nIMEI\nBarcode\nOthers",
+   "description": "Per-serial classification mirrored from Serial No.ch_serial_kind / Item.ch_serial_kind. SAP MARC-SERNP equivalent. Authoritative for IMEI Tracker tri-state filtering.",
    "search_index": 1
   },
   {

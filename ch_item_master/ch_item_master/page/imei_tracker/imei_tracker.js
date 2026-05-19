@@ -34,7 +34,9 @@ frappe.pages["imei-tracker"].on_page_load = function (wrapper) {
 ch_item_master.imei_tracker.View = class IMEITrackerView {
 	constructor(page) {
 		this.page = page;
-		this.imei_mode = "all"; // "all" | "imei" | "non_imei"
+		// Tri-state serial-kind filter (SAP/Oracle/MS parity):
+		//   'all' | 'IMEI' | 'Barcode' | 'Others'
+		this.kind_mode = "all";
 		this.active_bucket = null; // null = no filter
 		this.aging_filter = null;
 		this.selected_serials = new Set();
@@ -58,10 +60,11 @@ ch_item_master.imei_tracker.View = class IMEITrackerView {
 		const $root = $(`
 			<div class="imei-tracker">
 				<div class="imei-tracker-controls">
-					<div class="imei-mode-group btn-group btn-group-sm" role="group" aria-label="IMEI mode">
+					<div class="imei-mode-group btn-group btn-group-sm" role="group" aria-label="Serial Kind">
 						<button type="button" class="btn btn-default active" data-mode="all">${__("All")}</button>
-						<button type="button" class="btn btn-default" data-mode="imei">${__("IMEI Only")}</button>
-						<button type="button" class="btn btn-default" data-mode="non_imei">${__("Non-IMEI")}</button>
+						<button type="button" class="btn btn-default" data-mode="IMEI">${__("IMEI")}</button>
+						<button type="button" class="btn btn-default" data-mode="Barcode">${__("Barcode")}</button>
+						<button type="button" class="btn btn-default" data-mode="Others">${__("Others")}</button>
 					</div>
 					<div class="imei-search-wrap">
 						<input type="text" class="form-control input-sm imei-search"
@@ -124,6 +127,7 @@ ch_item_master.imei_tracker.View = class IMEITrackerView {
 				.imei-table tr:hover { background: #f8fafc; cursor: pointer; }
 				.badge-imei { background:#0891b2; color:#fff; font-size:10px; padding:2px 6px; border-radius:8px; }
 				.badge-barcode { background:#94a3b8; color:#fff; font-size:10px; padding:2px 6px; border-radius:8px; }
+				.badge-others { background:#a16207; color:#fff; font-size:10px; padding:2px 6px; border-radius:8px; }
 				.badge-aging { background:#fee2e2; color:#991b1b; font-size:10px; padding:2px 6px; border-radius:8px; margin-left:4px; }
 				.imei-status { display:inline-block; padding:2px 8px; border-radius:8px; font-size:11px; font-weight:500; }
 				.imei-status.in-stock,.imei-status.received,.imei-status.displayed,.imei-status.refurbished { background:#d1fae5; color:#065f46; }
@@ -146,7 +150,7 @@ ch_item_master.imei_tracker.View = class IMEITrackerView {
 			const $b = $(e.currentTarget);
 			$body.find(".imei-mode-group .btn").removeClass("active");
 			$b.addClass("active");
-			this.imei_mode = $b.data("mode");
+			this.kind_mode = $b.data("mode");
 			this.refresh();
 		});
 
@@ -200,8 +204,12 @@ ch_item_master.imei_tracker.View = class IMEITrackerView {
 	// ── Data ──────────────────────────────────────────────────────────────────
 	build_filter_payload() {
 		const f = this.filters.values();
-		f.imei_only     = this.imei_mode === "imei"     ? 1 : 0;
-		f.non_imei_only = this.imei_mode === "non_imei" ? 1 : 0;
+		// Tri-state classification filter (preferred).
+		f.kind = (["IMEI", "Barcode", "Others"].includes(this.kind_mode))
+			? this.kind_mode : "";
+		// Legacy fields — kept for any external callers that still pass them.
+		f.imei_only     = this.kind_mode === "IMEI"     ? 1 : 0;
+		f.non_imei_only = (this.kind_mode === "Barcode" || this.kind_mode === "Others") ? 1 : 0;
 		f.status_bucket = this.active_bucket || "";
 		f.aging_bucket  = this.aging_filter  || "";
 		f.search        = this.search_term   || "";
@@ -323,7 +331,7 @@ ch_item_master.imei_tracker.View = class IMEITrackerView {
 			html += `
 				<tr data-serial="${frappe.utils.escape_html(r.serial_no)}" class="${sel ? "selected" : ""}">
 					<td><input type="checkbox" class="row-chk" ${sel ? "checked" : ""}/></td>
-					<td>${r.is_imei ? '<span class="badge-imei">IMEI</span>' : '<span class="badge-barcode">Barcode</span>'}</td>
+					<td>${_kind_badge(r.serial_kind || (r.is_imei ? "IMEI" : "Barcode"))}</td>
 					<td><b>${frappe.utils.escape_html(key || "")}</b>${aging_html}</td>
 					<td>${frappe.utils.escape_html(r.item_name || r.item_code || "")}</td>
 					<td>${frappe.utils.escape_html(r.brand || "")}</td>
@@ -399,7 +407,7 @@ ch_item_master.imei_tracker.View = class IMEITrackerView {
 						<tr><th>${__("IMEI 1")}</th><td>${frappe.utils.escape_html(lc.imei_number || "")}</td></tr>
 						<tr><th>${__("IMEI 2")}</th><td>${frappe.utils.escape_html(lc.imei_number_2 || "")}</td></tr>
 						<tr><th>${__("Item")}</th><td>${frappe.utils.escape_html(lc.item_name || lc.item_code || "")}</td></tr>
-						<tr><th>${__("Type")}</th><td>${sn.ch_is_imei ? '<span class="badge-imei">IMEI</span>' : '<span class="badge-barcode">Barcode</span>'}</td></tr>
+						<tr><th>${__("Type")}</th><td>${_kind_badge(lc.ch_serial_kind || (sn.ch_serial_kind || (sn.ch_is_imei ? "IMEI" : "Barcode")))}</td></tr>
 					</table>
 				</div>
 				<div class="col-md-6">
@@ -524,4 +532,12 @@ function b64_to_blob(b64, mime) {
 	const buf = new Uint8Array(len);
 	for (let i = 0; i < len; i++) buf[i] = bin.charCodeAt(i);
 	return new Blob([buf], { type: mime || "application/octet-stream" });
+}
+
+// Helper: render the tri-state serial-kind chip used across the tracker.
+function _kind_badge(kind) {
+	const k = (kind || "Barcode").toString();
+	if (k === "IMEI")    return '<span class="badge-imei">IMEI</span>';
+	if (k === "Others")  return '<span class="badge-others">Others</span>';
+	return '<span class="badge-barcode">Barcode</span>';
 }

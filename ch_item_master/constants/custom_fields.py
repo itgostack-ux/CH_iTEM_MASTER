@@ -406,6 +406,46 @@ CUSTOM_FIELDS = {
 			"in_standard_filter": 1,
 			"description": _("Type of item condition: New, Refurbished, Pre-Owned, Display/Demo."),
 		},
+		# ──────────────────────────────────────────────
+		# Serial Number Profile (SAP MARC-SERNP / Oracle serial_number_control_code)
+		#
+		# CLASSIFICATION ONLY — does NOT toggle serial tracking.
+		#   • Item.has_serial_no    →  WHETHER serials are tracked (1=yes / 0=no)
+		#   • Item.ch_serial_kind   →  HOW serials are sourced (IMEI / Barcode)
+		#
+		# Used by:
+		#   • Purchase Receipt    → stamps Serial No.ch_is_imei correctly on GRN
+		#   • POS picker          → renders correct label ("Select IMEI" vs
+		#                            "Select Serial / Barcode")
+		#   • IMEI Tracker hub    → filters Real IMEI vs system Barcode serials
+		#
+		# Set automatically by the v3 unify-serial-kind patch from the item's
+		# CH Category / Item Group ("Mobiles" → IMEI, else Barcode for any
+		# has_serial_no=1 item). Editable by Item Master maintainers.
+		# ──────────────────────────────────────────────
+		{
+			"fieldname": "ch_serial_kind",
+			"label": _("Serial Number Kind"),
+			"fieldtype": "Select",
+			"options": "\nIMEI\nBarcode\nOthers",
+			"insert_after": "ch_item_type",
+			"in_standard_filter": 1,
+			"depends_on": "eval:doc.has_serial_no",
+			"description": _(
+				"SAP Serial Number Profile / Oracle serial_number_control_code equivalent. "
+				"Classifies HOW serials are sourced for this item:\n"
+				"• IMEI – real 15-digit manufacturer IMEIs scanned at GRN "
+				"(mobile phones, cellular watches).\n"
+				"• Barcode – system-generated barcode serials "
+				"(accessories, non-cellular devices, peripherals).\n"
+				"• Others – externally supplied serials that are neither real "
+				"IMEIs nor system-generated barcodes (e.g. vendor part serials, "
+				"refurbished pool serials, special-handling SKUs).\n"
+				"Leave blank for non-serialised items. "
+				"This is the SINGLE source of truth used by Purchase Receipt, POS, "
+				"and IMEI Tracker — do NOT mutate Item.has_serial_no at transaction time."
+			),
+		},
 		{
 			"fieldname": "ch_minimum_selling_price",
 			"label": _("Minimum Selling Price (MSP)"),
@@ -683,24 +723,43 @@ CUSTOM_FIELDS = {
 		},
 	],
 	# ──────────────────────────────────────────────
-	# Serial No: Real IMEI vs system-generated barcode flag
-	# Set when Purchase Receipt creates the serial:
-	#   - PR Item.custom_imei = "Yes" → real IMEI (manual entry)  → ch_is_imei = 1
-	#   - PR Item.custom_imei = "No"  → system-generated barcode  → ch_is_imei = 0
-	# Used by IMEI Tracker hub to filter "Real IMEI" vs "Non-IMEI Serial".
+	# Serial No: per-instance classification (SAP/Oracle/Microsoft parity)
+	#
+	# `ch_serial_kind` is the AUTHORITATIVE per-serial classification field,
+	# stamped from `Item.ch_serial_kind` at Purchase Receipt time. It is the
+	# single source of truth for downstream consumers (IMEI Tracker, POS
+	# serial picker, label printer, exports).
+	#
+	# `ch_is_imei` is a DERIVED compatibility boolean — kept for backward
+	# compatibility with legacy queries / dashboards. Modern code MUST read
+	# `ch_serial_kind` directly to differentiate IMEI vs Barcode vs Others.
 	# ──────────────────────────────────────────────
 	"Serial No": [
+		{
+			"fieldname": "ch_serial_kind",
+			"label": _("Serial Number Kind"),
+			"fieldtype": "Select",
+			"options": "\nIMEI\nBarcode\nOthers",
+			"insert_after": "warranty_expiry_date",
+			"in_standard_filter": 1,
+			"in_list_view": 1,
+			"description": _(
+				"Per-serial classification — stamped from Item.ch_serial_kind on GRN. "
+				"Authoritative source for IMEI Tracker, POS, label printer, exports."
+			),
+		},
 		{
 			"fieldname": "ch_is_imei",
 			"label": _("Is Real IMEI"),
 			"fieldtype": "Check",
-			"insert_after": "warranty_expiry_date",
+			"insert_after": "ch_serial_kind",
 			"default": "0",
 			"in_standard_filter": 1,
 			"in_list_view": 1,
 			"description": _(
-				"Checked when this serial is a real IMEI (15-digit manufacturer ID) "
-				"as opposed to a system-generated barcode."
+				"DERIVED compatibility flag. = 1 only when ch_serial_kind = 'IMEI'. "
+				"Modern code should read ch_serial_kind directly to distinguish "
+				"IMEI vs Barcode vs Others."
 			),
 		},
 		{
@@ -710,7 +769,7 @@ CUSTOM_FIELDS = {
 			"insert_after": "ch_is_imei",
 			"description": _(
 				"Auto-generated barcode series captured at Purchase Receipt time "
-				"for non-IMEI serialised items (Item.custom_imei = No)."
+				"for non-IMEI serialised items (ch_serial_kind = Barcode)."
 			),
 		},
 	],

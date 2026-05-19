@@ -860,7 +860,7 @@ def validate_serial_kind(doc, method=None):
             doc.ch_serial_kind = None
         return
 
-    if doc.get("ch_serial_kind") in ("IMEI", "Barcode"):
+    if doc.get("ch_serial_kind") in ("IMEI", "Barcode", "Others"):
         return
 
     # Variants inherit the Serial Number Profile from their template — SAP
@@ -869,7 +869,7 @@ def validate_serial_kind(doc, method=None):
     # before our before_save copy hook runs, so we self-heal here.
     if doc.get("variant_of"):
         tpl_kind = frappe.db.get_value("Item", doc.variant_of, "ch_serial_kind")
-        if tpl_kind in ("IMEI", "Barcode"):
+        if tpl_kind in ("IMEI", "Barcode", "Others"):
             doc.ch_serial_kind = tpl_kind
             return
         # Template itself is misclassified — fall through to throw so the
@@ -899,7 +899,10 @@ def validate_serial_kind(doc, method=None):
             "• <b>IMEI</b> — real 15-digit manufacturer IMEIs scanned at GRN "
             "(mobile phones, smart watches with cellular).<br>"
             "• <b>Barcode</b> — system-generated barcode serials "
-            "(accessories, non-cellular devices).<br><br>"
+            "(accessories, non-cellular devices).<br>"
+            "• <b>Others</b> — externally supplied serials that are neither "
+            "real IMEIs nor system-generated barcodes (vendor part serials, "
+            "refurbished pool serials, special-handling SKUs).<br><br>"
             "This is a master-data decision and cannot be inferred at "
             "transaction time."
         ).format(doc.item_code or doc.name or _("(new)")),

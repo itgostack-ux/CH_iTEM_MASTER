@@ -47,6 +47,29 @@ BUCKET_LABELS = {
 }
 
 
+# ── Serial-kind tri-state classification ──────────────────────────────────────
+# SAP MARC-SERNP / Oracle mtl_system_items.serial_number_control_code /
+# Microsoft D365 Tracking Dimension Group equivalent.
+#
+# Source-of-truth priority (highest → lowest):
+#   1. CH Serial Lifecycle.ch_serial_kind  (mirrored on PR submit)
+#   2. Serial No.ch_serial_kind            (stamped on PR submit)
+#   3. Item.ch_serial_kind                 (authoritative master)
+#   4. Legacy Serial No.ch_is_imei boolean (pre-v5 data — IMEI / Barcode only)
+#
+# Falls back to 'Barcode' so legacy serialised items always classify.
+SERIAL_KIND_VALUES = ("IMEI", "Barcode", "Others")
+
+SERIAL_KIND_EXPR = (
+    "COALESCE("
+    "NULLIF(lc.ch_serial_kind,''), "
+    "NULLIF(sn.ch_serial_kind,''), "
+    "NULLIF(itm.ch_serial_kind,''), "
+    "CASE WHEN IFNULL(sn.ch_is_imei,0)=1 THEN 'IMEI' ELSE 'Barcode' END"
+    ")"
+)
+
+
 # ── Filter normalization ──────────────────────────────────────────────────────
 def _norm_filters(filters):
     """Coerce JSON / dict / None to a dict with consistent keys."""
@@ -64,6 +87,10 @@ def _norm_filters(filters):
         "store":         filters.get("store")      or None,
         "from_date":     filters.get("from_date")  or None,
         "to_date":       filters.get("to_date")    or None,
+        # New tri-state classification filter (preferred).
+        # 'kind' may be one of: '', 'IMEI', 'Barcode', 'Others'.
+        "kind":          (filters.get("kind") or "").strip(),
+        # Legacy binary inputs — still accepted for backwards compatibility.
         "imei_only":     cint(filters.get("imei_only")     or 0),
         "non_imei_only": cint(filters.get("non_imei_only") or 0),
         "status_bucket": filters.get("status_bucket") or None,
@@ -126,10 +153,19 @@ def _build_where(f, alias_lc="lc", alias_sn="sn"):
         where.append(f"({alias_lc}.purchase_date <= %(to_date)s OR {alias_lc}.modified <= %(to_date)s)")
         params["to_date"] = f["to_date"]
 
-    if f.get("imei_only"):
-        where.append(f"IFNULL({alias_sn}.ch_is_imei, 0) = 1")
+    # ── Serial-kind tri-state filter ─────────────────────────────────────
+    # Preferred input: f['kind'] in ('IMEI', 'Barcode', 'Others').
+    # Legacy inputs imei_only / non_imei_only still honoured:
+    #   imei_only=1     → kind = IMEI
+    #   non_imei_only=1 → kind IN (Barcode, Others)
+    kind = (f.get("kind") or "").strip()
+    if kind in SERIAL_KIND_VALUES:
+        where.append(f"{SERIAL_KIND_EXPR} = %(serial_kind)s")
+        params["serial_kind"] = kind
+    elif f.get("imei_only"):
+        where.append(f"{SERIAL_KIND_EXPR} = 'IMEI'")
     elif f.get("non_imei_only"):
-        where.append(f"IFNULL({alias_sn}.ch_is_imei, 0) = 0")
+        where.append(f"{SERIAL_KIND_EXPR} IN ('Barcode', 'Others')")
 
     if f.get("status_bucket"):
         statuses = STATUS_BUCKETS.get(f["status_bucket"], [])
@@ -277,22 +313,33 @@ def get_imei_tracker_data(filters=None):
     """
     mtd_sold = cint(frappe.db.sql(mtd_sold_sql, mtd_params, as_dict=True)[0].cnt)
 
-    # IMEI vs Non-IMEI counts (without the imei_only/non_imei_only filter)
-    f_no_imei = dict(f)
-    f_no_imei.pop("imei_only", None)
-    f_no_imei.pop("non_imei_only", None)
-    where_no_imei, params_no_imei = _build_where(f_no_imei)
-    imei_split = frappe.db.sql(
-        f"SELECT IFNULL(sn.ch_is_imei,0) AS is_imei, COUNT(*) AS cnt "
-        f"{_join_clause()} WHERE {where_no_imei} GROUP BY IFNULL(sn.ch_is_imei,0)",
-        params_no_imei, as_dict=True,
+    # Serial-kind split (tri-state, without the kind filter applied)
+    f_no_kind = dict(f)
+    f_no_kind.pop("kind", None)
+    f_no_kind.pop("imei_only", None)
+    f_no_kind.pop("non_imei_only", None)
+    where_no_kind, params_no_kind = _build_where(f_no_kind)
+    kind_split = frappe.db.sql(
+        f"SELECT {SERIAL_KIND_EXPR} AS serial_kind, COUNT(*) AS cnt "
+        f"{_join_clause()} WHERE {where_no_kind} GROUP BY {SERIAL_KIND_EXPR}",
+        params_no_kind, as_dict=True,
     )
-    real_imei_count = sum(cint(r.cnt) for r in imei_split if cint(r.is_imei) == 1)
-    non_imei_count = sum(cint(r.cnt) for r in imei_split if cint(r.is_imei) == 0)
+    kind_counts = {"IMEI": 0, "Barcode": 0, "Others": 0}
+    for r in kind_split:
+        k = (r.serial_kind or "").strip()
+        if k in kind_counts:
+            kind_counts[k] += cint(r.cnt)
+        else:
+            # Defensive: any unexpected legacy value rolls into Barcode bucket
+            kind_counts["Barcode"] += cint(r.cnt)
+    real_imei_count = kind_counts["IMEI"]
+    non_imei_count = kind_counts["Barcode"] + kind_counts["Others"]
 
     kpis = [
         {"key": "total",        "label": "Total Serials",   "value": total,                             "color": "#6366f1"},
-        {"key": "real_imei",    "label": "Real IMEI",       "value": real_imei_count,                   "color": "#0891b2"},
+        {"key": "real_imei",    "label": "IMEI",            "value": kind_counts["IMEI"],               "color": "#0891b2"},
+        {"key": "barcode",      "label": "Barcode",         "value": kind_counts["Barcode"],            "color": "#64748b"},
+        {"key": "others",       "label": "Others",          "value": kind_counts["Others"],             "color": "#a16207"},
         {"key": "non_imei",     "label": "Non-IMEI",        "value": non_imei_count,                    "color": "#94a3b8"},
         {"key": "in_stock",     "label": "In Stock",        "value": bucket_counts["in_stock"],         "color": "#10b981"},
         {"key": "sold_mtd",     "label": "Sold MTD",        "value": mtd_sold,                          "color": "#3b82f6"},
@@ -316,6 +363,7 @@ def get_imei_tracker_data(filters=None):
             lc.imei_number,
             lc.imei_number_2,
             IFNULL(sn.ch_is_imei, 0) AS is_imei,
+            {SERIAL_KIND_EXPR} AS serial_kind,
             lc.item_code,
             itm.item_name,
             itm.brand,
@@ -525,7 +573,7 @@ def export_imei_data(filters=None, file_format="csv"):
     sql = f"""
         SELECT
             lc.serial_no                       AS Serial,
-            CASE WHEN IFNULL(sn.ch_is_imei,0)=1 THEN 'IMEI' ELSE 'Barcode' END AS Type,
+            {SERIAL_KIND_EXPR}                 AS Type,
             lc.imei_number                     AS IMEI_1,
             lc.imei_number_2                   AS IMEI_2,
             lc.item_code                       AS Item_Code,
@@ -643,56 +691,91 @@ def bulk_update_status(serial_nos, new_status, remarks=""):
 
 @frappe.whitelist()
 def backfill_is_imei_flag():
-    """One-shot backfill: stamp Serial No.ch_is_imei based on existing data.
+    """Recompute Serial No.ch_serial_kind, Serial No.ch_is_imei, and
+    CH Serial Lifecycle.ch_serial_kind from the authoritative
+    Item.ch_serial_kind classification.
 
-    Heuristic priority:
-      1. If serial appears in any Buyback Order / Assessment as imei_serial → IMEI
-      2. If serial is 15-digit numeric → IMEI
-      3. If serial appears in CH Serial Lifecycle.imei_number / imei_number_2 → IMEI
-      4. Otherwise → Non-IMEI (0)
+    Order of operations (idempotent, safe to re-run):
+      1. Promote Item.ch_serial_kind → Serial No.ch_serial_kind when blank.
+      2. Heuristic backfill for Serial No rows whose item kind is also blank:
+         15-digit-numeric serial OR lifecycle has IMEI numbers OR appears in
+         Buyback Order → IMEI; otherwise leave as is (admins must classify).
+      3. Re-derive Serial No.ch_is_imei as a boolean compatibility flag
+         (= 1 only when ch_serial_kind = 'IMEI').
+      4. Mirror Serial No.ch_serial_kind onto CH Serial Lifecycle.ch_serial_kind.
 
-    Idempotent. Safe to re-run.
+    Returns kind + boolean counts so the operator can sanity-check.
     """
-    # Reset all to 0 first (only where currently NULL to avoid overriding manual edits)
-    frappe.db.sql(
-        "UPDATE `tabSerial No` SET ch_is_imei = 0 WHERE ch_is_imei IS NULL"
-    )
-
-    # Mark IMEIs from CH Serial Lifecycle
+    # 1) Promote Item kind onto Serial No where missing
     frappe.db.sql(
         """
         UPDATE `tabSerial No` sn
-        INNER JOIN `tabCH Serial Lifecycle` lc ON lc.serial_no = sn.name
-        SET sn.ch_is_imei = 1
-        WHERE (lc.imei_number IS NOT NULL AND lc.imei_number != '')
-           OR (lc.imei_number_2 IS NOT NULL AND lc.imei_number_2 != '')
+          JOIN `tabItem` i ON i.name = sn.item_code
+           SET sn.ch_serial_kind = i.ch_serial_kind
+         WHERE (sn.ch_serial_kind IS NULL OR sn.ch_serial_kind = '')
+           AND i.ch_serial_kind IN ('IMEI', 'Barcode', 'Others')
         """
     )
 
-    # Mark IMEIs that match the 15-digit numeric pattern
+    # 2) Heuristic IMEI detection for still-blank rows
     frappe.db.sql(
         """
-        UPDATE `tabSerial No`
-        SET ch_is_imei = 1
-        WHERE LENGTH(name) = 15 AND name REGEXP '^[0-9]{15}$'
+        UPDATE `tabSerial No` sn
+          LEFT JOIN `tabCH Serial Lifecycle` lc ON lc.serial_no = sn.name
+           SET sn.ch_serial_kind = 'IMEI'
+         WHERE (sn.ch_serial_kind IS NULL OR sn.ch_serial_kind = '')
+           AND (
+                (LENGTH(sn.name) = 15 AND sn.name REGEXP '^[0-9]{15}$')
+             OR (lc.imei_number   IS NOT NULL AND lc.imei_number   <> '')
+             OR (lc.imei_number_2 IS NOT NULL AND lc.imei_number_2 <> '')
+           )
         """
     )
 
-    # Mark IMEIs that appear in Buyback Order
     if frappe.db.table_exists("Buyback Order"):
         frappe.db.sql(
             """
             UPDATE `tabSerial No` sn
-            INNER JOIN `tabBuyback Order` bo ON bo.imei_serial = sn.name
-            SET sn.ch_is_imei = 1
+              JOIN `tabBuyback Order` bo ON bo.imei_serial = sn.name
+               SET sn.ch_serial_kind = 'IMEI'
+             WHERE (sn.ch_serial_kind IS NULL OR sn.ch_serial_kind = '')
             """
         )
 
-    frappe.db.commit()
+    # 3) Re-derive boolean compatibility flag
+    frappe.db.sql(
+        """
+        UPDATE `tabSerial No`
+           SET ch_is_imei = CASE WHEN ch_serial_kind = 'IMEI' THEN 1 ELSE 0 END
+         WHERE IFNULL(ch_is_imei, -1) <>
+               CASE WHEN ch_serial_kind = 'IMEI' THEN 1 ELSE 0 END
+        """
+    )
 
-    counts = frappe.db.sql(
+    # 4) Mirror onto CH Serial Lifecycle
+    if frappe.db.has_column("CH Serial Lifecycle", "ch_serial_kind"):
+        frappe.db.sql(
+            """
+            UPDATE `tabCH Serial Lifecycle` lc
+              JOIN `tabSerial No` sn ON sn.name = lc.serial_no
+               SET lc.ch_serial_kind = sn.ch_serial_kind
+             WHERE sn.ch_serial_kind IN ('IMEI', 'Barcode', 'Others')
+               AND (lc.ch_serial_kind IS NULL
+                    OR lc.ch_serial_kind = ''
+                    OR lc.ch_serial_kind <> sn.ch_serial_kind)
+            """
+        )
+
+    frappe.db.commit()  # noqa: SQL003 — maintenance utility
+
+    kind_counts = frappe.db.sql(
+        "SELECT IFNULL(ch_serial_kind,'') AS kind, COUNT(*) AS cnt "
+        "FROM `tabSerial No` GROUP BY IFNULL(ch_serial_kind,'')",
+        as_dict=True,
+    )
+    bool_counts = frappe.db.sql(
         "SELECT IFNULL(ch_is_imei,0) AS is_imei, COUNT(*) AS cnt "
         "FROM `tabSerial No` GROUP BY IFNULL(ch_is_imei,0)",
         as_dict=True,
     )
-    return {"counts": counts}
+    return {"kind_counts": kind_counts, "bool_counts": bool_counts}

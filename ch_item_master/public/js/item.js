@@ -397,6 +397,7 @@ function _prompt_serial_kind(frm) {
                     <ul style="font-size:13px;line-height:1.6">
                         <li><b>IMEI</b> &mdash; ${__('Real 15-digit manufacturer IMEIs scanned/entered at GRN (mobile phones, cellular watches).')}</li>
                         <li><b>Barcode</b> &mdash; ${__('System-generated barcode serials (accessories, non-cellular devices, peripherals).')}</li>
+                        <li><b>Others</b> &mdash; ${__('Externally supplied serials that are neither real IMEIs nor system-generated barcodes (vendor part serials, refurbished pool, special-handling SKUs).')}</li>
                     </ul>
                 `,
             },
@@ -404,15 +405,15 @@ function _prompt_serial_kind(frm) {
                 fieldname: 'ch_serial_kind',
                 label: __('Serial Number Kind'),
                 fieldtype: 'Select',
-                options: '\nIMEI\nBarcode',
+                options: '\nIMEI\nBarcode\nOthers',
                 default: suggested,
                 reqd: 1,
             },
         ],
         primary_action_label: __('Apply & Save'),
         primary_action(values) {
-            if (!values.ch_serial_kind) {
-                frappe.msgprint(__('Please select IMEI or Barcode.'));
+            if (!['IMEI', 'Barcode', 'Others'].includes(values.ch_serial_kind)) {
+                frappe.msgprint(__('Please select IMEI, Barcode, or Others.'));
                 return;
             }
             frm.__serial_kind_dialog_open = false;

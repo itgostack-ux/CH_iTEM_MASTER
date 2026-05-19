@@ -21,15 +21,18 @@ from frappe.utils import nowdate, now_datetime
 def on_submit(doc, method):
 	"""Create Serial No and CH Serial Lifecycle records from IMEI Tracking rows.
 
-	Also stamps `ch_is_imei` on every Serial No created/touched by this PR:
-	  * Real IMEIs from `custom_track` table  → ch_is_imei = 1
-	  * PR Item.serial_no with custom_imei="Yes" → ch_is_imei = 1
-	  * Auto-generated barcode serials (custom_imei="No") → ch_is_imei = 0
-	"""
-	# Stamp ch_is_imei on every serial referenced by this PR's items.
-	# This covers both auto-generated barcodes and manually-entered IMEIs.
-	_stamp_imei_flag_on_pr_serials(doc)
+	Stamping of `Serial No.ch_is_imei` for items where the IMEI came in via
+	PR Item.serial_no text is now owned by
+	`ch_erp15.ch_erp15.custom.purchase_receipt.CustomPurchaseReceipt.on_submit`,
+	which derives the flag from `Item.ch_serial_kind` (SAP Serial Number Profile
+	equivalent). Having two writers using different source fields was a silent
+	last-writer-wins bug that downgraded real IMEIs to barcodes; that path has
+	been removed.
 
+	This hook still handles the `custom_track` (IMEI Tracking) child-table flow
+	which is the side-channel used when IMEIs are entered separately from the
+	line-item serial_no text. Those are unambiguously real IMEIs.
+	"""
 	if not doc.get("custom_track"):
 		return
 
@@ -88,6 +91,7 @@ def on_submit(doc, method):
 				lc.serial_no = serial_no
 				lc.imei_number = imei
 				lc.item_code = item_code
+				lc.ch_serial_kind = "IMEI"
 				lc.lifecycle_status = "Received"
 				lc.current_company = doc.company
 				lc.current_warehouse = doc.set_warehouse or (
@@ -118,8 +122,13 @@ def on_submit(doc, method):
 
 		# Update the IMEI Tracking row with serial_no reference
 		row.db_set("serial_no", serial_no, update_modified=False)
-		# Real IMEI from custom_track table → flag explicitly
-		frappe.db.set_value("Serial No", serial_no, "ch_is_imei", 1, update_modified=False)
+		# Real IMEI from custom_track table → stamp authoritative kind + legacy flag
+		frappe.db.set_value(
+			"Serial No",
+			serial_no,
+			{"ch_serial_kind": "IMEI", "ch_is_imei": 1},
+			update_modified=False,
+		)
 		created_serials.append(serial_no)
 
 	if created_serials:
@@ -174,24 +183,10 @@ def _get_item_rate(doc, item_code):
 	return 0
 
 
-def _stamp_imei_flag_on_pr_serials(doc):
-	"""Set Serial No.ch_is_imei based on parent PR Item's custom_imei flag.
-
-	custom_imei is a Select on PR Item:
-	  - "Yes"     → real IMEI manually entered     → ch_is_imei = 1
-	  - "No"/None → auto-generated barcode serial  → ch_is_imei = 0
-	"""
-	for item in doc.items:
-		serial_blob = (item.serial_no or "").strip()
-		if not serial_blob:
-			continue
-		is_imei = 1 if (item.get("custom_imei") or "No") == "Yes" else 0
-		serials = [s.strip() for s in serial_blob.split("\n") if s.strip()]
-		if not serials:
-			continue
-		# Bulk update in one query for performance
-		placeholders = ", ".join(["%s"] * len(serials))
-		frappe.db.sql(
-			f"UPDATE `tabSerial No` SET ch_is_imei=%s WHERE name IN ({placeholders})",
-			[is_imei] + serials,
-		)
+# NOTE: _stamp_imei_flag_on_pr_serials() removed in v3 unify-serial-kind.
+# The PR Item.custom_imei (Yes/No) field was an unreliable source — it was
+# only set by IMEI tracker import flows, not by the standard Generate button.
+# Reading it caused real IMEIs to be silently downgraded to ch_is_imei=0
+# when the field defaulted to "No". Stamping is now performed exclusively
+# by CustomPurchaseReceipt.on_submit using Item.ch_serial_kind as the
+# single source of truth.
