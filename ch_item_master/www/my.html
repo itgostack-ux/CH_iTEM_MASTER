@@ -1,0 +1,363 @@
+{% extends "templates/web.html" %}
+
+{% block page_content %}
+<div class="portal-page">
+  <section class="portal-hero">
+    <div>
+      <p class="portal-eyebrow">Customer Self-Service</p>
+      <h1>Your purchases, loyalty, buyback quotes, and store credit in one place.</h1>
+      <p class="portal-subtitle">This page sits on top of the existing Customer 360, loyalty, buyback, and voucher data. Sign in with the same WhatsApp OTP flow already used at the POS.</p>
+    </div>
+    <div class="portal-stamp">
+      <span>OTP sign-in</span>
+      <strong>No new login system</strong>
+      <small>Reuses the current WhatsApp delivery and OTP verification service.</small>
+    </div>
+  </section>
+
+  <section id="login-card" class="portal-card">
+    <h2>Sign in with your mobile number</h2>
+    <div class="portal-grid two">
+      <div>
+        <label>Mobile number</label>
+        <input id="login-mobile" class="form-control" type="text" placeholder="10-digit mobile number" value="{{ mobile_no }}">
+      </div>
+      <div>
+        <label>Email (optional fallback)</label>
+        <input id="login-email" class="form-control" type="email" placeholder="Email for OTP fallback">
+      </div>
+    </div>
+    <div class="portal-actions">
+      <button class="btn btn-primary" onclick="requestOtp()">Send OTP</button>
+    </div>
+    <div id="otp-row" class="portal-grid two hidden">
+      <div>
+        <label>OTP</label>
+        <input id="login-otp" class="form-control" type="text" maxlength="6" placeholder="Enter OTP">
+      </div>
+      <div class="portal-align-end">
+        <button class="btn btn-dark" onclick="verifyOtp()">Verify and open dashboard</button>
+      </div>
+    </div>
+    <div id="login-feedback" class="portal-feedback"></div>
+  </section>
+
+  <section id="dashboard" class="hidden">
+    <div class="portal-grid split">
+      <div class="portal-card accent">
+        <p class="portal-label">Customer</p>
+        <h2 id="customer-name">-</h2>
+        <div id="customer-meta" class="portal-meta"></div>
+        <div class="portal-actions compact">
+          <button class="btn btn-outline-secondary btn-sm" onclick="logoutPortal()">Sign out</button>
+        </div>
+      </div>
+      <div class="portal-card highlight">
+        <p class="portal-label">Loyalty</p>
+        <h2 id="loyalty-points">0 pts</h2>
+        <div id="loyalty-meta" class="portal-meta"></div>
+      </div>
+      <div class="portal-card highlight">
+        <p class="portal-label">Store Credit</p>
+        <h2 id="wallet-balance">INR 0</h2>
+        <div id="wallet-meta" class="portal-meta"></div>
+      </div>
+    </div>
+
+    <div class="portal-grid triple">
+      <div class="portal-card">
+        <h3>Recent purchases</h3>
+        <div id="recent-purchases" class="portal-list"></div>
+      </div>
+      <div class="portal-card">
+        <h3>Buyback activity</h3>
+        <div id="buyback-activity" class="portal-list"></div>
+      </div>
+      <div class="portal-card">
+        <h3>Service requests</h3>
+        <div id="service-requests" class="portal-list"></div>
+      </div>
+    </div>
+
+    <div class="portal-grid two">
+      <div class="portal-card">
+        <h3>Vouchers</h3>
+        <div id="vouchers" class="portal-list"></div>
+      </div>
+      <div class="portal-card">
+        <div class="portal-header-row">
+          <h3>Nearby buyback stores</h3>
+          <button class="btn btn-link btn-sm" onclick="refreshStores()">Refresh</button>
+        </div>
+        <div id="stores" class="portal-list"></div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<style>
+  .portal-page {
+    --ink: #152238;
+    --berry: #b42358;
+    --berry-soft: #fde7ef;
+    --gold: #f59e0b;
+    --mist: #f7f4ef;
+    --line: #eadfd2;
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 32px 16px 56px;
+    color: var(--ink);
+  }
+  .portal-hero {
+    display: grid;
+    grid-template-columns: 1.5fr 0.8fr;
+    gap: 24px;
+    margin-bottom: 24px;
+    align-items: stretch;
+  }
+  .portal-hero h1 {
+    font-size: clamp(2rem, 5vw, 3.7rem);
+    line-height: 1;
+    margin: 0 0 14px;
+    letter-spacing: -0.04em;
+  }
+  .portal-eyebrow {
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--berry);
+    margin-bottom: 12px;
+  }
+  .portal-subtitle {
+    max-width: 700px;
+    color: #4b5563;
+    font-size: 1.05rem;
+  }
+  .portal-stamp,
+  .portal-card {
+    border: 1px solid var(--line);
+    border-radius: 24px;
+    background: #fff;
+    padding: 24px;
+    box-shadow: 0 20px 40px rgba(21, 34, 56, 0.07);
+  }
+  .portal-stamp {
+    background: linear-gradient(180deg, #fff7ef, #fff);
+    display: grid;
+    gap: 8px;
+    align-content: center;
+  }
+  .portal-stamp strong {
+    font-size: 1.5rem;
+  }
+  .portal-grid {
+    display: grid;
+    gap: 18px;
+  }
+  .portal-grid.two {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .portal-grid.split {
+    grid-template-columns: 1.2fr 1fr 1fr;
+    margin-bottom: 18px;
+  }
+  .portal-grid.triple {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    margin-bottom: 18px;
+  }
+  .portal-card.accent {
+    background: linear-gradient(160deg, #fff, #fdf1f7);
+  }
+  .portal-card.highlight {
+    background: linear-gradient(160deg, #fffef8, #fff6db);
+  }
+  .portal-label {
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-size: 12px;
+    font-weight: 700;
+    color: #6b7280;
+    margin-bottom: 8px;
+  }
+  .portal-meta {
+    color: #4b5563;
+    display: grid;
+    gap: 6px;
+  }
+  .portal-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 16px;
+  }
+  .portal-actions.compact {
+    margin-top: 18px;
+  }
+  .portal-align-end {
+    display: flex;
+    align-items: end;
+  }
+  .portal-header-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: center;
+  }
+  .portal-list {
+    display: grid;
+    gap: 12px;
+  }
+  .portal-list-item {
+    border-radius: 16px;
+    border: 1px solid var(--line);
+    background: var(--mist);
+    padding: 14px 16px;
+  }
+  .portal-list-item strong {
+    display: block;
+  }
+  .portal-feedback {
+    margin-top: 16px;
+    border-radius: 16px;
+    padding: 14px 16px;
+    background: var(--mist);
+    border: 1px solid var(--line);
+  }
+  .hidden {
+    display: none;
+  }
+  @media (max-width: 960px) {
+    .portal-hero,
+    .portal-grid.split,
+    .portal-grid.triple,
+    .portal-grid.two {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+
+<script>
+  const storageKey = 'chCustomerPortalToken';
+  let dashboardState = null;
+
+  function portalApi(method, args) {
+    return new Promise((resolve, reject) => {
+      frappe.call({
+        method,
+        args,
+        callback: (r) => resolve(r.message || r),
+        error: reject
+      });
+    });
+  }
+
+  function asCurrency(value) {
+    return 'INR ' + frappe.format(value || 0, { fieldtype: 'Currency' });
+  }
+
+  function showFeedback(message, isError) {
+    const box = document.getElementById('login-feedback');
+    box.textContent = message;
+    box.style.background = isError ? '#fff1f2' : '#f0fdf4';
+    box.style.borderColor = isError ? '#fecdd3' : '#bbf7d0';
+    box.style.color = isError ? '#9f1239' : '#166534';
+  }
+
+  async function requestOtp() {
+    const mobile_no = document.getElementById('login-mobile').value;
+    const email_id = document.getElementById('login-email').value;
+    await portalApi('ch_item_master.ch_customer_master.customer_portal_api.request_login_otp', { mobile_no, email_id });
+    document.getElementById('otp-row').classList.remove('hidden');
+    showFeedback('OTP sent. Enter the code from WhatsApp or email fallback.', false);
+  }
+
+  async function verifyOtp() {
+    try {
+      const mobile_no = document.getElementById('login-mobile').value;
+      const otp_code = document.getElementById('login-otp').value;
+      const result = await portalApi('ch_item_master.ch_customer_master.customer_portal_api.verify_login_otp', { mobile_no, otp_code });
+      if (!result.valid) {
+        showFeedback(result.message || 'OTP verification failed.', true);
+        return;
+      }
+      localStorage.setItem(storageKey, result.session_token);
+      await loadDashboard();
+      showFeedback('Signed in successfully.', false);
+    } catch (error) {
+      showFeedback(error?.message || 'Could not verify OTP.', true);
+    }
+  }
+
+  function renderList(targetId, rows, renderer, emptyMessage) {
+    const target = document.getElementById(targetId);
+    if (!rows || !rows.length) {
+      target.innerHTML = `<div class="portal-list-item">${emptyMessage}</div>`;
+      return;
+    }
+    target.innerHTML = rows.map(renderer).join('');
+  }
+
+  function renderDashboard(data) {
+    dashboardState = data;
+    document.getElementById('login-card').classList.add('hidden');
+    document.getElementById('dashboard').classList.remove('hidden');
+
+    document.getElementById('customer-name').textContent = data.profile.customer_name || 'Guest Customer';
+    document.getElementById('customer-meta').innerHTML = `${frappe.utils.escape_html(data.mobile_no || '')}<br>${frappe.utils.escape_html(data.profile.email_id || 'No email on file')}<br>${frappe.utils.escape_html(data.profile.city || 'City not set')}`;
+    document.getElementById('loyalty-points').textContent = `${data.loyalty.points || 0} pts`;
+    document.getElementById('loyalty-meta').innerHTML = `${frappe.utils.escape_html(data.loyalty.tier_name || 'No tier')}<br>${frappe.utils.escape_html(data.loyalty.loyalty_program || 'No loyalty program')}<br>Value: ${asCurrency(data.loyalty.currency_value || 0)}`;
+    document.getElementById('wallet-balance').textContent = asCurrency(data.wallet.current_balance || 0);
+    document.getElementById('wallet-meta').innerHTML = `Last voucher: ${frappe.utils.escape_html(data.wallet.last_voucher || 'None')}`;
+
+    renderList('recent-purchases', data.recent_purchases, (row) => `<div class="portal-list-item"><strong>${frappe.utils.escape_html(row.name)}</strong><span>${frappe.utils.escape_html(row.posting_date || '')}</span><br>${asCurrency(row.grand_total || 0)} · ${frappe.utils.escape_html(row.status || '')}</div>`, 'No purchases found.');
+
+    const buybackRows = [...(data.buyback_assessments || []), ...(data.buyback_orders || [])].slice(0, 8);
+    renderList('buyback-activity', buybackRows, (row) => `<div class="portal-list-item"><strong>${frappe.utils.escape_html(row.name)}</strong><span>${frappe.utils.escape_html(row.status || row.workflow_state || '')}</span><br>${frappe.utils.escape_html(row.item_name || row.item || '')}</div>`, 'No buyback activity yet.');
+
+    renderList('service-requests', data.service_requests, (row) => `<div class="portal-list-item"><strong>${frappe.utils.escape_html(row.name)}</strong><span>${frappe.utils.escape_html(row.status || '')}</span><br>${frappe.utils.escape_html(row.device_item_name || '')}</div>`, 'No service requests found.');
+
+    renderList('vouchers', data.vouchers, (row) => `<div class="portal-list-item"><strong>${frappe.utils.escape_html(row.voucher_code || row.name)}</strong><span>${frappe.utils.escape_html(row.voucher_type || '')}</span><br>Balance: ${asCurrency(row.balance || 0)}${row.valid_upto ? '<br>Valid until: ' + frappe.utils.escape_html(row.valid_upto) : ''}</div>`, 'No vouchers available.');
+
+    renderList('stores', data.stores, (row) => `<div class="portal-list-item"><strong>${frappe.utils.escape_html(row.store_name || row.name)}</strong><span>${frappe.utils.escape_html(row.city || '')}${row.state ? ', ' + frappe.utils.escape_html(row.state) : ''}</span><br>${frappe.utils.escape_html(row.contact_phone || 'Phone not available')}</div>`, 'No nearby stores were found.');
+  }
+
+  async function loadDashboard() {
+    const session_token = localStorage.getItem(storageKey);
+    if (!session_token) {
+      document.getElementById('login-card').classList.remove('hidden');
+      document.getElementById('dashboard').classList.add('hidden');
+      return;
+    }
+    const data = await portalApi('ch_item_master.ch_customer_master.customer_portal_api.get_dashboard', { session_token });
+    renderDashboard(data);
+  }
+
+  async function refreshStores() {
+    if (!dashboardState) {
+      return;
+    }
+    const stores = await portalApi('ch_item_master.ch_customer_master.customer_portal_api.get_store_locator', {
+      city: dashboardState.profile.city,
+      capability: 'buyback',
+      limit: 6
+    });
+    dashboardState.stores = stores;
+    renderList('stores', stores, (row) => `<div class="portal-list-item"><strong>${frappe.utils.escape_html(row.store_name || row.name)}</strong><span>${frappe.utils.escape_html(row.city || '')}${row.state ? ', ' + frappe.utils.escape_html(row.state) : ''}</span><br>${frappe.utils.escape_html(row.contact_phone || 'Phone not available')}</div>`, 'No nearby stores were found.');
+  }
+
+  function logoutPortal() {
+    localStorage.removeItem(storageKey);
+    dashboardState = null;
+    document.getElementById('dashboard').classList.add('hidden');
+    document.getElementById('login-card').classList.remove('hidden');
+    showFeedback('Signed out.', false);
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    loadDashboard().catch((error) => {
+      localStorage.removeItem(storageKey);
+      showFeedback(error?.message || 'Please sign in again.', true);
+    });
+  });
+</script>
+{% endblock %}
