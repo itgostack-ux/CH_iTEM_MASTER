@@ -379,21 +379,6 @@ class CHWarrantyClaim(Document):
 
 		self.db_set(update_fields)
 
-		# Record warranty claim usage on the sold plan
-		if self.sold_plan:
-			try:
-				from ch_item_master.ch_item_master.warranty_api import record_warranty_claim
-				record_warranty_claim(
-					serial_no=self.serial_no,
-					service_reference=self.name,
-					company=self.company,
-				)
-			except Exception as e:
-				frappe.log_error(
-					f"Failed to record warranty claim for {self.name}: {e}",
-					"Warranty Claim - Record Claim Error",
-				)
-
 		self._log("Repair Complete", old, "Repair Complete",
 		          remarks or ("Device returned from manufacturer" if old == "Sent to Manufacturer"
 		                      else "Repair completed by GoFix"))
