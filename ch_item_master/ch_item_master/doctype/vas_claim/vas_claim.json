@@ -1,0 +1,28 @@
+{
+ "name": "VAS Claim",
+ "module": "CH Item Master",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "engine": "InnoDB",
+ "autoname": "format:VAS-CLM-{#####}",
+ "naming_rule": "Expression",
+ "track_changes": 1,
+ "fields": [
+  {"fieldname": "claim_date", "fieldtype": "Date", "label": "Claim Date", "default": "Today", "reqd": 1, "in_list_view": 1},
+  {"fieldname": "customer", "fieldtype": "Link", "label": "Customer", "options": "Customer", "in_list_view": 1},
+  {"fieldname": "sales_invoice", "fieldtype": "Link", "label": "Sales Invoice", "options": "Sales Invoice"},
+  {"fieldname": "column_break_1", "fieldtype": "Column Break"},
+  {"fieldname": "vas_plan", "fieldtype": "Link", "label": "VAS Plan", "options": "VAS Plan"},
+  {"fieldname": "sold_plan", "fieldtype": "Link", "label": "CH Sold Plan", "options": "CH Sold Plan"},
+  {"fieldname": "source_warranty_claim", "fieldtype": "Link", "label": "Source CH Warranty Claim", "options": "CH Warranty Claim", "reqd": 1, "unique": 1, "in_standard_filter": 1},
+  {"fieldname": "claim_status", "fieldtype": "Select", "label": "Claim Status", "options": "Open\nApproved\nRejected\nClosed", "default": "Open", "in_list_view": 1},
+  {"fieldname": "approved_amount", "fieldtype": "Currency", "label": "Approved Amount"},
+  {"fieldname": "partner_reference", "fieldtype": "Data", "label": "Partner Reference"},
+  {"fieldname": "notes", "fieldtype": "Small Text", "label": "Notes"}
+ ],
+ "permissions": [
+  {"role": "System Manager", "read": 1, "write": 1, "create": 1, "delete": 1},
+  {"role": "CH Warranty Manager", "read": 1, "write": 1, "create": 1},
+  {"role": "POS Manager", "read": 1}
+ ]
+}

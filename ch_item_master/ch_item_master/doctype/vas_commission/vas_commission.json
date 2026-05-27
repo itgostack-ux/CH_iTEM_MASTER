@@ -1,0 +1,135 @@
+{
+ "name": "VAS Commission",
+ "module": "CH Item Master",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "engine": "InnoDB",
+ "naming_rule": "By \"Naming Series\" field",
+ "autoname": "naming_series:",
+ "track_changes": 1,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "fields": [
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "VAS-COM-.YYYY.-",
+   "default": "VAS-COM-.YYYY.-",
+   "hidden": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "posting_date",
+   "fieldtype": "Date",
+   "label": "Posting Date",
+   "default": "Today",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "partner",
+   "fieldtype": "Link",
+   "label": "VAS Partner",
+   "options": "VAS Partner",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "sales_invoice",
+   "fieldtype": "Link",
+   "label": "Sales Invoice",
+   "options": "Sales Invoice",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "sold_plan",
+   "fieldtype": "Link",
+   "label": "CH Sold Plan",
+   "options": "CH Sold Plan"
+  },
+  {
+   "fieldname": "warranty_plan",
+   "fieldtype": "Link",
+   "label": "CH Warranty Plan",
+   "options": "CH Warranty Plan"
+  },
+  {
+   "fieldname": "commission_base_amount",
+   "fieldtype": "Currency",
+   "label": "Commission Base Amount",
+   "reqd": 1
+  },
+  {
+   "fieldname": "commission_rate",
+   "fieldtype": "Percent",
+   "label": "Commission Rate %",
+   "default": "0"
+  },
+  {
+   "fieldname": "commission_amount",
+   "fieldtype": "Currency",
+   "label": "Commission Amount",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "settlement_status",
+   "fieldtype": "Select",
+   "label": "Settlement Status",
+   "options": "Pending\nMatched\nSettled\nDisputed",
+   "default": "Pending",
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "settlement_reference",
+   "fieldtype": "Data",
+   "label": "Settlement Reference"
+  },
+  {
+   "fieldname": "settlement_file",
+   "fieldtype": "Attach",
+   "label": "Settlement File"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes"
+  }
+ ],
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
+  },
+  {
+   "role": "Accounts Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1
+  },
+  {
+   "role": "CH Warranty Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1
+  }
+ ]
+}

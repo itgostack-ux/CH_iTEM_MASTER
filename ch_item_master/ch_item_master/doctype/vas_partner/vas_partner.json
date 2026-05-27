@@ -1,0 +1,111 @@
+{
+ "name": "VAS Partner",
+ "module": "CH Item Master",
+ "doctype": "DocType",
+ "document_type": "Setup",
+ "engine": "InnoDB",
+ "autoname": "field:partner_name",
+ "naming_rule": "By fieldname",
+ "track_changes": 1,
+ "title_field": "partner_name",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "fields": [
+  {
+   "fieldname": "partner_name",
+   "fieldtype": "Data",
+   "label": "Partner Name",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "partner_type",
+   "fieldtype": "Select",
+   "label": "Partner Type",
+   "options": "Insurance\nEMI Provider\nWarranty Provider\nAccessory Partner\nOther",
+   "reqd": 1,
+   "default": "Insurance",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Active\nInactive",
+   "default": "Active",
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "commission_model",
+   "fieldtype": "Select",
+   "label": "Commission Model",
+   "options": "Percentage\nFlat",
+   "default": "Percentage"
+  },
+  {
+   "fieldname": "default_commission_percent",
+   "fieldtype": "Percent",
+   "label": "Default Commission %",
+   "default": "0"
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "contact_person",
+   "fieldtype": "Data",
+   "label": "Contact Person"
+  },
+  {
+   "fieldname": "contact_phone",
+   "fieldtype": "Data",
+   "label": "Contact Phone"
+  },
+  {
+   "fieldname": "contact_email",
+   "fieldtype": "Data",
+   "label": "Contact Email",
+   "options": "Email"
+  },
+  {
+   "fieldname": "settlement_cycle",
+   "fieldtype": "Select",
+   "label": "Settlement Cycle",
+   "options": "Daily\nWeekly\nFortnightly\nMonthly",
+   "default": "Monthly"
+  },
+  {
+   "fieldname": "settlement_reference_prefix",
+   "fieldtype": "Data",
+   "label": "Settlement Reference Prefix"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes"
+  }
+ ],
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1
+  },
+  {
+   "role": "CH Warranty Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1
+  },
+  {
+   "role": "POS Manager",
+   "read": 1
+  }
+ ]
+}
