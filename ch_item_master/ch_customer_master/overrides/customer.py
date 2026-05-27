@@ -45,11 +45,32 @@ def validate(doc, method=None):
 
 
 def _default_tax_category(doc):
-	"""Default tax_category to 'In-State' so the mandatory Property Setter rule
+	"""Default tax_category so the mandatory Property Setter rule
 	(introduced for GST compliance) does not block downstream save flows
-	(POS billing, store-visit logging, etc.) when callers don't set one."""
+	(POS billing, store-visit logging, etc.) when callers don't set one.
+
+	Resolution order (Phase 1 UX Hardening):
+	1. Honour an explicit value already on the doc — never overwrite.
+	2. Fetch the Customer Group's ``custom_default_tax_category`` (the
+	   per-segment default configured by ops, e.g. SEZ for B2B Export
+	   group). This field is shipped by the ch_erp15 patch v6.
+	3. Fall back to the hard-coded ``In-State`` safety net so legacy
+	   data and bare-bones imports still satisfy the GST Property
+	   Setter rule.
+	"""
 	if doc.get("tax_category"):
 		return
+
+	if doc.get("customer_group"):
+		group_default = frappe.db.get_value(
+			"Customer Group",
+			doc.customer_group,
+			"custom_default_tax_category",
+		)
+		if group_default and frappe.db.exists("Tax Category", group_default):
+			doc.tax_category = group_default
+			return
+
 	if frappe.db.exists("Tax Category", "In-State"):
 		doc.tax_category = "In-State"
 
