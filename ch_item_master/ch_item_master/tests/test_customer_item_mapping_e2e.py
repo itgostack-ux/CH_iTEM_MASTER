@@ -1,4 +1,4 @@
-# Copyright (c) 2026, GoStack and contributors
+ # Copyright (c) 2026, GoStack and contributors
 # E2E test: Customer-Item mapping — channels, preferences, loyalty tiers,
 #           purchase history, segment-based pricing.
 #
@@ -138,9 +138,13 @@ def test_customer_device_mapping():
         cd = frappe.new_doc("CH Customer Device")
         cd.customer = customer
         cd.item_code = item
-        cd.serial_no = "IMEI-CM-TEST-001"
+        # Use an existing Serial No if available; don't create a fake one
+        existing_sn = frappe.db.get_value("Serial No", {"item_code": item, "status": "Active"}, "name")
+        if existing_sn:
+            cd.serial_no = existing_sn
         cd.purchase_date = nowdate()
         cd.flags.ignore_mandatory = True
+        cd.flags.ignore_links = True
         cd.insert(ignore_permissions=True)
         frappe.db.commit()
         _ok(flow, "CH Customer Device created", cd.name)
@@ -205,7 +209,7 @@ def test_loyalty_tier():
             lt.company = company
             lt.transaction_date = nowdate()
             lt.points = 100
-            lt.transaction_type = "Earned"
+            lt.transaction_type = "Earn"
             lt.flags.ignore_mandatory = True
             lt.insert(ignore_permissions=True)
             frappe.db.commit()
@@ -322,22 +326,31 @@ def test_segment_pricing():
         _ok(flow, "No price channel available — segment pricing test skipped")
         return
 
-    # 6a. Create segment-specific price
+    # 6a. Create segment-specific price (or reuse existing for same key)
     try:
-        p = frappe.new_doc("CH Item Price")
-        p.item_code = item
-        p.channel = channel
-        p.company = company
-        p.mrp = 1200
-        p.mop = 1100
-        p.selling_price = 1000
-        p.effective_from = nowdate()
-        p.status = "Active"
-        p.flags.ignore_mandatory = True
-        p.insert(ignore_permissions=True)
-        frappe.db.commit()
-        _ok(flow, f"Segment price created for channel={channel}", f"₹{p.selling_price}")
-        _FLOW["segment_price"] = p.name
+        existing_price = frappe.db.get_value(
+            "CH Item Price",
+            {"item_code": item, "channel": channel, "company": company, "status": "Active"},
+            "name",
+        )
+        if existing_price:
+            p = frappe.get_doc("CH Item Price", existing_price)
+            _ok(flow, f"Segment price reused for channel={channel}", f"₹{p.selling_price}")
+        else:
+            p = frappe.new_doc("CH Item Price")
+            p.item_code = item
+            p.channel = channel
+            p.company = company
+            p.mrp = 1200
+            p.mop = 1100
+            p.selling_price = 1000
+            p.effective_from = nowdate()
+            p.status = "Active"
+            p.flags.ignore_mandatory = True
+            p.insert(ignore_permissions=True)
+            frappe.db.commit()
+            _ok(flow, f"Segment price created for channel={channel}", f"₹{p.selling_price}")
+            _FLOW["segment_price"] = p.name
     except Exception as e:
         _fail(flow, "Segment price creation", str(e))
         return
