@@ -427,7 +427,7 @@ CUSTOM_FIELDS = {
 			"fieldname": "ch_serial_kind",
 			"label": _("Serial Number Kind"),
 			"fieldtype": "Select",
-			"options": "\nIMEI\nBarcode\nOthers",
+			"options": "\nIMEI\nBarcode\nUOM",
 			"insert_after": "ch_item_type",
 			"in_standard_filter": 1,
 			"depends_on": "eval:doc.has_serial_no",
@@ -732,14 +732,14 @@ CUSTOM_FIELDS = {
 	#
 	# `ch_is_imei` is a DERIVED compatibility boolean — kept for backward
 	# compatibility with legacy queries / dashboards. Modern code MUST read
-	# `ch_serial_kind` directly to differentiate IMEI vs Barcode vs Others.
+	# `ch_serial_kind` directly to differentiate IMEI vs Barcode vs UOM.
 	# ──────────────────────────────────────────────
 	"Serial No": [
 		{
 			"fieldname": "ch_serial_kind",
 			"label": _("Serial Number Kind"),
 			"fieldtype": "Select",
-			"options": "\nIMEI\nBarcode\nOthers",
+			"options": "\nIMEI\nBarcode\nUOM",
 			"insert_after": "warranty_expiry_date",
 			"in_standard_filter": 1,
 			"in_list_view": 1,
@@ -759,7 +759,7 @@ CUSTOM_FIELDS = {
 			"description": _(
 				"DERIVED compatibility flag. = 1 only when ch_serial_kind = 'IMEI'. "
 				"Modern code should read ch_serial_kind directly to distinguish "
-				"IMEI vs Barcode vs Others."
+				"IMEI vs Barcode vs UOM."
 			),
 		},
 		{

@@ -860,7 +860,7 @@ def validate_serial_kind(doc, method=None):
             doc.ch_serial_kind = None
         return
 
-    if doc.get("ch_serial_kind") in ("IMEI", "Barcode", "Others"):
+    if doc.get("ch_serial_kind") in ("IMEI", "Barcode", "UOM"):
         return
 
     # Variants inherit the Serial Number Profile from their template — SAP
@@ -869,7 +869,7 @@ def validate_serial_kind(doc, method=None):
     # before our before_save copy hook runs, so we self-heal here.
     if doc.get("variant_of"):
         tpl_kind = frappe.db.get_value("Item", doc.variant_of, "ch_serial_kind")
-        if tpl_kind in ("IMEI", "Barcode", "Others"):
+        if tpl_kind in ("IMEI", "Barcode", "UOM"):
             doc.ch_serial_kind = tpl_kind
             return
         # Template itself is misclassified — fall through to throw so the

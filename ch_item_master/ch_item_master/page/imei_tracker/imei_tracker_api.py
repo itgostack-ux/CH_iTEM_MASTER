@@ -58,7 +58,7 @@ BUCKET_LABELS = {
 #   4. Legacy Serial No.ch_is_imei boolean (pre-v5 data — IMEI / Barcode only)
 #
 # Falls back to 'Barcode' so legacy serialised items always classify.
-SERIAL_KIND_VALUES = ("IMEI", "Barcode", "Others")
+SERIAL_KIND_VALUES = ("IMEI", "Barcode", "UOM")
 
 SERIAL_KIND_EXPR = (
     "COALESCE("
@@ -88,7 +88,7 @@ def _norm_filters(filters):
         "from_date":     filters.get("from_date")  or None,
         "to_date":       filters.get("to_date")    or None,
         # New tri-state classification filter (preferred).
-        # 'kind' may be one of: '', 'IMEI', 'Barcode', 'Others'.
+        # 'kind' may be one of: '', 'IMEI', 'Barcode', 'UOM'.
         "kind":          (filters.get("kind") or "").strip(),
         # Legacy binary inputs — still accepted for backwards compatibility.
         "imei_only":     cint(filters.get("imei_only")     or 0),
@@ -154,10 +154,10 @@ def _build_where(f, alias_lc="lc", alias_sn="sn"):
         params["to_date"] = f["to_date"]
 
     # ── Serial-kind tri-state filter ─────────────────────────────────────
-    # Preferred input: f['kind'] in ('IMEI', 'Barcode', 'Others').
+    # Preferred input: f['kind'] in ('IMEI', 'Barcode', 'UOM').
     # Legacy inputs imei_only / non_imei_only still honoured:
     #   imei_only=1     → kind = IMEI
-    #   non_imei_only=1 → kind IN (Barcode, Others)
+    #   non_imei_only=1 → kind IN (Barcode, UOM)
     kind = (f.get("kind") or "").strip()
     if kind in SERIAL_KIND_VALUES:
         where.append(f"{SERIAL_KIND_EXPR} = %(serial_kind)s")
@@ -165,7 +165,7 @@ def _build_where(f, alias_lc="lc", alias_sn="sn"):
     elif f.get("imei_only"):
         where.append(f"{SERIAL_KIND_EXPR} = 'IMEI'")
     elif f.get("non_imei_only"):
-        where.append(f"{SERIAL_KIND_EXPR} IN ('Barcode', 'Others')")
+        where.append(f"{SERIAL_KIND_EXPR} IN ('Barcode', 'UOM')")
 
     if f.get("status_bucket"):
         statuses = STATUS_BUCKETS.get(f["status_bucket"], [])
@@ -324,7 +324,7 @@ def get_imei_tracker_data(filters=None):
         f"{_join_clause()} WHERE {where_no_kind} GROUP BY {SERIAL_KIND_EXPR}",
         params_no_kind, as_dict=True,
     )
-    kind_counts = {"IMEI": 0, "Barcode": 0, "Others": 0}
+    kind_counts = {"IMEI": 0, "Barcode": 0, "UOM": 0}
     for r in kind_split:
         k = (r.serial_kind or "").strip()
         if k in kind_counts:
@@ -333,13 +333,13 @@ def get_imei_tracker_data(filters=None):
             # Defensive: any unexpected legacy value rolls into Barcode bucket
             kind_counts["Barcode"] += cint(r.cnt)
     real_imei_count = kind_counts["IMEI"]
-    non_imei_count = kind_counts["Barcode"] + kind_counts["Others"]
+    non_imei_count = kind_counts["Barcode"] + kind_counts["UOM"]
 
     kpis = [
         {"key": "total",        "label": "Total Serials",   "value": total,                             "color": "#6366f1"},
         {"key": "real_imei",    "label": "IMEI",            "value": kind_counts["IMEI"],               "color": "#0891b2"},
         {"key": "barcode",      "label": "Barcode",         "value": kind_counts["Barcode"],            "color": "#64748b"},
-        {"key": "others",       "label": "Others",          "value": kind_counts["Others"],             "color": "#a16207"},
+        {"key": "uom",          "label": "UOM",             "value": kind_counts["UOM"],                "color": "#a16207"},
         {"key": "non_imei",     "label": "Non-IMEI",        "value": non_imei_count,                    "color": "#94a3b8"},
         {"key": "in_stock",     "label": "In Stock",        "value": bucket_counts["in_stock"],         "color": "#10b981"},
         {"key": "sold_mtd",     "label": "Sold MTD",        "value": mtd_sold,                          "color": "#3b82f6"},
@@ -713,7 +713,7 @@ def backfill_is_imei_flag():
           JOIN `tabItem` i ON i.name = sn.item_code
            SET sn.ch_serial_kind = i.ch_serial_kind
          WHERE (sn.ch_serial_kind IS NULL OR sn.ch_serial_kind = '')
-           AND i.ch_serial_kind IN ('IMEI', 'Barcode', 'Others')
+           AND i.ch_serial_kind IN ('IMEI', 'Barcode', 'UOM')
         """
     )
 
@@ -759,7 +759,7 @@ def backfill_is_imei_flag():
             UPDATE `tabCH Serial Lifecycle` lc
               JOIN `tabSerial No` sn ON sn.name = lc.serial_no
                SET lc.ch_serial_kind = sn.ch_serial_kind
-             WHERE sn.ch_serial_kind IN ('IMEI', 'Barcode', 'Others')
+             WHERE sn.ch_serial_kind IN ('IMEI', 'Barcode', 'UOM')
                AND (lc.ch_serial_kind IS NULL
                     OR lc.ch_serial_kind = ''
                     OR lc.ch_serial_kind <> sn.ch_serial_kind)

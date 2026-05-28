@@ -405,15 +405,15 @@ function _prompt_serial_kind(frm) {
                 fieldname: 'ch_serial_kind',
                 label: __('Serial Number Kind'),
                 fieldtype: 'Select',
-                options: '\nIMEI\nBarcode\nOthers',
+                options: '\nIMEI\nBarcode\nUOM',
                 default: suggested,
                 reqd: 1,
             },
         ],
         primary_action_label: __('Apply & Save'),
         primary_action(values) {
-            if (!['IMEI', 'Barcode', 'Others'].includes(values.ch_serial_kind)) {
-                frappe.msgprint(__('Please select IMEI, Barcode, or Others.'));
+            if (!['IMEI', 'Barcode', 'UOM'].includes(values.ch_serial_kind)) {
+                frappe.msgprint(__('Please select IMEI, Barcode, or UOM.'));
                 return;
             }
             frm.__serial_kind_dialog_open = false;

@@ -35,7 +35,7 @@ ch_item_master.imei_tracker.View = class IMEITrackerView {
 	constructor(page) {
 		this.page = page;
 		// Tri-state serial-kind filter (SAP/Oracle/MS parity):
-		//   'all' | 'IMEI' | 'Barcode' | 'Others'
+		//   'all' | 'IMEI' | 'Barcode' | 'UOM'
 		this.kind_mode = "all";
 		this.active_bucket = null; // null = no filter
 		this.aging_filter = null;
@@ -64,7 +64,7 @@ ch_item_master.imei_tracker.View = class IMEITrackerView {
 						<button type="button" class="btn btn-default active" data-mode="all">${__("All")}</button>
 						<button type="button" class="btn btn-default" data-mode="IMEI">${__("IMEI")}</button>
 						<button type="button" class="btn btn-default" data-mode="Barcode">${__("Barcode")}</button>
-						<button type="button" class="btn btn-default" data-mode="Others">${__("Others")}</button>
+						<button type="button" class="btn btn-default" data-mode="UOM">${__("UOM")}</button>
 					</div>
 					<div class="imei-search-wrap">
 						<input type="text" class="form-control input-sm imei-search"
@@ -127,7 +127,7 @@ ch_item_master.imei_tracker.View = class IMEITrackerView {
 				.imei-table tr:hover { background: #f8fafc; cursor: pointer; }
 				.badge-imei { background:#0891b2; color:#fff; font-size:10px; padding:2px 6px; border-radius:8px; }
 				.badge-barcode { background:#94a3b8; color:#fff; font-size:10px; padding:2px 6px; border-radius:8px; }
-				.badge-others { background:#a16207; color:#fff; font-size:10px; padding:2px 6px; border-radius:8px; }
+				.badge-uom { background:#a16207; color:#fff; font-size:10px; padding:2px 6px; border-radius:8px; }
 				.badge-aging { background:#fee2e2; color:#991b1b; font-size:10px; padding:2px 6px; border-radius:8px; margin-left:4px; }
 				.imei-status { display:inline-block; padding:2px 8px; border-radius:8px; font-size:11px; font-weight:500; }
 				.imei-status.in-stock,.imei-status.received,.imei-status.displayed,.imei-status.refurbished { background:#d1fae5; color:#065f46; }
@@ -205,11 +205,11 @@ ch_item_master.imei_tracker.View = class IMEITrackerView {
 	build_filter_payload() {
 		const f = this.filters.values();
 		// Tri-state classification filter (preferred).
-		f.kind = (["IMEI", "Barcode", "Others"].includes(this.kind_mode))
+		f.kind = (["IMEI", "Barcode", "UOM"].includes(this.kind_mode))
 			? this.kind_mode : "";
 		// Legacy fields — kept for any external callers that still pass them.
 		f.imei_only     = this.kind_mode === "IMEI"     ? 1 : 0;
-		f.non_imei_only = (this.kind_mode === "Barcode" || this.kind_mode === "Others") ? 1 : 0;
+		f.non_imei_only = (this.kind_mode === "Barcode" || this.kind_mode === "UOM") ? 1 : 0;
 		f.status_bucket = this.active_bucket || "";
 		f.aging_bucket  = this.aging_filter  || "";
 		f.search        = this.search_term   || "";
@@ -538,6 +538,6 @@ function b64_to_blob(b64, mime) {
 function _kind_badge(kind) {
 	const k = (kind || "Barcode").toString();
 	if (k === "IMEI")    return '<span class="badge-imei">IMEI</span>';
-	if (k === "Others")  return '<span class="badge-others">Others</span>';
+	if (k === "UOM")  return '<span class="badge-uom">UOM</span>';
 	return '<span class="badge-barcode">Barcode</span>';
 }

@@ -203,11 +203,11 @@ def _create_minimal_lifecycle(sn_doc, warehouse, company):
 		# fall back to Item.ch_serial_kind so externally-imported serials
 		# still resolve a kind.
 		sn_kind = (getattr(sn_doc, "ch_serial_kind", None) or "").strip()
-		if sn_kind not in ("IMEI", "Barcode", "Others") and sn_doc.item_code:
+		if sn_kind not in ("IMEI", "Barcode", "UOM") and sn_doc.item_code:
 			sn_kind = (frappe.db.get_value(
 				"Item", sn_doc.item_code, "ch_serial_kind"
 			) or "").strip()
-		if sn_kind in ("IMEI", "Barcode", "Others"):
+		if sn_kind in ("IMEI", "Barcode", "UOM"):
 			lc.ch_serial_kind = sn_kind
 
 		# Resolve warehouse → CH Store so the IMEI Tracker shows the correct store
