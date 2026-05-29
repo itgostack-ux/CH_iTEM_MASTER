@@ -94,29 +94,44 @@ ch_model._load_spec_value_options = function (frm, cdt, cdn) {
 	let row = frappe.get_doc(cdt, cdn);
 	if (!row || !row.spec) return;
 
+	let gf = frm.cur_grid && frm.cur_grid.grid_form;
+	if (!gf || !gf.fields_dict) return;
+	let field = gf.fields_dict['spec_value'];
+	if (!field) return;
+
+	ch_model._fetch_and_set_values(field, row.spec, '');
+
+	$(field.input).off('input.ch_search');
+	$(field.input).on('input.ch_search', frappe.utils.debounce(function () {
+		let typed = $(this).val() || '';
+		ch_model._fetch_and_set_values(field, row.spec, typed);
+	}, 300));
+};
+
+ch_model._fetch_and_set_values = function (field, spec, txt) {
 	frappe.call({
 		method: 'ch_item_master.ch_item_master.api.get_attribute_values',
-		args: { spec: row.spec },
+		args: {
+			spec: spec,
+			txt: txt
+		},
+		async: true,
 		callback(r) {
 			let values = r.message || [];
-			if (!values.length) return;
 
-			// Apply to the currently open grid-form dialog for this row
-			let gf = frm.cur_grid && frm.cur_grid.grid_form;
-			if (!gf || !gf.fields_dict) return;
-			let field = gf.fields_dict['spec_value'];
-			if (!field) return;
+			let formatted = values.map(v => ({
+				label: v,
+				value: v,
+				description: v
+			}));
 
-			// Store on the docfield so it survives re-renders (set_options()
-			// reads df.options when the field is re-created)
-			field.df.options = values.join('\n');
-
-			// set_data() sets both awesomplete.list AND the internal _data cache.
-			// _data is what get_data() returns on the 'input' event fired by focus.
-			// If only awesomplete.list is set directly, _data stays [] and the
-			// input-event handler overwrites the list with empty on every focus.
 			if (field.set_data) {
-				field.set_data(values);
+				field.set_data(formatted);
+			}
+
+			if (field.awesomplete && formatted.length) {
+				field.awesomplete.list = formatted;
+				field.awesomplete.evaluate();
 			}
 		},
 	});
