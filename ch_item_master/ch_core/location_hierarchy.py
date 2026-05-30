@@ -264,7 +264,8 @@ def get_company_location_tree(company=None, warehouse_view="all"):
 	for warehouse in frappe.get_all(
 		"Warehouse",
 		filters={"disabled": 0, "is_group": 0},
-		fields=["name", "warehouse_name", "company", "ch_city", "ch_zone", "ch_location_type"],
+		fields=["name", "warehouse_name", "company", "ch_city", "ch_zone",
+			"ch_location_type", "ch_store", "ch_bin_type"],
 	):
 		if company and warehouse.company != company:
 			continue
@@ -544,3 +545,105 @@ def delete_store(name):
 	_check_master_permission()
 	frappe.delete_doc("CH Store", name)
 	return True
+
+
+@frappe.whitelist()
+def create_store_bin(store, bin_type, custom_suffix=None):
+	"""Create one additional stock-state bin (Warehouse) attached to a CH Store.
+
+	Used by the Location Hierarchy page's "+ Add Bin" action so retail-ops
+	users can backfill a missing standard bin (e.g. add a Buyback bin to a
+	store that was created before STORE_BIN_TYPES included it).
+
+	Parameters
+	----------
+	store : str
+		Name of the CH Store this bin belongs to.
+	bin_type : str
+		Must be one of the canonical STORE_BIN_TYPES labels (currently:
+		In-Transit, Damaged, Disposed, Reserved, Buyback). "Sellable" is
+		rejected because the store warehouse itself IS the Sellable bin.
+	custom_suffix : str | None
+		Ignored — kept for API stability. The warehouse-name suffix is
+		always taken from the canonical STORE_BIN_TYPES mapping so naming
+		stays consistent with bins created by ``ensure_store_bins``.
+
+	Returns
+	-------
+	dict  { "warehouse": <name>, "bin_type": <label>, "created": bool }
+
+	Notes
+	-----
+	The ``ch_bin_type`` custom field is a Select with a fixed option list.
+	Adding non-standard bin types here would fail validation at insert time
+	and silently break the warehouse — so we constrain to STORE_BIN_TYPES
+	rather than expanding the Select.
+
+	Idempotent: if a Warehouse already exists for (store, bin_type) it is
+	returned with ``created=False``.
+	"""
+	_check_master_permission()
+
+	from ch_item_master.ch_core.doctype.ch_store.ch_store import STORE_BIN_TYPES
+
+	bin_type = (bin_type or "").strip()
+	if not bin_type:
+		frappe.throw("Bin Type is required.")
+	if bin_type.lower() == "sellable":
+		frappe.throw(
+			"The Sellable bin is the store warehouse itself and cannot be "
+			"created as a separate bin."
+		)
+
+	canonical = {label: suffix for label, suffix in STORE_BIN_TYPES}
+	if bin_type not in canonical:
+		allowed = ", ".join(canonical.keys())
+		frappe.throw(
+			f"Bin Type '{bin_type}' is not supported. "
+			f"Allowed values: {allowed}."
+		)
+	suffix = canonical[bin_type]
+
+	st = frappe.db.get_value(
+		"CH Store",
+		store,
+		["name", "store_code", "company", "city", "zone", "warehouse"],
+		as_dict=True,
+	)
+	if not st:
+		frappe.throw(f"CH Store {store} not found.")
+	if not st.warehouse:
+		frappe.throw(
+			f"Store {st.name} has no base warehouse assigned. "
+			"Assign one before adding bins."
+		)
+	if not st.store_code:
+		frappe.throw(f"Store {st.name} is missing a store_code.")
+
+	# Idempotency: one bin per (store, bin_type).
+	existing = frappe.db.exists(
+		"Warehouse",
+		{"company": st.company, "ch_store": st.name, "ch_bin_type": bin_type},
+	)
+	if existing:
+		return {"warehouse": existing, "bin_type": bin_type, "created": False}
+
+	# Bins are siblings of the base warehouse so each can post SLEs directly.
+	parent_warehouse = frappe.db.get_value(
+		"Warehouse", st.warehouse, "parent_warehouse"
+	)
+
+	wh = frappe.new_doc("Warehouse")
+	wh.warehouse_name = f"{st.store_code}-{suffix}"
+	if parent_warehouse:
+		wh.parent_warehouse = parent_warehouse
+	wh.company = st.company
+	wh.is_group = 0
+	wh.ch_city = st.city
+	wh.ch_zone = st.zone
+	wh.ch_store = st.name
+	wh.ch_location_type = "Store Bin"
+	wh.ch_bin_type = bin_type
+	wh.insert(ignore_permissions=True)
+
+	return {"warehouse": wh.name, "bin_type": bin_type, "created": True}

@@ -23,7 +23,11 @@ class LocationHierarchyView {
 	}
 
 	inject_styles() {
-		if (document.getElementById('location-hierarchy-styles')) return;
+		const STYLE_ID = 'location-hierarchy-styles-v2';
+		// Remove old style tag if a previous version is loaded.
+		const old = document.getElementById('location-hierarchy-styles');
+		if (old) old.remove();
+		if (document.getElementById(STYLE_ID)) return;
 		const css = `
 		.location-hierarchy-page { padding: 8px 4px; }
 		.lh-company { border:1px solid var(--border-color); border-radius:8px; margin-bottom:14px; background:var(--card-bg); }
@@ -57,6 +61,13 @@ class LocationHierarchyView {
 		.lh-bins-toggle { cursor:pointer; color:var(--text-muted); font-size:11px; user-select:none;}
 		.lh-bins-toggle:hover { color:var(--primary);}
 		.lh-bins-collapsed .lh-bins-body { display:none;}
+		.lh-bin-store-group { margin:6px 0 8px; padding:6px 10px; border-left:2px solid var(--border-color); background:var(--bg-light-gray); border-radius:0 6px 6px 0;}
+		.lh-bin-store-group.lh-bin-orphan { border-left-color:var(--text-muted); background:transparent;}
+		.lh-bin-store-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; }
+		.lh-bin-store-name { font-size:11px; font-weight:600; color:var(--text-color); text-transform:uppercase; letter-spacing:0.4px;}
+		.lh-bin-count { color:var(--text-muted); font-weight:400; margin-left:4px;}
+		.lh-bin-row { gap:4px; }
+		.lh-bin-row .lh-pill.lh-warehouse-bin .lh-bin-type-tag { font-size:10px; padding:0 5px; border-radius:8px; background:var(--fg-color); border:1px solid var(--border-color); color:var(--text-color); margin-right:4px; text-transform:uppercase; letter-spacing:0.3px;}
 		.lh-actions a { margin-left:6px; font-size:12px; }
 		.lh-empty-state { padding:40px; text-align:center; color:var(--text-muted); }
 		.lh-add-btn { font-size:11px; color:var(--primary); cursor:pointer; }
@@ -64,7 +75,7 @@ class LocationHierarchyView {
 		.lh-row { display:flex; flex-wrap:wrap; align-items:center; gap:4px;}
 		`;
 		const style = document.createElement('style');
-		style.id = 'location-hierarchy-styles';
+		style.id = STYLE_ID;
 		style.innerHTML = css;
 		document.head.appendChild(style);
 	}
@@ -280,22 +291,89 @@ class LocationHierarchyView {
 			}
 		}
 
-		// ── Stock Bins (collapsed by default, only when present) ─────
-		if (buckets.bin.length) {
+		// ── Stock Bins — grouped by their parent CH Store ────────────
+		// Each store gets a sub-block listing its bins + a "+ Add Bin" action.
+		// Bins not linked to any store in this zone fall into an "Unassigned"
+		// sub-block (legacy / mis-stamped data).
+		if (buckets.bin.length || zone.stores.length) {
+			const storeBins = new Map();   // store.name -> [warehouse, ...]
+			const orphanBins = [];
+			const storeNames = new Set((zone.stores || []).map(s => s.name));
+			for (const w of buckets.bin) {
+				if (w.ch_store && storeNames.has(w.ch_store)) {
+					if (!storeBins.has(w.ch_store)) storeBins.set(w.ch_store, []);
+					storeBins.get(w.ch_store).push(w);
+				} else {
+					orphanBins.push(w);
+				}
+			}
+
+			const totalBins = buckets.bin.length;
 			const $bWrap = $(`<div class="lh-section lh-bins-collapsed"></div>`).appendTo($z);
 			const $bHdr = $(`<div class="lh-section-title">
-				<span class="lh-bins-toggle">▸ ${__('Stock Bins')} (${buckets.bin.length})</span>
+				<span class="lh-bins-toggle">▸ ${__('Stock Bins')} (${totalBins})</span>
 			</div>`).appendTo($bWrap);
-			const $bBody = $(`<div class="lh-bins-body lh-row"></div>`).appendTo($bWrap);
+			const $bBody = $(`<div class="lh-bins-body"></div>`).appendTo($bWrap);
 			$bHdr.find('.lh-bins-toggle').on('click', () => {
 				$bWrap.toggleClass('lh-bins-collapsed');
 				$bHdr.find('.lh-bins-toggle').text(
 					($bWrap.hasClass('lh-bins-collapsed') ? '▸ ' : '▾ ')
-					+ __('Stock Bins') + ` (${buckets.bin.length})`
+					+ __('Stock Bins') + ` (${totalBins})`
 				);
 			});
-			for (const w of buckets.bin) {
-				this._draw_warehouse_pill($bBody, w, 'lh-warehouse-bin', company, city, zone);
+
+			const _draw_store_group = (store, bins) => {
+				const $grp = $(`<div class="lh-bin-store-group"></div>`).appendTo($bBody);
+				const storeLabel = frappe.utils.escape_html(
+					(store.store_code ? `${store.store_code} · ` : '') +
+					(store.store_name || store.name)
+				);
+				const $h = $(`<div class="lh-bin-store-header">
+					<span class="lh-bin-store-name">${storeLabel}
+						<span class="lh-bin-count">(${bins.length})</span>
+					</span>
+					<span class="lh-add-btn" data-act="add-bin">+ ${__('Add Bin')}</span>
+				</div>`).appendTo($grp);
+				$h.find('[data-act="add-bin"]').on('click', () => {
+					this.add_bin_dialog(store, company, city, zone);
+				});
+				const $row = $(`<div class="lh-row lh-bin-row"></div>`).appendTo($grp);
+				if (!bins.length) {
+					$row.append(`<span class="text-muted small">${__('No bins yet.')}</span>`);
+				} else {
+					// Sort bins by ch_bin_type for stable ordering.
+					bins.sort((a, b) =>
+						String(a.ch_bin_type || '').localeCompare(String(b.ch_bin_type || ''))
+					);
+					for (const w of bins) {
+						this._draw_bin_pill($row, w, company, city, zone);
+					}
+				}
+			};
+
+			// One sub-block per store in the zone (even if it has 0 extra bins,
+			// so the "+ Add Bin" action is always reachable).
+			for (const store of (zone.stores || [])) {
+				_draw_store_group(store, storeBins.get(store.name) || []);
+			}
+
+			// Bins whose ch_store isn't in this zone — legacy data hatch.
+			if (orphanBins.length) {
+				const $grp = $(`<div class="lh-bin-store-group lh-bin-orphan"></div>`).appendTo($bBody);
+				$grp.append(`<div class="lh-bin-store-header">
+					<span class="lh-bin-store-name text-muted">${__('Unassigned bins')}
+						<span class="lh-bin-count">(${orphanBins.length})</span>
+					</span>
+				</div>`);
+				const $row = $(`<div class="lh-row lh-bin-row"></div>`).appendTo($grp);
+				for (const w of orphanBins) {
+					this._draw_bin_pill($row, w, company, city, zone);
+				}
+			}
+
+			if (!zone.stores.length && !orphanBins.length) {
+				// Nothing to show — keep DOM tidy by removing the wrapper.
+				$bWrap.remove();
 			}
 		}
 
@@ -346,6 +424,75 @@ class LocationHierarchyView {
 		$p.find('[data-act="edit-wh"]').on('click', (e) => { e.preventDefault(); this.assign_warehouse_dialog(company, city.city, zone.zone, w); });
 		if (!isSynthetic) $p.find('[data-act="unassign-wh"]').on('click', (e) => { e.preventDefault(); this.unassign_warehouse(w.name); });
 		return $p;
+	}
+
+	_draw_bin_pill($parent, w, company, city, zone) {
+		// Specialised pill for Store Bin warehouses — prepends the bin type
+		// (e.g. "BUYBACK") as a small tag so users can scan the grid by state
+		// without reading the full warehouse name.
+		const binType = w.ch_bin_type || '';
+		const tag = binType
+			? `<span class="lh-bin-type-tag">${frappe.utils.escape_html(binType)}</span>`
+			: '';
+		const $p = $(`<span class="lh-pill lh-warehouse-bin" title="${frappe.utils.escape_html(w.name)}">
+			${tag}<a href="/app/warehouse/${encodeURIComponent(w.name)}" target="_blank">${frappe.utils.escape_html(w.warehouse_name || w.name)}</a>
+		</span>`).appendTo($parent);
+		return $p;
+	}
+
+	add_bin_dialog(store, company, city, zone) {
+		// Open a dialog to create / restore one of the canonical stock-state
+		// bins for the given store. Bin types are constrained to the values
+		// allowed by the Warehouse.ch_bin_type Select field — adding a free-
+		// form type would fail server-side validation.
+		const ctxHTML = `<div class="text-muted small" style="margin:-4px 0 8px;">
+			<b>${__('Store')}:</b> ${frappe.utils.escape_html((store.store_code ? store.store_code + ' · ' : '') + (store.store_name || store.name))}
+			&nbsp;·&nbsp; <b>${__('Zone')}:</b> ${frappe.utils.escape_html(zone.zone_name || zone.zone)}
+		</div>`;
+
+		const STANDARD = ['In-Transit', 'Damaged', 'Disposed', 'Reserved', 'Buyback'];
+		const d = new frappe.ui.Dialog({
+			title: __('Add Bin to {0}', [store.store_code || store.name]),
+			fields: [
+				{ fieldtype: 'HTML', options: ctxHTML },
+				{
+					fieldtype: 'Select', fieldname: 'bin_type', label: __('Bin Type'),
+					options: ['', ...STANDARD].join('\n'),
+					reqd: 1,
+					description: __('Idempotent — if this bin already exists for the store, it will be reported and no new warehouse will be created.'),
+				},
+			],
+			primary_action_label: __('Create Bin'),
+			primary_action: (v) => {
+				const bin_type = (v.bin_type || '').trim();
+				if (!bin_type) {
+					frappe.msgprint({ message: __('Bin Type is required.'), indicator: 'red' });
+					return;
+				}
+				frappe.call({
+					method: 'ch_item_master.ch_core.location_hierarchy.create_store_bin',
+					args: { store: store.name, bin_type },
+					freeze: true,
+					freeze_message: __('Creating bin…'),
+					callback: (r) => {
+						d.hide();
+						if (r.message && r.message.created === false) {
+							frappe.show_alert({
+								message: __('Bin already exists: {0}', [r.message.warehouse]),
+								indicator: 'orange',
+							});
+						} else {
+							frappe.show_alert({
+								message: __('Bin created: {0}', [r.message.warehouse]),
+								indicator: 'green',
+							});
+						}
+						this.render();
+					},
+				});
+			},
+		});
+		d.show();
 	}
 
 	// ----------------- Dialogs -----------------
