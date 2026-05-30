@@ -110,9 +110,18 @@ class CHSubCategory(Document):
 				row.is_variant = 1
 			elif row.spec_type == "Property":
 				row.is_variant = 0
+				# Property specs are shared metadata, not variant/pricing axes.
+				# Clear stale values so UI and backend stay consistent.
+				row.affects_price = 0
+				row.in_item_name = 0
+				row.name_order = 0
 			else:
 				# Backfill spec_type from is_variant for legacy rows (no spec_type set)
 				row.spec_type = "Variant" if row.is_variant else "Property"
+				if not row.is_variant:
+					row.affects_price = 0
+					row.in_item_name = 0
+					row.name_order = 0
 
 	def _validate_item_nature_contract(self):
 		"""Enforce the item_nature contract.

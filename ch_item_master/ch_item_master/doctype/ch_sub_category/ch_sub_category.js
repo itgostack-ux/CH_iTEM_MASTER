@@ -4,6 +4,7 @@
 frappe.ui.form.on('CH Sub Category', {
 
     refresh(frm) {
+        _sync_all_spec_rows(frm);
         _apply_nature_visibility(frm);
         _show_nature_summary(frm);
     },
@@ -33,6 +34,12 @@ frappe.ui.form.on('CH Sub Category', {
             });
             frappe.validated = false;
         }
+    },
+});
+
+frappe.ui.form.on('CH Sub Category Spec', {
+    spec_type(frm, cdt, cdn) {
+        _sync_spec_row_from_type(frm, cdt, cdn);
     },
 });
 
@@ -83,5 +90,44 @@ function _show_nature_summary(frm) {
     if (summary[nature] && frm.dashboard) {
         frm.dashboard.clear_headline();
         frm.dashboard.set_headline_alert(summary[nature], 'blue');
+    }
+}
+
+function _sync_all_spec_rows(frm) {
+    (frm.doc.specifications || []).forEach((row) => {
+        _sync_spec_row_from_type(frm, row.doctype, row.name, true);
+    });
+    frm.refresh_field('specifications');
+}
+
+function _sync_spec_row_from_type(frm, cdt, cdn, skip_refresh = false) {
+    const row = locals[cdt] && locals[cdt][cdn];
+    if (!row) return;
+
+    if (row.spec_type === 'Variant') {
+        row.is_variant = 1;
+        return;
+    }
+
+    if (row.spec_type === 'Property') {
+        row.is_variant = 0;
+        row.affects_price = 0;
+        row.in_item_name = 0;
+        row.name_order = 0;
+        if (!skip_refresh) {
+            frm.refresh_field('specifications');
+        }
+        return;
+    }
+
+    // Legacy rows where spec_type is blank.
+    row.spec_type = row.is_variant ? 'Variant' : 'Property';
+    if (!row.is_variant) {
+        row.affects_price = 0;
+        row.in_item_name = 0;
+        row.name_order = 0;
+    }
+    if (!skip_refresh) {
+        frm.refresh_field('specifications');
     }
 }
