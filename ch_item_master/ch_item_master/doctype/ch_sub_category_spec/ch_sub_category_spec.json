@@ -42,7 +42,6 @@
   },
   {
    "default": "1",
-   "depends_on": "is_variant",
    "description": "If checked, different values of this spec will have different prices (e.g. Storage=Yes, Color=No for phones). Controls Ready Reckoner grouping.",
    "fieldname": "affects_price",
    "fieldtype": "Check",
@@ -51,7 +50,6 @@
   },
   {
    "default": "0",
-   "depends_on": "is_variant",
    "description": "If checked, this spec value will be included in the auto-generated item name",
    "fieldname": "in_item_name",
    "fieldtype": "Check",
@@ -68,7 +66,6 @@
   },
   {
    "default": "0",
-   "depends_on": "is_variant",
    "description": "Order in which this spec appears in the item name (lower = first)",
    "fieldname": "name_order",
    "fieldtype": "Int",

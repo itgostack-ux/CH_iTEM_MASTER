@@ -111,9 +111,7 @@ function _sync_spec_row_from_type(frm, cdt, cdn, skip_refresh = false) {
 
     if (row.spec_type === 'Property') {
         row.is_variant = 0;
-        row.affects_price = 0;
-        row.in_item_name = 0;
-        row.name_order = 0;
+        // affects_price, in_item_name, name_order remain as configured by the user.
         if (!skip_refresh) {
             frm.refresh_field('specifications');
         }
@@ -122,11 +120,6 @@ function _sync_spec_row_from_type(frm, cdt, cdn, skip_refresh = false) {
 
     // Legacy rows where spec_type is blank.
     row.spec_type = row.is_variant ? 'Variant' : 'Property';
-    if (!row.is_variant) {
-        row.affects_price = 0;
-        row.in_item_name = 0;
-        row.name_order = 0;
-    }
     if (!skip_refresh) {
         frm.refresh_field('specifications');
     }
