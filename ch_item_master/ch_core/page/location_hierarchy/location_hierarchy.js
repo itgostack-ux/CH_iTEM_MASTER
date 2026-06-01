@@ -160,18 +160,31 @@ class LocationHierarchyView {
 
 	draw_city($parent, company, city) {
 		const $city = $(`<div class="lh-city"></div>`).appendTo($parent);
+		// The "Unassigned" city is a synthetic bucket produced server-side for
+		// rows whose ch_city is NULL/empty. There is no CH City record behind
+		// it, so Edit / Delete / + Zone would all either no-op or delete an
+		// unrelated record. Hide those actions; users must assign a real city
+		// on the underlying Warehouse / Branch / Store to clear the bucket.
+		const isSynthetic = city.city === 'Unassigned';
 		const $header = $(`<div class="lh-city-header">
 			<div class="lh-city-title"><i class="fa fa-map-marker"></i> ${frappe.utils.escape_html(city.city_name)} <span class="lh-zone-meta">${city.state || ''}</span></div>
-			<div class="lh-actions">
+			${isSynthetic ? '' : `<div class="lh-actions">
 				<button class="btn btn-xs btn-default" data-act="add-zone">+ ${__('Zone')}</button>
 				<a href="#" data-act="edit-city">${__('Edit')}</a>
 				<a href="#" data-act="del-city" class="text-danger">${__('Delete')}</a>
-			</div>
+			</div>`}
 		</div>`).appendTo($city);
 
-		$header.find('[data-act="add-zone"]').on('click', () => this.add_zone(company, city.city));
-		$header.find('[data-act="edit-city"]').on('click', (e) => { e.preventDefault(); this.edit_city(city.city); });
-		$header.find('[data-act="del-city"]').on('click', (e) => { e.preventDefault(); this.delete_city(city.city); });
+		if (!isSynthetic) {
+			$header.find('[data-act="add-zone"]').on('click', () => this.add_zone(company, city.city));
+			$header.find('[data-act="edit-city"]').on('click', (e) => { e.preventDefault(); this.edit_city(city.city); });
+			$header.find('[data-act="del-city"]').on('click', (e) => { e.preventDefault(); this.delete_city(city.city); });
+		} else {
+			$(`<div class="alert alert-warning" style="font-size:12px;margin:6px 0 4px;padding:6px 10px;">
+				<i class="fa fa-exclamation-triangle"></i>
+				${__('These items have no city assigned. Set a City on the underlying Warehouse / Branch / Store to remove them from this bucket.')}
+			</div>`).appendTo($city);
+		}
 
 		const $zones = $(`<div></div>`).appendTo($city);
 		if (!city.zones.length) {

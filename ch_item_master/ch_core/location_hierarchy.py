@@ -376,9 +376,28 @@ def list_branches(company=None, unassigned_only=0):
 	)
 
 
+# Reserved bucket label used by _zone_bucket() for rows whose city / zone is
+# NULL. It is NOT a real CH City / CH Store Zone record, so create / delete /
+# rename operations targeting this literal name must be rejected — otherwise
+# the UI shows a misleading "Deleted" toast and the bucket reappears on the
+# next render (TC_003).
+_SYNTHETIC_BUCKET = "Unassigned"
+
+
+def _reject_synthetic(name, kind):
+	if (name or "").strip() == _SYNTHETIC_BUCKET:
+		frappe.throw(
+			f"'{_SYNTHETIC_BUCKET}' is a virtual {kind} bucket for rows with no "
+			f"{kind} assigned. Assign a real {kind} on the underlying Warehouse / "
+			f"Branch / Store to clear it — it cannot be created, renamed or deleted."
+		)
+
+
 @frappe.whitelist()
 def save_city(company, city_name, state=None, name=None, disabled=0, description=None):
 	_check_master_permission()
+	_reject_synthetic(city_name, "city")
+	_reject_synthetic(name, "city")
 	if name:
 		doc = frappe.get_doc("CH City", name)
 		doc.city_name = city_name.strip().title()
@@ -401,6 +420,7 @@ def save_city(company, city_name, state=None, name=None, disabled=0, description
 @frappe.whitelist()
 def delete_city(name):
 	_check_master_permission()
+	_reject_synthetic(name, "city")
 	zones = frappe.db.count("CH Store Zone", {"city": name})
 	stores = frappe.db.count("CH Store", {"city": name})
 	if zones or stores:
@@ -412,6 +432,9 @@ def delete_city(name):
 @frappe.whitelist()
 def save_zone(company, city, zone_name, source_warehouse=None, name=None, description=None):
 	_check_master_permission()
+	_reject_synthetic(zone_name, "zone")
+	_reject_synthetic(name, "zone")
+	_reject_synthetic(city, "city")
 	if name:
 		doc = frappe.get_doc("CH Store Zone", name)
 		doc.zone_name = zone_name
@@ -445,6 +468,7 @@ def save_zone(company, city, zone_name, source_warehouse=None, name=None, descri
 @frappe.whitelist()
 def delete_zone(name):
 	_check_master_permission()
+	_reject_synthetic(name, "zone")
 	stores = frappe.db.count("CH Store", {"zone": name})
 	whs = frappe.db.count("Warehouse", {"ch_zone": name})
 	branches = frappe.db.count("Branch", {"ch_zone": name})
