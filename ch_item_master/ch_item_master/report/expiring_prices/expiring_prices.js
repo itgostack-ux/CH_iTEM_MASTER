@@ -21,6 +21,7 @@ frappe.query_reports["Expiring Prices"] = {
 			label: __("Company"),
 			fieldtype: "Link",
 			options: "Company",
+			default: frappe.defaults.get_user_default("Company"),
 		},
 	],
 };
