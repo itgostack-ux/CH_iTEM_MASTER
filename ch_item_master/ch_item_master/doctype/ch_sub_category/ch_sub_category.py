@@ -104,24 +104,20 @@ class CHSubCategory(Document):
 
 		This keeps backward compatibility (all existing code reads is_variant)
 		while giving users a clearer 'Variant / Property' label in the UI (FIX-7).
+
+		TC_014: affects_price / in_item_name / name_order are user-configurable
+		on BOTH Variant and Property rows (Property specs may still appear in
+		the item name — see generate_item_name(), which filters only on
+		in_item_name). Do NOT zero them out here.
 		"""
 		for row in self.specifications or []:
 			if row.spec_type == "Variant":
 				row.is_variant = 1
 			elif row.spec_type == "Property":
 				row.is_variant = 0
-				# Property specs are shared metadata, not variant/pricing axes.
-				# Clear stale values so UI and backend stay consistent.
-				row.affects_price = 0
-				row.in_item_name = 0
-				row.name_order = 0
 			else:
 				# Backfill spec_type from is_variant for legacy rows (no spec_type set)
 				row.spec_type = "Variant" if row.is_variant else "Property"
-				if not row.is_variant:
-					row.affects_price = 0
-					row.in_item_name = 0
-					row.name_order = 0
 
 	def _validate_item_nature_contract(self):
 		"""Enforce the item_nature contract.
