@@ -85,6 +85,14 @@ class CHWarrantyClaim(Document):
 			self.claim_id = int(max_id) + 1
 
 	def validate(self):
+		if self.get("serial_no") and self.get("sold_plan") and not self.is_new():
+			_dup = frappe.db.get_value("CH Warranty Claim", {
+				"serial_no": self.serial_no, "sold_plan": self.sold_plan,
+				"claim_status": ("not in", ("Closed", "Rejected", "Withdrawn")),
+				"name": ("!=", self.name),
+			}, "name")
+			if _dup:
+				frappe.throw(frappe._("Open warranty claim {0} already exists for this serial and plan.").format(_dup), title=frappe._("Duplicate Claim"))
 		if self.customer_phone:
 			self.customer_phone = validate_indian_phone(self.customer_phone, "Customer Phone")
 		if self.manufacturer_contact_phone:
@@ -356,6 +364,12 @@ class CHWarrantyClaim(Document):
 	@frappe.whitelist()
 	def mark_repair_complete(self, remarks=None) -> None:
 		"""Called when GoFix completes the repair, or device returned from manufacturer."""
+		if (self.get("processing_fee_required") or flt(self.get("processing_fee_amount", 0)) > 0):
+			if self.get("processing_fee_status") not in ("Paid", "Waived", "Not Required"):
+				frappe.throw(
+					frappe._("Warranty Claim {0}: collect or waive the processing fee before completing repair.").format(self.name),
+					title=frappe._("Processing Fee Pending")
+				)
 		if self.claim_status not in ("Ticket Created", "In Repair", "Sent to Manufacturer"):
 			frappe.throw(_("Cannot mark complete — current status: {0}").format(
 				self.claim_status))

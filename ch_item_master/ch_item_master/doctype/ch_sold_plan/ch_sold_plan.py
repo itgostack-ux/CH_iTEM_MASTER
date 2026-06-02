@@ -56,6 +56,7 @@ class CHSoldPlan(Document):
 		self._sync_to_serial_lifecycle()
 		self._send_welcome_notification()
 		self._log_vas_event("Plan Activated")
+		self._post_deferred_revenue_gl()
 
 	def on_cancel(self):
 		self.status = "Cancelled"
@@ -265,6 +266,32 @@ class CHSoldPlan(Document):
 			lc.warranty_status = ""
 			lc.flags.ignore_permissions = True
 			lc.save()
+
+	def _post_deferred_revenue_gl(self):
+		company = self.get("company") or frappe.defaults.get_user_default("Company")
+		amount = flt(self.get("plan_price") or self.get("price") or self.get("amount") or 0)
+		if not amount:
+			return
+		deferred_acct = frappe.db.get_value("Account", {
+			"account_name": ("like", "%Deferred Revenue%"), "company": company, "is_group": 0
+		}, "name")
+		ar_acct = frappe.db.get_value("Company", company, "default_receivable_account")
+		if not deferred_acct or not ar_acct:
+			frappe.log_error(f"CH Sold Plan {self.name}: deferred_revenue_account or AR account not configured for {company}.", "VAS Deferred Revenue GL Skipped")
+			return
+		try:
+			je = frappe.new_doc("Journal Entry")
+			je.posting_date = self.get("start_date") or frappe.utils.today()
+			je.company = company
+			je.user_remark = f"Deferred Revenue — CH Sold Plan {self.name}"
+			je.append("accounts", {"account": ar_acct, "debit_in_account_currency": amount, "party_type": "Customer", "party": self.get("customer") or ""})
+			je.append("accounts", {"account": deferred_acct, "credit_in_account_currency": amount})
+			je.flags.ignore_permissions = True
+			je.insert()
+			je.submit()
+			self.db_set("custom_deferred_revenue_je", je.name)
+		except Exception:
+			frappe.log_error(frappe.get_traceback(), f"Deferred revenue GL failed for CH Sold Plan {self.name}")
 
 	# ── Public methods ───────────────────────────────────────────────────────
 

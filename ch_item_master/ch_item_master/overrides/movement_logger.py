@@ -151,6 +151,22 @@ def on_stock_entry_cancel(doc, method=None) -> None:
                 company=getattr(doc, "company", None),
             )
 
+    # P1 FIX: Revert bin_type for serials when transfer SE is cancelled
+    if doc.purpose == "Material Transfer":
+        for _ci in doc.items:
+            _snos = [s.strip() for s in (_ci.serial_no or "").split("\n") if s.strip()]
+            for _sno in _snos:
+                try:
+                    from ch_item_master.ch_item_master.ch_core.bin_transfer import move_to_bin
+                    move_to_bin(
+                        serial_no=_sno,
+                        bin_type="Sellable",
+                        warehouse=_ci.s_warehouse or doc.from_warehouse,
+                        remarks=f"Bin reverted — SE {doc.name} cancelled"
+                    )
+                except Exception:
+                    frappe.log_error(frappe.get_traceback(), f"Bin revert failed for {_sno} on SE {doc.name} cancel")
+
 
 # ── Delivery Note ──────────────────────────────────────────────────────────
 

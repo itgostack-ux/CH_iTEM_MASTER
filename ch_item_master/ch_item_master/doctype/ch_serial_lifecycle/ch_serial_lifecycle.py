@@ -125,7 +125,7 @@ def update_lifecycle_status(serial_no, new_status, company=None,
         return {"status": "skipped", "serial_no": serial_no, "reason": "not_found"}
 
     lock_key = f"serial_lifecycle_{frappe.scrub(str(serial_no))}"
-    lock_result = frappe.db.sql("SELECT GET_LOCK(%s, 10)", (lock_key,))[0][0]
+    lock_result = frappe.db.sql("SELECT GET_LOCK(%s, 30)", (lock_key,))[0][0]
     if not lock_result:
         frappe.log_error(
             f"Could not acquire lifecycle lock for {serial_no}",
@@ -134,6 +134,22 @@ def update_lifecycle_status(serial_no, new_status, company=None,
         return {"status": "skipped", "serial_no": serial_no, "reason": "lock_timeout"}
     try:
         doc = frappe.get_doc("CH Serial Lifecycle", serial_no)
+
+        # P0 FIX: Re-read current status from DB inside the lock to detect races.
+        # A concurrent request may have already advanced the status between the
+        # caller's initial read and this point — use the fresh DB value as ground truth.
+        _db_current_status = frappe.db.get_value(
+            "CH Serial Lifecycle", serial_no, "lifecycle_status"
+        ) or ""
+        if _db_current_status != (doc.lifecycle_status or ""):
+            frappe.throw(
+                _("Serial {0} status changed concurrently from '{1}' to '{2}'. "
+                  "Please reload and retry.").format(
+                    serial_no, doc.lifecycle_status, _db_current_status
+                ),
+                title=_("Concurrent Status Change"),
+            )
+
         doc.lifecycle_status = new_status
         if company:
             doc.current_company = company
