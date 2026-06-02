@@ -85,7 +85,7 @@ class CHWarrantyClaim(Document):
 			self.claim_id = int(max_id) + 1
 
 	def validate(self):
-		if self.get("serial_no") and self.get("sold_plan") and not self.is_new():
+		if self.get("serial_no") and self.get("sold_plan"):
 			_dup = frappe.db.get_value("CH Warranty Claim", {
 				"serial_no": self.serial_no, "sold_plan": self.sold_plan,
 				"claim_status": ("not in", ("Closed", "Rejected", "Withdrawn")),
