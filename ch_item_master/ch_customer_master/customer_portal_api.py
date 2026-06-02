@@ -2,6 +2,7 @@ import json
 
 import frappe
 from frappe import _
+from frappe.rate_limiter import rate_limit
 from frappe.utils import cint, flt, validate_email_address
 
 from buyback.api import get_assessments_by_phone, get_orders_by_phone
@@ -127,8 +128,20 @@ def _get_loyalty_snapshot(customer: str | None, company: str | None = None) -> d
 
 
 @frappe.whitelist(allow_guest=True)
+@rate_limit(limit=3, seconds=300, methods=["POST"], ip_based=True)
 def request_login_otp(mobile_no: str, customer_name: str = "Customer", email_id: str | None = None) -> dict:
+    # Per-IP throttle (above) defeats single-host SMS bombing. Add a
+    # per-mobile cap so a multi-IP attacker still cannot spam a victim.
     mobile_no = validate_indian_phone(mobile_no, "Mobile No")
+    _send_key = f"login_otp_send:{mobile_no}"
+    _sent = int(frappe.cache().get_value(_send_key) or 0)
+    if _sent >= 5:
+        frappe.throw(
+            _("OTP send limit reached for this mobile. Please try again in an hour."),
+            frappe.PermissionError,
+            title=_("Rate Limit Exceeded"),
+        )
+    frappe.cache().set_value(_send_key, _sent + 1, expires_in_sec=3600)
     to_email = (email_id or "").strip()
     if to_email:
         to_email = validate_email_address(to_email, throw=True)
@@ -183,8 +196,19 @@ def request_login_otp(mobile_no: str, customer_name: str = "Customer", email_id:
 
 
 @frappe.whitelist(allow_guest=True)
+@rate_limit(limit=10, seconds=300, methods=["POST"], ip_based=True)
 def verify_login_otp(mobile_no: str, otp_code: str) -> dict:
     mobile_no = validate_indian_phone(mobile_no, "Mobile No")
+    # Per-mobile attempt cap (defeats multi-IP brute force).
+    _atk_key = f"login_otp_attempts:{mobile_no}"
+    _attempts = int(frappe.cache().get_value(_atk_key) or 0)
+    if _attempts >= 20:
+        frappe.throw(
+            _("Too many OTP attempts for this mobile. Please wait 15 minutes."),
+            frappe.PermissionError,
+            title=_("Rate Limit Exceeded"),
+        )
+    frappe.cache().set_value(_atk_key, _attempts + 1, expires_in_sec=900)
     result = CHOTPLog.verify_otp(
         mobile_no=mobile_no,
         purpose="POS Customer Verification",
@@ -208,6 +232,7 @@ def verify_login_otp(mobile_no: str, otp_code: str) -> dict:
 
 
 @frappe.whitelist(allow_guest=True)
+@rate_limit(limit=60, seconds=60, ip_based=True)
 def get_store_locator(city: str | None = None, capability: str | None = None, limit: int = 8) -> list[dict]:
     limit = max(1, min(cint(limit or 8), 20))
     filters = {"disabled": 0}
@@ -244,6 +269,7 @@ def get_store_locator(city: str | None = None, capability: str | None = None, li
 
 
 @frappe.whitelist(allow_guest=True)
+@rate_limit(limit=60, seconds=60, ip_based=True)
 def get_dashboard(session_token: str) -> dict:
     session = _get_portal_session(session_token)
     mobile_no = session["mobile_no"]

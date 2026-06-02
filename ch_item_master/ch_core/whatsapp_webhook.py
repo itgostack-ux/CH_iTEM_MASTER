@@ -1,6 +1,7 @@
 import json
 
 import frappe
+from frappe.rate_limiter import rate_limit
 
 from ch_item_master.ch_core.whatsapp import _normalize_phone
 
@@ -67,6 +68,7 @@ def _find_recent_log(phone: str, template_name: str):
 
 
 @frappe.whitelist(allow_guest=True)
+@rate_limit(limit=600, seconds=60, ip_based=True)
 def gallabox_webhook():
     payload = _request_payload()
     if payload.get("challenge"):

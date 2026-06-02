@@ -13,6 +13,7 @@ Usage from GoFix:
 
 import frappe
 from frappe import _
+from frappe.rate_limiter import rate_limit
 from frappe.utils import nowdate, now_datetime, getdate, add_months, flt
 
 from ch_item_master.security import get_company_filter_value, get_company_scope
@@ -1034,6 +1035,7 @@ def need_more_info_claim(claim_name, remarks=None) -> dict:
 
 
 @frappe.whitelist(allow_guest=True)
+@rate_limit(limit=30, seconds=300, ip_based=True)
 def pay_processing_fee(claim: str, amount=None) -> dict:
 	"""Public endpoint for processing fee payment (via payment link).
 	
@@ -1196,6 +1198,7 @@ def _create_payu_order(doc, amount: float, settings) -> dict:
 
 
 @frappe.whitelist(allow_guest=True)
+@rate_limit(limit=120, seconds=60, ip_based=True)
 def payment_webhook(gateway: str = "razorpay") -> dict:
 	"""Receive payment gateway callback and mark processing fee as Paid.
 	
