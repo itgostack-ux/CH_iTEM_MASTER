@@ -116,6 +116,9 @@ STORE_BIN_TYPES = (
     ("Disposed", "Disposed"),
     ("Reserved", "Reserved"),
     ("Buyback", "Buyback"),
+    # Demo: valued stock used for in-store demonstration units. Counted in
+    # warehouse stock value but tagged so reports/aging can isolate it.
+    ("Demo", "Demo"),
 )
 
 

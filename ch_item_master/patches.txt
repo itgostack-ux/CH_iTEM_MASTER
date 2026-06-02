@@ -20,3 +20,4 @@ ch_item_master.patches.v12_collapse_sellable_bin
 ch_item_master.patches.v13_sync_serial_lifecycle_warehouse
 ch_item_master.patches.v14_backfill_current_store
 ch_item_master.patches.v15_phase3_vas_first_class
+ch_item_master.patches.v16_add_demo_bin

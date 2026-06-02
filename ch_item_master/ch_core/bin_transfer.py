@@ -28,7 +28,7 @@ from frappe.utils import flt
 # ──────────────────────────────────────────────────────────────────────────
 
 # Canonical list of bin types (mirrors ch_store.STORE_BIN_TYPES).
-BIN_TYPES = ("Sellable", "In-Transit", "Damaged", "Disposed", "Reserved")
+BIN_TYPES = ("Sellable", "In-Transit", "Damaged", "Disposed", "Reserved", "Demo")
 
 # Default rules: for each business event, where do items move?
 # Format: { event: (from_bin_type, to_bin_type) }

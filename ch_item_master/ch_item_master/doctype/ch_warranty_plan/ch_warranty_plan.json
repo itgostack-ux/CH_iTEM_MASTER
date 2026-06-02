@@ -173,6 +173,13 @@
    "description": "Amount customer must pay per claim (excess)."
   },
   {
+   "fieldname": "is_inhouse",
+   "fieldtype": "Check",
+   "label": "In-House Repair Plan",
+   "default": "0",
+   "description": "When enabled, repairs covered by this plan are performed in-house \u2014 the GoFix repair cost calculation suppresses parts and labor charges and bills only applicable GST."
+  },
+  {
    "fieldname": "section_pricing",
    "fieldtype": "Section Break",
    "label": "Pricing"

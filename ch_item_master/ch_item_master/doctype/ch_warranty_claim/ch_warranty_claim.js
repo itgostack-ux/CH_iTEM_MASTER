@@ -132,7 +132,10 @@ function _setup_action_buttons(frm) {
 	}
 
 	// ── Perform Intake QC (Device Received / QC Pending) ──
-	if (["Device Received", "QC Pending"].includes(s)) {
+	// #25 — Hide for any GoGizmo* role; intake QC must only be performed
+	// by store/operations staff, not GoGizmo desk users.
+	const _is_gogizmo_user = (frappe.user_roles || []).some((r) => /^GoGizmo/i.test(r));
+	if (!_is_gogizmo_user && ["Device Received", "QC Pending"].includes(s)) {
 		frm.add_custom_button(__("Perform Intake QC"), () => {
 			frappe.prompt(
 				[
