@@ -3,11 +3,11 @@
 
 frappe.ui.form.on("CH Store", {
     refresh(frm) {
-        // Show store capabilities badge
         if (frm.doc.is_buyback_enabled) {
             frm.dashboard.set_headline_alert(
                 '<span class="indicator green">Buyback Enabled</span>'
             );
         }
+        frm.set_query("state", () => ({ filters: { disabled: 0 } }));
     },
 });

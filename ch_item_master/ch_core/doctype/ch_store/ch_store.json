@@ -154,8 +154,9 @@
   },
   {
    "fieldname": "state",
-   "fieldtype": "Data",
-   "label": "State"
+   "fieldtype": "Link",
+   "label": "State",
+   "options": "CH State"
   },
   {
    "fieldname": "pincode",

@@ -518,14 +518,19 @@ class LocationHierarchyView {
 	}
 	_city_dialog(doc, lockCompany) {
 		const ctxHTML = lockCompany ? `<div class="text-muted small" style="margin:-4px 0 8px;"><b>Company:</b> ${frappe.utils.escape_html(doc.company)}</div>` : '';
+		const state_field = {
+			fieldtype: 'Link', fieldname: 'state', label: 'State',
+			options: 'CH State', default: doc.state,
+			get_query: () => ({ filters: { disabled: 0 } }),
+		};
 		const fields = lockCompany ? [
 			{ fieldtype: 'HTML', options: ctxHTML },
 			{ fieldtype: 'Data', fieldname: 'city_name', label: 'City Name', reqd: 1, default: doc.city_name },
-			{ fieldtype: 'Data', fieldname: 'state', label: 'State', default: doc.state },
+			state_field,
 		] : [
 			{ fieldtype: 'Link', fieldname: 'company', label: 'Company', options: 'Company', reqd: 1, default: doc.company || this.company },
 			{ fieldtype: 'Data', fieldname: 'city_name', label: 'City Name', reqd: 1, default: doc.city_name },
-			{ fieldtype: 'Data', fieldname: 'state', label: 'State', default: doc.state },
+			state_field,
 			{ fieldtype: 'Check', fieldname: 'disabled', label: 'Disabled', default: doc.disabled || 0 },
 			{ fieldtype: 'Small Text', fieldname: 'description', label: 'Description', default: doc.description },
 		];
