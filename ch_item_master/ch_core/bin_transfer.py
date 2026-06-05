@@ -20,7 +20,8 @@ from __future__ import annotations
 
 import frappe
 from frappe import _
-from frappe.utils import flt
+from frappe.utils import flt, get_datetime
+from erpnext.stock.serial_batch_bundle import SerialBatchCreation
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -213,6 +214,41 @@ def transfer_between_bins(
 
 	se.flags.ignore_permissions = True
 	se.insert()
+
+	# In v16 with Stock Settings.use_serial_batch_fields = 1, old-style
+	# row.serial_no may not guarantee exact-serial movement. Attach an explicit
+	# outward bundle so submit consumes the intended serial(s).
+	if serial_no and frappe.get_single_value("Stock Settings", "use_serial_batch_fields"):
+		serial_nos = [s.strip() for s in str(serial_no).split("\n") if s.strip()]
+		if len(serial_nos) != int(qty):
+			frappe.throw(
+				_("Serial count {0} must match Qty {1} for serialized transfer.").format(
+					len(serial_nos), int(qty)
+				)
+			)
+
+		posting_dt = get_datetime(f"{se.posting_date} {se.posting_time}")
+		bundle = SerialBatchCreation(
+			{
+				"item_code": item_code,
+				"warehouse": from_wh,
+				"voucher_type": "Stock Entry",
+				"voucher_no": se.name,
+				"voucher_detail_no": row.name,
+				"qty": -qty,
+				"type_of_transaction": "Outward",
+				"company": company,
+				"posting_datetime": posting_dt,
+				"do_not_submit": True,
+			}
+		).make_serial_and_batch_bundle(serial_nos=serial_nos)
+
+		if bundle:
+			row.serial_and_batch_bundle = bundle.name if hasattr(bundle, "name") else bundle
+			row.serial_no = ""
+			se.flags.ignore_permissions = True
+			se.save(ignore_permissions=True)
+
 	if submit:
 		se.submit()
 	frappe.db.commit()
