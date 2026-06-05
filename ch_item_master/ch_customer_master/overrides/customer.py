@@ -61,12 +61,27 @@ def _default_tax_category(doc):
 	if doc.get("tax_category"):
 		return
 
+		# if doc.get("customer_group"):
+	# 	group_default = frappe.db.get_value(
+	# 		"Customer Group",
+	# 		doc.customer_group,
+	# 		"custom_default_tax_category",
+	# 	)
+
+
+
+	group_default = None
+
 	if doc.get("customer_group"):
-		group_default = frappe.db.get_value(
-			"Customer Group",
-			doc.customer_group,
-			"custom_default_tax_category",
-		)
+		meta = frappe.get_meta("Customer Group")
+
+		if meta.has_field("custom_default_tax_category"):
+			group_default = frappe.db.get_value(
+				"Customer Group",
+				doc.customer_group,
+				"custom_default_tax_category"
+			)
+
 		if group_default and frappe.db.exists("Tax Category", group_default):
 			doc.tax_category = group_default
 			return
