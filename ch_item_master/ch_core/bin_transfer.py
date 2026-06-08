@@ -442,34 +442,72 @@ def get_store_bin_serials(
 	warehouse = get_store_bin(store, bin_type)
 	limit = max(1, min(int(limit or 100), 500))
 
-	conditions = ["warehouse = %(warehouse)s"]
-	params = {"warehouse": warehouse, "limit": limit}
+	rows = []
+	if frappe.db.table_exists("CH Stock Bin"):
+		conditions = ["sb.warehouse = %(warehouse)s"]
+		params = {"warehouse": warehouse, "limit": limit}
 
-	if item_code:
-		conditions.append("item_code = %(item_code)s")
-		params["item_code"] = item_code
+		if item_code:
+			conditions.append("sb.item_code = %(item_code)s")
+			params["item_code"] = item_code
 
-	if search_text:
-		st = f"%{search_text.strip()}%"
-		conditions.append("(name LIKE %(search)s OR item_code LIKE %(search)s OR item_name LIKE %(search)s)")
-		params["search"] = st
+		if search_text:
+			st = f"%{search_text.strip()}%"
+			conditions.append(
+				"(sb.serial_no LIKE %(search)s OR sb.item_code LIKE %(search)s "
+				"OR IFNULL(sn.item_name, i.item_name) LIKE %(search)s)"
+			)
+			params["search"] = st
 
-	rows = frappe.db.sql(
-		"""
-		SELECT
-			name AS serial_no,
-			item_code,
-			item_name,
-			status,
-			warehouse
-		FROM `tabSerial No`
-		WHERE {where_clause}
-		ORDER BY modified DESC
-		LIMIT %(limit)s
-		""".format(where_clause=" AND ".join(conditions)),
-		params,
-		as_dict=True,
-	)
+		rows = frappe.db.sql(
+			"""
+			SELECT
+				sb.serial_no,
+				sb.item_code,
+				IFNULL(sn.item_name, i.item_name) AS item_name,
+				IFNULL(sn.status, 'Active') AS status,
+				sb.warehouse
+			FROM `tabCH Stock Bin` sb
+			LEFT JOIN `tabSerial No` sn ON sn.name = sb.serial_no
+			LEFT JOIN `tabItem` i ON i.name = sb.item_code
+			WHERE {where_clause}
+			ORDER BY IFNULL(sb.moved_at, IFNULL(sb.modified, sb.creation)) DESC, sb.serial_no DESC
+			LIMIT %(limit)s
+			""".format(where_clause=" AND ".join(conditions)),
+			params,
+			as_dict=True,
+		)
+
+	# Backward-compatible fallback for sites that do not have CH Stock Bin rows yet.
+	if not rows:
+		conditions = ["warehouse = %(warehouse)s"]
+		params = {"warehouse": warehouse, "limit": limit}
+
+		if item_code:
+			conditions.append("item_code = %(item_code)s")
+			params["item_code"] = item_code
+
+		if search_text:
+			st = f"%{search_text.strip()}%"
+			conditions.append("(name LIKE %(search)s OR item_code LIKE %(search)s OR item_name LIKE %(search)s)")
+			params["search"] = st
+
+		rows = frappe.db.sql(
+			"""
+			SELECT
+				name AS serial_no,
+				item_code,
+				item_name,
+				status,
+				warehouse
+			FROM `tabSerial No`
+			WHERE {where_clause}
+			ORDER BY modified DESC
+			LIMIT %(limit)s
+			""".format(where_clause=" AND ".join(conditions)),
+			params,
+			as_dict=True,
+		)
 
 	return {
 		"store": store,
@@ -488,6 +526,33 @@ def get_serial_bin_context(serial_no: str, store: str | None = None) -> dict:
 		frappe.throw(_("Cannot determine store for current user."))
 	if not serial_no:
 		frappe.throw(_("Serial number is required."))
+
+	# Prefer CH Stock Bin overlay for exact, bin-level context.
+	if frappe.db.table_exists("CH Stock Bin"):
+		ctx = frappe.db.sql(
+			"""
+			SELECT
+				sb.serial_no,
+				sb.item_code,
+				IFNULL(sn.item_name, i.item_name) AS item_name,
+				sb.warehouse,
+				sb.bin_type,
+				w.ch_store AS store,
+				IFNULL(sn.status, '') AS status
+			FROM `tabCH Stock Bin` sb
+			INNER JOIN `tabWarehouse` w ON w.name = sb.warehouse
+			LEFT JOIN `tabSerial No` sn ON sn.name = sb.serial_no
+			LEFT JOIN `tabItem` i ON i.name = sb.item_code
+			WHERE sb.serial_no = %(serial_no)s
+			  AND w.ch_store = %(store)s
+			ORDER BY IFNULL(sb.moved_at, IFNULL(sb.modified, sb.creation)) DESC
+			LIMIT 1
+			""",
+			{"serial_no": serial_no, "store": store},
+			as_dict=True,
+		)
+		if ctx:
+			return ctx[0]
 
 	serial = frappe.db.get_value(
 		"Serial No",
