@@ -40,6 +40,9 @@ ch_item_master.imei_tracker.View = class IMEITrackerView {
 		this.active_bucket = null; // null = no filter
 		this.aging_filter = null;
 		this.selected_serials = new Set();
+		// Server-side pagination state.
+		this.page_start = 0;
+		this.page_length = 200;
 		this.api_base = "ch_item_master.ch_item_master.page.imei_tracker.imei_tracker_api";
 
 		// IMPORTANT ORDER: filters first (they prepend a `.page-form` div to
@@ -125,6 +128,8 @@ ch_item_master.imei_tracker.View = class IMEITrackerView {
 				.imei-table td, .imei-table th { padding: 6px 8px; vertical-align: middle; white-space: nowrap; }
 				.imei-table tr.selected { background: #fef9c3; }
 				.imei-table tr:hover { background: #f8fafc; cursor: pointer; }
+				.imei-pager { display:flex; gap:12px; align-items:center; justify-content:center; padding:10px 8px; }
+				.imei-pager-info { font-size:12px; color:#475569; }
 				.badge-imei { background:#0891b2; color:#fff; font-size:10px; padding:2px 6px; border-radius:8px; }
 				.badge-barcode { background:#94a3b8; color:#fff; font-size:10px; padding:2px 6px; border-radius:8px; }
 				.badge-uom { background:#a16207; color:#fff; font-size:10px; padding:2px 6px; border-radius:8px; }
@@ -209,14 +214,19 @@ ch_item_master.imei_tracker.View = class IMEITrackerView {
 			? this.kind_mode : "";
 		// Legacy fields — kept for any external callers that still pass them.
 		f.imei_only     = this.kind_mode === "IMEI"     ? 1 : 0;
-		f.non_imei_only = (this.kind_mode === "Barcode" || this.kind_mode === "UOM") ? 1 : 0;
+		f.non_imei_only = (this.kind_mode === "Barcode" || this.kind_mode === "UOM" || this.kind_mode === "non_imei") ? 1 : 0;
 		f.status_bucket = this.active_bucket || "";
 		f.aging_bucket  = this.aging_filter  || "";
 		f.search        = this.search_term   || "";
+		f.start         = this.page_start    || 0;
+		f.page_length   = this.page_length   || 200;
 		return f;
 	}
 
-	refresh() {
+	refresh(opts) {
+		// Any filter/mode/search change resets to the first page; explicit
+		// pager navigation passes { keep_page: true } to preserve the offset.
+		if (!opts || !opts.keep_page) this.page_start = 0;
 		const filters = this.build_filter_payload();
 		$(this.page.body).find(".imei-table-status").text(__("Loading…"));
 		frappe.xcall(`${this.api_base}.get_imei_tracker_data`, { filters })
@@ -248,20 +258,28 @@ ch_item_master.imei_tracker.View = class IMEITrackerView {
 	}
 
 	kpi_clicked(k) {
-		// Map KPI key → mode/bucket selection
-		const mode_map = { real_imei: "imei", non_imei: "non_imei" };
+		// Map KPI key → serial-kind mode / status bucket selection.
+		// KPI keys: total, real_imei, barcode, uom, non_imei, in_stock,
+		// sold_mtd, in_service, returned, bought_back, out_of_pool.
+		const kind_map = { real_imei: "IMEI", barcode: "Barcode", uom: "UOM", non_imei: "non_imei" };
 		const bucket_map = {
 			in_stock: "in_stock", in_service: "in_service",
 			returned: "returned", bought_back: "bought_back",
 			out_of_pool: "out_of_pool", sold_mtd: "sold",
 		};
-		if (mode_map[k.key]) {
-			this.imei_mode = mode_map[k.key];
-			$(this.page.body).find(".imei-mode-group .btn").removeClass("active")
-				.filter(`[data-mode="${this.imei_mode}"]`).addClass("active");
+		if (k.key === "total") {
+			this.kind_mode = "all";
+			this.active_bucket = null;
+		} else if (kind_map[k.key]) {
+			this.kind_mode = kind_map[k.key];
+		} else if (bucket_map[k.key]) {
+			this.active_bucket = bucket_map[k.key];
 		}
-		if (bucket_map[k.key]) this.active_bucket = bucket_map[k.key];
-		if (k.key === "total") { this.imei_mode = "all"; this.active_bucket = null; }
+		// Sync the serial-kind toggle highlight. Only the All/IMEI/Barcode/UOM
+		// buttons exist; the "non_imei" (Barcode+UOM) KPI has no toggle button.
+		const $modes = $(this.page.body).find(".imei-mode-group .btn").removeClass("active");
+		const btn_mode = ["all", "IMEI", "Barcode", "UOM"].includes(this.kind_mode) ? this.kind_mode : null;
+		if (btn_mode) $modes.filter(`[data-mode="${btn_mode}"]`).addClass("active");
 		this.refresh();
 	}
 
@@ -369,7 +387,38 @@ ch_item_master.imei_tracker.View = class IMEITrackerView {
 				$bulk.hide();
 			}
 		});
+		this.render_pager();
 	}
+
+	// ── Render: pagination controls ─────────────────────────────────────────
+	render_pager() {
+		const total = this.data.total_rows || 0;
+		const page_length = this.page_length || 200;
+		const start = this.page_start || 0;
+		const $wrap = $(this.page.body).find(".imei-table-wrap");
+		$wrap.find(".imei-pager").remove();
+		// Single page that starts at the top → no controls needed.
+		if (total <= page_length && start === 0) return;
+		const current_page = Math.floor(start / page_length) + 1;
+		const total_pages = Math.max(1, Math.ceil(total / page_length));
+		const from = total ? start + 1 : 0;
+		const to = Math.min(start + page_length, total);
+		const $pager = $(`
+			<div class="imei-pager">
+				<button class="btn btn-default btn-xs imei-prev" ${start <= 0 ? "disabled" : ""}>${__("‹ Prev")}</button>
+				<span class="imei-pager-info">${__("Page {0} of {1}", [current_page, total_pages])} · ${__("{0}–{1} of {2}", [from, to, total])}</span>
+				<button class="btn btn-default btn-xs imei-next" ${start + page_length >= total ? "disabled" : ""}>${__("Next ›")}</button>
+			</div>
+		`);
+		$pager.find(".imei-prev").on("click", () => {
+			this.page_start = Math.max(0, start - page_length);
+			this.refresh({ keep_page: true });
+		});
+		$pager.find(".imei-next").on("click", () => {
+			this.page_start = start + page_length;
+			this.refresh({ keep_page: true });
+		});
+		$wrap.append($pager);	}
 
 	// ── Drill-through history dialog ──────────────────────────────────────────
 	show_history(serial_no) {

@@ -131,6 +131,11 @@ ch_model._fetch_and_set_values = function (field, spec, txt) {
 
 			if (field.awesomplete && formatted.length) {
 				field.awesomplete.list = formatted;
+				// Show the full allowed-value list on focus/click without
+				// forcing the user to type first (this helper's documented
+				// intent). Without minChars=0 the dropdown stayed hidden until
+				// a character was typed, so the values looked unselectable.
+				field.awesomplete.minChars = 0;
 				field.awesomplete.evaluate();
 			}
 		},

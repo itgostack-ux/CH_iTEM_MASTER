@@ -98,6 +98,10 @@ def _norm_filters(filters):
         "item_code":     filters.get("item_code") or None,
         "brand":         filters.get("brand") or None,
         "aging_bucket":  filters.get("aging_bucket") or None,
+        # Pagination (server-side). `start` is the 0-based row offset,
+        # `page_length` the rows-per-page (legacy alias: `limit`).
+        "start":         max(cint(filters.get("start") or 0), 0),
+        "page_length":   cint(filters.get("page_length") or filters.get("limit") or 0),
     }
 
 
@@ -355,8 +359,11 @@ def get_imei_tracker_data(filters=None):
         for k in STATUS_BUCKETS
     ]
 
-    # ── Table rows (paginated by limit) ──
-    limit = cint((filters or {}).get("limit") if isinstance(filters, dict) else 0) or 200
+    # ── Table rows (server-side pagination: LIMIT <offset>, <page_length>) ──
+    page_length = f.get("page_length") or 200
+    if page_length <= 0:
+        page_length = 200
+    start = f.get("start") or 0
     list_sql = f"""
         SELECT
             lc.serial_no,
@@ -388,7 +395,7 @@ def get_imei_tracker_data(filters=None):
         {_join_clause()}
         WHERE {where}
         ORDER BY lc.modified DESC
-        LIMIT {limit}
+        LIMIT {start}, {page_length}
     """
     list_params = dict(params, today=today())
     rows = frappe.db.sql(list_sql, list_params, as_dict=True)
@@ -407,6 +414,8 @@ def get_imei_tracker_data(filters=None):
         "rows":   rows,
         "total_rows": total,
         "shown_rows": len(rows),
+        "start": start,
+        "page_length": page_length,
     }
 
 

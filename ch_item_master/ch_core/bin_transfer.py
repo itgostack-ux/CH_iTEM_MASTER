@@ -379,6 +379,51 @@ def get_pos_bin_summary(store: str | None = None, item_code: str | None = None) 
 
 
 @frappe.whitelist()
+@frappe.validate_and_sanitize_search_inputs
+def get_bin_items(doctype, txt, searchfield, start, page_len, filters):
+	"""Link-field query: items that currently sit in a store's source bin.
+
+	Wired to the Bin Transfer dialog's ``item_code`` picker so the user can
+	only choose items that actually have positive stock in the selected
+	``from_bin_type`` of the selected store (mirrors the POS Sell menu, which
+	only lists sellable-bin stock). Returns ``[]`` until both store and bin
+	are chosen, or if the bin is not provisioned.
+	"""
+	filters = filters or {}
+	store = filters.get("store")
+	bin_type = filters.get("from_bin_type") or filters.get("bin_type")
+	if not store or not bin_type:
+		return []
+
+	try:
+		warehouse = get_store_bin(store, bin_type)
+	except Exception:
+		# Bin not provisioned for this store — show nothing rather than erroring.
+		return []
+
+	like = f"%{txt or ''}%"
+	return frappe.db.sql(
+		"""
+		SELECT b.item_code, i.item_name
+		FROM `tabBin` b
+		INNER JOIN `tabItem` i ON i.name = b.item_code
+		WHERE b.warehouse = %(wh)s
+			AND b.actual_qty > 0
+			AND i.disabled = 0
+			AND (b.item_code LIKE %(txt)s OR i.item_name LIKE %(txt)s)
+		ORDER BY b.item_code
+		LIMIT %(start)s, %(page_len)s
+		""",
+		{
+			"wh": warehouse,
+			"txt": like,
+			"start": int(start or 0),
+			"page_len": int(page_len or 20),
+		},
+	)
+
+
+@frappe.whitelist()
 def get_store_bin_serials(
 	bin_type: str,
 	store: str | None = None,
