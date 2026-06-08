@@ -1,0 +1,14 @@
+{
+ "creation": "2026-06-05 00:00:00.000000",
+ "doctype": "Page",
+ "module": "CH Item Master",
+ "name": "ch-logistics-hub",
+ "page_name": "ch-logistics-hub",
+ "roles": [
+  {"role": "CH Logistics Manager"},
+  {"role": "CH Warranty Manager"},
+  {"role": "System Manager"}
+ ],
+ "standard": "Yes",
+ "title": "Logistics Hub"
+}

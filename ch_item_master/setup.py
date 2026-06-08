@@ -23,6 +23,8 @@ CH_ROLES = [
     {"role_name": "CH GTIN Editor",      "desk_access": 1, "is_custom": 1},
     # Read-only viewer
     {"role_name": "CH Viewer",           "desk_access": 1, "is_custom": 1},
+    # Logistics manager — manages online/bot claim pickup queue only
+    {"role_name": "CH Logistics Manager", "desk_access": 1, "is_custom": 1},
 ]
 
 

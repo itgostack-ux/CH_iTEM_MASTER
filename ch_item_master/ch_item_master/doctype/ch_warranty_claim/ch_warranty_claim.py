@@ -215,7 +215,24 @@ class CHWarrantyClaim(Document):
 		self._log("Approved", old, "Approved",
 		          (remarks or f"Approved by {frappe.session.user}") + partial_note)
 
-		if self.pickup_required:
+		# Auto-calculate and send processing fee based on claim channel:
+		#   Online/Bot → fee sent BEFORE pickup is arranged (payment gateway link)
+		#   Walk-in / Store → fee collected at counter (after device received)
+		try:
+			self.reload()
+			self._calculate_processing_fee_amount()
+		except Exception:
+			pass  # non-critical; VAS manager can generate manually
+
+		if self.pickup_required or (self.claim_channel or "") in ("Online/Bot", "Phone"):
+			# For online claims: collect fee before arranging pickup
+			if (self.claim_channel or "") in ("Online/Bot", "Phone") and flt(self.processing_fee_amount) > 0:
+				self._log(
+					"Fee Pending",
+					"Approved",
+					"Approved",
+					"Processing fee payment link to be sent to customer before pickup.",
+				)
 			self.db_set({
 				"claim_status": "Pickup Requested",
 				"logistics_status": "Pickup Requested",
@@ -226,7 +243,7 @@ class CHWarrantyClaim(Document):
 				"Pickup Requested",
 				"Claim approved and waiting for pickup scheduling",
 			)
-		# Walk-in: stays at Approved — device receiving happens next
+		# Walk-in: stays at Approved — device receiving happens next; fee collected at counter
 
 	@frappe.whitelist()
 	def reject(self, reason=None) -> None:
@@ -438,11 +455,22 @@ class CHWarrantyClaim(Document):
 
 	@frappe.whitelist()
 	def mark_picked_up(self, delivery_otp=None, remarks=None) -> None:
-		"""Mark device as picked up from customer location."""
+		"""Mark device as picked up from customer location.
+
+		Online/Bot claims require parcel photos before marking picked up.
+		"""
 		if self.docstatus != 1:
 			frappe.throw(_("Claim must be submitted first."), title=_("Ch Warranty Claim Error"))
 		if self.claim_status not in ("Pickup Requested", "Pickup Scheduled", "Approved"):
 			frappe.throw(_("Cannot mark picked up — current status: {0}").format(self.claim_status), title=_("Ch Warranty Claim Error"))
+		# Online claims require at least one parcel photo before marking picked up
+		if (self.claim_channel or "") in ("Online/Bot", "Phone"):
+			if not (self.parcel_photo_1 or self.parcel_photo_2):
+				frappe.throw(
+					_("Upload at least one parcel photo (outer packaging) before marking as Picked Up "
+					  "for online/phone claims."),
+					title=_("Photo Required"),
+				)
 
 		old = self.claim_status
 		updates = {
@@ -523,6 +551,59 @@ class CHWarrantyClaim(Document):
 		}
 
 	@frappe.whitelist()
+	@frappe.whitelist()
+	def settle_claim(self, gogizmo_payment_ref=None, customer_payment_ref=None) -> None:
+		"""Record financial settlement between GoGizmo ↔ GoFix and GoGizmo ↔ Customer.
+
+		Claim ledger closes here:
+		  - gogizmo_share  → GoGizmo pays GoFix (inter-company invoice / JE)
+		  - customer_share → Customer pays GoGizmo (if any share remains)
+		Both must be paid (or zero) before settlement_status moves to Settled.
+		"""
+		if self.docstatus != 1:
+			frappe.throw(_("Claim must be submitted."), title=_("Settlement Error"))
+
+		gogizmo_done = (
+			flt(self.gogizmo_share) <= 0
+			or gogizmo_payment_ref
+			or self.gogizmo_payment_ref
+		)
+		customer_done = (
+			flt(self.customer_share) <= 0
+			or customer_payment_ref
+			or self.customer_payment_ref
+		)
+
+		updates = {}
+		if gogizmo_payment_ref:
+			updates["gogizmo_payment_ref"] = gogizmo_payment_ref
+		if customer_payment_ref:
+			updates["customer_payment_ref"] = customer_payment_ref
+
+		if gogizmo_done and customer_done:
+			updates["settlement_status"] = "Settled"
+			new_status = "Settled"
+		elif gogizmo_done or customer_done:
+			updates["settlement_status"] = "Partially Settled"
+			new_status = "Partially Settled"
+		else:
+			updates["settlement_status"] = "Pending"
+			new_status = "Pending"
+
+		if updates:
+			self.db_set(updates)
+
+		self._log(
+			"Settlement Updated",
+			self.claim_status,
+			self.claim_status,
+			f"Settlement status: {new_status}. "
+			f"GoGizmo ref: {gogizmo_payment_ref or self.gogizmo_payment_ref or '—'}. "
+			f"Customer ref: {customer_payment_ref or self.customer_payment_ref or '—'}.",
+		)
+		return {"settlement_status": new_status}
+
+	@frappe.whitelist()
 	def close_claim(self, remarks=None) -> None:
 		"""Close the claim after settlement — sets final_outcome."""
 		if self.claim_status not in (
@@ -531,6 +612,18 @@ class CHWarrantyClaim(Document):
 		):
 			frappe.throw(_("Cannot close — current status: {0}").format(
 				self.claim_status))
+
+		# Settlement must be complete before closing (unless claim is Rejected/Cancelled —
+		# no repair was done so no financial settlement needed).
+		needs_settlement = self.claim_status not in ("Rejected", "Cancelled", "Not Repairable")
+		if needs_settlement and self.settlement_status not in ("Settled", ""):
+			if flt(self.gogizmo_share) > 0 or flt(self.customer_share) > 0:
+				frappe.throw(
+					_("Cannot close claim — settlement is {0}. "
+					  "Record GoGizmo and customer payments via Settle Claim before closing.").format(
+						self.settlement_status or "Pending"),
+					title=_("Settlement Incomplete"),
+				)
 
 		old = self.claim_status
 
@@ -1163,8 +1256,11 @@ class CHWarrantyClaim(Document):
 			errors.append(_("Claim must be approved (current: {0})").format(self.claim_status))
 		if not self.device_received_at:
 			errors.append(_("Device must be physically received at store"))
-		if self.intake_qc_status != "Passed":
-			errors.append(_("Intake QC must pass (current: {0})").format(
+		# Walk-in claims: VAS manager approval suffices — intake QC is not mandatory.
+		# Online/Phone claims: QC must pass (device arrived via logistics, needs inspection).
+		is_walkin = (self.mode_of_service or "") == "Walk-in"
+		if not is_walkin and self.intake_qc_status != "Passed":
+			errors.append(_("Intake QC must pass for non-walk-in claims (current: {0})").format(
 				self.intake_qc_status or "Not Done"))
 		if (self.processing_fee_status not in ("Paid", "Waived", "Not Required")
 				and flt(self.processing_fee_amount) > 0):
@@ -1828,8 +1924,17 @@ class CHWarrantyClaim(Document):
 			# Estimate
 			sr.estimated_cost = flt(self.estimated_repair_cost)
 
-			# Link back to claim
-			sr.internal_remarks = f"Auto-created from Warranty Claim {self.name}"
+			# Link back to claim + pass claim_channel so GoFix knows origin
+			channel = self.claim_channel or "Store"
+			sr.internal_remarks = (
+				f"Auto-created from Warranty Claim {self.name} "
+				f"[Channel: {channel}, Destination: {self.repair_destination or 'GoFix Workshop'}]"
+			)
+			# If a custom_claim_channel field exists on SR, populate it
+			if frappe.db.has_column("Service Request", "custom_claim_channel"):
+				sr.custom_claim_channel = channel
+			if frappe.db.has_column("Service Request", "custom_warranty_claim"):
+				sr.custom_warranty_claim = self.name
 
 			# Fields required for SR submission
 			sr.product_condition_desc = f"Warranty claim: {self.issue_description or 'Device issue reported'}"
@@ -1955,7 +2060,7 @@ class CHWarrantyClaim(Document):
 			"remarks": remarks,
 		})
 
-		# IM-11 fix: Also create a global Activity Log entry for customer-visible tracking
+		# Activity Log for customer-visible tracking
 		try:
 			frappe.get_doc({
 				"doctype": "Activity Log",
@@ -1967,10 +2072,86 @@ class CHWarrantyClaim(Document):
 				"status": "Success",
 			}).insert(ignore_permissions=True)
 		except Exception:
-			pass  # Activity Log creation is non-critical
+			pass
+
+		# Dual-channel customer notification for important status transitions
+		try:
+			self._notify_customer_status_change(to_status)
+		except Exception:
+			frappe.log_error(frappe.get_traceback(),
+			                 f"Customer notification failed for claim {self.name} → {to_status}")
 
 		if save:
 			self.save(ignore_permissions=True)
+
+	def _notify_customer_status_change(self, to_status: str) -> None:
+		"""Send WhatsApp + Email/SMS to customer on important status transitions."""
+		_NOTIFY_STATUSES = {
+			"Pickup Scheduled":  "Your device pickup is scheduled. Our team will contact you shortly.",
+			"Picked Up":         "Your device has been picked up. Tracking No: {tracking}",
+			"Device Received":   "Your device has been received at our service centre. Inspection begins shortly.",
+			"Approved":          "Your warranty claim {name} has been approved. Processing fee: ₹{fee}",
+			"Rejected":          "Your warranty claim {name} was not approved. Reason: {reason}",
+			"Ticket Created":    "A repair ticket has been raised for your device. It is now in our service queue.",
+			"In Repair":         "Your device is under repair. We will notify you when complete.",
+			"Repair Complete":   "Repair is complete! Your device will be returned to you shortly.",
+			"Out for Delivery":  "Your device is out for delivery. OTP: {otp}",
+			"Delivered":         "Your device has been delivered. Claim {name} is now closed. Thank you!",
+		}
+		template = _NOTIFY_STATUSES.get(to_status)
+		if not template:
+			return
+
+		phone = self.customer_phone or frappe.db.get_value(
+			"Customer", self.customer, "mobile_no"
+		)
+		email = self.customer_email or frappe.db.get_value(
+			"Customer", self.customer, "email_id"
+		)
+		if not phone and not email:
+			return
+
+		message = template.format(
+			name=self.name,
+			tracking=self.pickup_tracking_no or "—",
+			fee=flt(self.processing_fee_amount),
+			reason=self.rejection_reason or "—",
+			otp=self.delivery_otp or "—",
+		)
+
+		# WhatsApp
+		if phone:
+			try:
+				from ch_item_master.ch_core.whatsapp import send_whatsapp_message
+				send_whatsapp_message(phone, message)
+			except Exception:
+				pass  # WhatsApp not configured; fall through to email/SMS
+
+		# Email
+		if email:
+			try:
+				frappe.sendmail(
+					recipients=[email],
+					subject=f"Warranty Claim Update — {self.name}",
+					message=f"<p>Dear {self.customer_name or 'Customer'},</p><p>{message}</p>"
+					        f"<p>Claim Reference: <b>{self.name}</b></p>"
+					        f"<p>GoGizmo Customer Care</p>",
+					now=True,
+				)
+			except Exception:
+				pass
+
+		# SMS fallback
+		if phone:
+			try:
+				frappe.sendmail(
+					recipients=[f"{phone}@sms"],
+					subject="",
+					message=message,
+					now=True,
+				)
+			except Exception:
+				pass
 
 
 # ── Whitelisted APIs ────────────────────────────────────────────────────────

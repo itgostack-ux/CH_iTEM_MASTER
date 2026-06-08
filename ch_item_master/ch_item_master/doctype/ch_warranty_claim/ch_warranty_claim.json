@@ -20,6 +20,7 @@
   "claim_id",
   "title",
   "claim_date",
+  "claim_channel",
   "company",
   "reported_at_company",
   "column_break_basic",
@@ -78,6 +79,7 @@
   "section_approval",
   "requires_approval",
   "approval_status",
+  "repair_destination",
   "approved_amount",
   "column_break_approval",
   "approved_by",
@@ -125,6 +127,7 @@
   "section_receiving_photos",
   "parcel_photo_1",
   "parcel_photo_2",
+  "pickup_photos_added",
   "column_break_receiving_photos",
   "device_received_photo_1",
   "device_received_photo_2",
@@ -164,7 +167,9 @@
   "condition_at_return",
   "section_settlement",
   "gogizmo_invoice",
+  "gogizmo_payment_ref",
   "customer_invoice",
+  "customer_payment_ref",
   "column_break_settlement",
   "settlement_status",
   "section_history",
@@ -245,6 +250,17 @@
    "default": "Today",
    "reqd": 1,
    "in_list_view": 1
+  },
+  {
+   "fieldname": "claim_channel",
+   "fieldtype": "Select",
+   "label": "Claim Channel",
+   "options": "\nStore\nOnline/Bot\nPhone",
+   "default": "Store",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "reqd": 1,
+   "allow_on_submit": 0
   },
   {
    "fieldname": "company",
@@ -656,6 +672,14 @@
    "search_index": 1
   },
   {
+   "fieldname": "repair_destination",
+   "fieldtype": "Select",
+   "label": "Repair Destination",
+   "options": "\nGoFix Workshop\nBack to Store\nManufacturer",
+   "allow_on_submit": 1,
+   "description": "Set by VAS Manager after approval. Determines routing after device is received."
+  },
+  {
    "fieldname": "approved_amount",
    "fieldtype": "Currency",
    "label": "Approved Amount",
@@ -937,11 +961,25 @@
    "description": "Inter-company invoice: GoFix bills GoGizmo"
   },
   {
+   "fieldname": "gogizmo_payment_ref",
+   "fieldtype": "Data",
+   "label": "GoGizmo Payment Reference",
+   "allow_on_submit": 1,
+   "description": "Payment/JE reference for GoGizmo share of repair cost paid to GoFix."
+  },
+  {
    "fieldname": "customer_invoice",
    "fieldtype": "Link",
    "label": "Customer Invoice",
    "options": "Sales Invoice",
    "description": "Invoice to customer for deductible / out-of-warranty"
+  },
+  {
+   "fieldname": "customer_payment_ref",
+   "fieldtype": "Data",
+   "label": "Customer Payment Reference",
+   "allow_on_submit": 1,
+   "description": "Payment reference for customer portion of repair cost."
   },
   {
    "fieldname": "column_break_settlement",
@@ -1090,6 +1128,13 @@
    "fieldtype": "Attach Image",
    "label": "Parcel Photo 2",
    "allow_on_submit": 1
+  },
+  {
+   "fieldname": "pickup_photos_added",
+   "fieldtype": "Check",
+   "label": "Pickup Photos Added",
+   "allow_on_submit": 1,
+   "description": "Must be checked by logistics team before marking device as Picked Up."
   },
   {
    "fieldname": "column_break_receiving_photos",

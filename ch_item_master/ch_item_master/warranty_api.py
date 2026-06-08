@@ -1405,3 +1405,165 @@ def get_vas_claims_dashboard(company=None, limit=15) -> dict:
 		"recent_claims": recent_claims,
 		"voucher_redemptions": voucher_redemptions,
 	}
+
+
+# ── Bot / Online Claim Creation ─────────────────────────────────────────────
+
+@frappe.whitelist(allow_guest=False)
+@rate_limit(limit=10, seconds=60)
+def create_claim_from_bot(
+    serial_no: str,
+    customer_phone: str,
+    issue_description: str,
+    issue_category: str = "",
+    photos: list | str | None = None,
+    customer_name: str = "",
+    customer_email: str = "",
+    company: str = "",
+) -> dict:
+    """Create a Draft CH Warranty Claim from a bot or online channel.
+
+    The claim is left as Draft (docstatus=0) pending VAS Manager review.
+    The VAS Manager reviews photos and approves in a single step.
+
+    Args:
+        serial_no:          Device IMEI/serial number (required).
+        customer_phone:     Customer mobile number (required, used to find/create customer).
+        issue_description:  Free-text complaint (required).
+        issue_category:     Optional issue category (e.g. "Screen Damage").
+        photos:             List of Frappe file URLs already uploaded via /api/method/upload_file.
+        customer_name:      Customer name (used if customer record not found by phone).
+        customer_email:     Customer email.
+        company:            Company; defaults to Global Default company.
+
+    Returns:
+        {"claim_name": str, "claim_status": str, "message": str}
+    """
+    import json as _json
+
+    if not serial_no:
+        frappe.throw(_("Serial number is required."), title=_("Bot Claim Error"))
+    if not customer_phone:
+        frappe.throw(_("Customer phone is required."), title=_("Bot Claim Error"))
+    if not issue_description:
+        frappe.throw(_("Issue description is required."), title=_("Bot Claim Error"))
+
+    # Normalise photos arg (can come as JSON string from HTTP)
+    if isinstance(photos, str):
+        try:
+            photos = _json.loads(photos)
+        except Exception:
+            photos = [photos] if photos else []
+    photos = photos or []
+
+    # Resolve company
+    if not company:
+        company = frappe.db.get_single_value("Global Defaults", "default_company") or ""
+
+    # Find or create customer by phone
+    customer = _resolve_customer_by_phone(customer_phone, customer_name, customer_email, company)
+
+    # Build claim doc
+    claim = frappe.new_doc("CH Warranty Claim")
+    claim.serial_no    = serial_no.strip()
+    claim.customer     = customer
+    claim.customer_phone = customer_phone
+    claim.customer_email = customer_email or ""
+    claim.issue_description = issue_description
+    claim.issue_category    = issue_category or ""
+    claim.claim_channel     = "Online/Bot"
+    claim.mode_of_service   = "Pickup"   # online always needs pickup
+    claim.pickup_required   = 1
+    claim.claim_date        = nowdate()
+    claim.company           = company
+    # Reported by = calling user (API key) or Administrator for anonymous bot
+    claim.reported_by       = frappe.session.user if frappe.session.user != "Guest" else "Administrator"
+
+    # Attach up to 6 photos to the 6 device-image fields
+    image_fields = [
+        "device_image_front", "device_image_back", "device_image_left",
+        "device_image_right", "device_image_top", "device_image_bottom",
+    ]
+    for idx, photo_url in enumerate(photos[:6]):
+        setattr(claim, image_fields[idx], photo_url)
+
+    claim.flags.ignore_permissions = True
+    claim.insert()
+
+    # Notify all VAS Managers that a new bot claim needs review
+    _notify_vas_managers_new_bot_claim(claim)
+
+    return {
+        "claim_name": claim.name,
+        "claim_status": "Draft",
+        "message": _(
+            "Your complaint has been registered (Ref: {0}). "
+            "Our team will review and contact you within 24 hours."
+        ).format(claim.name),
+    }
+
+
+def _resolve_customer_by_phone(phone: str, name: str, email: str, company: str) -> str:
+    """Find existing customer by mobile_no or create one."""
+    existing = frappe.db.get_value("Customer", {"mobile_no": phone}, "name")
+    if existing:
+        return existing
+
+    # Try contact lookup
+    contact = frappe.db.get_value("Contact Phone", {"phone": phone}, "parent")
+    if contact:
+        linked = frappe.db.get_value(
+            "Dynamic Link",
+            {"parenttype": "Contact", "parent": contact, "link_doctype": "Customer"},
+            "link_name",
+        )
+        if linked:
+            return linked
+
+    # Create new customer
+    cust = frappe.new_doc("Customer")
+    cust.customer_name   = name or f"Online Customer {phone}"
+    cust.customer_type   = "Individual"
+    cust.customer_group  = frappe.db.get_single_value("Selling Settings", "customer_group") or "All Customer Groups"
+    cust.territory       = frappe.db.get_single_value("Selling Settings", "territory") or "All Territories"
+    cust.mobile_no       = phone
+    cust.email_id        = email or ""
+    cust.flags.ignore_permissions = True
+    cust.insert()
+    return cust.name
+
+
+def _notify_vas_managers_new_bot_claim(claim) -> None:
+    """Send Notification Log to all VAS Managers for new bot claim review."""
+    managers = frappe.get_all(
+        "Has Role",
+        filters={"role": "CH Warranty Manager", "parenttype": "User"},
+        pluck="parent",
+    )
+    if not managers:
+        managers = frappe.get_all(
+            "Has Role",
+            filters={"role": "System Manager", "parenttype": "User"},
+            pluck="parent",
+        )
+    for user in managers:
+        if not user or user == "Guest":
+            continue
+        try:
+            frappe.get_doc({
+                "doctype": "Notification Log",
+                "subject": f"[Bot Claim] New warranty claim requires VAS review — {claim.name}",
+                "email_content": (
+                    f"Customer: {claim.customer_name or claim.customer}<br>"
+                    f"Device Serial: {claim.serial_no}<br>"
+                    f"Issue: {claim.issue_description}<br>"
+                    f"<a href='/app/ch-warranty-claim/{claim.name}'>Open Claim</a>"
+                ),
+                "type": "Alert",
+                "document_type": "CH Warranty Claim",
+                "document_name": claim.name,
+                "from_user": "Administrator",
+                "for_user": user,
+            }).insert(ignore_permissions=True)
+        except Exception:
+            pass

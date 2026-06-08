@@ -308,6 +308,58 @@ function _setup_action_buttons(frm) {
 				__("Close Warranty Claim")
 			);
 		}, __("Actions"));
+
+		// Settle Claim — record GoGizmo→GoFix payment and customer portion
+		if (["Repair Complete", "Final QC Passed", "Delivered"].includes(s)
+				&& frm.doc.settlement_status !== "Settled") {
+			frm.add_custom_button(__("Record Settlement"), () => {
+				const d = new frappe.ui.Dialog({
+					title: __("Record Claim Settlement"),
+					fields: [
+						{
+							fieldtype: "Section Break",
+							label: __("GoGizmo → GoFix Payment"),
+						},
+						{
+							fieldname: "gogizmo_payment_ref",
+							fieldtype: "Data",
+							label: __("GoGizmo Payment Reference"),
+							description: __("JE/payment reference for GoGizmo share (₹{0}) paid to GoFix",
+								[format_currency(frm.doc.gogizmo_share, frm.doc.currency)]),
+							default: frm.doc.gogizmo_payment_ref || "",
+						},
+						{ fieldtype: "Column Break" },
+						{
+							fieldtype: "Section Break",
+							label: __("Customer Payment"),
+						},
+						{
+							fieldname: "customer_payment_ref",
+							fieldtype: "Data",
+							label: __("Customer Payment Reference"),
+							description: __("Payment reference for customer share (₹{0})",
+								[format_currency(frm.doc.customer_share, frm.doc.currency)]),
+							default: frm.doc.customer_payment_ref || "",
+						},
+					],
+					primary_action_label: __("Save Settlement"),
+					primary_action: (v) => {
+						frm.call("settle_claim", {
+							gogizmo_payment_ref: v.gogizmo_payment_ref || null,
+							customer_payment_ref: v.customer_payment_ref || null,
+						}).then(r => {
+							d.hide();
+							frappe.show_alert({
+								message: __("Settlement recorded: {0}", [r.message?.settlement_status || "Updated"]),
+								indicator: "green",
+							});
+							frm.reload_doc();
+						});
+					},
+				});
+				d.show();
+			}, __("Actions"));
+		}
 	}
 }
 

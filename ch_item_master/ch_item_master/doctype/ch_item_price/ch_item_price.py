@@ -54,7 +54,12 @@ class CHItemPrice(Document):
 			)
 
 	def _validate_price_hierarchy(self):
-		"""MRP >= MOP >= Selling Price (when all three are provided)."""
+		"""MRP >= Selling Price (when provided).
+
+		TC_019: MOP is allowed to be below Selling Price, so the MOP >= Selling
+		Price constraint is intentionally not enforced. MRP must still be the
+		ceiling for both MOP and Selling Price.
+		"""
 		mrp = self.mrp or 0
 		mop = self.mop or 0
 		sp  = self.selling_price or 0
@@ -62,12 +67,6 @@ class CHItemPrice(Document):
 		if mrp and mop and mrp < mop:
 			frappe.throw(
 				_("MRP ({0}) cannot be less than MOP ({1})").format(mrp, mop),
-				title=_("Invalid Price Hierarchy"),
-				exc=InvalidPriceHierarchyError,
-			)
-		if mop and sp and mop < sp:
-			frappe.throw(
-				_("MOP ({0}) cannot be less than Selling Price ({1})").format(mop, sp),
 				title=_("Invalid Price Hierarchy"),
 				exc=InvalidPriceHierarchyError,
 			)
