@@ -847,6 +847,13 @@ function _render_ch_quick_actions(frm) {
     frm.add_custom_button(__('Version History'), function () {
         _show_version_history_dialog(frm);
     }, __('CH Actions'));
+
+    // ── Price change audit trail ───────────────────────────────────────────
+    frm.add_custom_button(__('Open Price Change Log'), function () {
+        frappe.set_route('List', 'CH Price Change Log', {
+            item_code: frm.doc.name,
+        });
+    }, __('CH Actions'));
 }
 
 /** Returns the allowed next PLM states from a given state. */

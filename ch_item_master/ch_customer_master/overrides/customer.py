@@ -19,6 +19,7 @@ from frappe.utils import getdate, today, random_string
 
 def before_insert(doc, method=None):
 	"""Before a new Customer is created."""
+	_apply_import_naming_guard(doc)
 	# Normalize customer name
 	if doc.customer_name:
 		doc.customer_name = " ".join(doc.customer_name.split())
@@ -246,6 +247,33 @@ def _track_phone_change(doc):
 		title=_("Phone Number Updated"),
 		indicator="blue",
 	)
+
+
+def _apply_import_naming_guard(doc):
+	"""During Data Import inserts, force series-based naming.
+
+	Operators often upload CSVs where the ``name``/``ID`` column is populated
+	with customer_name. That makes two different people named "Rahul" collide on
+	the document primary key before phone dedup checks run. For Customer inserts
+	we always want generated IDs from naming series, while uniqueness is governed
+	by mobile_no.
+	"""
+	if not doc.is_new():
+		return
+
+	in_import = any(
+		bool(getattr(frappe.flags, flag, False))
+		for flag in ("in_import", "in_data_import", "in_importer")
+	)
+	if not in_import:
+		return
+
+	# Ignore any explicit name/ID sent by the import payload for new records.
+	doc.name = None
+
+	# Ensure series is present so autoname doesn't depend on payload shape.
+	if not doc.get("naming_series"):
+		doc.naming_series = "CUST-.YYYY.-"
 
 
 def _generate_membership_id(doc):

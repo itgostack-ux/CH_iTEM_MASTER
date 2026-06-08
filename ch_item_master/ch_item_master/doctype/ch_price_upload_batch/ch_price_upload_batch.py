@@ -441,6 +441,16 @@ class CHPriceUploadBatch(Document):
 		# Field label → DB field name mapping for selling prices
 		_selling_field_map = {"MRP": "mrp", "MOP": "mop", "Selling Price": "selling_price"}
 
+		batch_reason = ""
+		if (self.notes or "").strip():
+			for line in (self.notes or "").splitlines():
+				line = (line or "").strip()
+				if line.lower().startswith("reason:"):
+					batch_reason = line.split(":", 1)[1].strip()
+					break
+			if not batch_reason:
+				batch_reason = (self.notes or "").strip()
+
 		for row in self.items:
 			if row.status != "Applied":
 				continue
@@ -463,7 +473,7 @@ class CHPriceUploadBatch(Document):
 			log.new_value = row.new_value
 			log.source = "Upload Batch"
 			log.batch_ref = self.name
-			log.reason = row.reason or ""
+			log.reason = (row.reason or "").strip() or batch_reason
 			log.changed_by = self.approved_by or frappe.session.user
 			log.changed_at = now_datetime()
 			log.insert(ignore_permissions=True)

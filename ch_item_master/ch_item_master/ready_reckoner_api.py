@@ -1106,6 +1106,8 @@ def create_price_change_batch(
     batch.uploaded_by = frappe.session.user
     batch.upload_date = nowdate()
     batch.status = "Draft"
+    if (reason or "").strip():
+        batch.notes = f"Reason: {(reason or '').strip()}"
     if company:
         batch.company = company
 
@@ -1413,9 +1415,13 @@ def upload_ready_reckoner_prices(file_url, effective_from=None, company=None, re
     # ── Auto-enrich with sales / stock context ────────────────────────────
     _enrich_batch_items(batch, item_codes_in_file)
 
-    batch.notes = ""
+    note_lines = []
+    if (reason or "").strip():
+        note_lines.append(f"Reason: {(reason or '').strip()}")
     if parse_errors:
-        batch.notes = f"{len(parse_errors)} parse warning(s):\n" + "\n".join(parse_errors[:50])
+        note_lines.append(f"{len(parse_errors)} parse warning(s):")
+        note_lines.extend(parse_errors[:50])
+    batch.notes = "\n".join(note_lines)
 
     batch.insert(ignore_permissions=True)
     return {
