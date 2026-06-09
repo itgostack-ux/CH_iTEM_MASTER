@@ -85,6 +85,30 @@ frappe.pages['ch-ready-reckoner'].on_page_load = function (wrapper) {
             text-align: right; cursor: pointer; position: relative;
             min-width: 70px;
         }
+        .chpb-table td.price-cell.inline-editing {
+            padding: 0;
+            background: var(--yellow-50, #fffbeb);
+        }
+        .chpb-table td.price-cell.is-saving {
+            opacity: 0.7;
+            pointer-events: none;
+        }
+        .chpb-table td.price-cell.saved-flash {
+            animation: chpbSavedFlash 0.7s ease;
+        }
+        @keyframes chpbSavedFlash {
+            0% { background: #d4edda; }
+            100% { background: transparent; }
+        }
+        .chpb-table td.price-cell.inline-editing input {
+            width: 100%;
+            border: 0;
+            outline: 0;
+            padding: 5px 10px;
+            background: transparent;
+            text-align: right;
+            font-size: 12px;
+        }
         .chpb-table td.price-cell:hover { background: var(--yellow-50, #fffbeb); }
         .chpb-table td.price-cell.has-value { color: var(--text-color); }
         .chpb-table td.price-cell.no-value { color: var(--border-color); }
@@ -229,6 +253,11 @@ frappe.pages['ch-ready-reckoner'].on_page_load = function (wrapper) {
 // ─── Filter bar ───────────────────────────────────────────────────────────────
 function _build_filters($wrap, state, onchange) {
     const $bar = $wrap.find('#chpb-filters');
+    const default_company = frappe.defaults.get_user_default('Company') || '';
+    if (!state.filters.company && default_company) {
+        state.filters.company = default_company;
+    }
+    state.filter_controls = state.filter_controls || {};
 
     const inputs = [
         { key: 'company',     label: 'Company',    type: 'link', doctype: 'Company' },
@@ -258,14 +287,16 @@ function _build_filters($wrap, state, onchange) {
                     debounce = setTimeout(onchange, 400);
                 });
         } else if (inp.type === 'date') {
-            $(`<input type="date" class="form-control" value="${state.filters[inp.key]||''}">`)
+            const $date = $(`<input type="date" class="form-control" value="${state.filters[inp.key]||''}">`)
                 .appendTo($grp)
                 .on('change', function () { state.filters[inp.key] = this.value; onchange(); });
+            state.filter_controls[inp.key] = $date;
         } else if (inp.type === 'select') {
             const $sel = $(`<select class="form-control"></select>`).appendTo($grp);
             inp.options.forEach(o => $sel.append(`<option value="${o}">${o || 'All'}</option>`));
             $sel.val(state.filters[inp.key] || '');
             $sel.on('change', function () { state.filters[inp.key] = this.value; onchange(); });
+            state.filter_controls[inp.key] = $sel;
         } else if (inp.type === 'link') {
             // Use Frappe's awesomplete link field
             const $el = $(`<input class="form-control" type="text" placeholder="${inp.label}…">`).appendTo($grp);
@@ -286,6 +317,7 @@ function _build_filters($wrap, state, onchange) {
                 state.filters[inp.key] = this.value;
                 onchange();
             });
+            state.filter_controls[inp.key] = ctrl;
             // Remove the auto-generated label since we add our own
             $grp.find('.control-label').remove();
             $el.remove();
@@ -313,6 +345,7 @@ function _build_filters($wrap, state, onchange) {
 // ─── Load data ────────────────────────────────────────────────────────────────
 function _load($wrap, state) {
     if (state.loading) return;
+    _sync_filters_from_controls(state);
     state.loading = true;
     $wrap.find('#chpb-table-wrap').html(`<div class="chpb-empty">
         <div class="spinner-border spinner-border-sm text-muted" role="status"></div>
@@ -333,6 +366,25 @@ function _load($wrap, state) {
             _update_stats($wrap, state);
         },
         error() { state.loading = false; },
+    });
+}
+
+function _sync_filters_from_controls(state) {
+    const controls = state.filter_controls || {};
+    Object.keys(controls).forEach((key) => {
+        const ctrl = controls[key];
+        if (!ctrl) return;
+
+        // Link controls are frappe.ui.form.ControlLink instances
+        if (typeof ctrl.get_value === 'function') {
+            state.filters[key] = ctrl.get_value() || (ctrl.$input && ctrl.$input.val()) || '';
+            return;
+        }
+
+        // Date/select controls are jQuery elements
+        if (typeof ctrl.val === 'function') {
+            state.filters[key] = ctrl.val() || '';
+        }
     });
 }
 
@@ -413,36 +465,20 @@ function _render_table($wrap, state) {
         const tagsHtml = (row.tags || '').split(',').filter(Boolean)
             .map(t => `<span class="chpb-tag ${t.trim()}">${t.trim()}</span>`).join('') || '—';
 
-        rows += `<td class="offer-cell">${offerHtml}</td>
-            <td class="tag-cell">${tagsHtml}</td>
-            <td style="min-width:70px">
-              <button class="btn btn-xs btn-default chpb-open-btn" data-item="${row.item_code}" title="Open details">⋯</button>
-              <button class="btn btn-xs btn-primary chpb-add-price-btn" data-item="${row.item_code}" title="Add/Edit Price">₹</button>
-            </td>
-        </tr>`;
+                rows += `<td class="offer-cell">${offerHtml}</td>
+                        <td class="tag-cell">${tagsHtml}</td>
+                        <td style="min-width:70px">
+                            <button class="btn btn-xs btn-default chpb-open-btn" data-item="${row.item_code}" title="Open details">⋯</button>
+                        </td>
+                </tr>`;
     });
 
     const $t = $(`<table class="chpb-table">${head}<tbody>${rows}</tbody></table>`);
 
     // ── Click handlers ────────────────────────────────────────────────────
-    // Selling price cells WITH existing data → open dialog pre-filled
-    $t.find('.price-cell[data-price-name]').on('click', function (e) {
+    $t.find('.price-cell[data-field="mrp"], .price-cell[data-field="mop"], .price-cell[data-field="selling_price"]').on('click', function (e) {
         e.stopPropagation();
-        const $cell = $(this);
-        const item = $cell.data('item');
-        const ch   = $cell.data('ch');
-        const $row = $cell.closest('tr');
-        const variant_count = parseInt($row.attr('data-variant-count') || '1');
-        const is_grouped = variant_count > 1;
-
-        // Gather current MRP/MOP/SP from sibling cells in same row+channel
-        const _val = (field) => {
-            const txt = $row.find(`.price-cell[data-ch="${ch}"][data-field="${field}"]`).text().trim();
-            return parseFloat(txt.replace(/[^\d.-]/g, '')) || 0;
-        };
-        const prefill = { mrp: _val('mrp'), mop: _val('mop'), selling_price: _val('selling_price') };
-
-        _quick_price_dialog(item, ch, null, () => _load($wrap, state), is_grouped, variant_count, prefill);
+        _activate_inline_price_editor($(this), state, $wrap);
     });
 
     $t.find('.price-cell[data-buyback-name]').on('click', function (e) {
@@ -451,32 +487,9 @@ function _render_table($wrap, state) {
         _buyback_price_dialog(item, () => _load($wrap, state));
     });
 
-    $t.find('.price-cell.no-value').on('click', function (e) {
-        e.stopPropagation();
-        const item = $(this).data('item');
-        const ch   = $(this).data('ch');
-        const $row = $(this).closest('tr');
-        const variant_count = parseInt($row.attr('data-variant-count') || '1');
-        const is_grouped = variant_count > 1;
-        const buying_set = new Set(state.data.buying_channels || []);
-        if (buying_set.has(ch)) {
-            _buyback_price_dialog(item, () => _load($wrap, state));
-        } else {
-            _quick_price_dialog(item, ch, null, () => _load($wrap, state), is_grouped, variant_count);
-        }
-    });
-
     $t.find('.chpb-open-btn').on('click', function (e) {
         e.stopPropagation();
         _open_drawer($wrap, state, $(this).data('item'));
-    });
-
-    $t.find('.chpb-add-price-btn').on('click', function (e) {
-        e.stopPropagation();
-        const $row = $(this).closest('tr');
-        const variant_count = parseInt($row.attr('data-variant-count') || '1');
-        const is_grouped = variant_count > 1;
-        _quick_price_dialog($(this).data('item'), null, null, () => _load($wrap, state), is_grouped, variant_count);
     });
 
     $t.find('tr[data-item]').on('click', function () {
@@ -517,6 +530,123 @@ function _buyback_price_cell(val, ch, field, item_code, bname, status) {
     return `<td class="price-cell no-value" data-ch="${ch}" data-field="${field}"
                 data-item="${item_code}" title="No buyback price for ${ch}">—
             </td>`;
+}
+
+function _activate_inline_price_editor($cell, state, $wrap) {
+    if ($cell.hasClass('inline-editing')) {
+        return;
+    }
+
+    const field = $cell.data('field');
+    const item_code = $cell.data('item');
+    const channel = $cell.data('ch');
+    const price_name = $cell.data('price-name') || '';
+    const current_text = ($cell.text() || '').replace(/\s*✎\s*|\s*\+ add\s*|—/g, '').trim();
+    const current_value = current_text ? parseFloat(current_text.replace(/[^\d.-]/g, '')) || 0 : 0;
+    const original_html = $cell.html();
+    const input_value = current_value ? String(current_value) : '';
+
+    $cell.addClass('inline-editing').html(
+        `<input type="number" step="0.01" min="0" class="form-control input-sm chpb-inline-input" value="${frappe.utils.escape_html(input_value)}">`
+    );
+
+    const $input = $cell.find('input');
+    $input.trigger('focus').trigger('select');
+
+    let committed = false;
+    const restore = () => {
+        $cell.removeClass('inline-editing').html(original_html);
+    };
+
+    const submit_batch = (reason) => {
+        $cell.find('input').prop('disabled', true);
+        $cell.addClass('is-saving');
+
+        const args = {
+            item_code,
+            channel,
+            field,
+            value: new_value,
+            price_name,
+            company: state.filters.company || '',
+            effective_from: state.filters.as_of_date || frappe.datetime.get_today(),
+            reason: reason || '',
+        };
+
+        frappe.call({
+            method: 'ch_item_master.ch_item_master.ready_reckoner_api.save_ready_reckoner_price',
+            args,
+            callback(r) {
+                const data = (r && r.message) || {};
+                restore();
+                $cell.addClass('saved-flash');
+                frappe.show_alert({
+                    message: __('Price change batch created — awaiting approval'),
+                    indicator: 'blue',
+                }, 5);
+                setTimeout(() => {
+                    $cell.removeClass('saved-flash');
+                    _load($wrap, state);
+                }, 650);
+                if (data.batch_name) {
+                    frappe.set_route('Form', 'CH Price Upload Batch', data.batch_name);
+                }
+            },
+            error() {
+                $cell.removeClass('is-saving');
+                restore();
+            },
+        });
+    };
+
+    const commit = () => {
+        if (committed) return;
+        committed = true;
+        _sync_filters_from_controls(state);
+
+        const raw = ($input.val() || '').toString().trim();
+        const new_value = raw === '' ? 0 : Number(raw);
+        if (Number.isNaN(new_value) || new_value < 0) {
+            frappe.msgprint({ title: __('Invalid Price'), indicator: 'red', message: __('Please enter a valid non-negative number.') });
+            restore();
+            return;
+        }
+
+        if (new_value === current_value) {
+            restore();
+            return;
+        }
+
+        frappe.prompt(
+            [
+                {
+                    fieldname: 'reason',
+                    fieldtype: 'Small Text',
+                    label: __('Reason for Change'),
+                    reqd: current_value > 0 ? 1 : 0,
+                    description: current_value > 0
+                        ? __('Required when changing an existing approved price')
+                        : __('Optional for first-time price creation'),
+                },
+            ],
+            (values) => submit_batch((values && values.reason) || ''),
+            __('Submit for Approval'),
+            __('Create Batch')
+        );
+    };
+
+    $input.on('keydown', function (e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            commit();
+        } else if (e.key === 'Escape') {
+            e.preventDefault();
+            committed = true;
+            restore();
+        }
+    });
+
+    $input.on('blur', commit);
 }
 
 function _update_stats($wrap, state) {

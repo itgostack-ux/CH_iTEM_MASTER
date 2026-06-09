@@ -1126,6 +1126,50 @@ def create_price_change_batch(
     }
 
 
+@frappe.whitelist()
+def save_ready_reckoner_price(
+    item_code,
+    channel,
+    field,
+    value,
+    price_name=None,
+    company=None,
+    effective_from=None,
+    reason=None,
+) -> dict:
+    """Inline Ready Reckoner edits must still go through maker-checker approval.
+
+    This endpoint now creates a one-line CH Price Upload Batch instead of
+    mutating CH Item Price directly.
+    """
+    frappe.only_for(["System Manager", "CH Master Manager", "CH Price Manager"])
+
+    allowed_fields = {"mrp", "mop", "selling_price"}
+    if field not in allowed_fields:
+        frappe.throw(_("Unsupported price field: {0}").format(field), title=_("API Error"))
+
+    new_value = float(value or 0)
+    if new_value < 0:
+        frappe.throw(_("{0} cannot be negative.").format(field.upper()), title=_("Invalid Price"))
+    if field == "selling_price" and new_value <= 0:
+        frappe.throw(_("Selling Price must be greater than zero."), title=_("Invalid Price"))
+
+    args = {
+        "item_code": item_code,
+        "change_type": "Selling Price",
+        "channel": channel,
+        "effective_from": effective_from or nowdate(),
+        "reason": reason or "",
+        "propagate": 0,
+        "company": company or "",
+        "mrp": None,
+        "mop": None,
+        "selling_price": None,
+    }
+    args[field] = new_value
+    return create_price_change_batch(**args)
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Bulk upload prices from Ready Reckoner Excel
 # ─────────────────────────────────────────────────────────────────────────────
