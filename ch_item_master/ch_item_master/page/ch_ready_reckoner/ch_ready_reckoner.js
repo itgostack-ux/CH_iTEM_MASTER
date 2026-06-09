@@ -34,6 +34,7 @@ frappe.pages['ch-ready-reckoner'].on_page_load = function (wrapper) {
         page: 1,
         page_length: 50,
         data: { items: [], channels: [], total: 0 },
+        pending_changes: {},
         loading: false,
     };
 
@@ -117,6 +118,21 @@ frappe.pages['ch-ready-reckoner'].on_page_load = function (wrapper) {
             font-size: 9px; color: var(--text-muted);
         }
         .chpb-table td.price-cell:hover .edit-hint { display: block; }
+        .chpb-table td.price-cell.pending-change {
+            background: var(--blue-50, #e8f4fd);
+            box-shadow: inset 0 0 0 1px var(--blue-400, #5aa9f8);
+        }
+        .chpb-table td.price-cell .pending-pill {
+            display: inline-block;
+            margin-left: 6px;
+            padding: 0 5px;
+            border-radius: 10px;
+            font-size: 9px;
+            line-height: 15px;
+            background: var(--blue-100, #d8ecff);
+            color: var(--blue-700, #1b6fb8);
+            vertical-align: middle;
+        }
         .chpb-table td.status-badge span {
             padding: 1px 6px; border-radius: 8px; font-size: 10px; font-weight: 600;
         }
@@ -211,6 +227,20 @@ frappe.pages['ch-ready-reckoner'].on_page_load = function (wrapper) {
             padding: 8px; border-top: 1px solid var(--border-color);
             font-size: 12px;
         }
+        .chpb-pending-chip {
+            display: inline-flex;
+            align-items: center;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            background: var(--gray-100, #f4f5f6);
+            color: var(--text-muted);
+        }
+        .chpb-pending-chip.has-pending {
+            background: var(--blue-100, #d8ecff);
+            color: var(--blue-700, #1b6fb8);
+            font-weight: 600;
+        }
     `);
 
     // ── Build layout ──────────────────────────────────────────────────────
@@ -219,7 +249,10 @@ frappe.pages['ch-ready-reckoner'].on_page_load = function (wrapper) {
         <div class="chpb-filters" id="chpb-filters"></div>
         <div class="chpb-stats" id="chpb-stats">
           <span id="chpb-count">Loading…</span>
-          <div style="display:flex;gap:8px;">
+                    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">
+                        <span id="chpb-pending-count" class="chpb-pending-chip">No pending changes</span>
+                        <button class="btn btn-xs btn-primary" id="chpb-send-approval" disabled>Send Changes for Approval</button>
+                        <button class="btn btn-xs btn-default" id="chpb-open-pending">Pending Approval</button>
             <button class="btn btn-xs btn-default" id="chpb-prev">‹ Prev</button>
             <span id="chpb-page-info"></span>
             <button class="btn btn-xs btn-default" id="chpb-next">Next ›</button>
@@ -244,6 +277,16 @@ frappe.pages['ch-ready-reckoner'].on_page_load = function (wrapper) {
         const max = Math.ceil(state.data.total / state.page_length);
         if (state.page < max) { state.page++; _load($wrap, state); }
     });
+
+    $wrap.find('#chpb-send-approval').on('click', () => {
+        _submit_pending_changes($wrap, state);
+    });
+
+    $wrap.find('#chpb-open-pending').on('click', () => {
+        frappe.set_route('List', 'CH Price Upload Batch', { status: 'Pending Approval' });
+    });
+
+    _refresh_pending_ui($wrap, state);
 
     // ── Initial load ──────────────────────────────────────────────────────
     _load($wrap, state);
@@ -396,6 +439,7 @@ function _render_table($wrap, state) {
 
     if (!items.length) {
         $wrap.find('#chpb-table-wrap').html(`<div class="chpb-empty">No items found. Adjust filters and try again.</div>`);
+        _refresh_pending_ui($wrap, state);
         return;
     }
 
@@ -447,15 +491,15 @@ function _render_table($wrap, state) {
                 rows += _buyback_price_cell(mp, ch, 'market_price', row.item_code, bname, status);
                 rows += _buyback_price_cell(vp, ch, 'vendor_price', row.item_code, bname, status);
             } else {
-                const mrp    = row[ch+'__mrp'];
-                const mop    = row[ch+'__mop'];
-                const sp     = row[ch+'__selling_price'];
+                const mrp    = _get_display_price(state, row.item_code, ch, 'mrp', row[ch+'__mrp']);
+                const mop    = _get_display_price(state, row.item_code, ch, 'mop', row[ch+'__mop']);
+                const sp     = _get_display_price(state, row.item_code, ch, 'selling_price', row[ch+'__selling_price']);
                 const pname  = row[ch+'__price_name'];
                 const status = row[ch+'__status'];
 
-                rows += _price_cell(mrp,  ch, 'mrp',           row.item_code, pname, status);
-                rows += _price_cell(mop,  ch, 'mop',           row.item_code, pname, status);
-                rows += _price_cell(sp,   ch, 'selling_price', row.item_code, pname, status);
+                rows += _price_cell(mrp,  ch, 'mrp',           row.item_code, pname, status, row[ch+'__mrp'], state);
+                rows += _price_cell(mop,  ch, 'mop',           row.item_code, pname, status, row[ch+'__mop'], state);
+                rows += _price_cell(sp,   ch, 'selling_price', row.item_code, pname, status, row[ch+'__selling_price'], state);
             }
         });
 
@@ -499,20 +543,29 @@ function _render_table($wrap, state) {
     });
 
     $wrap.find('#chpb-table-wrap').html('').append($t);
+    _refresh_pending_ui($wrap, state);
 }
 
-function _price_cell(val, ch, field, item_code, pname, status) {
+function _price_cell(val, ch, field, item_code, pname, status, base_value, state) {
+    const pending = !!_get_pending_change(state, item_code, ch, field);
+    const base = base_value == null ? 0 : Number(base_value || 0);
+    const pending_tag = pending ? `<span class="pending-pill">Pending</span>` : '';
+    const pending_cls = pending ? ' pending-change' : '';
+
     if (val) {
         const fmt = frappe.format(val, { fieldtype: 'Currency' });
         const badge = `<span class="${status}">${status||''}</span>`;
-        return `<td class="price-cell has-value status-badge" data-ch="${ch}"
+        return `<td class="price-cell has-value status-badge${pending_cls}" data-ch="${ch}"
                     data-field="${field}" data-item="${item_code}" data-price-name="${pname}"
+                    data-base-value="${base}"
                     title="Click to edit price">${fmt}
+                    ${pending_tag}
                     <span class="edit-hint">✎</span>
                 </td>`;
     }
-    return `<td class="price-cell no-value" data-ch="${ch}" data-field="${field}"
-                data-item="${item_code}" title="Click to add price for ${ch}">—
+    return `<td class="price-cell no-value${pending_cls}" data-ch="${ch}" data-field="${field}"
+                data-item="${item_code}" data-base-value="${base}" title="Click to add price for ${ch}">—
+                ${pending_tag}
                 <span class="edit-hint">+ add</span>
             </td>`;
 }
@@ -540,9 +593,9 @@ function _activate_inline_price_editor($cell, state, $wrap) {
     const field = $cell.data('field');
     const item_code = $cell.data('item');
     const channel = $cell.data('ch');
-    const price_name = $cell.data('price-name') || '';
+    const base_value = Number($cell.data('base-value') || 0);
     const current_text = ($cell.text() || '').replace(/\s*✎\s*|\s*\+ add\s*|—/g, '').trim();
-    const current_value = current_text ? parseFloat(current_text.replace(/[^\d.-]/g, '')) || 0 : 0;
+    const current_value = current_text ? parseFloat(current_text.replace(/[^\d.-]/g, '')) || 0 : base_value;
     const original_html = $cell.html();
     const input_value = current_value ? String(current_value) : '';
 
@@ -556,47 +609,6 @@ function _activate_inline_price_editor($cell, state, $wrap) {
     let committed = false;
     const restore = () => {
         $cell.removeClass('inline-editing').html(original_html);
-    };
-
-    const submit_batch = (reason) => {
-        $cell.find('input').prop('disabled', true);
-        $cell.addClass('is-saving');
-
-        const args = {
-            item_code,
-            channel,
-            field,
-            value: new_value,
-            price_name,
-            company: state.filters.company || '',
-            effective_from: state.filters.as_of_date || frappe.datetime.get_today(),
-            reason: reason || '',
-        };
-
-        frappe.call({
-            method: 'ch_item_master.ch_item_master.ready_reckoner_api.save_ready_reckoner_price',
-            args,
-            callback(r) {
-                const data = (r && r.message) || {};
-                restore();
-                $cell.addClass('saved-flash');
-                frappe.show_alert({
-                    message: __('Price change batch created — awaiting approval'),
-                    indicator: 'blue',
-                }, 5);
-                setTimeout(() => {
-                    $cell.removeClass('saved-flash');
-                    _load($wrap, state);
-                }, 650);
-                if (data.batch_name) {
-                    frappe.set_route('Form', 'CH Price Upload Batch', data.batch_name);
-                }
-            },
-            error() {
-                $cell.removeClass('is-saving');
-                restore();
-            },
-        });
     };
 
     const commit = () => {
@@ -617,22 +629,20 @@ function _activate_inline_price_editor($cell, state, $wrap) {
             return;
         }
 
-        frappe.prompt(
-            [
-                {
-                    fieldname: 'reason',
-                    fieldtype: 'Small Text',
-                    label: __('Reason for Change'),
-                    reqd: current_value > 0 ? 1 : 0,
-                    description: current_value > 0
-                        ? __('Required when changing an existing approved price')
-                        : __('Optional for first-time price creation'),
-                },
-            ],
-            (values) => submit_batch((values && values.reason) || ''),
-            __('Submit for Approval'),
-            __('Create Batch')
-        );
+        _set_pending_change(state, {
+            item_code,
+            channel,
+            field,
+            old_value: base_value,
+            new_value,
+        });
+        restore();
+        _render_table($wrap, state);
+        _update_stats($wrap, state);
+        frappe.show_alert({
+            message: __('Change queued. Click "Send Changes for Approval" when ready.'),
+            indicator: 'blue',
+        }, 3);
     };
 
     $input.on('keydown', function (e) {
@@ -647,6 +657,98 @@ function _activate_inline_price_editor($cell, state, $wrap) {
     });
 
     $input.on('blur', commit);
+}
+
+function _pending_key(item_code, channel, field) {
+    return [item_code || '', channel || '', field || ''].join('::');
+}
+
+function _get_pending_change(state, item_code, channel, field) {
+    return (state.pending_changes || {})[_pending_key(item_code, channel, field)] || null;
+}
+
+function _get_display_price(state, item_code, channel, field, base_value) {
+    const pending = _get_pending_change(state, item_code, channel, field);
+    return pending ? pending.new_value : base_value;
+}
+
+function _set_pending_change(state, change) {
+    const key = _pending_key(change.item_code, change.channel, change.field);
+    const old_value = Number(change.old_value || 0);
+    const new_value = Number(change.new_value || 0);
+    if (old_value === new_value) {
+        delete state.pending_changes[key];
+        return;
+    }
+    state.pending_changes[key] = {
+        item_code: change.item_code,
+        channel: change.channel,
+        field: change.field,
+        old_value,
+        new_value,
+    };
+}
+
+function _refresh_pending_ui($wrap, state) {
+    const pending_count = Object.keys(state.pending_changes || {}).length;
+    const $chip = $wrap.find('#chpb-pending-count');
+    const $send = $wrap.find('#chpb-send-approval');
+    if (!pending_count) {
+        $chip.text(__('No pending changes')).removeClass('has-pending');
+        $send.prop('disabled', true);
+        return;
+    }
+    $chip.text(__('{0} change(s) queued', [pending_count])).addClass('has-pending');
+    $send.prop('disabled', false);
+}
+
+function _submit_pending_changes($wrap, state) {
+    _sync_filters_from_controls(state);
+    const pending_rows = Object.values(state.pending_changes || {});
+    if (!pending_rows.length) {
+        frappe.show_alert({ message: __('No pending changes to submit.'), indicator: 'orange' }, 3);
+        return;
+    }
+
+    const requires_reason = pending_rows.some((row) => Number(row.old_value || 0) > 0);
+    const fields = [
+        {
+            fieldname: 'reason',
+            fieldtype: 'Small Text',
+            label: __('Reason for Change'),
+            reqd: requires_reason ? 1 : 0,
+            description: requires_reason
+                ? __('Required because one or more existing prices are being changed.')
+                : __('Optional for first-time price creation.'),
+        },
+    ];
+
+    frappe.prompt(fields, (values) => {
+        frappe.call({
+            method: 'ch_item_master.ch_item_master.ready_reckoner_api.create_inline_price_change_batch',
+            args: {
+                changes: pending_rows,
+                reason: (values && values.reason) || '',
+                company: state.filters.company || '',
+                effective_from: state.filters.as_of_date || frappe.datetime.get_today(),
+                submit_for_approval: 1,
+            },
+            callback(r) {
+                const res = (r && r.message) || {};
+                state.pending_changes = {};
+                _refresh_pending_ui($wrap, state);
+                frappe.show_alert({
+                    message: __('Batch {0} created and sent for approval ({1} changes).', [res.batch_name, res.total_changes || pending_rows.length]),
+                    indicator: 'green',
+                }, 5);
+                if (res.batch_name) {
+                    frappe.set_route('Form', 'CH Price Upload Batch', res.batch_name);
+                } else {
+                    _load($wrap, state);
+                }
+            },
+        });
+    }, __('Send Changes for Approval'), __('Submit'));
 }
 
 function _update_stats($wrap, state) {

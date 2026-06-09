@@ -1170,6 +1170,114 @@ def save_ready_reckoner_price(
     return create_price_change_batch(**args)
 
 
+@frappe.whitelist()
+def create_inline_price_change_batch(
+    changes,
+    reason=None,
+    company=None,
+    effective_from=None,
+    submit_for_approval=1,
+) -> dict:
+    """Create one CH Price Upload Batch from multiple inline grid edits.
+
+    `changes` expects a JSON array of rows:
+      {item_code, channel, field, old_value, new_value}
+    """
+    frappe.only_for(["System Manager", "CH Master Manager", "CH Price Manager"])
+
+    parsed_changes = frappe.parse_json(changes) if isinstance(changes, str) else changes
+    parsed_changes = parsed_changes or []
+    if not isinstance(parsed_changes, list):
+        frappe.throw(_("Invalid payload for inline changes."), title=_("API Error"))
+
+    field_label_map = {
+        "mrp": "MRP",
+        "mop": "MOP",
+        "selling_price": "Selling Price",
+    }
+
+    batch_items = []
+    for row in parsed_changes:
+        row = row or {}
+        item_code = (row.get("item_code") or "").strip()
+        channel = (row.get("channel") or "").strip()
+        field = (row.get("field") or "").strip()
+
+        if not item_code or not channel or field not in field_label_map:
+            continue
+
+        old_val = float(row.get("old_value") or 0)
+        new_val = float(row.get("new_value") or 0)
+        if old_val == new_val:
+            continue
+
+        if new_val < 0:
+            frappe.throw(
+                _("{0}: {1} cannot be negative.").format(item_code, field.upper()),
+                title=_("Invalid Price"),
+            )
+        if field == "selling_price" and new_val <= 0:
+            frappe.throw(
+                _("{0}: Selling Price must be greater than zero.").format(item_code),
+                title=_("Invalid Price"),
+            )
+
+        batch_items.append({
+            "item_code": item_code,
+            "channel": channel,
+            "change_type": "Selling Price",
+            "field_label": field_label_map[field],
+            "old_value": str(old_val),
+            "new_value": str(new_val),
+            "reason": (reason or "").strip(),
+        })
+
+    if not batch_items:
+        frappe.throw(_("No pending price changes found to submit."), title=_("No Changes"))
+
+    has_existing_price_change = any(float(bi.get("old_value") or 0) > 0 for bi in batch_items)
+    cleaned_reason = (reason or "").strip()
+    if has_existing_price_change and not cleaned_reason:
+        frappe.throw(
+            _("Please provide a reason for changing existing prices. Reason is optional only for first-time price creation."),
+            title=_("Reason Required"),
+        )
+
+    unique_items = {bi["item_code"] for bi in batch_items}
+    title = _("Ready Reckoner Inline — {0} changes across {1} items").format(
+        len(batch_items), len(unique_items)
+    )
+
+    batch = frappe.new_doc("CH Price Upload Batch")
+    batch.title = title
+    batch.uploaded_by = frappe.session.user
+    batch.upload_date = nowdate()
+    batch.status = "Draft"
+    if company:
+        batch.company = company
+    if cleaned_reason:
+        batch.notes = f"Reason: {cleaned_reason}"
+
+    for item_data in batch_items:
+        batch.append("items", item_data)
+
+    _enrich_batch_items(batch, unique_items)
+    batch.insert(ignore_permissions=True)
+
+    submitted = False
+    if int(submit_for_approval or 0):
+        batch.submit_for_approval()
+        submitted = True
+
+    frappe.db.commit()
+    return {
+        "batch_name": batch.name,
+        "total_changes": len(batch_items),
+        "submitted": submitted,
+        "status": batch.status,
+    }
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Bulk upload prices from Ready Reckoner Excel
 # ─────────────────────────────────────────────────────────────────────────────
