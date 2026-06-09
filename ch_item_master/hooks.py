@@ -5,6 +5,9 @@ app_description = "Common Item Master"
 app_email = "contact@gostack.in"
 app_license = "custom"
 
+# Apply monkeypatches to upstream ERPNext at worker boot.
+from ch_item_master import monkey_patches as _ch_monkey_patches  # noqa: E402, F401
+
 boot_session = "ch_item_master.boot.boot_session"
 required_apps = ["frappe/erpnext"]
 

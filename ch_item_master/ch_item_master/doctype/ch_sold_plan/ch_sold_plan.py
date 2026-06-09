@@ -268,23 +268,80 @@ class CHSoldPlan(Document):
 			lc.save()
 
 	def _post_deferred_revenue_gl(self):
+		"""Create deferred revenue journal entry when a warranty plan is activated.
+
+		Correct accounting:
+		  Debit  → Income account (reverses premature revenue recognition from the SI)
+		  Credit → Deferred Revenue (parked until service obligation is delivered over time)
+
+		The AR/Debtors account must NOT be touched — the customer already paid via the
+		POS Sales Invoice; debiting Debtors again would create a phantom receivable.
+		"""
 		company = self.get("company") or frappe.defaults.get_user_default("Company")
 		amount = flt(self.get("plan_price") or self.get("price") or self.get("amount") or 0)
 		if not amount:
 			return
+
 		deferred_acct = frappe.db.get_value("Account", {
 			"account_name": ("like", "%Deferred Revenue%"), "company": company, "is_group": 0
 		}, "name")
-		ar_acct = frappe.db.get_value("Company", company, "default_receivable_account")
-		if not deferred_acct or not ar_acct:
-			frappe.log_error(f"CH Sold Plan {self.name}: deferred_revenue_account or AR account not configured for {company}.", "VAS Deferred Revenue GL Skipped")
+
+		# Income account: use the SI line's income_account for precision;
+		# fall back to company default_income_account.
+		income_acct = None
+		if self.sales_invoice and self.item_code:
+			si_rows = frappe.get_all(
+				"Sales Invoice Item",
+				filters={"parent": self.sales_invoice, "item_code": self.item_code},
+				fields=["idx", "income_account", "amount", "base_amount"],
+				order_by="idx asc",
+			)
+			si_rows = [row for row in si_rows if row.get("income_account")]
+			if si_rows:
+				distinct_income_accounts = {row.get("income_account") for row in si_rows}
+				if len(distinct_income_accounts) == 1:
+					income_acct = next(iter(distinct_income_accounts))
+				else:
+					plan_amount = flt(amount)
+					amount_matches = [
+						row for row in si_rows
+						if flt(row.get("amount")) == plan_amount or flt(row.get("base_amount")) == plan_amount
+					]
+					distinct_amount_match_accounts = {
+						row.get("income_account") for row in amount_matches if row.get("income_account")
+					}
+					if len(distinct_amount_match_accounts) == 1:
+						income_acct = next(iter(distinct_amount_match_accounts))
+					else:
+						# Ambiguous SI income accounts must NOT block plan activation /
+						# the POS sale. Log for accounts review and fall back to the
+						# company default income account below.
+						frappe.log_error(
+							f"CH Sold Plan {self.name}: ambiguous income account on Sales "
+							f"Invoice {self.sales_invoice} for item {self.item_code} "
+							f"(candidates: {sorted(distinct_income_accounts)}). "
+							f"Falling back to company default income account.",
+							"VAS Deferred Revenue Ambiguous Income Account",
+						)
+		if not income_acct:
+			income_acct = frappe.db.get_value("Company", company, "default_income_account")
+
+		if not deferred_acct or not income_acct:
+			frappe.log_error(
+				f"CH Sold Plan {self.name}: deferred_revenue_account or income_account not "
+				f"configured for {company}. Skipping deferred revenue GL.",
+				"VAS Deferred Revenue GL Skipped",
+			)
 			return
+
 		try:
 			je = frappe.new_doc("Journal Entry")
 			je.posting_date = self.get("start_date") or frappe.utils.today()
 			je.company = company
 			je.user_remark = f"Deferred Revenue — CH Sold Plan {self.name}"
-			je.append("accounts", {"account": ar_acct, "debit_in_account_currency": amount, "party_type": "Customer", "party": self.get("customer") or ""})
+			je.flags.ch_system_generated_je = True
+			# Debit income (reverse premature recognition), Credit deferred liability
+			je.append("accounts", {"account": income_acct, "debit_in_account_currency": amount})
 			je.append("accounts", {"account": deferred_acct, "credit_in_account_currency": amount})
 			je.flags.ignore_permissions = True
 			je.insert()

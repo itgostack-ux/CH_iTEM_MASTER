@@ -1055,6 +1055,7 @@ class CHWarrantyClaim(Document):
 				],
 			})
 			je.flags.ignore_permissions = True
+			je.flags.ch_system_generated_je = True
 			je.insert(ignore_permissions=True)
 			je.submit()
 			self.db_set("processing_fee_invoice", je.name, update_modified=False)

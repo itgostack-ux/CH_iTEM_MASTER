@@ -646,6 +646,7 @@ def _post_voucher_gl(voucher_name, company, amount, transaction_type,
 			"reference_name": voucher_name,
 		})
 		je.flags.ignore_permissions = True
+		je.flags.ch_system_generated_je = True
 		je.save()
 		je.submit()
 	except Exception:

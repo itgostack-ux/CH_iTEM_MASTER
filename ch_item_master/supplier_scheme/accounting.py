@@ -50,6 +50,7 @@ def create_accrual_entry(settlement_name):
 	})
 
 	je.flags.ignore_permissions = True
+	je.flags.ch_system_generated_je = True
 	je.save()
 	je.submit()
 
@@ -112,6 +113,7 @@ def create_settlement_entry(settlement_name):
 			})
 
 	je.flags.ignore_permissions = True
+	je.flags.ch_system_generated_je = True
 	je.save()
 	je.submit()
 
