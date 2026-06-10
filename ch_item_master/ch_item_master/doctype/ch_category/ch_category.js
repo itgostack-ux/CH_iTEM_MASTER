@@ -1,7 +1,6 @@
 // Copyright (c) 2026, GoStack and contributors
 // CH Category — client script
 
-const _USER_BY_ROLE = "ch_item_master.ch_item_master.utils.get_users_by_role";
 
 frappe.ui.form.on('CH Category', {
 	setup(frm) {
@@ -12,7 +11,7 @@ frappe.ui.form.on('CH Category', {
 
 		// Category Manager: only show users who hold the "CH Category Head" role.
 		frm.set_query('category_manager', () => ({
-			query: _USER_BY_ROLE,
+			query: "ch_item_master.ch_item_master.utils.get_users_by_role",
 			filters: { role: "CH Category Head" },
 		}));
 	}

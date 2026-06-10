@@ -97,9 +97,6 @@ def _companion_defaults(nature):
         return {"is_stock_item_default": 0, "default_uom": "Hour"}
     if nature == "Subscription":
         return {"is_stock_item_default": 0, "default_uom": "Month"}
-    if nature == "Asset / Capital":
-        return {"is_stock_item_default": 1, "default_uom": "Nos",
-                "serial_required": 1}
     # Stock natures — leave UOM blank so existing items aren't overwritten;
     # default Nos for newly created items will be picked from item.py fallback.
     return {"is_stock_item_default": 1}

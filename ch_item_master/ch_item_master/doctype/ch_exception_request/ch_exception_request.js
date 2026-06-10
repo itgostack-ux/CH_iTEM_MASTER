@@ -1,13 +1,11 @@
 // Copyright (c) 2026, GoStack and contributors
 // For license information, please see license.txt
 
-const _USER_BY_ROLE = "ch_item_master.ch_item_master.utils.get_users_by_role";
-
 frappe.ui.form.on("CH Exception Request", {
 	setup(frm) {
 		// Approver fields: only show users with the exception-approver role.
 		const approver_query = () => ({
-			query: _USER_BY_ROLE,
+			query: "ch_item_master.ch_item_master.utils.get_users_by_role",
 			filters: { role: "CH Master Approver" },
 		});
 		frm.set_query("approver", approver_query);

@@ -222,13 +222,13 @@ class TestItemNatureUniverse(unittest.TestCase):
         self.assertEqual(item.stock_uom, "Kg")
 
     # ── Asset / Capital ──────────────────────────────────────────────────
-    def test_50_asset_capital_serial_default(self):
+    def test_50_asset_capital_subcategory_flag_removed(self):
         sc = _make_subcat(
             self.cat, "Demo Units", "DEMO", "Asset / Capital",
             default_uom="Nos",
         )
         sc_doc = frappe.get_doc("CH Sub Category", sc)
-        self.assertEqual(sc_doc.serial_required, 1, "Asset nature defaults serial_required=1")
+        self.assertFalse(sc_doc.meta.has_field("serial_required"))
 
         custom_name = "Demo iPhone Display Unit"
         if not frappe.db.exists("Item", {"item_name": custom_name}):
@@ -239,7 +239,7 @@ class TestItemNatureUniverse(unittest.TestCase):
             item.ch_category = self.cat
             item.insert(ignore_permissions=True)
         item = frappe.get_doc("Item", {"item_name": custom_name})
-        self.assertEqual(item.has_serial_no, 1, "Asset items default has_serial_no=1")
+        self.assertEqual(item.has_serial_no, 1, "Asset item remains serial-controlled at Item level")
 
     # ── Nature lock ──────────────────────────────────────────────────────
     def test_60_nature_lock_blocks_unsafe_transition(self):
