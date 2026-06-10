@@ -451,6 +451,37 @@ frappe.ui.form.on('CH Model Spec Value', {
 
 		// Pre-load all attribute values → fills the dropdown on click
 		ch_model._load_spec_value_options(frm, cdt, cdn);
+
+		let gf = frm.cur_grid && frm.cur_grid.grid_form;
+		if (!gf) return;
+		let field = gf.fields_dict['spec_value'];
+		if (!field) return;
+
+		let spec = row.spec;
+		let url = `/desk/item-attribute/${encodeURIComponent(spec)}`;
+
+		// Remove any previous listener to avoid duplicates
+		$(field.input).off('awesomplete-open.ch_new_val');
+
+		$(field.input).on('awesomplete-open.ch_new_val', function () {
+			let $ul = $(field.awesomplete.ul);
+			$ul.find('.ch-create-new-val').remove();
+
+			$ul.append(
+				`<li class="ch-create-new-val" role="option"
+				     style="border-top:1px solid #d1d8dd;padding:8px 12px;
+				            color:var(--primary);cursor:pointer;font-weight:500;">
+				     + Create a new ${frappe.utils.escape_html(spec)} value
+				 </li>`
+			);
+
+			$ul.find('.ch-create-new-val').on('mousedown', function (e) {
+				e.preventDefault();
+				e.stopPropagation();
+				frappe.set_route('Form', 'Item Attribute', spec);
+				field.awesomplete.close();
+			});
+		});
 	},
 
 	// Spec changed → clear spec_value and reload the allowed value dropdown
@@ -460,34 +491,9 @@ frappe.ui.form.on('CH Model Spec Value', {
 		setTimeout(() => ch_model._load_spec_value_options(frm, cdt, cdn), 100);
 	},
 
-	// Spec value changed → validate it is in the allowed list, then update preview
-	spec_value(frm, cdt, cdn) {
-		let row = frappe.get_doc(cdt, cdn);
-		if (!row || !row.spec || !row.spec_value) {
-			ch_model.update_preview(frm);
-			return;
-		}
-		frappe.call({
-			method: 'ch_item_master.ch_item_master.api.get_attribute_values',
-			args: { spec: row.spec, txt: '' },
-			callback(r) {
-				let allowed = r.message || [];
-				if (!allowed.includes(row.spec_value)) {
-					frappe.model.set_value(cdt, cdn, 'spec_value', '');
-					frappe.msgprint({
-						title: __('Invalid Value'),
-						message: __(
-							'<b>{0}</b> is not a valid value for <b>{1}</b>. '
-							+ 'Please select from the existing list. '
-							+ 'To add a new value, open the Item Attribute master.',
-							[row.spec_value, row.spec]
-						),
-						indicator: 'red',
-					});
-				}
-				ch_model.update_preview(frm);
-			},
-		});
+	// Spec value changed → update preview
+	spec_value(frm) {
+		ch_model.update_preview(frm);
 	},
 });
 
