@@ -15,3 +15,5 @@ frappe.ui.form.on('CH Category', {
 			filters: { role: "CH Category Head" },
 		}));
 	}
+
+});
