@@ -2,6 +2,7 @@ from collections import defaultdict
 import re
 
 import frappe
+from frappe import _
 
 # Roles that are allowed to access the CH Item Master app
 CH_APP_ROLES = frozenset([
@@ -28,6 +29,66 @@ def check_app_permission():
 		return True
 
 	return False
+
+
+# ───────────────────────────────────────────────────────────────────────────────
+# Role-filtered User search (used by Link-field set_query across CH doctypes)
+# ───────────────────────────────────────────────────────────────────────────────
+
+@frappe.whitelist()
+@frappe.validate_and_sanitize_search_inputs
+def get_users_by_role(doctype, txt, searchfield, start, page_len, filters):
+    """Frappe link-query that limits the User dropdown to holders of a specific
+    role.
+
+    Usage in JS::
+
+        frm.set_query("fieldname", () => ({
+            query: "ch_item_master.ch_item_master.utils.get_users_by_role",
+            filters: { role: "CH Category Head" }
+        }));
+
+    ``filters.role`` may be a single role string or a JSON list of role strings.
+    When multiple roles are supplied, any matching role qualifies the user.
+    """
+    role = (filters or {}).get("role") if isinstance(filters, dict) else None
+    if not role:
+        return []
+
+    if isinstance(role, str):
+        try:
+            import json as _json
+            parsed = _json.loads(role)
+            roles = parsed if isinstance(parsed, list) else [role]
+        except Exception:
+            roles = [role]
+    else:
+        roles = list(role)
+
+    txt_filter = f"%{txt}%" if txt else "%"
+    placeholders = ", ".join(["%s"] * len(roles))
+
+    results = frappe.db.sql(
+        f"""
+        SELECT DISTINCT u.name, u.full_name, u.email
+        FROM `tabUser` u
+        INNER JOIN `tabHas Role` hr ON hr.parent = u.name
+        WHERE hr.parenttype = 'User'
+          AND hr.role IN ({placeholders})
+          AND u.enabled = 1
+          AND u.name != 'Guest'
+          AND (
+              u.name LIKE %s
+              OR u.full_name LIKE %s
+              OR u.email LIKE %s
+          )
+        ORDER BY u.full_name ASC
+        LIMIT %s OFFSET %s
+        """,
+        tuple(roles) + (txt_filter, txt_filter, txt_filter, int(page_len or 20), int(start or 0)),
+        as_list=True,
+    )
+    return results
 
 
 # ───────────────────────────────────────────────────────────────────────────────
