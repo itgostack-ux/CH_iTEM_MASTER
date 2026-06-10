@@ -22,3 +22,4 @@ ch_item_master.patches.v14_backfill_current_store
 ch_item_master.patches.v15_phase3_vas_first_class
 ch_item_master.patches.v16_add_demo_bin
 ch_item_master.patches.v17_drop_subcategory_itemlevel_flags
+ch_item_master.patches.v18_manufacturer_read_perms
