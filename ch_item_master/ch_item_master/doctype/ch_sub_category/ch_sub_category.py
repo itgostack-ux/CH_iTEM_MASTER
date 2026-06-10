@@ -158,10 +158,6 @@ class CHSubCategory(Document):
 				)
 			self.is_stock_item_default = 0
 
-		# Asset / Capital -> default serial_required to 1 if user hasn't set it
-		if nature == "Asset / Capital" and not self.serial_required:
-			self.serial_required = 1
-
 		# Lock check: prevent dangerous transitions when items already exist.
 		if not self.is_new() and self.has_value_changed("item_nature"):
 			before = self.get_doc_before_save()

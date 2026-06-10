@@ -71,9 +71,6 @@ function _apply_nature_defaults(frm) {
     } else if (!frm.doc.is_stock_item_default) {
         frm.set_value('is_stock_item_default', 1);
     }
-    if (nature === 'Asset / Capital' && !frm.doc.serial_required) {
-        frm.set_value('serial_required', 1);
-    }
 }
 
 function _show_nature_summary(frm) {

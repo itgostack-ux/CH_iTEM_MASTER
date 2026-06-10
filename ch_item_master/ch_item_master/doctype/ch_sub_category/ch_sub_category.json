@@ -29,10 +29,6 @@
   "valuation_method",
   "min_qty_decimals",
   "column_break_stock",
-  "serial_required",
-  "batch_required",
-  "has_expiry",
-  "weight_per_unit_required",
   "pack_size",
   "service_section",
   "is_repair_labour",
@@ -238,30 +234,6 @@
   {
    "fieldname": "column_break_stock",
    "fieldtype": "Column Break"
-  },
-  {
-   "default": "0",
-   "fieldname": "serial_required",
-   "fieldtype": "Check",
-   "label": "Serial No Required"
-  },
-  {
-   "default": "0",
-   "fieldname": "batch_required",
-   "fieldtype": "Check",
-   "label": "Batch Required"
-  },
-  {
-   "default": "0",
-   "fieldname": "has_expiry",
-   "fieldtype": "Check",
-   "label": "Has Shelf-Life / Expiry"
-  },
-  {
-   "default": "0",
-   "fieldname": "weight_per_unit_required",
-   "fieldtype": "Check",
-   "label": "Weight per Unit Required"
   },
   {
    "fieldname": "pack_size",

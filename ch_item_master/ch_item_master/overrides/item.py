@@ -169,8 +169,7 @@ def _subcategory_meta(doc):
     """Cached fetch of relevant CH Sub Category fields used by Item hooks.
 
     Returns frappe._dict with item_nature, default_uom, default_purchase_uom,
-    is_stock_item_default, serial_required, batch_required, has_expiry,
-    weight_per_unit_required, valuation_method, income_account, expense_account.
+    is_stock_item_default, valuation_method, income_account, expense_account.
     """
     if not doc.ch_sub_category:
         return frappe._dict()
@@ -178,8 +177,7 @@ def _subcategory_meta(doc):
         "CH Sub Category", doc.ch_sub_category,
         [
             "item_nature", "default_uom", "default_purchase_uom",
-            "is_stock_item_default", "serial_required", "batch_required",
-            "has_expiry", "weight_per_unit_required", "valuation_method",
+            "is_stock_item_default", "valuation_method",
             "income_account", "expense_account",
         ],
         as_dict=True,
@@ -192,7 +190,6 @@ def _apply_subcategory_defaults(doc):
 
     Also enforces the item_nature contract:
       - Service / Subscription -> force is_stock_item = 0
-      - Asset / Capital with serial_required -> force has_serial_no = 1
     """
     if not doc.ch_sub_category:
         return
@@ -223,18 +220,6 @@ def _apply_subcategory_defaults(doc):
         doc.is_stock_item = 0
     elif meta.get("is_stock_item_default") is not None and not doc.has_value_changed("is_stock_item") and doc.is_stock_item is None:
         doc.is_stock_item = int(meta.is_stock_item_default or 0)
-
-    # Serial / Batch / Expiry
-    if meta.get("serial_required") and not doc.has_serial_no:
-        doc.has_serial_no = 1
-    if meta.get("batch_required") and not doc.has_batch_no:
-        doc.has_batch_no = 1
-    if meta.get("has_expiry") and not doc.shelf_life_in_days:
-        # Leave value to be set per-item; just mark via existing flags if any.
-        pass
-    if meta.get("weight_per_unit_required") and not doc.weight_per_unit:
-        # Don't fabricate a value — surface as a soft validation later.
-        pass
 
     # Valuation method (only for stock items)
     if (doc.is_stock_item or 0) and meta.get("valuation_method") and not doc.valuation_method:

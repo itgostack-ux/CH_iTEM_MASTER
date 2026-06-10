@@ -382,9 +382,6 @@ def _validate_and_import(payload):
                 "is_stock_item_default": int(sc.get("is_stock_item_default", 1)),
                 "valuation_method": _norm(sc.get("valuation_method", "")),
                 "min_qty_decimals": int(sc.get("min_qty_decimals", 0)),
-                "serial_required": int(sc.get("serial_required", 0)),
-                "batch_required": int(sc.get("batch_required", 0)),
-                "has_expiry": int(sc.get("has_expiry", 0)),
                 "is_warranty_plan": int(sc.get("is_warranty_plan", 0)),
                 "is_vas_plan": int(sc.get("is_vas_plan", 0)),
                 "is_repair_labour": int(sc.get("is_repair_labour", 0)),
@@ -447,9 +444,6 @@ def _validate_and_import(payload):
                 if sc_data.get("valuation_method"):
                     sc_doc.valuation_method = sc_data["valuation_method"]
                 sc_doc.min_qty_decimals = sc_data.get("min_qty_decimals", 0)
-                sc_doc.serial_required = sc_data.get("serial_required", 0)
-                sc_doc.batch_required = sc_data.get("batch_required", 0)
-                sc_doc.has_expiry = sc_data.get("has_expiry", 0)
                 sc_doc.is_warranty_plan = sc_data.get("is_warranty_plan", 0)
                 sc_doc.is_vas_plan = sc_data.get("is_vas_plan", 0)
                 sc_doc.is_repair_labour = sc_data.get("is_repair_labour", 0)
