@@ -140,11 +140,24 @@ def _validate_id_documents(doc):
 		doc.ch_aadhaar_number = aadhaar
 
 
+def _is_import_context():
+	"""Return True when running inside a Data Import job."""
+	return any(
+		bool(getattr(frappe.flags, flag, False))
+		for flag in ("in_import", "in_data_import", "in_importer")
+	)
+
+
 def _check_phone_dedup(doc):
 	"""Block creating duplicate customers with the same mobile number.
 
 	Checks mobile_no against existing customers. Throws error (hard block)
 	to prevent data fragmentation across duplicate records.
+
+	During Data Import the check is softened to a warning so the row is
+	not marked as failed — duplicates are flagged in the import log but
+	the import continues. Operators should use the Update import mode to
+	reconcile overlapping phone numbers after the initial load.
 	"""
 	mobile = doc.get("mobile_no")
 	if not mobile:
@@ -161,15 +174,20 @@ def _check_phone_dedup(doc):
 		filters["name"] = ("!=", doc.name)
 
 	existing = frappe.db.get_value("Customer", filters, ["name", "customer_name"], as_dict=True)
-	if existing:
-		frappe.throw(
-			_("A customer with mobile number {0} already exists: <b>{1}</b> ({2}). "
-			  "Please update the existing customer record instead of creating a new one. "
-			  "If the customer wants to change their phone number, use the existing record.").format(
-				mobile, existing.customer_name, existing.name
-			),
-			title=_("Duplicate Phone Number"),
-		)
+	if not existing:
+		return
+
+	msg = _(
+		"A customer with mobile number {0} already exists: <b>{1}</b> ({2}). "
+		"Please update the existing customer record instead of creating a new one."
+	).format(mobile, existing.customer_name, existing.name)
+
+	if _is_import_context():
+		# Soften to a non-blocking warning during bulk import so the row
+		# is recorded as succeeded (with a caution message) rather than failed.
+		frappe.msgprint(msg, title=_("Duplicate Phone Number"), indicator="orange", alert=True)
+	else:
+		frappe.throw(msg, title=_("Duplicate Phone Number"))
 
 
 def _generate_referral_code(doc):
@@ -261,11 +279,7 @@ def _apply_import_naming_guard(doc):
 	if not doc.is_new():
 		return
 
-	in_import = any(
-		bool(getattr(frappe.flags, flag, False))
-		for flag in ("in_import", "in_data_import", "in_importer")
-	)
-	if not in_import:
+	if not _is_import_context():
 		return
 
 	# Ignore any explicit name/ID sent by the import payload for new records.

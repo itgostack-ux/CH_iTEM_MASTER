@@ -11,6 +11,11 @@ def get_logistics_queue(filters=None):
     pickup-stage status are shown here. Store/walk-in claims are NOT shown.
     """
     filters = filters or {}
+    if isinstance(filters, str):
+        try:
+            filters = frappe.parse_json(filters) or {}
+        except Exception:
+            filters = {}
 
     status_filter = filters.get("status") or [
         "Pickup Requested", "Pickup Scheduled", "Picked Up", "Device Received",
