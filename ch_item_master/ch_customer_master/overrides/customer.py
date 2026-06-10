@@ -270,11 +270,11 @@ def _track_phone_change(doc):
 def _apply_import_naming_guard(doc):
 	"""During Data Import inserts, force series-based naming.
 
-	Operators often upload CSVs where the ``name``/``ID`` column is populated
-	with customer_name. That makes two different people named "Rahul" collide on
-	the document primary key before phone dedup checks run. For Customer inserts
-	we always want generated IDs from naming series, while uniqueness is governed
-	by mobile_no.
+	ERPNext Customer autoname derives the PK from ``customer_name`` by default.
+	Two import rows with the same name (e.g. "vishnu", "Rajesh") would therefore
+	collide with a hard Frappe DuplicateEntryError before any of our custom
+	validation runs.  We bypass this by explicitly generating a unique name from
+	the naming-series counter so Frappe skips its own autoname step entirely.
 	"""
 	if not doc.is_new():
 		return
@@ -282,12 +282,15 @@ def _apply_import_naming_guard(doc):
 	if not _is_import_context():
 		return
 
-	# Ignore any explicit name/ID sent by the import payload for new records.
-	doc.name = None
-
-	# Ensure series is present so autoname doesn't depend on payload shape.
+	# Guarantee series is set before we generate the name.
 	if not doc.get("naming_series"):
 		doc.naming_series = "CUST-.YYYY.-"
+
+	# Explicitly pre-assign a series-based name so Frappe's autoname
+	# (which would use customer_name and cause DuplicateEntryError for
+	# common names like "vishnu") is never invoked.
+	from frappe.model.naming import make_autoname
+	doc.name = make_autoname(doc.naming_series, doc=doc)
 
 
 def _generate_membership_id(doc):
