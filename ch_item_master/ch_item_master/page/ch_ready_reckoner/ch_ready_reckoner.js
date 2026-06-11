@@ -454,7 +454,7 @@ function _render_table($wrap, state) {
         if (buying_set.has(ch)) {
             head += `<th colspan="2" class="ch-group" style="text-align:center">${ch}</th>`;
         } else {
-            head += `<th colspan="3" class="ch-group" style="text-align:center">${ch}</th>`;
+            head += `<th colspan="2" class="ch-group" style="text-align:center">${ch}</th>`;
         }
     });
     head += `<th>Offers</th><th>Tags</th><th></th></tr>
@@ -465,8 +465,7 @@ function _render_table($wrap, state) {
             head += `<th style="font-size:10px">Market</th>
                      <th style="font-size:10px">Vendor</th>`;
         } else {
-            head += `<th style="font-size:10px">MRP</th>
-                     <th style="font-size:10px">MOP</th>
+            head += `<th style="font-size:10px">MOP</th>
                      <th style="font-size:10px">Selling</th>`;
         }
     });
@@ -501,13 +500,11 @@ function _render_table($wrap, state) {
                 rows += _buyback_price_cell(mp, ch, 'market_price', row.item_code, bname, status);
                 rows += _buyback_price_cell(vp, ch, 'vendor_price', row.item_code, bname, status);
             } else {
-                const mrp    = _get_display_price(state, row.item_code, ch, 'mrp', row[ch+'__mrp']);
                 const mop    = _get_display_price(state, row.item_code, ch, 'mop', row[ch+'__mop']);
                 const sp     = _get_display_price(state, row.item_code, ch, 'selling_price', row[ch+'__selling_price']);
                 const pname  = row[ch+'__price_name'];
                 const status = row[ch+'__status'];
 
-                rows += _price_cell(mrp,  ch, 'mrp',           row.item_code, pname, status, row[ch+'__mrp'], state);
                 rows += _price_cell(mop,  ch, 'mop',           row.item_code, pname, status, row[ch+'__mop'], state);
                 rows += _price_cell(sp,   ch, 'selling_price', row.item_code, pname, status, row[ch+'__selling_price'], state);
             }
@@ -536,7 +533,7 @@ function _render_table($wrap, state) {
         _activate_item_mrp_editor($(this), $wrap, state);
     });
 
-    $t.find('.price-cell[data-field="mrp"], .price-cell[data-field="mop"], .price-cell[data-field="selling_price"]').on('click', function (e) {
+    $t.find('.price-cell[data-field="mop"], .price-cell[data-field="selling_price"]').on('click', function (e) {
         e.stopPropagation();
         _activate_inline_price_editor($(this), state, $wrap);
     });
