@@ -710,22 +710,15 @@ CUSTOM_FIELDS = {
 		},
 	],
 	# ──────────────────────────────────────────────
-	# Item Price: Add MRP and MOP alongside selling price
-	# (price_list_rate = Selling Price — ERPNext standard)
+	# Item Price: Add MOP alongside selling price and back-reference to CH Item Price.
+	# ch_mrp removed — Item.ch_item_mrp is now the canonical MRP field (v20 patch).
 	# ──────────────────────────────────────────────
 	"Item Price": [
-		{
-			"fieldname": "ch_mrp",
-			"label": _("MRP"),
-			"fieldtype": "Currency",
-			"insert_after": "price_list_rate",
-			"description": _("Maximum Retail Price – managed by CH Item Master"),
-		},
 		{
 			"fieldname": "ch_mop",
 			"label": _("MOP"),
 			"fieldtype": "Currency",
-			"insert_after": "ch_mrp",
+			"insert_after": "price_list_rate",
 			"description": _("Market Operating Price – managed by CH Item Master"),
 		},
 		{

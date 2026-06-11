@@ -270,7 +270,6 @@ class CHItemPrice(Document):
 			ip.currency   = frappe.get_value("Price List", price_list, "currency") or "INR"
 
 		ip.price_list_rate = self.selling_price
-		ip.ch_mrp          = self.mrp
 		ip.ch_mop          = self.mop
 		ip.valid_from      = self.effective_from
 		ip.valid_upto      = self.effective_to or None

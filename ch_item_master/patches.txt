@@ -24,3 +24,4 @@ ch_item_master.patches.v16_add_demo_bin
 ch_item_master.patches.v17_drop_subcategory_itemlevel_flags
 ch_item_master.patches.v18_manufacturer_read_perms
 ch_item_master.patches.v19_backfill_item_mrp
+ch_item_master.patches.v20_drop_item_price_ch_mrp
