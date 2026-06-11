@@ -559,12 +559,28 @@ CUSTOM_FIELDS = {
 			"insert_after": "ch_trading_partner_aliases",
 			"collapsible": 1,
 		},
+		# ch_item_mrp: canonical Maximum Retail Price at item level.
+		# Mandatory for stock items; bidirectionally synced with CH Item Price.mrp
+		# and acts as the purchase ceiling (Purchase Order rate must not exceed this).
+		{
+			"fieldname": "ch_item_mrp",
+			"label": _("MRP (Maximum Retail Price)"),
+			"fieldtype": "Currency",
+			"insert_after": "ch_mrp_section",
+			"reqd": 0,  # Enforced in controller (only for is_stock_item=1), not schema-level
+			"bold": 1,
+			"in_list_view": 1,
+			"in_standard_filter": 1,
+			"description": _("Maximum Retail Price declared by the manufacturer. "
+				"Mandatory for stock items. Bidirectionally synced with CH Item Price. "
+				"Purchase Order rate may not exceed this value."),
+		},
 		{
 			"fieldname": "ch_mrp_type",
 			"label": _("MRP Type"),
 			"fieldtype": "Select",
 			"options": "\nReorder Point\nFixed Lot\nDynamic",
-			"insert_after": "ch_mrp_section",
+			"insert_after": "ch_item_mrp",
 			"description": _("Planning strategy: Reorder Point = threshold-based; Fixed Lot = fixed replenishment; Dynamic = demand-driven."),
 		},
 		{

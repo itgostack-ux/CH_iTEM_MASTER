@@ -101,6 +101,8 @@ doc_events = {
 		"validate": [
 			# SAP/Oracle parity: has_serial_no=1 requires ch_serial_kind set.
 			"ch_item_master.ch_item_master.overrides.item.validate_serial_kind",
+			# MRP mandatory for stock items; must be > 0 before save.
+			"ch_item_master.ch_item_master.item_mrp.validate_item_mrp",
 		],
 		"before_save": [
 			"ch_item_master.ch_item_master.overrides.item.before_save",
@@ -113,6 +115,8 @@ doc_events = {
 			"ch_item_master.ch_item_master.governance.on_item_after_save",
 			"ch_item_master.ch_item_master.tier_b.track_standard_cost",
 			"ch_item_master.ch_item_master.tier_c.snapshot_item_version",
+			# Push ch_item_mrp change → active CH Item Price records.
+			"ch_item_master.ch_item_master.item_mrp.sync_item_mrp_to_price",
 		],
 	},
 	"Manufacturer": {
@@ -168,10 +172,16 @@ doc_events = {
 		"validate": [
 			"ch_item_master.ch_item_master.governance.validate_transaction_items",
 			"ch_item_master.ch_item_master.tier_c.enforce_plm_on_transaction",
+			# Warn when purchase rate exceeds Item MRP ceiling.
+			"ch_item_master.ch_item_master.item_mrp.validate_purchase_mrp_ceiling",
 		],
 	},
 	"Purchase Invoice": {
-		"validate": "ch_item_master.ch_item_master.governance.validate_transaction_items",
+		"validate": [
+			"ch_item_master.ch_item_master.governance.validate_transaction_items",
+			# Warn when purchase rate exceeds Item MRP ceiling.
+			"ch_item_master.ch_item_master.item_mrp.validate_purchase_mrp_ceiling",
+		],
 	},
 	"Stock Entry": {
 		"validate": [
@@ -197,6 +207,8 @@ doc_events = {
 	"Purchase Receipt": {
 		"on_submit": "ch_item_master.ch_item_master.overrides.purchase_receipt.on_submit",
 		"on_cancel": "ch_item_master.ch_item_master.overrides.purchase_receipt.on_cancel",
+		# Warn when purchase rate exceeds Item MRP ceiling.
+		"validate": "ch_item_master.ch_item_master.item_mrp.validate_purchase_mrp_ceiling",
 	},
 	# Mirror Serial No.warehouse → CH Serial Lifecycle.current_warehouse on
 	# every stock movement (Stock Entry, Delivery Note, Sales Invoice,

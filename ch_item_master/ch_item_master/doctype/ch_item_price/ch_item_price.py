@@ -175,9 +175,13 @@ class CHItemPrice(Document):
 		"""Sync selling price to ERPNext native Item Price so all transactions auto-pick it up.
 
 		Only sync when approved (status is Active/Scheduled). Draft prices don't sync.
+		Also syncs mrp back to Item.ch_item_mrp so the item card stays current.
 		"""
 		if self.status in ("Active", "Scheduled"):
 			self._sync_to_erp_item_price()
+			# Push MRP back to Item so Item.ch_item_mrp is always current.
+			from ch_item_master.ch_item_master.item_mrp import sync_price_mrp_to_item
+			sync_price_mrp_to_item(self)
 		elif self.status == "Expired":
 			self._expire_erp_item_price()
 
