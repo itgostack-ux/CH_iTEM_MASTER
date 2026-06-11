@@ -2142,15 +2142,20 @@ class CHWarrantyClaim(Document):
 			except Exception:
 				pass
 
-		# SMS fallback
+		# SMS fallback — only attempt when an SMS gateway is actually configured.
+		# frappe.sendmail with a phone@sms recipient throws a ValidationError during
+		# email address validation (before the except can catch it) when no gateway
+		# is set, causing a noisy popup for the user. Skip silently if unconfigured.
 		if phone:
 			try:
-				frappe.sendmail(
-					recipients=[f"{phone}@sms"],
-					subject="",
-					message=message,
-					now=True,
-				)
+				sms_url = frappe.db.get_single_value("SMS Settings", "sms_gateway_url")
+				if sms_url:
+					frappe.sendmail(
+						recipients=[f"{phone}@sms"],
+						subject="",
+						message=message,
+						now=True,
+					)
 			except Exception:
 				pass
 
