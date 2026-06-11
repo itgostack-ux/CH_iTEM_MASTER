@@ -136,6 +136,7 @@ def get_ready_reckoner_data(
             "ch_category",
             "ch_sub_category",
             "ch_model",
+            "ch_item_mrp",
         ],
         limit_start=offset,
         limit_page_length=int(page_length),
@@ -1276,6 +1277,57 @@ def create_inline_price_change_batch(
         "submitted": submitted,
         "status": batch.status,
     }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Direct Item-level MRP update (Ready Reckoner MRP column)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@frappe.whitelist()
+def update_item_mrp(item_code, mrp) -> dict:
+	"""Directly update Item.ch_item_mrp from the Ready Reckoner grid.
+
+	This is intentionally a direct update (not maker-checker) because:
+	  - ch_item_mrp is item master data, not a per-channel price record
+	  - Price Managers and Master Managers are trusted to update item master fields
+	  - The change is auditable via Frappe's Version history on Item
+
+	Also propagates the new MRP to all Active/Scheduled CH Item Price records
+	for this item via the existing item_mrp.sync_item_mrp_to_price hook.
+	"""
+	frappe.only_for(["System Manager", "CH Master Manager", "CH Price Manager"])
+
+	item_code = (item_code or "").strip()
+	if not item_code:
+		frappe.throw(_("Item Code is required."), title=_("Invalid Input"))
+
+	try:
+		mrp = float(mrp)
+	except (TypeError, ValueError):
+		frappe.throw(_("MRP must be a valid number."), title=_("Invalid Input"))
+
+	if mrp < 0:
+		frappe.throw(_("MRP cannot be negative."), title=_("Invalid Input"))
+
+	if not frappe.db.exists("Item", item_code):
+		frappe.throw(_("Item {0} not found.").format(item_code), title=_("Invalid Input"))
+
+	old_mrp = frappe.db.get_value("Item", item_code, "ch_item_mrp") or 0
+	if float(old_mrp) == mrp:
+		return {"item_code": item_code, "mrp": mrp, "changed": False}
+
+	# Update Item.ch_item_mrp — triggers Item.on_update hook which calls
+	# sync_item_mrp_to_price to propagate to CH Item Price records.
+	item_doc = frappe.get_doc("Item", item_code)
+	item_doc.ch_item_mrp = mrp
+	item_doc.flags.ignore_permissions = True
+	item_doc.save()
+
+	frappe.db.commit()
+	frappe.logger("item_mrp").info(
+		f"[RR Direct MRP Update] {item_code}: {old_mrp} → {mrp} by {frappe.session.user}"
+	)
+	return {"item_code": item_code, "mrp": mrp, "old_mrp": old_mrp, "changed": True}
 
 
 # ─────────────────────────────────────────────────────────────────────────────

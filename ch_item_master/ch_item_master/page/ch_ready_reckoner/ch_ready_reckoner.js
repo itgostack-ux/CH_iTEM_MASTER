@@ -447,7 +447,8 @@ function _render_table($wrap, state) {
         <th class="item-code">Item Code</th>
         <th>Item Name</th>
         <th>Sub Category</th>
-        <th>Brand</th>`;
+        <th>Brand</th>
+        <th title="Maximum Retail Price — item level. Click to edit." style="background:var(--yellow-50,#fffbeb);color:var(--yellow-700,#856404);white-space:nowrap">MRP ✎</th>`;
 
     channels.forEach(ch => {
         if (buying_set.has(ch)) {
@@ -458,7 +459,7 @@ function _render_table($wrap, state) {
     });
     head += `<th>Offers</th><th>Tags</th><th></th></tr>
     <tr>
-        <th class="item-code"></th><th></th><th></th><th></th>`;
+        <th class="item-code"></th><th></th><th></th><th></th><th style="font-size:10px;background:var(--yellow-50,#fffbeb)">Item MRP</th>`;
     channels.forEach(ch => {
         if (buying_set.has(ch)) {
             head += `<th style="font-size:10px">Market</th>
@@ -475,11 +476,20 @@ function _render_table($wrap, state) {
     const esc = frappe.utils.escape_html;
     items.forEach(row => {
         const item_name = esc(row.item_name || '');
+        const item_mrp_val = row.item_mrp != null ? Number(row.item_mrp) : (row.ch_item_mrp != null ? Number(row.ch_item_mrp) : 0);
+        const item_mrp_fmt = item_mrp_val > 0
+            ? frappe.format(item_mrp_val, { fieldtype: 'Currency' })
+            : '<span style="color:var(--border-color)">— set MRP</span>';
         rows += `<tr data-item="${esc(row.item_code)}" data-variant-count="${row.variant_count || 1}">
             <td class="item-code">${esc(row.item_code)}</td>
             <td class="item-name" title="${item_name}">${item_name}${row.variant_count > 1 ? ` <span class="badge badge-info" style="font-size:9px;vertical-align:middle">${row.variant_count} colors</span>` : ''}</td>
             <td style="font-size:11px">${esc((row.ch_sub_category||'').split('-').pop())}</td>
-            <td style="font-size:11px">${esc(row.brand||'')}</td>`;
+            <td style="font-size:11px">${esc(row.brand||'')}</td>
+            <td class="price-cell item-mrp-cell ${item_mrp_val > 0 ? 'has-value' : 'no-value'}"
+                data-field="item_mrp" data-item="${esc(row.item_code)}"
+                data-base-value="${item_mrp_val}"
+                style="background:var(--yellow-50,#fffbeb);font-weight:600;text-align:right;cursor:pointer;"
+                title="Click to update MRP for this item">${item_mrp_fmt}<span class="edit-hint">✎</span></td>`;
 
         channels.forEach(ch => {
             if (buying_set.has(ch)) {
@@ -520,6 +530,12 @@ function _render_table($wrap, state) {
     const $t = $(`<table class="chpb-table">${head}<tbody>${rows}</tbody></table>`);
 
     // ── Click handlers ────────────────────────────────────────────────────
+    // Item-level MRP column — direct save, no batch
+    $t.find('.item-mrp-cell').on('click', function (e) {
+        e.stopPropagation();
+        _activate_item_mrp_editor($(this), $wrap, state);
+    });
+
     $t.find('.price-cell[data-field="mrp"], .price-cell[data-field="mop"], .price-cell[data-field="selling_price"]').on('click', function (e) {
         e.stopPropagation();
         _activate_inline_price_editor($(this), state, $wrap);
@@ -583,6 +599,81 @@ function _buyback_price_cell(val, ch, field, item_code, bname, status) {
     return `<td class="price-cell no-value" data-ch="${ch}" data-field="${field}"
                 data-item="${item_code}" title="No buyback price for ${ch}">—
             </td>`;
+}
+
+// ─── Item-level MRP inline editor (direct save, no batch) ────────────────────
+function _activate_item_mrp_editor($cell, $wrap, state) {
+    if ($cell.hasClass('inline-editing')) return;
+
+    const item_code    = $cell.data('item');
+    const base_value   = Number($cell.data('base-value') || 0);
+    const original_html = $cell.html();
+    const input_value  = base_value > 0 ? String(base_value) : '';
+
+    $cell.addClass('inline-editing').html(
+        `<input type="number" step="0.01" min="0" class="chpb-inline-input"
+            value="${frappe.utils.escape_html(input_value)}"
+            placeholder="Enter MRP…"
+            style="width:100%;border:0;outline:0;padding:5px 10px;background:transparent;text-align:right;font-size:12px;font-weight:600;">`
+    );
+
+    const $input = $cell.find('input');
+    $input.trigger('focus').trigger('select');
+
+    let committed = false;
+    const restore = () => { $cell.removeClass('inline-editing').html(original_html); };
+
+    const commit = () => {
+        if (committed) return;
+        committed = true;
+
+        const raw = ($input.val() || '').trim();
+        const new_val = raw === '' ? 0 : Number(raw);
+
+        if (Number.isNaN(new_val) || new_val < 0) {
+            frappe.msgprint({ title: __('Invalid MRP'), indicator: 'red', message: __('Please enter a valid non-negative number.') });
+            restore();
+            return;
+        }
+        if (new_val === base_value) { restore(); return; }
+
+        $cell.addClass('is-saving');
+        frappe.call({
+            method: 'ch_item_master.ch_item_master.ready_reckoner_api.update_item_mrp',
+            args: { item_code, mrp: new_val },
+            callback(r) {
+                $cell.removeClass('is-saving inline-editing');
+                const res = r.message || {};
+                if (res.changed) {
+                    // Update the cell in-place so page doesn't need full reload
+                    const fmt = new_val > 0
+                        ? frappe.format(new_val, { fieldtype: 'Currency' })
+                        : '<span style="color:var(--border-color)">— set MRP</span>';
+                    $cell.attr('data-base-value', new_val)
+                         .html(`${fmt}<span class="edit-hint">✎</span>`)
+                         .toggleClass('has-value', new_val > 0)
+                         .toggleClass('no-value', new_val <= 0);
+                    $cell.addClass('saved-flash');
+                    frappe.show_alert({
+                        message: __('MRP updated for {0}', [item_code]),
+                        indicator: 'green',
+                    }, 3);
+                } else {
+                    restore();
+                }
+            },
+            error() {
+                $cell.removeClass('is-saving');
+                restore();
+            },
+        });
+    };
+
+    $input.on('keydown', function (e) {
+        if (e.key === 'Enter')  { e.preventDefault(); commit(); }
+        else if (e.key === 'Escape') { e.preventDefault(); committed = true; restore(); }
+    });
+    $input.on('blur', commit);
 }
 
 function _activate_inline_price_editor($cell, state, $wrap) {
