@@ -57,7 +57,7 @@ def seed_sample():
 	# 1. City (state stored on City)
 	city_name = SAMPLE["city_name"]
 	existing_city = frappe.db.get_value(
-		"CH City", {"company": company, "city_name": city_name}, "name"
+		"CH City", {"state": SAMPLE["state"], "city_name": city_name}, "name"
 	)
 	if existing_city:
 		city = existing_city
@@ -65,7 +65,6 @@ def seed_sample():
 	else:
 		c = frappe.new_doc("CH City")
 		c.city_name = city_name
-		c.company = company
 		c.country = SAMPLE.get("country") or "India"
 		c.state = SAMPLE["state"]
 		c.insert(ignore_permissions=True)

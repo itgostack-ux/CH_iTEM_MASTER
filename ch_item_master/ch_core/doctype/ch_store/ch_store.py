@@ -68,16 +68,6 @@ class CHStore(Document):
                 title=frappe._("Invalid PIN Code"),
             )
 
-        if self.city and self.company:
-            city_company = frappe.db.get_value("CH City", self.city, "company")
-            if city_company and city_company != self.company:
-                frappe.throw(
-                    frappe._("City {0} belongs to company {1}, not {2}.").format(
-                        frappe.bold(self.city), frappe.bold(city_company), frappe.bold(self.company)
-                    ),
-                    title=frappe._("Invalid City"),
-                )
-
         if self.zone:
             zone = frappe.db.get_value("CH Store Zone", self.zone, ["company", "city"], as_dict=True)
             if zone:

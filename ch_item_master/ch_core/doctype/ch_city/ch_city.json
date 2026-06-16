@@ -1,16 +1,16 @@
 {
  "allow_import": 1,
  "actions": [],
- "autoname": "format:{company}-{city_name}",
+ "autoname": "format:{state}-{city_name}",
  "creation": "2026-04-28 00:00:00.000000",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
   "city_name",
   "column_break_01",
-  "company",
   "country",
   "state",
+  "company",
   "disabled",
   "description"
  ],
@@ -31,12 +31,10 @@
   {
    "fieldname": "company",
    "fieldtype": "Link",
-   "in_list_view": 1,
-   "in_standard_filter": 1,
+    "hidden": 1,
    "label": "Company",
    "options": "Company",
-   "reqd": 1,
-   "search_index": 1
+    "description": "Legacy field retained for migration compatibility"
   },
   {
    "default": "India",
@@ -104,7 +102,7 @@
    "role": "All"
   }
  ],
- "search_fields": "company,state",
+ "search_fields": "city_name,state,country",
  "show_title_field_in_link": 1,
  "sort_field": "city_name",
  "sort_order": "ASC",

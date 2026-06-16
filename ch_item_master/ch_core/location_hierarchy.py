@@ -2,25 +2,22 @@ import frappe
 
 
 def ensure_city(company, city_name, state=None):
-	if not company or not city_name:
+	if not city_name:
 		return None
 
 	clean_city = city_name.strip().title()
 	if not clean_city:
 		return None
 
-	existing = frappe.db.get_value("CH City", {"company": company, "city_name": clean_city}, "name")
+	existing = frappe.db.get_value("CH City", {"state": state, "city_name": clean_city}, "name") if state else None
+	if not existing:
+		existing = frappe.db.get_value("CH City", {"city_name": clean_city}, "name")
 	if existing:
 		return existing
 
-	legacy_city = frappe.db.get_value("CH City", clean_city, ["name", "company"], as_dict=True)
-	if legacy_city and legacy_city.company == company:
-		return legacy_city.name
-
 	city = frappe.new_doc("CH City")
 	city.city_name = clean_city
-	city.company = company
-	city.state = state.strip().title() if state else None
+	city.state = state or None
 	city.insert(ignore_permissions=True)
 	return city.name
 
@@ -227,19 +224,10 @@ def get_company_location_tree(company=None, warehouse_view="all"):
 	- location: only Store/Zone warehouses
 	- operational: everything except Store/Zone warehouses
 	"""
-	company_filters = {"disabled": 0}
-	if company:
-		company_filters["company"] = company
-
 	companies = {}
-	for city in frappe.get_all("CH City", filters=company_filters, fields=["name", "city_name", "company", "state"]):
-		company_node = companies.setdefault(city.company, {"company": city.company, "cities": {}})
-		company_node["cities"][city.name] = {
-			"city": city.name,
-			"city_name": city.city_name,
-			"state": city.state,
-			"zones": {},
-		}
+	city_map = {
+		c.name: c for c in frappe.get_all("CH City", filters={"disabled": 0}, fields=["name", "city_name", "state"])
+	}
 
 	zone_filters = {}
 	if company:
@@ -248,9 +236,15 @@ def get_company_location_tree(company=None, warehouse_view="all"):
 	for zone in frappe.get_all("CH Store Zone", filters=zone_filters, fields=["name", "zone_name", "company", "city", "source_warehouse"]):
 		company_node = companies.setdefault(zone.company, {"company": zone.company, "cities": {}})
 		city_key = zone.city or "Unassigned"
+		city_ref = city_map.get(city_key)
 		city_node = company_node["cities"].setdefault(
 			city_key,
-			{"city": city_key, "city_name": city_key, "state": None, "zones": {}},
+			{
+				"city": city_key,
+				"city_name": city_ref.city_name if city_ref else city_key,
+				"state": city_ref.state if city_ref else None,
+				"zones": {},
+			},
 		)
 		city_node["zones"][zone.name] = {
 			"zone": zone.name,

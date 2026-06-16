@@ -63,7 +63,7 @@ INDIAN_STATES = [
 ]
 
 # ── Cities (city_name, state_name) ─────────────────────────────────────────
-# We seed for the default operating companies. Users add more via the CH City UI.
+# Common master (not company-scoped).
 _CITIES = [
     # Tamil Nadu
     ("Chennai", "Tamil Nadu"),
@@ -87,9 +87,14 @@ _CITIES = [
     # Telangana
     ("Hyderabad", "Telangana"),
     ("Warangal", "Telangana"),
-    # Delhi
+    # Delhi (7 major city zones/areas used operationally)
     ("New Delhi", "Delhi"),
     ("Delhi", "Delhi"),
+    ("Dwarka", "Delhi"),
+    ("Rohini", "Delhi"),
+    ("Saket", "Delhi"),
+    ("Karol Bagh", "Delhi"),
+    ("Lajpat Nagar", "Delhi"),
     # Gujarat
     ("Ahmedabad", "Gujarat"),
     ("Surat", "Gujarat"),
@@ -232,6 +237,11 @@ _PINCODES = [
     ("110002", "New Delhi", "Delhi"),
     ("110005", "New Delhi", "Delhi"),
     ("110051", "Delhi", "Delhi"),
+    ("110075", "Dwarka", "Delhi"),
+    ("110085", "Rohini", "Delhi"),
+    ("110017", "Saket", "Delhi"),
+    ("110005", "Karol Bagh", "Delhi"),
+    ("110024", "Lajpat Nagar", "Delhi"),
     # Ahmedabad
     ("380001", "Ahmedabad", "Gujarat"),
     ("380006", "Ahmedabad", "Gujarat"),
@@ -416,36 +426,29 @@ def _get_operating_companies():
 
 
 def seed_cities():
-    companies = _get_operating_companies()
-    if not companies:
-        _warn("No operating company found — cities not seeded")
-        return
-
     created = skipped = 0
-    for company in companies:
-        for city_name, state_name in _CITIES:
-            city_doc_name = f"{company}-{city_name}"
-            if frappe.db.exists("CH City", city_doc_name):
-                # Fix NULL state if missing
-                existing_state = frappe.db.get_value("CH City", city_doc_name, "state")
-                if not existing_state and frappe.db.exists("CH State", state_name):
-                    frappe.db.set_value("CH City", city_doc_name, "state", state_name)
-                skipped += 1
-                continue
-            if not frappe.db.exists("CH State", state_name):
-                _warn(f"State '{state_name}' not in CH State — skipping city {city_name} for {company}")
-                continue
-            doc = frappe.get_doc({
-                "doctype": "CH City",
-                "city_name": city_name,
-                "company": company,
-                "country": "India",
-                "state": state_name,
-            })
-            doc.insert(ignore_permissions=True)
-            created += 1
+    for city_name, state_name in _CITIES:
+        existing = frappe.db.get_value(
+            "CH City",
+            {"state": state_name, "city_name": city_name},
+            "name",
+        )
+        if existing:
+            skipped += 1
+            continue
+        if not frappe.db.exists("CH State", state_name):
+            _warn(f"State '{state_name}' not in CH State — skipping city {city_name}")
+            continue
+        doc = frappe.get_doc({
+            "doctype": "CH City",
+            "city_name": city_name,
+            "country": "India",
+            "state": state_name,
+        })
+        doc.insert(ignore_permissions=True)
+        created += 1
     frappe.db.commit()
-    print(f"  CH City   — created: {created}, skipped: {skipped} (companies: {companies})")
+    print(f"  CH City   — created: {created}, skipped: {skipped}")
 
 
 # ── 3. Seed CH Pincode ────────────────────────────────────────────────────────
@@ -455,8 +458,6 @@ def seed_pincodes():
         _warn("CH Pincode table does not exist — run bench migrate first")
         return
 
-    companies = _get_operating_companies()
-    primary_company = companies[0] if companies else None
     created = skipped = 0
 
     for pincode, city_name, state_name in _PINCODES:
@@ -464,16 +465,11 @@ def seed_pincodes():
             skipped += 1
             continue
 
-        # Find CH City record for this city
-        city_doc_name = None
-        if primary_company:
-            city_doc_name = f"{primary_company}-{city_name}"
-            if not frappe.db.exists("CH City", city_doc_name):
-                city_doc_name = None
-
-        if not city_doc_name:
-            # Search by city_name across companies
-            city_doc_name = frappe.db.get_value("CH City", {"city_name": city_name}, "name")
+        city_doc_name = frappe.db.get_value(
+            "CH City",
+            {"city_name": city_name, "state": state_name},
+            "name",
+        )
 
         if not city_doc_name:
             _warn(f"CH City '{city_name}' not found — skipping pincode {pincode}")
