@@ -19,171 +19,20 @@ Usage:
 
 import frappe
 
+from ch_item_master.ch_core.setup.india_geography import STATES, DISTRICTS
+
 # ── Indian states (state_name, gst_state_code, iso_code) ─────────────────────
-# Codes match India Compliance gst_state_number values.
-INDIAN_STATES = [
-    ("Andaman and Nicobar Islands", "35", "AN"),
-    ("Andhra Pradesh", "37", "AP"),
-    ("Arunachal Pradesh", "12", "AR"),
-    ("Assam", "18", "AS"),
-    ("Bihar", "10", "BR"),
-    ("Chandigarh", "04", "CH"),
-    ("Chhattisgarh", "22", "CG"),
-    ("Dadra and Nagar Haveli and Daman and Diu", "26", "DD"),
-    ("Delhi", "07", "DL"),
-    ("Goa", "30", "GA"),
-    ("Gujarat", "24", "GJ"),
-    ("Haryana", "06", "HR"),
-    ("Himachal Pradesh", "02", "HP"),
-    ("Jammu and Kashmir", "01", "JK"),
-    ("Jharkhand", "20", "JH"),
-    ("Karnataka", "29", "KA"),
-    ("Kerala", "32", "KL"),
-    ("Ladakh", "38", "LA"),
-    ("Lakshadweep Islands", "31", "LD"),
-    ("Madhya Pradesh", "23", "MP"),
-    ("Maharashtra", "27", "MH"),
-    ("Manipur", "14", "MN"),
-    ("Meghalaya", "17", "ML"),
-    ("Mizoram", "15", "MZ"),
-    ("Nagaland", "13", "NL"),
-    ("Odisha", "21", "OD"),
-    ("Other Countries", "97", "OC"),
-    ("Other Territory", "99", "OT"),
-    ("Puducherry", "34", "PY"),
-    ("Punjab", "03", "PB"),
-    ("Rajasthan", "08", "RJ"),
-    ("Sikkim", "11", "SK"),
-    ("Tamil Nadu", "33", "TN"),
-    ("Telangana", "36", "TG"),
-    ("Tripura", "16", "TR"),
-    ("Uttar Pradesh", "09", "UP"),
-    ("Uttarakhand", "05", "UK"),
-    ("West Bengal", "19", "WB"),
-]
+# Codes match India Compliance gst_state_number values. Sourced from the
+# authoritative india_geography reference module (static seed data).
+INDIAN_STATES = STATES
 
 # ── Cities (city_name, state_name) ─────────────────────────────────────────
-# Common master (not company-scoped).
+# Common master (not company-scoped). Full district-level coverage for every
+# Indian State/UT, derived from the india_geography reference module.
 _CITIES = [
-    # Tamil Nadu
-    ("Chennai", "Tamil Nadu"),
-    ("Coimbatore", "Tamil Nadu"),
-    ("Madurai", "Tamil Nadu"),
-    ("Tiruchirappalli", "Tamil Nadu"),
-    ("Salem", "Tamil Nadu"),
-    ("Tirunelveli", "Tamil Nadu"),
-    ("Vellore", "Tamil Nadu"),
-    # Maharashtra
-    ("Mumbai", "Maharashtra"),
-    ("Pune", "Maharashtra"),
-    ("Nagpur", "Maharashtra"),
-    ("Nashik", "Maharashtra"),
-    ("Aurangabad", "Maharashtra"),
-    # Karnataka
-    ("Bengaluru", "Karnataka"),
-    ("Mysuru", "Karnataka"),
-    ("Hubli", "Karnataka"),
-    ("Mangaluru", "Karnataka"),
-    # Telangana
-    ("Hyderabad", "Telangana"),
-    ("Warangal", "Telangana"),
-    # Delhi (7 major city zones/areas used operationally)
-    ("New Delhi", "Delhi"),
-    ("Delhi", "Delhi"),
-    ("Dwarka", "Delhi"),
-    ("Rohini", "Delhi"),
-    ("Saket", "Delhi"),
-    ("Karol Bagh", "Delhi"),
-    ("Lajpat Nagar", "Delhi"),
-    # Gujarat
-    ("Ahmedabad", "Gujarat"),
-    ("Surat", "Gujarat"),
-    ("Vadodara", "Gujarat"),
-    ("Rajkot", "Gujarat"),
-    # Rajasthan
-    ("Jaipur", "Rajasthan"),
-    ("Jodhpur", "Rajasthan"),
-    ("Udaipur", "Rajasthan"),
-    # Kerala
-    ("Thiruvananthapuram", "Kerala"),
-    ("Kochi", "Kerala"),
-    ("Kozhikode", "Kerala"),
-    # Andhra Pradesh
-    ("Visakhapatnam", "Andhra Pradesh"),
-    ("Vijayawada", "Andhra Pradesh"),
-    ("Guntur", "Andhra Pradesh"),
-    # West Bengal
-    ("Kolkata", "West Bengal"),
-    ("Howrah", "West Bengal"),
-    ("Durgapur", "West Bengal"),
-    # Uttar Pradesh
-    ("Lucknow", "Uttar Pradesh"),
-    ("Kanpur", "Uttar Pradesh"),
-    ("Agra", "Uttar Pradesh"),
-    ("Varanasi", "Uttar Pradesh"),
-    ("Noida", "Uttar Pradesh"),
-    ("Ghaziabad", "Uttar Pradesh"),
-    # Punjab
-    ("Amritsar", "Punjab"),
-    ("Ludhiana", "Punjab"),
-    ("Jalandhar", "Punjab"),
-    # Haryana
-    ("Gurugram", "Haryana"),
-    ("Faridabad", "Haryana"),
-    ("Ambala", "Haryana"),
-    # Madhya Pradesh
-    ("Indore", "Madhya Pradesh"),
-    ("Bhopal", "Madhya Pradesh"),
-    ("Jabalpur", "Madhya Pradesh"),
-    # Bihar
-    ("Patna", "Bihar"),
-    ("Gaya", "Bihar"),
-    # Odisha
-    ("Bhubaneswar", "Odisha"),
-    ("Cuttack", "Odisha"),
-    # Assam
-    ("Guwahati", "Assam"),
-    ("Dibrugarh", "Assam"),
-    # Jharkhand
-    ("Ranchi", "Jharkhand"),
-    ("Jamshedpur", "Jharkhand"),
-    # Chhattisgarh
-    ("Raipur", "Chhattisgarh"),
-    ("Bilaspur", "Chhattisgarh"),
-    # Uttarakhand
-    ("Dehradun", "Uttarakhand"),
-    ("Haridwar", "Uttarakhand"),
-    # Goa
-    ("Panaji", "Goa"),
-    ("Vasco da Gama", "Goa"),
-    # Jammu and Kashmir
-    ("Srinagar", "Jammu and Kashmir"),
-    ("Jammu", "Jammu and Kashmir"),
-    # Himachal Pradesh
-    ("Shimla", "Himachal Pradesh"),
-    ("Manali", "Himachal Pradesh"),
-    # Chandigarh
-    ("Chandigarh", "Chandigarh"),
-    # Puducherry
-    ("Puducherry", "Puducherry"),
-    # Tripura
-    ("Agartala", "Tripura"),
-    # Manipur
-    ("Imphal", "Manipur"),
-    # Meghalaya
-    ("Shillong", "Meghalaya"),
-    # Nagaland
-    ("Kohima", "Nagaland"),
-    # Mizoram
-    ("Aizawl", "Mizoram"),
-    # Arunachal Pradesh
-    ("Itanagar", "Arunachal Pradesh"),
-    # Sikkim
-    ("Gangtok", "Sikkim"),
-    # Ladakh
-    ("Leh", "Ladakh"),
-    # Andaman and Nicobar Islands
-    ("Port Blair", "Andaman and Nicobar Islands"),
+    (city_name, state_name)
+    for state_name, city_list in DISTRICTS.items()
+    for city_name in city_list
 ]
 
 # ── Pincodes (pincode, city_name, state_name) ─────────────────────────────
