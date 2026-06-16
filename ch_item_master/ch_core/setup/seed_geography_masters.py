@@ -420,32 +420,32 @@ def seed_cities():
     if not companies:
         _warn("No operating company found — cities not seeded")
         return
-    # Use the first company as the canonical owner for geography cities
-    primary_company = companies[0]
+
     created = skipped = 0
-    for city_name, state_name in _CITIES:
-        city_doc_name = f"{primary_company}-{city_name}"
-        if frappe.db.exists("CH City", city_doc_name):
-            # Fix NULL state if missing
-            existing_state = frappe.db.get_value("CH City", city_doc_name, "state")
-            if not existing_state and frappe.db.exists("CH State", state_name):
-                frappe.db.set_value("CH City", city_doc_name, "state", state_name)
-            skipped += 1
-            continue
-        if not frappe.db.exists("CH State", state_name):
-            _warn(f"State '{state_name}' not in CH State — skipping city {city_name}")
-            continue
-        doc = frappe.get_doc({
-            "doctype": "CH City",
-            "city_name": city_name,
-            "company": primary_company,
-            "country": "India",
-            "state": state_name,
-        })
-        doc.insert(ignore_permissions=True)
-        created += 1
+    for company in companies:
+        for city_name, state_name in _CITIES:
+            city_doc_name = f"{company}-{city_name}"
+            if frappe.db.exists("CH City", city_doc_name):
+                # Fix NULL state if missing
+                existing_state = frappe.db.get_value("CH City", city_doc_name, "state")
+                if not existing_state and frappe.db.exists("CH State", state_name):
+                    frappe.db.set_value("CH City", city_doc_name, "state", state_name)
+                skipped += 1
+                continue
+            if not frappe.db.exists("CH State", state_name):
+                _warn(f"State '{state_name}' not in CH State — skipping city {city_name} for {company}")
+                continue
+            doc = frappe.get_doc({
+                "doctype": "CH City",
+                "city_name": city_name,
+                "company": company,
+                "country": "India",
+                "state": state_name,
+            })
+            doc.insert(ignore_permissions=True)
+            created += 1
     frappe.db.commit()
-    print(f"  CH City   — created: {created}, skipped: {skipped} (company: {primary_company})")
+    print(f"  CH City   — created: {created}, skipped: {skipped} (companies: {companies})")
 
 
 # ── 3. Seed CH Pincode ────────────────────────────────────────────────────────
