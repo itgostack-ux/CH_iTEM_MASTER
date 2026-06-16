@@ -83,22 +83,102 @@ _CITIES = [
     ("Bengaluru", "Karnataka"),
     ("Mysuru", "Karnataka"),
     ("Hubli", "Karnataka"),
+    ("Mangaluru", "Karnataka"),
     # Telangana
     ("Hyderabad", "Telangana"),
+    ("Warangal", "Telangana"),
     # Delhi
     ("New Delhi", "Delhi"),
     ("Delhi", "Delhi"),
     # Gujarat
     ("Ahmedabad", "Gujarat"),
     ("Surat", "Gujarat"),
+    ("Vadodara", "Gujarat"),
+    ("Rajkot", "Gujarat"),
     # Rajasthan
     ("Jaipur", "Rajasthan"),
+    ("Jodhpur", "Rajasthan"),
+    ("Udaipur", "Rajasthan"),
     # Kerala
     ("Thiruvananthapuram", "Kerala"),
     ("Kochi", "Kerala"),
+    ("Kozhikode", "Kerala"),
     # Andhra Pradesh
     ("Visakhapatnam", "Andhra Pradesh"),
     ("Vijayawada", "Andhra Pradesh"),
+    ("Guntur", "Andhra Pradesh"),
+    # West Bengal
+    ("Kolkata", "West Bengal"),
+    ("Howrah", "West Bengal"),
+    ("Durgapur", "West Bengal"),
+    # Uttar Pradesh
+    ("Lucknow", "Uttar Pradesh"),
+    ("Kanpur", "Uttar Pradesh"),
+    ("Agra", "Uttar Pradesh"),
+    ("Varanasi", "Uttar Pradesh"),
+    ("Noida", "Uttar Pradesh"),
+    ("Ghaziabad", "Uttar Pradesh"),
+    # Punjab
+    ("Amritsar", "Punjab"),
+    ("Ludhiana", "Punjab"),
+    ("Jalandhar", "Punjab"),
+    # Haryana
+    ("Gurugram", "Haryana"),
+    ("Faridabad", "Haryana"),
+    ("Ambala", "Haryana"),
+    # Madhya Pradesh
+    ("Indore", "Madhya Pradesh"),
+    ("Bhopal", "Madhya Pradesh"),
+    ("Jabalpur", "Madhya Pradesh"),
+    # Bihar
+    ("Patna", "Bihar"),
+    ("Gaya", "Bihar"),
+    # Odisha
+    ("Bhubaneswar", "Odisha"),
+    ("Cuttack", "Odisha"),
+    # Assam
+    ("Guwahati", "Assam"),
+    ("Dibrugarh", "Assam"),
+    # Jharkhand
+    ("Ranchi", "Jharkhand"),
+    ("Jamshedpur", "Jharkhand"),
+    # Chhattisgarh
+    ("Raipur", "Chhattisgarh"),
+    ("Bilaspur", "Chhattisgarh"),
+    # Uttarakhand
+    ("Dehradun", "Uttarakhand"),
+    ("Haridwar", "Uttarakhand"),
+    # Goa
+    ("Panaji", "Goa"),
+    ("Vasco da Gama", "Goa"),
+    # Jammu and Kashmir
+    ("Srinagar", "Jammu and Kashmir"),
+    ("Jammu", "Jammu and Kashmir"),
+    # Himachal Pradesh
+    ("Shimla", "Himachal Pradesh"),
+    ("Manali", "Himachal Pradesh"),
+    # Chandigarh
+    ("Chandigarh", "Chandigarh"),
+    # Puducherry
+    ("Puducherry", "Puducherry"),
+    # Tripura
+    ("Agartala", "Tripura"),
+    # Manipur
+    ("Imphal", "Manipur"),
+    # Meghalaya
+    ("Shillong", "Meghalaya"),
+    # Nagaland
+    ("Kohima", "Nagaland"),
+    # Mizoram
+    ("Aizawl", "Mizoram"),
+    # Arunachal Pradesh
+    ("Itanagar", "Arunachal Pradesh"),
+    # Sikkim
+    ("Gangtok", "Sikkim"),
+    # Ladakh
+    ("Leh", "Ladakh"),
+    # Andaman and Nicobar Islands
+    ("Port Blair", "Andaman and Nicobar Islands"),
 ]
 
 # ── Pincodes (pincode, city_name, state_name) ─────────────────────────────
@@ -156,12 +236,128 @@ _PINCODES = [
     ("380001", "Ahmedabad", "Gujarat"),
     ("380006", "Ahmedabad", "Gujarat"),
     ("380015", "Ahmedabad", "Gujarat"),
+    # Surat
+    ("395001", "Surat", "Gujarat"),
+    ("395002", "Surat", "Gujarat"),
     # Pune
     ("411001", "Pune", "Maharashtra"),
     ("411002", "Pune", "Maharashtra"),
     ("411007", "Pune", "Maharashtra"),
     ("411015", "Pune", "Maharashtra"),
     ("411038", "Pune", "Maharashtra"),
+    # Nagpur
+    ("440001", "Nagpur", "Maharashtra"),
+    ("440010", "Nagpur", "Maharashtra"),
+    # Kolkata
+    ("700001", "Kolkata", "West Bengal"),
+    ("700013", "Kolkata", "West Bengal"),
+    ("700091", "Kolkata", "West Bengal"),
+    # Lucknow
+    ("226001", "Lucknow", "Uttar Pradesh"),
+    ("226010", "Lucknow", "Uttar Pradesh"),
+    # Kanpur
+    ("208001", "Kanpur", "Uttar Pradesh"),
+    ("208002", "Kanpur", "Uttar Pradesh"),
+    # Noida
+    ("201301", "Noida", "Uttar Pradesh"),
+    ("201302", "Noida", "Uttar Pradesh"),
+    # Agra
+    ("282001", "Agra", "Uttar Pradesh"),
+    # Patna
+    ("800001", "Patna", "Bihar"),
+    ("800013", "Patna", "Bihar"),
+    # Bhubaneswar
+    ("751001", "Bhubaneswar", "Odisha"),
+    ("751010", "Bhubaneswar", "Odisha"),
+    # Ludhiana
+    ("141001", "Ludhiana", "Punjab"),
+    ("141003", "Ludhiana", "Punjab"),
+    # Amritsar
+    ("143001", "Amritsar", "Punjab"),
+    # Gurugram
+    ("122001", "Gurugram", "Haryana"),
+    ("122002", "Gurugram", "Haryana"),
+    # Indore
+    ("452001", "Indore", "Madhya Pradesh"),
+    ("452010", "Indore", "Madhya Pradesh"),
+    # Bhopal
+    ("462001", "Bhopal", "Madhya Pradesh"),
+    ("462011", "Bhopal", "Madhya Pradesh"),
+    # Guwahati
+    ("781001", "Guwahati", "Assam"),
+    ("781003", "Guwahati", "Assam"),
+    # Ranchi
+    ("834001", "Ranchi", "Jharkhand"),
+    ("834002", "Ranchi", "Jharkhand"),
+    # Raipur
+    ("492001", "Raipur", "Chhattisgarh"),
+    # Jaipur
+    ("302001", "Jaipur", "Rajasthan"),
+    ("302004", "Jaipur", "Rajasthan"),
+    ("302017", "Jaipur", "Rajasthan"),
+    # Dehradun
+    ("248001", "Dehradun", "Uttarakhand"),
+    ("248002", "Dehradun", "Uttarakhand"),
+    # Panaji
+    ("403001", "Panaji", "Goa"),
+    # Chandigarh
+    ("160001", "Chandigarh", "Chandigarh"),
+    ("160017", "Chandigarh", "Chandigarh"),
+    # Puducherry
+    ("605001", "Puducherry", "Puducherry"),
+    ("605002", "Puducherry", "Puducherry"),
+    # Shimla
+    ("171001", "Shimla", "Himachal Pradesh"),
+    # Srinagar
+    ("190001", "Srinagar", "Jammu and Kashmir"),
+    # Jammu
+    ("180001", "Jammu", "Jammu and Kashmir"),
+    # Agartala
+    ("799001", "Agartala", "Tripura"),
+    # Imphal
+    ("795001", "Imphal", "Manipur"),
+    # Shillong
+    ("793001", "Shillong", "Meghalaya"),
+    # Kohima
+    ("797001", "Kohima", "Nagaland"),
+    # Aizawl
+    ("796001", "Aizawl", "Mizoram"),
+    # Itanagar
+    ("791111", "Itanagar", "Arunachal Pradesh"),
+    # Gangtok
+    ("737101", "Gangtok", "Sikkim"),
+    # Leh
+    ("194101", "Leh", "Ladakh"),
+    # Port Blair
+    ("744101", "Port Blair", "Andaman and Nicobar Islands"),
+    # Visakhapatnam
+    ("530001", "Visakhapatnam", "Andhra Pradesh"),
+    ("530003", "Visakhapatnam", "Andhra Pradesh"),
+    # Vijayawada
+    ("520001", "Vijayawada", "Andhra Pradesh"),
+    ("520010", "Vijayawada", "Andhra Pradesh"),
+    # Mysuru
+    ("570001", "Mysuru", "Karnataka"),
+    ("570004", "Mysuru", "Karnataka"),
+    # Thiruvananthapuram
+    ("695001", "Thiruvananthapuram", "Kerala"),
+    ("695004", "Thiruvananthapuram", "Kerala"),
+    # Kochi
+    ("682001", "Kochi", "Kerala"),
+    ("682011", "Kochi", "Kerala"),
+    # Coimbatore
+    ("641001", "Coimbatore", "Tamil Nadu"),
+    ("641002", "Coimbatore", "Tamil Nadu"),
+    ("641018", "Coimbatore", "Tamil Nadu"),
+    # Madurai
+    ("625001", "Madurai", "Tamil Nadu"),
+    ("625002", "Madurai", "Tamil Nadu"),
+    # Hyderabad
+    ("500001", "Hyderabad", "Telangana"),
+    ("500003", "Hyderabad", "Telangana"),
+    ("500016", "Hyderabad", "Telangana"),
+    ("500034", "Hyderabad", "Telangana"),
+    ("500081", "Hyderabad", "Telangana"),
 ]
 
 
