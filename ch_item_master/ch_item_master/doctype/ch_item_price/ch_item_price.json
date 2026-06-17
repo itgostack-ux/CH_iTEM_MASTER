@@ -17,6 +17,7 @@
   "mrp",
   "mop",
   "selling_price",
+  "cost_price",
   "validity_section",
   "effective_from",
   "effective_to",
@@ -112,6 +113,12 @@
    "label": "Selling Price",
    "reqd": 1,
    "description": "The rate that syncs to ERPNext Item Price for this channel"
+  },
+  {
+   "fieldname": "cost_price",
+   "fieldtype": "Currency",
+   "label": "Cost Price",
+   "description": "Landed/acquisition cost — used for B2B floor-guard checks in POS"
   },
   {
    "fieldname": "validity_section",

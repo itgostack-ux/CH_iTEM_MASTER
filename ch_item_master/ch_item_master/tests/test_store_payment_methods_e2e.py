@@ -316,10 +316,10 @@ def test_payment_method_id_increments():
 def test_otp_generate_and_verify():
     flow = "CH OTP Log"
     mobile = "9876543210"
-    purpose = f"E2E Test {frappe.utils.random_string(4)}"
+    purpose = "POS Customer Verification"
 
     try:
-        from ch_item_master.ch_item_master.ch_core.doctype.ch_otp_log.ch_otp_log import CHOTPLog
+        from ch_item_master.ch_core.doctype.ch_otp_log.ch_otp_log import CHOTPLog
 
         otp_code = CHOTPLog.generate_otp(mobile, purpose)
 
@@ -344,10 +344,10 @@ def test_otp_generate_and_verify():
 def test_otp_wrong_code():
     flow = "CH OTP Log"
     mobile = "9876543211"
-    purpose = f"E2E Wrong {frappe.utils.random_string(4)}"
+    purpose = "High Value Sale"
 
     try:
-        from ch_item_master.ch_item_master.ch_core.doctype.ch_otp_log.ch_otp_log import CHOTPLog
+        from ch_item_master.ch_core.doctype.ch_otp_log.ch_otp_log import CHOTPLog
 
         CHOTPLog.generate_otp(mobile, purpose)
         result = CHOTPLog.verify_otp(mobile, purpose, "000000")  # wrong code
@@ -365,10 +365,10 @@ def test_otp_wrong_code():
 def test_otp_expired():
     flow = "CH OTP Log"
     mobile = "9876543212"
-    purpose = f"E2E Expire {frappe.utils.random_string(4)}"
+    purpose = "Discount Override"
 
     try:
-        from ch_item_master.ch_item_master.ch_core.doctype.ch_otp_log.ch_otp_log import CHOTPLog
+        from ch_item_master.ch_core.doctype.ch_otp_log.ch_otp_log import CHOTPLog
 
         otp_code = CHOTPLog.generate_otp(mobile, purpose)
 
@@ -399,10 +399,10 @@ def test_otp_expired():
 def test_otp_max_attempts():
     flow = "CH OTP Log"
     mobile = "9876543213"
-    purpose = f"E2E MaxAttempt {frappe.utils.random_string(4)}"
+    purpose = "Manager Override"
 
     try:
-        from ch_item_master.ch_item_master.ch_core.doctype.ch_otp_log.ch_otp_log import CHOTPLog
+        from ch_item_master.ch_core.doctype.ch_otp_log.ch_otp_log import CHOTPLog
 
         CHOTPLog.generate_otp(mobile, purpose)
 
@@ -427,10 +427,10 @@ def test_otp_already_verified_idempotency():
     """Second verify call after success should return valid=True (idempotency)."""
     flow = "CH OTP Log"
     mobile = "9876543214"
-    purpose = f"E2E Idempotent {frappe.utils.random_string(4)}"
+    purpose = "Service Delivery"
 
     try:
-        from ch_item_master.ch_item_master.ch_core.doctype.ch_otp_log.ch_otp_log import CHOTPLog
+        from ch_item_master.ch_core.doctype.ch_otp_log.ch_otp_log import CHOTPLog
 
         otp_code = CHOTPLog.generate_otp(mobile, purpose)
 
@@ -458,18 +458,26 @@ def test_otp_rate_limit():
     """Generating > 5 unverified OTPs within 1 hour should raise."""
     flow = "CH OTP Log"
     mobile = "9876543215"
-    purpose = f"E2E RateLimit {frappe.utils.random_string(4)}"
+    # Each call needs a valid Select purpose; use 6 distinct values for the rate-limit test.
+    _rl_purposes = [
+        "Buyback Confirmation",
+        "Exchange Confirmation",
+        "Free Accessory",
+        "Old Stock Clearance",
+        "Warranty Giveaway",
+        "Return Beyond Policy",  # 6th — should be blocked
+    ]
 
     try:
-        from ch_item_master.ch_item_master.ch_core.doctype.ch_otp_log.ch_otp_log import CHOTPLog
+        from ch_item_master.ch_core.doctype.ch_otp_log.ch_otp_log import CHOTPLog
 
         # Generate 5 OTPs without verifying them
         for i in range(5):
-            CHOTPLog.generate_otp(mobile, f"{purpose}-{i}")
+            CHOTPLog.generate_otp(mobile, _rl_purposes[i])
 
         # 6th should raise rate limit
         try:
-            CHOTPLog.generate_otp(mobile, f"{purpose}-6")
+            CHOTPLog.generate_otp(mobile, _rl_purposes[5])
             frappe.db.rollback()
             _fail(flow, "rate limit (6th OTP)", "should have raised ValidationError")
         except frappe.ValidationError:
@@ -484,9 +492,9 @@ def test_otp_no_pending_otp():
     """Verify when no OTP exists should return valid=False."""
     flow = "CH OTP Log"
     try:
-        from ch_item_master.ch_item_master.ch_core.doctype.ch_otp_log.ch_otp_log import CHOTPLog
+        from ch_item_master.ch_core.doctype.ch_otp_log.ch_otp_log import CHOTPLog
 
-        result = CHOTPLog.verify_otp("9999999999", "NoSuchPurpose_XYZ", "123456")
+        result = CHOTPLog.verify_otp("9999999999", "Buyback Customer Approval", "123456")
         frappe.db.rollback()
 
         if result.get("valid"):
