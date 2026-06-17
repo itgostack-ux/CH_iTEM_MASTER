@@ -193,6 +193,7 @@ class TestItemNatureUniverse(unittest.TestCase):
         item.item_group = ITEM_GROUP
         item.ch_sub_category = sc
         item.ch_category = self.cat
+        item.ch_item_mrp = 100
         # Don't set item_name - will be auto-generated
         item.insert(ignore_permissions=True)
         self.assertTrue(item.item_code.startswith("CBL"))
@@ -217,6 +218,7 @@ class TestItemNatureUniverse(unittest.TestCase):
         item.item_group = ITEM_GROUP
         item.ch_sub_category = sc
         item.ch_category = self.cat
+        item.ch_item_mrp = 25
         item.insert(ignore_permissions=True)
         self.assertEqual(item.item_name, custom_name)
         self.assertEqual(item.stock_uom, "Kg")
@@ -237,6 +239,7 @@ class TestItemNatureUniverse(unittest.TestCase):
             item.item_group = ITEM_GROUP
             item.ch_sub_category = sc
             item.ch_category = self.cat
+            item.ch_item_mrp = 1000
             item.insert(ignore_permissions=True)
         item = frappe.get_doc("Item", {"item_name": custom_name})
         self.assertEqual(item.has_serial_no, 1, "Asset item remains serial-controlled at Item level")

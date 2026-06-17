@@ -29,6 +29,7 @@ after_install = "ch_item_master.install.after_install"
 after_migrate = [
 	"ch_item_master.setup.setup_roles",
 	"ch_item_master.setup.create_ch_custom_fields",
+	"ch_item_master.setup.setup_item_variant_settings",
 	"ch_item_master.setup.setup_channels",
 	"ch_item_master.setup.sync_workspace",
 	"ch_item_master.setup.setup_vas_settings",

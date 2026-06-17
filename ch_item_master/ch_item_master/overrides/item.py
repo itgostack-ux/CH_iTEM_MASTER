@@ -383,13 +383,20 @@ def _copy_ch_fields_from_template(doc):
     """
     ch_fields = frappe.db.get_value(
         "Item", doc.variant_of,
-        ["ch_model", "ch_sub_category", "ch_category", "gst_hsn_code"],
+        ["ch_model", "ch_sub_category", "ch_category", "gst_hsn_code", "ch_item_mrp"],
         as_dict=True,
     )
     if not ch_fields:
         return
 
-    for field in ("ch_model", "ch_sub_category", "ch_category"):
+    if not ch_fields.get("ch_category") and ch_fields.get("ch_sub_category"):
+        ch_fields["ch_category"] = frappe.db.get_value(
+            "CH Sub Category",
+            ch_fields["ch_sub_category"],
+            "category",
+        )
+
+    for field in ("ch_model", "ch_sub_category", "ch_category", "ch_item_mrp"):
         if not getattr(doc, field, None) and ch_fields.get(field):
             setattr(doc, field, ch_fields[field])
 

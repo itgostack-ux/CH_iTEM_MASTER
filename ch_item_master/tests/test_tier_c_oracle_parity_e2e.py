@@ -75,6 +75,7 @@ def _make_item(item_code: str, extra: dict | None = None, delete_first: bool = T
 		frappe.db.commit()
 
 	sc = _ensure_test_sub_category()
+	category = frappe.db.get_value("CH Sub Category", sc, "category")
 	data = {
 		"doctype": "Item",
 		"item_code": item_code,
@@ -82,10 +83,12 @@ def _make_item(item_code: str, extra: dict | None = None, delete_first: bool = T
 		"item_group": "All Item Groups",
 		"stock_uom": "Nos",
 		"gst_hsn_code": TEST_HSN,
+		"ch_category": category,
 		"ch_sub_category": sc,
 		"ch_lifecycle_status": "Draft",
 		"ch_approval_status": "Draft",
 		"ch_plm_status": "NPI",
+		"ch_item_mrp": 1000,
 	}
 	if extra:
 		data.update(extra)
@@ -94,6 +97,37 @@ def _make_item(item_code: str, extra: dict | None = None, delete_first: bool = T
 	doc.insert(ignore_permissions=True, ignore_mandatory=True)
 	frappe.db.commit()
 	return doc
+
+
+def _ensure_item_attribute_value(attribute: str, value: str, abbr: str) -> None:
+	"""Ensure an Item Attribute and one allowed value exist for variant tests."""
+	if not frappe.db.exists("Item Attribute", attribute):
+		doc = frappe.get_doc({
+			"doctype": "Item Attribute",
+			"attribute_name": attribute,
+			"numeric_values": 0,
+			"item_attribute_values": [{
+				"attribute_value": value,
+				"abbr": abbr,
+			}],
+		})
+		doc.insert(ignore_permissions=True)
+		frappe.db.commit()
+		return
+
+	attr = frappe.get_doc("Item Attribute", attribute)
+	if frappe.db.exists(
+		"Item Attribute Value",
+		{"parent": attribute, "attribute_value": value},
+	):
+		return
+
+	attr.append("item_attribute_values", {
+		"attribute_value": value,
+		"abbr": abbr,
+	})
+	attr.save(ignore_permissions=True)
+	frappe.db.commit()
 
 
 def _set_user_roles(roles: list[str]):
@@ -333,6 +367,37 @@ class TestTierCMRP(unittest.TestCase):
 		item = _make_item("TC-MRP-12")
 		result = get_site_defaults(item.name, warehouse="NonExistent Warehouse - XX")
 		self.assertIsNone(result)
+
+	def test_13_template_mrp_copies_to_variant(self):
+		"""Variant creation inherits template MRP before stock-item validation."""
+		from erpnext.controllers.item_variant import create_variant
+		from ch_item_master.setup import setup_item_variant_settings
+
+		attribute = "_Test TierC MRP Color"
+		template_code = "TC-MRP-VARIANT-TPL"
+		variant_code = "TC-MRP-VARIANT-TPL-BLU"
+
+		frappe.delete_doc_if_exists("Item", variant_code, force=True)
+		frappe.delete_doc_if_exists("Item", template_code, force=True)
+		_ensure_item_attribute_value(attribute, "Blue", "BLU")
+
+		template = _make_item(template_code, extra={
+			"has_variants": 1,
+			"variant_based_on": "Item Attribute",
+			"ch_item_mrp": 37000,
+			"attributes": [{"attribute": attribute}],
+		})
+
+		setup_item_variant_settings()
+		settings = frappe.get_single("Item Variant Settings")
+		self.assertIn("ch_item_mrp", {row.field_name for row in settings.fields})
+
+		variant = create_variant(template.name, {attribute: "Blue"})
+		variant.save(ignore_permissions=True)
+
+		reloaded = frappe.get_doc("Item", variant_code)
+		self.assertEqual(reloaded.variant_of, template.name)
+		self.assertEqual(reloaded.ch_item_mrp, 37000)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

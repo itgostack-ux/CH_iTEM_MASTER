@@ -17,6 +17,7 @@ Sync guard: frappe flag "ch_mrp_sync_in_progress" prevents infinite loops.
 
 import frappe
 from frappe import _
+from frappe.utils import flt
 
 
 # ──────────────────────────────────────────────────────────────
@@ -56,13 +57,14 @@ def sync_item_mrp_to_price(doc, method=None):
 	if frappe.flags.get("ch_mrp_sync_in_progress"):
 		return
 
-	new_mrp = doc.ch_item_mrp or 0
+	new_mrp = flt(doc.ch_item_mrp)
 	if not new_mrp:
 		return
 
-	# Get previously saved value to detect real change
-	old_mrp = frappe.db.get_value("Item", doc.name, "ch_item_mrp") or 0
-	if old_mrp == new_mrp:
+	# on_update runs after db_update, so read the pre-save document snapshot.
+	old_doc = doc.get_doc_before_save()
+	old_mrp = flt(old_doc.ch_item_mrp) if old_doc else 0
+	if old_doc and old_mrp == new_mrp:
 		return
 
 	active_prices = frappe.get_all(

@@ -26,3 +26,4 @@ ch_item_master.patches.v18_manufacturer_read_perms
 ch_item_master.patches.v19_backfill_item_mrp
 ch_item_master.patches.v20_drop_item_price_ch_mrp
 ch_item_master.patches.v21_unify_ch_city_master
+ch_item_master.patches.v22_ensure_item_mrp_on_variants
