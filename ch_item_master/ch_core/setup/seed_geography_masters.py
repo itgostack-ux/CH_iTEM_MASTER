@@ -277,25 +277,39 @@ def _get_operating_companies():
 def seed_cities():
     created = skipped = 0
     for city_name, state_name in _CITIES:
+        clean_city = (city_name or "").strip().title()
+        clean_state = (state_name or "").strip().title()
+
         existing = frappe.db.get_value(
             "CH City",
-            {"state": state_name, "city_name": city_name},
+            {"state": clean_state, "city_name": clean_city},
             "name",
         )
         if existing:
             skipped += 1
             continue
-        if not frappe.db.exists("CH State", state_name):
-            _warn(f"State '{state_name}' not in CH State — skipping city {city_name}")
+
+        # Backward compatibility for pre-state-aware keys where name==city_name.
+        legacy = frappe.db.get_value("CH City", {"city_name": clean_city}, "name")
+        if legacy:
+            skipped += 1
+            continue
+
+        if not frappe.db.exists("CH State", clean_state):
+            _warn(f"State '{clean_state}' not in CH State — skipping city {clean_city}")
             continue
         doc = frappe.get_doc({
             "doctype": "CH City",
-            "city_name": city_name,
+            "city_name": clean_city,
             "country": "India",
-            "state": state_name,
+            "state": clean_state,
         })
-        doc.insert(ignore_permissions=True)
-        created += 1
+        try:
+            doc.insert(ignore_permissions=True)
+            created += 1
+        except frappe.DuplicateEntryError:
+            # Idempotent safety net for partially-migrated DBs.
+            skipped += 1
     frappe.db.commit()
     print(f"  CH City   — created: {created}, skipped: {skipped}")
 
