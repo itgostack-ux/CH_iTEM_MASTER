@@ -144,26 +144,31 @@ def sync_price_mrp_to_item(ch_item_price_doc):
 # ──────────────────────────────────────────────────────────────
 
 def validate_purchase_mrp_ceiling(doc, method=None):
-	"""Warn (msgprint) when any purchase item's rate exceeds Item.ch_item_mrp.
+	"""Validate that purchase item rates do not exceed Item.ch_item_mrp.
 
 	Applies to Purchase Order, Purchase Invoice, Purchase Receipt.
-	Uses msgprint (not throw) so the user is warned but not hard-blocked —
-	some purchase types (e.g., GST-inclusive valuations) may legitimately
-	exceed the consumer MRP at the purchase-cost level. Store managers can
-	override with acknowledgement.
-
-	Raises frappe.ValidationError if doc.flags.ch_block_above_mrp is set
-	(future: controlled via CH Settings for stricter enforcement).
+	Purchase Orders are hard-blocked so buying cannot commit to a loss-making
+	price. Downstream Purchase Receipts / Purchase Invoices still warn by
+	default, unless doc.flags.ch_block_above_mrp is set by a stricter caller.
 	"""
 	violations = []
+	missing_mrp = []
+	hard_stop = doc.doctype == "Purchase Order" or getattr(doc.flags, "ch_block_above_mrp", False)
 	for row in (doc.items or []):
 		item_code = row.item_code
 		if not item_code:
 			continue
-		item_mrp = frappe.db.get_value("Item", item_code, "ch_item_mrp") or 0
+		item = frappe.db.get_value("Item", item_code, ["ch_item_mrp", "is_stock_item"], as_dict=True) or {}
+		item_mrp = flt(item.get("ch_item_mrp"))
 		if not item_mrp:
-			continue  # MRP not set — non-stock item or not yet configured
-		rate = row.rate or 0
+			if hard_stop and item.get("is_stock_item"):
+				missing_mrp.append(
+					_("Row {0}: Stock item <b>{1}</b> has no MRP configured").format(
+						row.idx, item_code
+					)
+				)
+			continue
+		rate = flt(row.rate)
 		if rate > item_mrp:
 			violations.append(
 				_("Row {0}: Item <b>{1}</b> — rate {2} exceeds MRP {3}").format(
@@ -171,16 +176,25 @@ def validate_purchase_mrp_ceiling(doc, method=None):
 				)
 			)
 
-	if not violations:
+	if not missing_mrp and not violations:
 		return
 
-	msg = (
-		_("The following items have purchase rates exceeding their MRP (Maximum Retail Price). "
-		  "Please verify before proceeding:<br>")
-		+ "<br>".join(violations)
-	)
+	parts = []
+	if missing_mrp:
+		parts.append(
+			_("The following stock items are missing MRP (Maximum Retail Price). "
+			  "Update the Item MRP before proceeding:<br>")
+			+ "<br>".join(missing_mrp)
+		)
+	if violations:
+		parts.append(
+			_("The following items have purchase rates exceeding their MRP (Maximum Retail Price). "
+			  "Reduce the purchase rate or update the Item MRP before proceeding:<br>")
+			+ "<br>".join(violations)
+		)
+	msg = "<br><br>".join(parts)
 
-	if getattr(doc.flags, "ch_block_above_mrp", False):
+	if hard_stop:
 		frappe.throw(msg, title=_("Purchase Rate Exceeds MRP"))
 	else:
 		frappe.msgprint(msg, title=_("Purchase Rate Exceeds MRP"), indicator="orange")

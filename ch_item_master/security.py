@@ -147,7 +147,7 @@ def has_warranty_claim_permission(doc=None, user=None, permission_type=None):
 
 
 def get_sold_plan_query(user=None):
-    return get_company_permission_query("CH Sold Plan", user=user)
+    return get_company_permission_query("Active VAS Plans", user=user)
 
 
 def has_sold_plan_permission(doc=None, user=None, permission_type=None):

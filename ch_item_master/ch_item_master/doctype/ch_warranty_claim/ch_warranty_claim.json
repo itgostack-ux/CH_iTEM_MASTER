@@ -415,9 +415,9 @@
    "fieldname": "sold_plan",
    "fieldtype": "Link",
    "label": "Covering Plan (Sold)",
-   "options": "CH Sold Plan",
+   "options": "Active VAS Plans",
    "read_only": 1,
-   "description": "Auto-populated from best active CH Sold Plan"
+   "description": "Auto-populated from best active Active VAS Plans"
   },
   {
    "fieldname": "warranty_plan",
@@ -425,7 +425,7 @@
    "label": "Warranty Plan",
    "options": "CH Warranty Plan",
    "read_only": 1,
-   "description": "Auto-populated from the covering sold plan"
+   "description": "Auto-populated from the covering active VAS plan"
   },
   {
    "fieldname": "plan_type",

@@ -1,4 +1,4 @@
-"""Phase 8 smoke test - sold plan expiry and ledger audit.
+"""Phase 8 smoke test - active VAS plan expiry and ledger audit.
 
 Run:
 	bench --site erpnext.local execute ch_item_master.tests.test_phase8_expire_plan_ledger.run
@@ -17,7 +17,7 @@ def _must(label, ok, detail=""):
 
 def _find_template_context() -> dict:
 	plan = frappe.db.get_value(
-		"CH Sold Plan",
+		"Active VAS Plans",
 		{"docstatus": 1, "status": "Active"},
 		["name", "company", "warranty_plan", "customer", "item_code", "max_claims", "deductible_amount"],
 		as_dict=True,
@@ -61,7 +61,7 @@ def run():
 	serial_no = f"PHASE8-{frappe.generate_hash(length=10)}"
 	sold_plan = frappe.get_doc(
 		{
-			"doctype": "CH Sold Plan",
+			"doctype": "Active VAS Plans",
 			"company": ctx["company"],
 			"warranty_plan": ctx["warranty_plan"],
 			"customer": ctx["customer"],
@@ -77,17 +77,17 @@ def run():
 	try:
 		sold_plan.insert(ignore_permissions=True)
 		sold_plan.submit()
-		_must("Sold plan submitted", bool(sold_plan.name), sold_plan.name)
+		_must("Active VAS Plan submitted", bool(sold_plan.name), sold_plan.name)
 
 		frappe.db.set_value(
-			"CH Sold Plan",
+			"Active VAS Plans",
 			sold_plan.name,
 			"end_date",
 			add_days(today, -1),
 			update_modified=False,
 		)
 		frappe.db.set_value(
-			"CH Sold Plan",
+			"Active VAS Plans",
 			sold_plan.name,
 			"status",
 			"Active",
@@ -99,7 +99,7 @@ def run():
 		sold_plan.reload()
 
 		_must(
-			"Sold plan auto-expired",
+			"Active VAS Plan auto-expired",
 			sold_plan.status == "Expired",
 			f"status={sold_plan.status}",
 		)
@@ -117,10 +117,10 @@ def run():
 			str(ledger),
 		)
 	finally:
-		if sold_plan.name and frappe.db.exists("CH Sold Plan", sold_plan.name):
+		if sold_plan.name and frappe.db.exists("Active VAS Plans", sold_plan.name):
 			try:
-				if frappe.db.get_value("CH Sold Plan", sold_plan.name, "docstatus") == 1:
-					frappe.get_doc("CH Sold Plan", sold_plan.name).cancel()
+				if frappe.db.get_value("Active VAS Plans", sold_plan.name, "docstatus") == 1:
+					frappe.get_doc("Active VAS Plans", sold_plan.name).cancel()
 			except Exception:
 				frappe.log_error(frappe.get_traceback(), f"Phase 8 cleanup failed for {sold_plan.name}")
 

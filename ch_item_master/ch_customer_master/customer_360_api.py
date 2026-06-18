@@ -345,8 +345,8 @@ def _get_summary(cust):
 
 
 def _get_sold_plans(customer, company=None):
-	"""Warranty and AMC / care plans from CH Sold Plan."""
-	if not frappe.db.exists("DocType", "CH Sold Plan"):
+	"""Warranty and AMC / care plans from Active VAS Plans."""
+	if not frappe.db.exists("DocType", "Active VAS Plans"):
 		return []
 
 	filters = {"customer": customer, "docstatus": 1}
@@ -354,7 +354,7 @@ def _get_sold_plans(customer, company=None):
 		filters["company"] = company
 
 	return frappe.get_all(
-		"CH Sold Plan",
+		"Active VAS Plans",
 		filters=filters,
 		fields=[
 			"name", "plan_title", "plan_type", "item_code", "item_name",

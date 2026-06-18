@@ -19,8 +19,8 @@
    "fieldname": "plan",
    "fieldtype": "Link",
    "in_list_view": 1,
-   "label": "Sold Plan",
-   "options": "CH Sold Plan",
+    "label": "Active VAS Plans",
+   "options": "Active VAS Plans",
    "reqd": 1
   },
   {

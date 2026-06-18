@@ -17,7 +17,7 @@ def log_vas_event(sold_plan, event_type, claim_amount=0,
 	a coverage-altering event occurs.
 
 	Args:
-		sold_plan: CH Sold Plan name
+		sold_plan: Active VAS Plans name
 		event_type: One of the Select options (Plan Activated / Claim Used / …)
 		claim_amount: Monetary value of the event (claim cost, voucher value, etc.)
 		reference_doctype: Source doctype (CH Warranty Claim, CH Voucher, etc.)
@@ -25,7 +25,7 @@ def log_vas_event(sold_plan, event_type, claim_amount=0,
 		remarks: Free text
 	"""
 	sp = frappe.db.get_value(
-		"CH Sold Plan", sold_plan,
+		"Active VAS Plans", sold_plan,
 		["claims_used", "max_claims", "total_claimed_value", "max_coverage_value"],
 		as_dict=True,
 	)

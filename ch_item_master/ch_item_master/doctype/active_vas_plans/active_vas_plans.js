@@ -1,7 +1,7 @@
 // Copyright (c) 2026, GoStack and contributors
-// CH Sold Plan — client script
+// Active VAS Plans — client script
 
-frappe.ui.form.on('CH Sold Plan', {
+frappe.ui.form.on('Active VAS Plans', {
 	setup(frm) {
 		frm.set_query('warranty_plan', () => ({
 			filters: { status: 'Active' }
@@ -48,7 +48,7 @@ frappe.ui.form.on('CH Sold Plan', {
 						frappe.call({
 							method: 'frappe.client.set_value',
 							args: {
-								doctype: 'CH Sold Plan',
+								doctype: 'Active VAS Plans',
 								name: frm.doc.name,
 								fieldname: 'status',
 								value: 'Void'

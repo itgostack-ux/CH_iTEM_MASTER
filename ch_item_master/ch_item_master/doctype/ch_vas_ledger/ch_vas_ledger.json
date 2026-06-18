@@ -20,8 +20,8 @@
   {
    "fieldname": "sold_plan",
    "fieldtype": "Link",
-   "label": "Sold Plan",
-   "options": "CH Sold Plan",
+    "label": "Active VAS Plans",
+   "options": "Active VAS Plans",
    "reqd": 1,
    "in_list_view": 1,
    "in_standard_filter": 1,
@@ -116,7 +116,7 @@
  "links": [
   {
    "group": "Membership",
-   "link_doctype": "CH Sold Plan",
+   "link_doctype": "Active VAS Plans",
    "link_fieldname": "name"
   }
  ],

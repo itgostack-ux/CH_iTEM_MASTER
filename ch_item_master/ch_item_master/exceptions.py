@@ -178,7 +178,7 @@ class InactivePlanError(frappe.ValidationError):
 	pass
 
 
-# ── CH Sold Plan ─────────────────────────────────────────────────────────────
+# ── Active VAS Plans ─────────────────────────────────────────────────────────────
 class DuplicateSoldPlanError(frappe.ValidationError):
 	pass
 

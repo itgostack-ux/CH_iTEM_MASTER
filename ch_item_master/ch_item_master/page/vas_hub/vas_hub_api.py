@@ -14,7 +14,7 @@ def _build_filters(company=None, store=None, from_date=None, to_date=None):
         co_wc = " AND wc.company = %(company)s"
         co_v = " AND v.company = %(company)s"
         prm["company"] = company
-    # CH Sold Plan has no store field; CH Warranty Claim has reported_at_store
+    # Active VAS Plans has no store field; CH Warranty Claim has reported_at_store
     wh_wc = ""
     if store:
         wh_wc = " AND wc.reported_at_store = %(store)s"
@@ -41,7 +41,7 @@ def _build_filters(company=None, store=None, from_date=None, to_date=None):
 
 @frappe.whitelist()
 def get_vas_hub_data(company=None, store=None, from_date=None, to_date=None):
-    """VAS dashboard: Warranty Plans → Sold Plans → Claims → Vouchers."""
+    """VAS dashboard: Warranty Plans → Active VAS Plans → Claims → Vouchers."""
     f = _build_filters(company, store, from_date, to_date)
     prm = f["prm"]
     co_sp = f["co_sp"]
@@ -56,13 +56,13 @@ def get_vas_hub_data(company=None, store=None, from_date=None, to_date=None):
     prm["first_day"] = str(first_day)
     prm["thirty_days"] = str(add_days(today, 30))
 
-    # Note: Sold plans may not have company/store — use co_sp and wh_sp that reference sp alias
+    # Note: Active VAS Plans may not have company/store — use co_sp and wh_sp that reference sp alias
     # For claims and vouchers, we join via sold_plan if needed
 
-    # ── Pipeline — Sold Plans by status ──
+    # ── Pipeline — Active VAS Plans by status ──
     plan_counts = frappe.db.sql(
         f"""SELECT sp.status, COUNT(*) AS cnt
-            FROM `tabCH Sold Plan` sp
+            FROM `tabActive VAS Plans` sp
             WHERE 1=1 {co_sp} {dc('sp.creation')}
             GROUP BY sp.status""", prm, as_dict=True
     )
@@ -106,14 +106,14 @@ def get_vas_hub_data(company=None, store=None, from_date=None, to_date=None):
     total_vouchers = sum(vc.values())
 
     plans_sold_mtd = frappe.db.sql(
-        f"""SELECT COUNT(*) FROM `tabCH Sold Plan` sp
+        f"""SELECT COUNT(*) FROM `tabActive VAS Plans` sp
             WHERE sp.creation BETWEEN %(first_day)s AND %(today)s
             {co_sp}""", prm
     )[0][0]
 
-    # VAS revenue from sold plans (plan_price field)
+    # VAS revenue from active VAS plans (plan_price field)
     vas_rev = frappe.db.sql(
-        f"""SELECT COALESCE(SUM(sp.plan_price), 0) FROM `tabCH Sold Plan` sp
+        f"""SELECT COALESCE(SUM(sp.plan_price), 0) FROM `tabActive VAS Plans` sp
             WHERE sp.creation BETWEEN %(first_day)s AND %(today)s
             {co_sp}""", prm
     )[0][0]
@@ -146,7 +146,7 @@ def get_vas_hub_data(company=None, store=None, from_date=None, to_date=None):
     sold_plans = frappe.db.sql(
         f"""SELECT sp.name, sp.customer_name, sp.customer, sp.warranty_plan,
                    sp.start_date, sp.end_date, sp.status, sp.plan_price
-            FROM `tabCH Sold Plan` sp
+            FROM `tabActive VAS Plans` sp
             WHERE 1=1 {co_sp} {dc('sp.creation')}
             ORDER BY sp.creation DESC LIMIT 50""", prm, as_dict=True
     )
@@ -171,7 +171,7 @@ def get_vas_hub_data(company=None, store=None, from_date=None, to_date=None):
         f"""SELECT sp.name, sp.customer_name, sp.customer, sp.warranty_plan,
                    sp.end_date,
                    DATEDIFF(sp.end_date, %(today)s) AS days_left
-            FROM `tabCH Sold Plan` sp
+            FROM `tabActive VAS Plans` sp
             WHERE sp.status = 'Active'
             AND sp.end_date BETWEEN %(today)s AND %(thirty_days)s
             {co_sp}
@@ -183,7 +183,7 @@ def get_vas_hub_data(company=None, store=None, from_date=None, to_date=None):
                    COUNT(*) AS total,
                    SUM(CASE WHEN sp.status='Active' THEN 1 ELSE 0 END) AS active,
                    SUM(CASE WHEN sp.status='Claimed' THEN 1 ELSE 0 END) AS claimed
-            FROM `tabCH Sold Plan` sp
+            FROM `tabActive VAS Plans` sp
             WHERE 1=1 {co_sp} {dc('sp.creation')}
             GROUP BY sp.warranty_plan
             ORDER BY total DESC LIMIT 20""", prm, as_dict=True

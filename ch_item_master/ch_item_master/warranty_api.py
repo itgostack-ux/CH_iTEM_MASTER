@@ -25,8 +25,8 @@ from ch_item_master.security import get_company_filter_value, get_company_scope
 def check_warranty(serial_no, company=None) -> dict:
 	"""Check warranty status for a device serial/IMEI.
 
-	Looks up CH Sold Plan records (submitted, active) for the serial.
-	Falls back to CH Serial Lifecycle warranty fields if no Sold Plan exists.
+	Looks up Active VAS Plans records (submitted, active) for the serial.
+	Falls back to CH Serial Lifecycle warranty fields if no Active VAS Plan exists.
 
 	Args:
 		serial_no: Serial number or IMEI to look up.
@@ -36,7 +36,7 @@ def check_warranty(serial_no, company=None) -> dict:
 		dict with: warranty_covered, warranty_status, covering_plan, all_plans,
 		           serial_lifecycle (if exists), deductible_amount
 	"""
-	from ch_item_master.ch_item_master.doctype.ch_sold_plan.ch_sold_plan import (
+	from ch_item_master.ch_item_master.doctype.active_vas_plans.active_vas_plans import (
 		check_warranty_status,
 	)
 
@@ -147,7 +147,7 @@ def validate_vas_category(serial_no, warranty_plan) -> dict:
 def issue_warranty_plan(warranty_plan, customer, item_code, serial_no=None,
                         start_date=None, company=None, sales_invoice=None,
                         sales_order=None, plan_price=None) -> dict:
-	"""Issue (create + submit) a Sold Plan for a customer/device.
+	"""Issue (create + submit) a Active VAS Plan for a customer/device.
 
 	Called by GoFix or retail sales flow when a warranty/VAS plan is sold.
 
@@ -168,7 +168,7 @@ def issue_warranty_plan(warranty_plan, customer, item_code, serial_no=None,
 	if not start_date:
 		start_date = nowdate()
 
-	frappe.has_permission("CH Sold Plan", "create", throw=True)
+	frappe.has_permission("Active VAS Plans", "create", throw=True)
 
 	plan = frappe.get_doc("CH Warranty Plan", warranty_plan)
 
@@ -180,7 +180,7 @@ def issue_warranty_plan(warranty_plan, customer, item_code, serial_no=None,
 	if plan.duration_months:
 		end_date = add_months(start_date, plan.duration_months)
 
-	doc = frappe.new_doc("CH Sold Plan")
+	doc = frappe.new_doc("Active VAS Plans")
 	doc.update({
 		"company": company,
 		"warranty_plan": warranty_plan,
@@ -219,7 +219,7 @@ def record_warranty_claim(serial_no, service_reference=None, company=None) -> di
 	Returns:
 		dict with: sold_plan, claims_used, max_claims, deductible_amount
 	"""
-	from ch_item_master.ch_item_master.doctype.ch_sold_plan.ch_sold_plan import (
+	from ch_item_master.ch_item_master.doctype.active_vas_plans.active_vas_plans import (
 		get_active_plans_for_serial,
 	)
 
@@ -254,7 +254,7 @@ def record_warranty_claim(serial_no, service_reference=None, company=None) -> di
 	valid_plans.sort(key=_plan_sort_key)
 
 	best_plan = valid_plans[0]
-	doc = frappe.get_doc("CH Sold Plan", best_plan["name"])
+	doc = frappe.get_doc("Active VAS Plans", best_plan["name"])
 	doc.record_claim(service_reference=service_reference)
 
 	return {
@@ -270,13 +270,13 @@ def record_warranty_claim(serial_no, service_reference=None, company=None) -> di
 
 @frappe.whitelist()
 def validate_claim(sold_plan_name, issue_type=None, estimate_amount=0) -> dict:
-	"""Pre-validate whether a claim is eligible under a sold plan.
+	"""Pre-validate whether a claim is eligible under a active VAS plan.
 
 	Checks expiry, claim count limits, annual limits, value caps,
 	and per-issue coverage rules (from CH Coverage Rule child table).
 
 	Args:
-		sold_plan_name: CH Sold Plan name
+		sold_plan_name: Active VAS Plans name
 		issue_type: Issue Category name (optional — for coverage rule lookup)
 		estimate_amount: Estimated repair cost
 
@@ -286,10 +286,10 @@ def validate_claim(sold_plan_name, issue_type=None, estimate_amount=0) -> dict:
 	"""
 	estimate_amount = flt(estimate_amount)
 
-	if not frappe.db.exists("CH Sold Plan", sold_plan_name):
-		return {"eligible": False, "reason": _("Sold Plan {0} not found").format(sold_plan_name)}
+	if not frappe.db.exists("Active VAS Plans", sold_plan_name):
+		return {"eligible": False, "reason": _("Active VAS Plan {0} not found").format(sold_plan_name)}
 
-	sp = frappe.get_doc("CH Sold Plan", sold_plan_name)
+	sp = frappe.get_doc("Active VAS Plans", sold_plan_name)
 
 	# ── Basic eligibility ─────────────────────────────────────────────
 	if sp.docstatus != 1:
@@ -425,13 +425,13 @@ def validate_msp(item_code, selling_rate) -> dict:
 # ── Auto-expiry (Scheduled Task) ────────────────────────────────────────────
 
 def expire_sold_plans():
-	"""Mark expired CH Sold Plans. Called by scheduled task (daily).
+	"""Mark expired Active VAS Plans. Called by scheduled task (daily).
 
-	Finds all Active sold plans where end_date < today and sets status to Expired.
+	Finds all Active active VAS plans where end_date < today and sets status to Expired.
 	"""
 	today = nowdate()
 	expired = frappe.get_all(
-		"CH Sold Plan",
+		"Active VAS Plans",
 		filters={
 			"status": "Active",
 			"docstatus": 1,
@@ -441,7 +441,7 @@ def expire_sold_plans():
 	)
 
 	for name in expired:
-		frappe.db.set_value("CH Sold Plan", name, "status", "Expired", update_modified=False)
+		frappe.db.set_value("Active VAS Plans", name, "status", "Expired", update_modified=False)
 
 	# Log expiry events to VAS ledger
 	if expired:
@@ -462,7 +462,7 @@ def expire_sold_plans():
 	if expired:
 		frappe.db.commit()
 		frappe.logger("ch_item_master").info(
-			f"Auto-expired {len(expired)} sold plans: {expired[:10]}{'...' if len(expired) > 10 else ''}"
+			f"Auto-expired {len(expired)} active VAS plans: {expired[:10]}{'...' if len(expired) > 10 else ''}"
 		)
 
 
@@ -559,10 +559,10 @@ def get_customer_warranty_dashboard(identifier, company=None) -> dict:
 				if cd:
 					customer = cd.get("customer")
 
-		# Fallback: check CH Sold Plan
+		# Fallback: check Active VAS Plans
 		if not customer:
 			customer = frappe.db.get_value(
-				"CH Sold Plan",
+				"Active VAS Plans",
 				{"serial_no": identifier, "docstatus": 1},
 				"customer",
 			)
@@ -598,7 +598,7 @@ def get_customer_warranty_dashboard(identifier, company=None) -> dict:
 				pluck="serial_no",
 			)))
 		visible_serials.update(filter(None, frappe.get_all(
-			"CH Sold Plan",
+			"Active VAS Plans",
 			filters={"customer": customer, "docstatus": 1, "company": company_filter},
 			pluck="serial_no",
 		)))
@@ -629,11 +629,11 @@ def get_customer_warranty_dashboard(identifier, company=None) -> dict:
 		seen_serials.add(d["serial_no"])
 		devices.append(d)
 
-	# From CH Sold Plan (may have devices not in lifecycle)
+	# From Active VAS Plans (may have devices not in lifecycle)
 	sp_filters = {"customer": customer, "docstatus": 1}
 	if company_filter:
 		sp_filters["company"] = company_filter
-	sp_serials = frappe.get_all("CH Sold Plan", filters=sp_filters, pluck="serial_no")
+	sp_serials = frappe.get_all("Active VAS Plans", filters=sp_filters, pluck="serial_no")
 	for sn in filter(None, sp_serials):
 		if sn in seen_serials:
 			continue
@@ -660,7 +660,7 @@ def get_customer_warranty_dashboard(identifier, company=None) -> dict:
 		})
 		seen_serials.add(sn)
 
-	# ── For each device, get ALL sold plans + claims ─────────────────
+	# ── For each device, get ALL active VAS plans + claims ─────────────────
 	today = getdate(nowdate())
 	filtered_devices = []
 	for dev in devices:
@@ -668,12 +668,12 @@ def get_customer_warranty_dashboard(identifier, company=None) -> dict:
 		if company_scope and sn not in visible_serials:
 			continue
 
-		# Get all sold plans (Active + Expired + Claimed)
+		# Get all active VAS plans (Active + Expired + Claimed)
 		plan_filters = {"serial_no": sn, "customer": customer, "docstatus": 1}
 		if company_filter:
 			plan_filters["company"] = company_filter
 		all_plans = frappe.get_all(
-			"CH Sold Plan",
+			"Active VAS Plans",
 			filters=plan_filters,
 			fields=[
 				"name", "warranty_plan", "plan_title", "plan_type",
@@ -745,7 +745,7 @@ def get_customer_warranty_dashboard(identifier, company=None) -> dict:
 	if company_filter:
 		unlinked_filters["company"] = company_filter
 	unlinked_plans_raw = frappe.get_all(
-		"CH Sold Plan",
+		"Active VAS Plans",
 		filters=unlinked_filters,
 		fields=[
 			"name", "warranty_plan", "plan_title", "plan_type",
@@ -1270,13 +1270,13 @@ def get_vas_claims_dashboard(company=None, limit=15) -> dict:
 
 	company = (company or "").strip() or get_company_filter_value()
 
-	# ── Sold plans ────────────────────────────────────────────────────────
+	# ── Active VAS Plans ────────────────────────────────────────────────────────
 	plan_filters = {"docstatus": 1}
 	if company:
 		plan_filters["company"] = company
 
 	sold_plans = frappe.get_all(
-		"CH Sold Plan",
+		"Active VAS Plans",
 		filters=plan_filters,
 		fields=[
 			"name",
@@ -1298,7 +1298,7 @@ def get_vas_claims_dashboard(company=None, limit=15) -> dict:
 	claim_counts = {}
 	open_counts = {}
 	if plan_names:
-		# CH Warranty Claim is linked to a sold plan via the `sold_plan` field
+		# CH Warranty Claim is linked to a active VAS plan via the `sold_plan` field
 		# (fallback: by serial_no + warranty_plan). Use sold_plan when present.
 		rows = frappe.db.sql(
 			"""
@@ -1368,13 +1368,13 @@ def get_vas_claims_dashboard(company=None, limit=15) -> dict:
 			order_by="creation desc",
 			limit=limit,
 		) or []
-		# Hydrate posting_date / customer for display from the linked sold plan.
+		# Hydrate posting_date / customer for display from the linked active VAS plan.
 		plan_lookup = {}
 		need_lookup = {v["sold_plan"] for v in voucher_redemptions if v.get("sold_plan")}
 		need_lookup -= set(plan_names)  # already in sold_plans payload
 		if need_lookup:
 			extra = frappe.get_all(
-				"CH Sold Plan",
+				"Active VAS Plans",
 				filters={"name": ("in", list(need_lookup))},
 				fields=["name", "customer", "customer_name"],
 			)

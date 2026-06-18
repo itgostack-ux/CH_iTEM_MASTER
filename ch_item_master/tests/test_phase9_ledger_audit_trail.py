@@ -17,7 +17,7 @@ def _must(label, ok, detail=""):
 
 def _find_template_context() -> dict:
 	plan = frappe.db.get_value(
-		"CH Sold Plan",
+		"Active VAS Plans",
 		{"docstatus": 1, "status": "Active"},
 		["name", "company", "warranty_plan", "customer", "item_code", "max_claims", "deductible_amount"],
 		as_dict=True,
@@ -61,7 +61,7 @@ def run():
 	serial_no = f"PHASE9-{frappe.generate_hash(length=10)}"
 	sold_plan = frappe.get_doc(
 		{
-			"doctype": "CH Sold Plan",
+			"doctype": "Active VAS Plans",
 			"company": ctx["company"],
 			"warranty_plan": ctx["warranty_plan"],
 			"customer": ctx["customer"],
@@ -78,7 +78,7 @@ def run():
 	try:
 		sold_plan.insert(ignore_permissions=True)
 		sold_plan.submit()
-		_must("Sold plan submitted", bool(sold_plan.name), sold_plan.name)
+		_must("Active VAS Plan submitted", bool(sold_plan.name), sold_plan.name)
 
 		claim_result = initiate_warranty_claim(
 			serial_no=serial_no,
@@ -97,7 +97,7 @@ def run():
 		_must("Warranty claim created", bool(claim_name), str(claim_result))
 
 		claim_doc = frappe.get_doc("CH Warranty Claim", claim_name)
-		_must("Claim linked to sold plan", claim_doc.sold_plan == sold_plan.name, claim_doc.sold_plan or "")
+		_must("Claim linked to active VAS plan", claim_doc.sold_plan == sold_plan.name, claim_doc.sold_plan or "")
 
 		if claim_doc.claim_status == "Pending Approval":
 			claim_doc.approve(remarks="Phase 9 smoke approval")
@@ -118,17 +118,17 @@ def run():
 		sold_plan.reload()
 
 		_must("Claim closed", claim_doc.claim_status == "Closed", f"status={claim_doc.claim_status}")
-		_must("Sold plan claims_used incremented once", (sold_plan.claims_used or 0) == 1, f"claims_used={sold_plan.claims_used}")
+		_must("Active VAS Plan claims_used incremented once", (sold_plan.claims_used or 0) == 1, f"claims_used={sold_plan.claims_used}")
 
 		frappe.db.set_value(
-			"CH Sold Plan",
+			"Active VAS Plans",
 			sold_plan.name,
 			"end_date",
 			add_days(today, -1),
 			update_modified=False,
 		)
 		frappe.db.set_value(
-			"CH Sold Plan",
+			"Active VAS Plans",
 			sold_plan.name,
 			"status",
 			"Active",
@@ -138,7 +138,7 @@ def run():
 
 		expire_sold_plans()
 		sold_plan.reload()
-		_must("Sold plan expired", sold_plan.status == "Expired", f"status={sold_plan.status}")
+		_must("Active VAS Plan expired", sold_plan.status == "Expired", f"status={sold_plan.status}")
 
 		events = frappe.get_all(
 			"CH VAS Ledger",
@@ -181,10 +181,10 @@ def run():
 			except Exception:
 				frappe.log_error(frappe.get_traceback(), f"Phase 9 cleanup failed for claim {claim_name}")
 
-		if sold_plan.name and frappe.db.exists("CH Sold Plan", sold_plan.name):
+		if sold_plan.name and frappe.db.exists("Active VAS Plans", sold_plan.name):
 			try:
-				if frappe.db.get_value("CH Sold Plan", sold_plan.name, "docstatus") == 1:
-					frappe.get_doc("CH Sold Plan", sold_plan.name).cancel()
+				if frappe.db.get_value("Active VAS Plans", sold_plan.name, "docstatus") == 1:
+					frappe.get_doc("Active VAS Plans", sold_plan.name).cancel()
 			except Exception:
 				frappe.log_error(frappe.get_traceback(), f"Phase 9 cleanup failed for {sold_plan.name}")
 

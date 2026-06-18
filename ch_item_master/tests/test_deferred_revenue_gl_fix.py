@@ -1,4 +1,4 @@
-"""Regression checks for Sold Plan deferred revenue JE account selection.
+"""Regression checks for Active VAS Plan deferred revenue JE account selection.
 
 Run:
     bench --site erpnext.local execute ch_item_master.tests.test_deferred_revenue_gl_fix.run
@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import frappe
 
-from ch_item_master.ch_item_master.doctype.ch_sold_plan.ch_sold_plan import CHSoldPlan
+from ch_item_master.ch_item_master.doctype.active_vas_plans.active_vas_plans import CHSoldPlan
 
 
 class _DummyPlan:
@@ -112,7 +112,7 @@ def run():
 			raise AssertionError(f"Credit should hit deferred revenue; got {credit_line.get('account')}")
 
 		if plan._db_set.get("custom_deferred_revenue_je") != "ACC-JV-TEST-0001":
-			raise AssertionError("Sold Plan did not store created deferred revenue JE reference")
+			raise AssertionError("Active VAS Plan did not store created deferred revenue JE reference")
 
 		print("[PASS] Deferred revenue JE uses income->deferred accounts and sets trusted system flag")
 

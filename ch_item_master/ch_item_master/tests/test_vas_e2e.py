@@ -5,7 +5,7 @@ E2E VAS Lifecycle Test
 Tests the full VAS flow:
   1. Seed coverage rules on existing plans
   2. Validate_claim API against coverage rules
-  3. Issue a sold plan (Plan Activated → ledger entry)
+  3. Issue a active VAS plan (Plan Activated → ledger entry)
   4. Validate claim eligibility
   5. Initiate warranty claim → GoFix ticket
   6. Approve → mark repair complete → close claim → ledger entries
@@ -63,13 +63,13 @@ def run_e2e():
     if frappe.db.exists("Workspace", "CH VAS"):
         ws = frappe.get_doc("Workspace", "CH VAS")
         link_labels = [l.label for l in ws.links if l.type == "Link"]
-        for needed in ["CH Warranty Plan", "CH Sold Plan", "CH Warranty Claim", "CH Voucher", "CH VAS Ledger"]:
+        for needed in ["CH Warranty Plan", "Active VAS Plans", "CH Warranty Claim", "CH Voucher", "CH VAS Ledger"]:
             if needed in link_labels:
                 _ok(f"Workspace link: {needed}")
             else:
                 _fail(f"Workspace missing link: {needed}")
         sc_labels = [s.label for s in ws.shortcuts]
-        for needed in ["Warranty Plans", "Sold Plans", "Warranty Claims", "Vouchers"]:
+        for needed in ["Warranty Plans", "Active VAS Plans", "Warranty Claims", "Vouchers"]:
             if needed in sc_labels:
                 _ok(f"Workspace shortcut: {needed}")
             else:
@@ -132,8 +132,8 @@ def run_e2e():
     else:
         _fail(f"Expected {len(rules_data)} rules, got {len(gold_plan.coverage_rules)}")
 
-    # ── Phase 2: Issue a Sold Plan ───────────────────────────────────
-    print("\n── Phase 2: Issue Sold Plan ──")
+    # ── Phase 2: Issue a Active VAS Plan ───────────────────────────────────
+    print("\n── Phase 2: Issue Active VAS Plan ──")
 
     from ch_item_master.ch_item_master.warranty_api import issue_warranty_plan, validate_claim
 
@@ -176,9 +176,9 @@ def run_e2e():
     )
 
     if result.get("sold_plan"):
-        _ok(f"Sold Plan created: {result['sold_plan']}")
+        _ok(f"Active VAS Plan created: {result['sold_plan']}")
     else:
-        _fail("Sold Plan creation failed", str(result))
+        _fail("Active VAS Plan creation failed", str(result))
         _print_summary()
         return
 
@@ -285,7 +285,7 @@ def run_e2e():
     _ok(f"Coverage type: {claim_doc.coverage_type}")
 
     if claim_doc.sold_plan == sold_plan_name:
-        _ok(f"Claim linked to sold plan: {sold_plan_name}")
+        _ok(f"Claim linked to active VAS plan: {sold_plan_name}")
     else:
         _fail(f"Claim sold_plan mismatch: expected {sold_plan_name}, got {claim_doc.sold_plan}")
 
@@ -358,12 +358,12 @@ def run_e2e():
         else:
             _fail("VAS Ledger: Claim Used event NOT found")
 
-    # ── Phase 7: Check Sold Plan claim count ─────────────────────────
-    print("\n── Phase 7: Sold Plan State ──")
+    # ── Phase 7: Check Active VAS Plan claim count ─────────────────────────
+    print("\n── Phase 7: Active VAS Plan State ──")
 
-    sp = frappe.get_doc("CH Sold Plan", sold_plan_name)
+    sp = frappe.get_doc("Active VAS Plans", sold_plan_name)
     if sp.claims_used >= 1:
-        _ok(f"Sold Plan claims_used = {sp.claims_used}")
+        _ok(f"Active VAS Plan claims_used = {sp.claims_used}")
     else:
         _fail(f"Expected claims_used >= 1, got {sp.claims_used}")
 
@@ -372,8 +372,8 @@ def run_e2e():
 
     # Simulate expiry by setting end_date to yesterday
     yesterday = add_days(nowdate(), -1)
-    frappe.db.set_value("CH Sold Plan", sold_plan_name, "end_date", yesterday, update_modified=False)
-    frappe.db.set_value("CH Sold Plan", sold_plan_name, "status", "Active", update_modified=False)
+    frappe.db.set_value("Active VAS Plans", sold_plan_name, "end_date", yesterday, update_modified=False)
+    frappe.db.set_value("Active VAS Plans", sold_plan_name, "status", "Active", update_modified=False)
     frappe.db.commit()
 
     from ch_item_master.ch_item_master.warranty_api import expire_sold_plans

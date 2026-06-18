@@ -371,7 +371,7 @@ CUSTOM_FIELDS = {
 			"label": _("Default Warranty (Months)"),
 			"fieldtype": "Int",
 			"insert_after": "ch_warranty_section",
-			"description": _("Default warranty duration in months for this item. Used when auto-creating Sold Plans on sale."),
+					"description": _("Default warranty duration in months for this item. Used when auto-creating Active VAS Plans on sale."),
 		},
 		{
 			"fieldname": "ch_default_warranty_plan",

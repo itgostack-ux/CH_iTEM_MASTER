@@ -65,10 +65,10 @@ class CHCustomerDevice(Document):
 				self.lifecycle = lifecycle
 
 	def sync_warranty_status(self):
-		"""Sync warranty info from active CH Sold Plan."""
+		"""Sync warranty info from active Active VAS Plans."""
 		if self.active_warranty_plan:
 			try:
-				plan = frappe.get_cached_doc("CH Sold Plan", self.active_warranty_plan)
+				plan = frappe.get_cached_doc("Active VAS Plans", self.active_warranty_plan)
 				self.warranty_plan_name = plan.plan_title or plan.warranty_plan
 				self.warranty_expiry = plan.valid_to
 				if plan.status == "Active":

@@ -211,9 +211,9 @@
   {
    "fieldname": "sold_plan",
    "fieldtype": "Link",
-   "label": "Linked Sold Plan",
-   "options": "CH Sold Plan",
-   "description": "CH Sold Plan that triggered this voucher issuance (if VAS voucher)"
+    "label": "Linked Active VAS Plans",
+   "options": "Active VAS Plans",
+    "description": "Active VAS Plans record (displayed as Active VAS Plans) that triggered this voucher issuance (if VAS voucher)"
   },
   {
    "fieldname": "column_break_source",

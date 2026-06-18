@@ -58,8 +58,8 @@
   {
    "fieldname": "sold_plan",
    "fieldtype": "Link",
-   "label": "CH Sold Plan",
-   "options": "CH Sold Plan"
+   "label": "Active VAS Plans",
+   "options": "Active VAS Plans"
   },
   {
    "fieldname": "warranty_plan",

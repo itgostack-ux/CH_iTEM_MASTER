@@ -243,7 +243,7 @@
    "fieldname": "active_warranty_plan",
    "fieldtype": "Link",
    "label": "Active Warranty Plan",
-   "options": "CH Sold Plan"
+   "options": "Active VAS Plans"
   },
   {
    "fieldname": "column_break_warranty",

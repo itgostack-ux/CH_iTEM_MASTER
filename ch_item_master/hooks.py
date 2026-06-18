@@ -78,7 +78,7 @@ scheduler_events = {
 permission_query_conditions = {
 	"Item": "ch_item_master.ch_item_master.rbac.get_item_query",
 	"CH Warranty Claim": "ch_item_master.security.get_warranty_claim_query",
-	"CH Sold Plan": "ch_item_master.security.get_sold_plan_query",
+	"Active VAS Plans": "ch_item_master.security.get_sold_plan_query",
 	"CH Customer Device": "ch_item_master.security.get_customer_device_query",
 	"CH Warranty Plan": "ch_item_master.security.get_warranty_plan_query",
 	"CH Exception Request": "ch_item_master.security.get_exception_request_query",
@@ -86,7 +86,7 @@ permission_query_conditions = {
 
 has_permission = {
 	"CH Warranty Claim": "ch_item_master.security.has_warranty_claim_permission",
-	"CH Sold Plan": "ch_item_master.security.has_sold_plan_permission",
+	"Active VAS Plans": "ch_item_master.security.has_sold_plan_permission",
 	"CH Customer Device": "ch_item_master.security.has_customer_device_permission",
 	"CH Warranty Plan": "ch_item_master.security.has_warranty_plan_permission",
 	"CH Exception Request": "ch_item_master.security.has_exception_request_permission",
@@ -238,7 +238,7 @@ doc_events = {
 		"on_cancel": "ch_item_master.supplier_scheme.engine.invalidate_active_schemes_cache",
 		"on_trash": "ch_item_master.supplier_scheme.engine.invalidate_active_schemes_cache",
 	},
-	"CH Sold Plan": {
+	"Active VAS Plans": {
 		"on_submit": "ch_item_master.ch_customer_master.hooks.on_sold_plan_change",
 		"on_cancel": "ch_item_master.ch_customer_master.hooks.on_sold_plan_change",
 		"on_update": "ch_item_master.ch_customer_master.hooks.on_sold_plan_change",

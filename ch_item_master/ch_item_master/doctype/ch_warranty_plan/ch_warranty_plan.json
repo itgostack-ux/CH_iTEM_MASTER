@@ -388,7 +388,7 @@
  "links": [
   {
    "group": "Issued Plans",
-   "link_doctype": "CH Sold Plan",
+   "link_doctype": "Active VAS Plans",
    "link_fieldname": "warranty_plan"
   }
  ],

@@ -2,7 +2,7 @@
 # For license information, please see license.txt
 
 """
-CH Sold Plan — tracks warranty/VAS plans issued to customers per device.
+Active VAS Plans — tracks warranty/VAS plans issued to customers per device.
 
 Lifecycle:
   Active → Expired (automatic, via scheduled task)
@@ -38,7 +38,7 @@ class CHSoldPlan(Document):
 		"""Auto-generate sold_plan_id if not set."""
 		if not self.sold_plan_id:
 			max_id = frappe.db.sql(
-				"SELECT IFNULL(MAX(sold_plan_id), 0) FROM `tabCH Sold Plan`"
+				"SELECT IFNULL(MAX(sold_plan_id), 0) FROM `tabActive VAS Plans`"
 			)[0][0]
 			self.sold_plan_id = int(max_id) + 1
 
@@ -118,7 +118,7 @@ class CHSoldPlan(Document):
 			)
 
 	def _validate_duplicate(self):
-		"""Prevent duplicate active sold plans for the same serial + warranty plan template.
+		"""Prevent duplicate active active VAS plans for the same serial + warranty plan template.
 
 		Multiple distinct VAS plans (different warranty_plan templates) may co-exist
 		on the same serial — e.g. ADLD + Extended Warranty + Screen Protect. Only
@@ -128,7 +128,7 @@ class CHSoldPlan(Document):
 			return
 
 		existing = frappe.db.get_value(
-			"CH Sold Plan",
+			"Active VAS Plans",
 			{
 				"serial_no": self.serial_no,
 				"warranty_plan": self.warranty_plan,
@@ -180,7 +180,7 @@ class CHSoldPlan(Document):
 				return
 
 			subject = _("Congruence Holdings | Plan Activated | {0}").format(self.name)
-			plan_url = frappe.utils.get_url_to_form("CH Sold Plan", self.name)
+			plan_url = frappe.utils.get_url_to_form("Active VAS Plans", self.name)
 			message = _(
 				"<div style='font-family:Segoe UI,Arial,sans-serif;max-width:680px;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden'>"
 				"<div style='background:#0f172a;color:#ffffff;padding:12px 16px;font-weight:600'>Congruence Holdings - GoGizmo Protection</div>"
@@ -214,7 +214,7 @@ class CHSoldPlan(Document):
 		except Exception:
 			frappe.log_error(
 				frappe.get_traceback(),
-				f"Welcome notification failed for Sold Plan {self.name}",
+				f"Welcome notification failed for Active VAS Plans {self.name}",
 			)
 
 	def _sync_to_serial_lifecycle(self):
@@ -317,7 +317,7 @@ class CHSoldPlan(Document):
 						# the POS sale. Log for accounts review and fall back to the
 						# company default income account below.
 						frappe.log_error(
-							f"CH Sold Plan {self.name}: ambiguous income account on Sales "
+							f"Active VAS Plans {self.name}: ambiguous income account on Sales "
 							f"Invoice {self.sales_invoice} for item {self.item_code} "
 							f"(candidates: {sorted(distinct_income_accounts)}). "
 							f"Falling back to company default income account.",
@@ -328,7 +328,7 @@ class CHSoldPlan(Document):
 
 		if not deferred_acct or not income_acct:
 			frappe.log_error(
-				f"CH Sold Plan {self.name}: deferred_revenue_account or income_account not "
+				f"Active VAS Plans {self.name}: deferred_revenue_account or income_account not "
 				f"configured for {company}. Skipping deferred revenue GL.",
 				"VAS Deferred Revenue GL Skipped",
 			)
@@ -338,7 +338,7 @@ class CHSoldPlan(Document):
 			je = frappe.new_doc("Journal Entry")
 			je.posting_date = self.get("start_date") or frappe.utils.today()
 			je.company = company
-			je.user_remark = f"Deferred Revenue — CH Sold Plan {self.name}"
+			je.user_remark = f"Deferred Revenue — Active VAS Plans {self.name}"
 			je.flags.ch_system_generated_je = True
 			# Debit income (reverse premature recognition), Credit deferred liability
 			je.append("accounts", {"account": income_acct, "debit_in_account_currency": amount})
@@ -348,7 +348,7 @@ class CHSoldPlan(Document):
 			je.submit()
 			self.db_set("custom_deferred_revenue_je", je.name)
 		except Exception:
-			frappe.log_error(frappe.get_traceback(), f"Deferred revenue GL failed for CH Sold Plan {self.name}")
+			frappe.log_error(frappe.get_traceback(), f"Deferred revenue GL failed for Active VAS Plans {self.name}")
 
 	# ── Public methods ───────────────────────────────────────────────────────
 
@@ -490,12 +490,12 @@ class CHSoldPlan(Document):
 
 @frappe.whitelist()
 def get_active_plans_for_serial(serial_no, company=None) -> dict:
-	"""Get all active sold plans for a serial number.
+	"""Get all active active VAS plans for a serial number.
 
 	Used by GoFix Service Request to determine warranty coverage.
 
 	Returns:
-		list[dict]: Active sold plans with plan details.
+		list[dict]: Active active VAS plans with plan details.
 	"""
 	filters = {
 		"serial_no": serial_no,
@@ -506,7 +506,7 @@ def get_active_plans_for_serial(serial_no, company=None) -> dict:
 		filters["company"] = company
 
 	plans = frappe.get_all(
-		"CH Sold Plan",
+		"Active VAS Plans",
 		filters=filters,
 		fields=[
 			"name", "warranty_plan", "plan_title", "plan_type",

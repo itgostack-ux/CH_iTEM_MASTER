@@ -136,7 +136,7 @@ def _ensure_serial(item_code: str, company: str, serial_no: str) -> str:
 def run_vas_policy_rollout_e2e(company: str | None = None) -> dict:
     """Create EW/ADLD/OTSR/ADLD2 plans from policy sheet and run sell+claim E2E.
 
-    This intentionally keeps all generated plans, sold plans, and claims for review.
+    This intentionally keeps all generated plans, active VAS plans, and claims for review.
     """
     if not company:
         company = frappe.db.get_single_value("Global Defaults", "default_company")

@@ -98,7 +98,7 @@ class VASHub {
 			<div class="hub-header">
 				<div>
 					<div class="hub-title"><i class="fa fa-shield"></i> ${__("VAS Hub")}</div>
-					<div class="hub-subtitle">${__("Value-Added Services: Warranty Plans → Sold Plans → Claims → Vouchers")}</div>
+					<div class="hub-subtitle">${__("Value-Added Services: Warranty Plans → Active VAS Plans → Claims → Vouchers")}</div>
 				</div>
 				<div class="hub-auto-badge">
 					<span class="pulse-dot"></span> ${__("Live · Auto-refreshes every 60s")}
@@ -169,11 +169,11 @@ class VASHub {
 
 		this.$root.on("click", ".hub-action-btn", (e) => {
 			const actions = {
-				active_plans:    () => this._go_list("CH Sold Plan", { status: "Active" }),
+				active_plans:    () => this._go_list("Active VAS Plans", { status: "Active" }),
 				pending_claims:  () => this._go_list("CH Warranty Claim", { status: "Pending Approval" }),
 				active_vouchers: () => this._go_list("CH Voucher", { status: "Active" }),
 				warranty_plans:  () => this._go_list("CH Warranty Plan"),
-				expired_plans:   () => this._go_list("CH Sold Plan", { status: "Expired" }),
+				expired_plans:   () => this._go_list("Active VAS Plans", { status: "Expired" }),
 				all_claims:      () => this._go_list("CH Warranty Claim"),
 			};
 			const fn = actions[$(e.currentTarget).data("act")];
@@ -226,7 +226,7 @@ class VASHub {
 
 	_render_tables(data) {
 		const tabs = [
-			{ key: "plans", label: __("Sold Plans"), count: (data.sold_plans || []).length },
+			{ key: "plans", label: __("Active VAS Plans"), count: (data.sold_plans || []).length },
 			{ key: "claims", label: __("Warranty Claims"), count: (data.warranty_claims || []).length },
 			{ key: "vouchers", label: __("Vouchers"), count: (data.vouchers || []).length },
 			{ key: "expiring", label: __("Expiring Soon"), count: (data.expiring_soon || []).length },
@@ -266,12 +266,12 @@ class VASHub {
 	}
 
 	_table_plans(rows) {
-		if (!rows.length) return `<div class="hub-empty"><i class="fa fa-certificate"></i> ${__("No sold plans")}</div>`;
+		if (!rows.length) return `<div class="hub-empty"><i class="fa fa-certificate"></i> ${__("No active VAS plans")}</div>`;
 		return `<div class="hub-table-wrap"><table class="hub-table"><thead><tr>
 			<th>${__("Plan")}</th><th>${__("Customer")}</th><th>${__("Plan Type")}</th>
 			<th>${__("Start")}</th><th>${__("End")}</th><th>${__("Status")}</th>
 		</tr></thead><tbody>${rows.map((r) => `<tr>
-			<td>${this._lnk("CH Sold Plan", r.name)}</td>
+			<td>${this._lnk("Active VAS Plans", r.name)}</td>
 			<td>${r.customer_name || r.customer || ""}</td>
 			<td>${r.warranty_plan || ""}</td>
 			<td>${r.start_date ? frappe.datetime.str_to_user(r.start_date) : "-"}</td>
@@ -316,7 +316,7 @@ class VASHub {
 			<th>${__("Plan")}</th><th>${__("Customer")}</th><th>${__("Type")}</th>
 			<th>${__("Expiry")}</th><th>${__("Days Left")}</th>
 		</tr></thead><tbody>${rows.map((r) => `<tr>
-			<td>${this._lnk("CH Sold Plan", r.name)}</td>
+			<td>${this._lnk("Active VAS Plans", r.name)}</td>
 			<td>${r.customer_name || r.customer || ""}</td>
 			<td>${r.warranty_plan || ""}</td>
 			<td>${r.end_date ? frappe.datetime.str_to_user(r.end_date) : "-"}</td>

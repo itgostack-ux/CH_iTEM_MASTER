@@ -32,7 +32,7 @@ def issue_voucher(voucher_type, amount, company, customer=None, phone=None,
 		source_document: Link to source doc (Sales Invoice, etc.)
 		reason: Free text note
 		applicable_item_group: Item Group restriction for redemption
-		sold_plan: CH Sold Plan that triggered this voucher (for VAS)
+		sold_plan: Active VAS Plans that triggered this voucher (for VAS)
 
 	Returns:
 		dict with voucher_code, name, balance

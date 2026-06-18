@@ -174,11 +174,11 @@ def _update_activity_summary(customer):
 			)
 			loyalty_balance = cint(result[0][0]) if result else 0
 
-		# Active sold plans
+		# Active active VAS plans
 		active_plans = 0
-		if frappe.db.exists("DocType", "CH Sold Plan"):
+		if frappe.db.exists("DocType", "Active VAS Plans"):
 			active_plans = frappe.db.count(
-				"CH Sold Plan",
+				"Active VAS Plans",
 				{"customer": customer, "docstatus": 1, "status": "Active"},
 			)
 
@@ -208,7 +208,7 @@ def _update_activity_summary(customer):
 
 
 def on_sold_plan_change(doc, method=None):
-	"""When a CH Sold Plan is submitted/cancelled/status-changed, sync active plans count."""
+	"""When an Active VAS Plans record changes, sync active plans count."""
 	if doc.customer:
 		_update_activity_summary(doc.customer)
 

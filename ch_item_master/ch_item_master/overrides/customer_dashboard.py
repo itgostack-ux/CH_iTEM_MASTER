@@ -9,7 +9,7 @@ def get_data(data):
     data["transactions"].extend([
         {
             "label": _("Warranty & VAS"),
-            "items": ["CH Sold Plan", "CH Warranty Claim"],
+            "items": ["Active VAS Plans", "CH Warranty Claim"],
         },
         {
             "label": _("Devices"),

@@ -659,10 +659,10 @@ class CHWarrantyClaim(Document):
 		if self.coverage_type in ("vas_plan", "anniversary_warranty", "paid_repair"):
 			self._create_post_repair_warranty()
 
-		# Increment claims_used on the sold plan
+		# Increment claims_used on the active VAS plan
 		if self.sold_plan:
 			try:
-				sp = frappe.get_doc("CH Sold Plan", self.sold_plan)
+				sp = frappe.get_doc("Active VAS Plans", self.sold_plan)
 				sp.record_claim(
 					service_reference=self.name,
 					claim_cost=flt(self.total_claim_cost),
@@ -670,7 +670,7 @@ class CHWarrantyClaim(Document):
 			except Exception:
 				frappe.log_error(
 					frappe.get_traceback(),
-					f"Sold Plan claim increment failed for {self.name}",
+					f"Active VAS Plan claim increment failed for {self.name}",
 				)
 
 		# Log to VAS ledger
@@ -1289,19 +1289,19 @@ class CHWarrantyClaim(Document):
 			self.reported_by = frappe.session.user
 
 	def _lookup_warranty_coverage(self):
-		"""Look up warranty from CH Sold Plan + CH Serial Lifecycle.
+		"""Look up warranty from Active VAS Plans + CH Serial Lifecycle.
 
 		If sold_plan is pre-set (e.g. user selected a specific plan from POS),
 		use that plan directly instead of auto-detecting.
 		"""
-		from ch_item_master.ch_item_master.doctype.ch_sold_plan.ch_sold_plan import (
+		from ch_item_master.ch_item_master.doctype.active_vas_plans.active_vas_plans import (
 			check_warranty_status,
 		)
 
-		# If a specific sold plan was selected, use it directly
+		# If a specific active VAS plan was selected, use it directly
 		if self.sold_plan:
 			try:
-				sp = frappe.get_doc("CH Sold Plan", self.sold_plan)
+				sp = frappe.get_doc("Active VAS Plans", self.sold_plan)
 				if sp.status == "Active" and sp.docstatus == 1:
 					self.warranty_status = "Under Warranty"
 					self.warranty_plan = sp.warranty_plan
@@ -1330,7 +1330,7 @@ class CHWarrantyClaim(Document):
 			self.max_claims = plan.get("max_claims", 0)
 			self.deductible_amount = flt(plan.get("deductible_amount", 0))
 
-		# If no sold plan covers device, check manufacturer warranty from Serial No
+		# If no active VAS plan covers device, check manufacturer warranty from Serial No
 		if not result.get("warranty_covered"):
 			sn_name = self.serial_no
 			if frappe.db.exists("Serial No", sn_name):
@@ -1338,7 +1338,7 @@ class CHWarrantyClaim(Document):
 				if mfr_expiry and getdate(mfr_expiry) >= getdate(nowdate()):
 					self.warranty_status = "Under Warranty"
 					self.warranty_end_date = mfr_expiry
-					# Mark as manufacturer warranty (no sold plan, brand/OEM covers it)
+					# Mark as manufacturer warranty (no active VAS plan, brand/OEM covers it)
 					self.flags.is_manufacturer_warranty = True
 
 		# Also try enriching from lifecycle
@@ -1395,9 +1395,9 @@ class CHWarrantyClaim(Document):
 
 		# ── 2. Check anniversary_warranty ──
 		if not selected and self.sold_plan:
-			plan_type = self.plan_type or frappe.db.get_value("CH Sold Plan", self.sold_plan, "plan_type")
+			plan_type = self.plan_type or frappe.db.get_value("Active VAS Plans", self.sold_plan, "plan_type")
 			if plan_type in ("Own Warranty", "Extended") and self.warranty_status == "Under Warranty":
-				company = frappe.db.get_value("CH Sold Plan", self.sold_plan, "company") if self.sold_plan else ""
+				company = frappe.db.get_value("Active VAS Plans", self.sold_plan, "company") if self.sold_plan else ""
 
 				# Check plan-level coverage_type_override first
 				plan_coverage_override = ""
@@ -1424,7 +1424,7 @@ class CHWarrantyClaim(Document):
 						"coverage_type": "anniversary_warranty",
 						"coverage_source": "gogizmo" if company == get_warranty_company() else "gofix",
 						"coverage_priority": 2,
-						"reference_doctype": "CH Sold Plan",
+						"reference_doctype": "Active VAS Plans",
 						"reference_id": self.sold_plan,
 						"entitlement_decision": "Eligible",
 						"entitlement_reason": (
@@ -1442,14 +1442,14 @@ class CHWarrantyClaim(Document):
 
 		# ── 3. Check vas_plan ──
 		if not selected and self.sold_plan and self.warranty_status == "Under Warranty":
-			plan_type = self.plan_type or frappe.db.get_value("CH Sold Plan", self.sold_plan, "plan_type")
-			company = frappe.db.get_value("CH Sold Plan", self.sold_plan, "company") if self.sold_plan else ""
+			plan_type = self.plan_type or frappe.db.get_value("Active VAS Plans", self.sold_plan, "plan_type")
+			company = frappe.db.get_value("Active VAS Plans", self.sold_plan, "company") if self.sold_plan else ""
 			if plan_type in ("Value Added Service", "VAS", "Protection", "Post-Repair Warranty", "Extended", "Own Warranty"):
 				selected = {
 					"coverage_type": "vas_plan",
 					"coverage_source": "gogizmo" if company == get_warranty_company() else "gofix",
 					"coverage_priority": 3,
-					"reference_doctype": "CH Sold Plan",
+					"reference_doctype": "Active VAS Plans",
 					"reference_id": self.sold_plan,
 					"entitlement_decision": "Eligible",
 					"entitlement_reason": (
@@ -1460,7 +1460,7 @@ class CHWarrantyClaim(Document):
 				trace.append({"step": "vas_plan", "result": "SELECTED", "plan": self.sold_plan, "type": plan_type})
 		elif not selected:
 			alternatives.append({
-				"type": "vas_plan", "reason": f"No active sold plan or warranty_status={self.warranty_status}"
+				"type": "vas_plan", "reason": f"No active active VAS plan or warranty_status={self.warranty_status}"
 			})
 			trace.append({"step": "vas_plan", "result": "SKIP", "reason": "no active plan"})
 

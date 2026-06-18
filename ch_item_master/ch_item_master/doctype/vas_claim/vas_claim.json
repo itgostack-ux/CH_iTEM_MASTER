@@ -13,7 +13,7 @@
   {"fieldname": "sales_invoice", "fieldtype": "Link", "label": "Sales Invoice", "options": "Sales Invoice"},
   {"fieldname": "column_break_1", "fieldtype": "Column Break"},
   {"fieldname": "vas_plan", "fieldtype": "Link", "label": "VAS Plan", "options": "VAS Plan"},
-  {"fieldname": "sold_plan", "fieldtype": "Link", "label": "CH Sold Plan", "options": "CH Sold Plan"},
+  {"fieldname": "sold_plan", "fieldtype": "Link", "label": "Active VAS Plans", "options": "Active VAS Plans"},
   {"fieldname": "source_warranty_claim", "fieldtype": "Link", "label": "Source CH Warranty Claim", "options": "CH Warranty Claim", "reqd": 1, "unique": 1, "in_standard_filter": 1},
   {"fieldname": "claim_status", "fieldtype": "Select", "label": "Claim Status", "options": "Open\nApproved\nRejected\nClosed", "default": "Open", "in_list_view": 1},
   {"fieldname": "approved_amount", "fieldtype": "Currency", "label": "Approved Amount"},
