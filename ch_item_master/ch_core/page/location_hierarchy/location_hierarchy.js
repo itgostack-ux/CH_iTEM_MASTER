@@ -83,6 +83,7 @@ class LocationHierarchyView {
 	setup_toolbar() {
 		this.page.set_primary_action(__('Add City'), () => this.add_city(), 'add');
 		this.page.add_menu_item(__('Add State'), () => this.add_state());
+		this.page.add_menu_item(__('Add City to Master'), () => this._city_master_dialog({}, false, null));
 		this.page.add_menu_item(__('Add Zone'), () => this.add_zone());
 		this.page.add_menu_item(__('Assign Warehouse'), () => this.assign_warehouse_dialog());
 		this.page.add_menu_item(__('Assign Office'), () => this.assign_office_dialog());
@@ -515,16 +516,91 @@ class LocationHierarchyView {
 	// ----------------- Dialogs -----------------
 
 	add_city(company) {
-		// `company` is preserved only as a hint that the dialog was opened from
-		// a Company header card; the City itself is company-agnostic. Render the
-		// hint inline so users know which company they were drilling into, but
-		// never persist it on the CH City row.
-		this._city_dialog({}, !!company, company || this.company);
+		// "Add City to a Company" is an ASSOCIATION action, not a master-edit:
+		// it picks an existing CH City row and immediately chains into the
+		// Add Zone dialog with company + city pre-filled. The city only shows
+		// up under the company in the tree once a Zone (and Store / Warehouse)
+		// is created under it — that matches how the data model actually works
+		// (cities are surfaced in the tree by virtue of stores/zones/warehouses
+		// stamped with ch_city, there is no Company↔City mapping doctype).
+		this._city_picker_dialog(company || this.company);
 	}
 	edit_city(name) {
-		frappe.db.get_doc('CH City', name).then(doc => this._city_dialog(doc, false, null));
+		frappe.db.get_doc('CH City', name).then(doc => this._city_master_dialog(doc, false, null));
 	}
-	_city_dialog(doc, fromCompanyCard, contextCompany) {
+	/**
+	 * Pick an existing CH City master row and chain into Add Zone.
+	 *
+	 * @param {string|null} company - locked context (from a Company card) or
+	 *   null to ask. When null we also surface a Company Link field.
+	 */
+	_city_picker_dialog(company) {
+		const lockedCompany = !!company;
+		const ctxHTML = lockedCompany
+			? `<div class="text-muted small" style="margin:-4px 0 8px;">
+				<b>${__('Adding to')}:</b> ${frappe.utils.escape_html(company)}
+				&nbsp;·&nbsp; <i>${__('City masters are shared across all companies. Pick the city this company operates in; the next step adds a Zone under it.')}</i>
+			   </div>`
+			: `<div class="text-muted small" style="margin:-4px 0 8px;">
+				${__('Pick the company and the city it operates in. The next step adds a Zone under that city.')}
+			   </div>`;
+		const fields = [
+			{ fieldtype: 'HTML', options: ctxHTML },
+		];
+		if (!lockedCompany) {
+			fields.push({
+				fieldtype: 'Link', fieldname: 'company', label: __('Company'),
+				options: 'Company', reqd: 1, default: this.company,
+			});
+		}
+		fields.push({
+			fieldtype: 'Link', fieldname: 'city', label: __('City'),
+			options: 'CH City', reqd: 1,
+			placeholder: __('Search the CH City master…'),
+			description: __('Pick from CH City master (full Indian district coverage is pre-seeded). Missing one? Use the link below.'),
+			get_query: () => ({ filters: { disabled: 0 } }),
+		});
+		fields.push({
+			fieldtype: 'HTML',
+			options: `<div class="text-muted small" style="margin-top:-4px;">
+				<a href="/app/ch-city/new?city_name=" target="_blank" data-act="create-city-master">
+					+ ${__('Create new city in master…')}
+				</a>
+				&nbsp;·&nbsp;
+				<a href="/app/ch-city" target="_blank">${__('Browse CH City master')}</a>
+			</div>`,
+		});
+		const d = new frappe.ui.Dialog({
+			title: __('Add City to Company'),
+			fields,
+			primary_action_label: __('Next: Add Zone'),
+			primary_action: (v) => {
+				const pickedCompany = lockedCompany ? company : v.company;
+				const pickedCity = v.city;
+				if (!pickedCompany || !pickedCity) return;
+				// Resolve the friendly label once so _zone_dialog doesn't have
+				// to round-trip again.
+				frappe.db.get_value('CH City', pickedCity, 'city_name').then((r) => {
+					const cityLabel = (r && r.message && r.message.city_name) || pickedCity;
+					d.hide();
+					this._zone_dialog(
+						{ company: pickedCompany, city: pickedCity, city_label: cityLabel },
+						true,
+					);
+				});
+			},
+		});
+		d.show();
+	}
+	/**
+	 * Master-edit form for CH City. Used by:
+	 *  - the pencil "Edit City" action on an existing city
+	 *  - the "Add City to Master" menu item (rarely used; pre-seed covers most cases)
+	 *
+	 * NOT used by the primary "+ City" / "Add City" buttons — those go through
+	 * `_city_picker_dialog` and never create master rows.
+	 */
+	_city_master_dialog(doc, fromCompanyCard, contextCompany) {
 		const ctxHTML = fromCompanyCard
 			? `<div class="text-muted small" style="margin:-4px 0 8px;">${__('Opened from')} <b>${frappe.utils.escape_html(contextCompany || '')}</b>. ${__('City masters are shared across all companies — no company is stored on the city itself.')}</div>`
 			: '';
@@ -543,7 +619,7 @@ class LocationHierarchyView {
 			{ fieldtype: 'Small Text', fieldname: 'description', label: __('Description'), default: doc.description },
 		];
 		const d = new frappe.ui.Dialog({
-			title: doc && doc.name ? __('Edit City') : __('Add City'),
+			title: doc && doc.name ? __('Edit City') : __('Add City to Master'),
 			fields,
 			primary_action_label: __('Save'),
 			primary_action: (v) => {
