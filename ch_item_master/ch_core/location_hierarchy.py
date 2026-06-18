@@ -225,9 +225,16 @@ def get_company_location_tree(company=None, warehouse_view="all"):
 	- operational: everything except Store/Zone warehouses
 	"""
 	companies = {}
-	city_map = {
-		c.name: c for c in frappe.get_all("CH City", filters={"disabled": 0}, fields=["name", "city_name", "state"])
+	# Load ALL cities (incl. disabled) so zones already linked to a city
+	# later disabled by the admin still render with their proper display name.
+	state_codes = {
+		s.name: s.state_code
+		for s in frappe.get_all("CH State", fields=["name", "state_code"])
 	}
+	city_map = {}
+	for c in frappe.get_all("CH City", fields=["name", "city_name", "state"]):
+		c.state_code = state_codes.get(c.state) if c.state else None
+		city_map[c.name] = c
 
 	zone_filters = {}
 	if company:
@@ -243,6 +250,7 @@ def get_company_location_tree(company=None, warehouse_view="all"):
 				"city": city_key,
 				"city_name": city_ref.city_name if city_ref else city_key,
 				"state": city_ref.state if city_ref else None,
+				"state_code": city_ref.state_code if city_ref else None,
 				"zones": {},
 			},
 		)
@@ -287,7 +295,7 @@ def get_company_location_tree(company=None, warehouse_view="all"):
 def _zone_bucket(companies, company, city, zone):
 	company_node = companies.setdefault(company, {"company": company, "cities": {}})
 	city_key = city or "Unassigned"
-	city_node = company_node["cities"].setdefault(city_key, {"city": city_key, "city_name": city_key, "state": None, "zones": {}})
+	city_node = company_node["cities"].setdefault(city_key, {"city": city_key, "city_name": city_key, "state": None, "state_code": None, "zones": {}})
 	zone_key = zone or "Unassigned"
 	return city_node["zones"].setdefault(
 		zone_key,
@@ -388,23 +396,32 @@ def _reject_synthetic(name, kind):
 
 
 @frappe.whitelist()
-def save_city(company, city_name, state=None, name=None, disabled=0, description=None):
+def save_city(city_name, state=None, name=None, disabled=0, description=None, company=None):
+	"""Create / update a CH City master row.
+
+	``company`` is accepted but NOT persisted — City is a pure geographic
+	master (Mumbai is Mumbai across all companies); company association lives
+	on CH Store Zone where it belongs. The legacy ``company`` column on
+	CH City is kept hidden for backward compatibility but is no longer written.
+	``state`` is a Link to CH State; pass the value through unchanged so the
+	link key is preserved verbatim (no .title() coercion).
+	"""
 	_check_master_permission()
 	_reject_synthetic(city_name, "city")
 	_reject_synthetic(name, "city")
+	clean_name = (city_name or "").strip().title()
+	clean_state = (state or "").strip() or None
 	if name:
 		doc = frappe.get_doc("CH City", name)
-		doc.city_name = city_name.strip().title()
-		doc.company = company
-		doc.state = (state or "").strip().title() or None
+		doc.city_name = clean_name
+		doc.state = clean_state
 		doc.disabled = int(disabled or 0)
 		doc.description = description
 		doc.save()
 	else:
 		doc = frappe.new_doc("CH City")
-		doc.city_name = city_name.strip().title()
-		doc.company = company
-		doc.state = (state or "").strip().title() or None
+		doc.city_name = clean_name
+		doc.state = clean_state
 		doc.disabled = int(disabled or 0)
 		doc.description = description
 		doc.insert()
@@ -420,6 +437,64 @@ def delete_city(name):
 	if zones or stores:
 		frappe.throw(f"Cannot delete city '{name}' — {zones} zone(s) and {stores} store(s) are linked.")
 	frappe.delete_doc("CH City", name)
+	return True
+
+
+# ---------------------------------------------------------------------------
+# CH State master CRUD (admin-only — surfaced from the Location Hierarchy page)
+# ---------------------------------------------------------------------------
+
+@frappe.whitelist()
+def list_states():
+	"""Return CH States ordered by state_name for picker dialogs."""
+	return frappe.get_all(
+		"CH State",
+		filters={"disabled": 0},
+		fields=["name", "state_name", "state_code", "country"],
+		order_by="state_name",
+	)
+
+
+@frappe.whitelist()
+def save_state(state_name, state_code, country="India", name=None, disabled=0, description=None):
+	"""Create / update a CH State row.
+
+	``state_code`` is the GST / ISO 3166-2 code (e.g. KA, MH, 29). It is
+	required and must be unique — enforced by the DocType field constraints.
+	"""
+	_check_master_permission()
+	clean_name = (state_name or "").strip().title()
+	clean_code = (state_code or "").strip().upper()
+	if not clean_name:
+		frappe.throw("State Name is required.")
+	if not clean_code:
+		frappe.throw("State Code is required (e.g. KA, MH, 29).")
+	if name:
+		doc = frappe.get_doc("CH State", name)
+		doc.state_name = clean_name
+		doc.state_code = clean_code
+		doc.country = country or "India"
+		doc.disabled = int(disabled or 0)
+		doc.description = description
+		doc.save()
+	else:
+		doc = frappe.new_doc("CH State")
+		doc.state_name = clean_name
+		doc.state_code = clean_code
+		doc.country = country or "India"
+		doc.disabled = int(disabled or 0)
+		doc.description = description
+		doc.insert()
+	return doc.name
+
+
+@frappe.whitelist()
+def delete_state(name):
+	_check_master_permission()
+	cities = frappe.db.count("CH City", {"state": name})
+	if cities:
+		frappe.throw(f"Cannot delete state '{name}' — {cities} city(ies) are linked.")
+	frappe.delete_doc("CH State", name)
 	return True
 
 

@@ -27,7 +27,11 @@
    "fieldname": "state_code",
    "fieldtype": "Data",
    "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "State Code",
+   "reqd": 1,
+   "unique": 1,
+   "length": 10,
    "description": "ISO 3166-2 / GST state code (e.g. KA, MH, 29)"
   },
   {

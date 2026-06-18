@@ -82,6 +82,7 @@ class LocationHierarchyView {
 
 	setup_toolbar() {
 		this.page.set_primary_action(__('Add City'), () => this.add_city(), 'add');
+		this.page.add_menu_item(__('Add State'), () => this.add_state());
 		this.page.add_menu_item(__('Add Zone'), () => this.add_zone());
 		this.page.add_menu_item(__('Assign Warehouse'), () => this.assign_warehouse_dialog());
 		this.page.add_menu_item(__('Assign Office'), () => this.assign_office_dialog());
@@ -166,8 +167,11 @@ class LocationHierarchyView {
 		// unrelated record. Hide those actions; users must assign a real city
 		// on the underlying Warehouse / Branch / Store to clear the bucket.
 		const isSynthetic = city.city === 'Unassigned';
+		const stateLabel = city.state_code
+			? `${frappe.utils.escape_html(city.state_code)} · ${frappe.utils.escape_html(city.state || '')}`
+			: frappe.utils.escape_html(city.state || '');
 		const $header = $(`<div class="lh-city-header">
-			<div class="lh-city-title"><i class="fa fa-map-marker"></i> ${frappe.utils.escape_html(city.city_name)} <span class="lh-zone-meta">${city.state || ''}</span></div>
+			<div class="lh-city-title"><i class="fa fa-map-marker"></i> ${frappe.utils.escape_html(city.city_name)} <span class="lh-zone-meta">${stateLabel}</span></div>
 			${isSynthetic ? '' : `<div class="lh-actions">
 				<button class="btn btn-xs btn-default" data-act="add-zone">+ ${__('Zone')}</button>
 				<a href="#" data-act="edit-city">${__('Edit')}</a>
@@ -511,39 +515,45 @@ class LocationHierarchyView {
 	// ----------------- Dialogs -----------------
 
 	add_city(company) {
-		this._city_dialog({ company: company || this.company }, !!company);
+		// `company` is preserved only as a hint that the dialog was opened from
+		// a Company header card; the City itself is company-agnostic. Render the
+		// hint inline so users know which company they were drilling into, but
+		// never persist it on the CH City row.
+		this._city_dialog({}, !!company, company || this.company);
 	}
 	edit_city(name) {
-		frappe.db.get_doc('CH City', name).then(doc => this._city_dialog(doc, false));
+		frappe.db.get_doc('CH City', name).then(doc => this._city_dialog(doc, false, null));
 	}
-	_city_dialog(doc, lockCompany) {
-		const ctxHTML = lockCompany ? `<div class="text-muted small" style="margin:-4px 0 8px;"><b>Company:</b> ${frappe.utils.escape_html(doc.company)}</div>` : '';
+	_city_dialog(doc, fromCompanyCard, contextCompany) {
+		const ctxHTML = fromCompanyCard
+			? `<div class="text-muted small" style="margin:-4px 0 8px;">${__('Opened from')} <b>${frappe.utils.escape_html(contextCompany || '')}</b>. ${__('City masters are shared across all companies — no company is stored on the city itself.')}</div>`
+			: '';
 		const state_field = {
-			fieldtype: 'Link', fieldname: 'state', label: 'State',
+			fieldtype: 'Link', fieldname: 'state', label: __('State'),
 			options: 'CH State', default: doc.state,
 			get_query: () => ({ filters: { disabled: 0 } }),
 		};
-		const fields = lockCompany ? [
-			{ fieldtype: 'HTML', options: ctxHTML },
-			{ fieldtype: 'Data', fieldname: 'city_name', label: 'City Name', reqd: 1, default: doc.city_name },
+		const fields = [
+			...(ctxHTML ? [{ fieldtype: 'HTML', options: ctxHTML }] : []),
+			{ fieldtype: 'Data', fieldname: 'city_name', label: __('City Name'), reqd: 1, default: doc.city_name },
 			state_field,
-		] : [
-			{ fieldtype: 'Link', fieldname: 'company', label: 'Company', options: 'Company', reqd: 1, default: doc.company || this.company },
-			{ fieldtype: 'Data', fieldname: 'city_name', label: 'City Name', reqd: 1, default: doc.city_name },
-			state_field,
-			{ fieldtype: 'Check', fieldname: 'disabled', label: 'Disabled', default: doc.disabled || 0 },
-			{ fieldtype: 'Small Text', fieldname: 'description', label: 'Description', default: doc.description },
+			{ fieldtype: 'Check', fieldname: 'disabled', label: __('Disabled'), default: doc.disabled || 0 },
+			{ fieldtype: 'Small Text', fieldname: 'description', label: __('Description'), default: doc.description },
 		];
 		const d = new frappe.ui.Dialog({
 			title: doc && doc.name ? __('Edit City') : __('Add City'),
 			fields,
 			primary_action_label: __('Save'),
 			primary_action: (v) => {
-				const args = lockCompany ? { company: doc.company, city_name: v.city_name, state: v.state, name: doc.name || null }
-					: { ...v, name: doc.name || null };
 				frappe.call({
 					method: 'ch_item_master.ch_core.location_hierarchy.save_city',
-					args,
+					args: {
+						city_name: v.city_name,
+						state: v.state || null,
+						disabled: v.disabled || 0,
+						description: v.description || null,
+						name: doc.name || null,
+					},
 					callback: () => { d.hide(); frappe.show_alert({message: __('City saved'), indicator:'green'}); this.render(); }
 				});
 			}
@@ -558,6 +568,40 @@ class LocationHierarchyView {
 				callback: () => { frappe.show_alert({message: __('Deleted'), indicator:'red'}); this.render(); }
 			});
 		});
+	}
+
+	add_state() {
+		this._state_dialog({});
+	}
+	_state_dialog(doc) {
+		const fields = [
+			{ fieldtype: 'Data', fieldname: 'state_name', label: __('State Name'), reqd: 1, default: doc.state_name },
+			{ fieldtype: 'Data', fieldname: 'state_code', label: __('State Code'), reqd: 1, default: doc.state_code,
+				description: __('ISO 3166-2 / GST state code, e.g. KA, MH, 29') },
+			{ fieldtype: 'Link', fieldname: 'country', label: __('Country'), options: 'Country', default: doc.country || 'India' },
+			{ fieldtype: 'Check', fieldname: 'disabled', label: __('Disabled'), default: doc.disabled || 0 },
+			{ fieldtype: 'Small Text', fieldname: 'description', label: __('Description'), default: doc.description },
+		];
+		const d = new frappe.ui.Dialog({
+			title: doc.name ? __('Edit State') : __('Add State'),
+			fields,
+			primary_action_label: __('Save'),
+			primary_action: (v) => {
+				frappe.call({
+					method: 'ch_item_master.ch_core.location_hierarchy.save_state',
+					args: {
+						state_name: v.state_name,
+						state_code: v.state_code,
+						country: v.country || 'India',
+						disabled: v.disabled || 0,
+						description: v.description || null,
+						name: doc.name || null,
+					},
+					callback: () => { d.hide(); frappe.show_alert({message: __('State saved'), indicator:'green'}); this.render(); }
+				});
+			}
+		});
+		d.show();
 	}
 
 	add_zone(company, city) {
@@ -579,7 +623,7 @@ class LocationHierarchyView {
 		] : [
 			{ fieldtype: 'Link', fieldname: 'company', label: 'Company', options: 'Company', reqd: 1, default: doc.company || this.company },
 			{ fieldtype: 'Link', fieldname: 'city', label: 'City', options: 'CH City', reqd: 1, default: doc.city,
-				get_query: () => ({ filters: { company: d.get_value('company') } }) },
+				get_query: () => ({ filters: { disabled: 0 } }) },
 			{ fieldtype: 'Data', fieldname: 'zone_name', label: 'Zone Name', reqd: 1, default: doc.zone_name },
 			{ fieldtype: 'Link', fieldname: 'source_warehouse', label: 'Source Warehouse', options: 'Warehouse', default: doc.source_warehouse,
 				get_query: () => ({ filters: { company: d.get_value('company'), is_group: 0 } }) },
@@ -634,7 +678,7 @@ class LocationHierarchyView {
 				get_query: () => ({ filters: { is_group: 0, company: d.get_value('company') || undefined } }) });
 			fields.push({ fieldtype: 'Link', fieldname: 'company', label: 'Company', options: 'Company', reqd: 1, default: e.company || this.company });
 			fields.push({ fieldtype: 'Link', fieldname: 'city', label: 'City', options: 'CH City', default: e.ch_city,
-				get_query: () => ({ filters: { company: d.get_value('company') } }) });
+				get_query: () => ({ filters: { disabled: 0 } }) });
 			fields.push({ fieldtype: 'Link', fieldname: 'zone', label: 'Zone', options: 'CH Store Zone', default: e.ch_zone,
 				get_query: () => ({ filters: { company: d.get_value('company'), city: d.get_value('city') } }) });
 			fields.push({ fieldtype: 'Select', fieldname: 'location_type', label: 'Location Type',
@@ -682,7 +726,7 @@ class LocationHierarchyView {
 			{ fieldtype: 'Link', fieldname: 'branch', label: 'Branch', options: 'Branch', reqd: 1 },
 			{ fieldtype: 'Link', fieldname: 'company', label: 'Company', options: 'Company', reqd: 1, default: this.company },
 			{ fieldtype: 'Link', fieldname: 'city', label: 'City', options: 'CH City',
-				get_query: () => ({ filters: { company: d.get_value('company') } }) },
+				get_query: () => ({ filters: { disabled: 0 } }) },
 			{ fieldtype: 'Link', fieldname: 'zone', label: 'Zone', options: 'CH Store Zone',
 				get_query: () => ({ filters: { company: d.get_value('company'), city: d.get_value('city') } }) },
 		];
@@ -718,7 +762,7 @@ class LocationHierarchyView {
 				{ fieldtype: 'Data', fieldname: 'branch', label: 'Branch Name', reqd: 1 },
 				{ fieldtype: 'Link', fieldname: 'company', label: 'Company', options: 'Company', reqd: 1, default: this.company },
 				{ fieldtype: 'Link', fieldname: 'city', label: 'City', options: 'CH City',
-					get_query: () => ({ filters: { company: d.get_value('company') } }) },
+					get_query: () => ({ filters: { disabled: 0 } }) },
 				{ fieldtype: 'Link', fieldname: 'zone', label: 'Zone', options: 'CH Store Zone',
 					get_query: () => ({ filters: { company: d.get_value('company'), city: d.get_value('city') } }) },
 			],
@@ -753,7 +797,7 @@ class LocationHierarchyView {
 		] : [
 			{ fieldtype: 'Link', fieldname: 'company', label: 'Company', options: 'Company', reqd: 1, default: this.company },
 			{ fieldtype: 'Link', fieldname: 'city', label: 'City', options: 'CH City', reqd: 1,
-				get_query: () => ({ filters: { company: d.get_value('company') } }) },
+				get_query: () => ({ filters: { disabled: 0 } }) },
 			{ fieldtype: 'Link', fieldname: 'zone', label: 'Zone', options: 'CH Store Zone', reqd: 1,
 				get_query: () => ({ filters: { company: d.get_value('company'), city: d.get_value('city') } }) },
 			{ fieldtype: 'Data', fieldname: 'store_name', label: 'Store Name', reqd: 1 },
@@ -794,7 +838,7 @@ class LocationHierarchyView {
 			fields: [
 				{ fieldtype: 'HTML', options: `<div class="text-muted small" style="margin:-4px 0 8px;">${__('Select the city and zone this store belongs to. This corrects the missing zone assignment.')}</div>` },
 				{ fieldtype: 'Link', fieldname: 'city', label: 'City', options: 'CH City', reqd: 1,
-					get_query: () => ({ filters: { company } }) },
+					get_query: () => ({ filters: { disabled: 0 } }) },
 				{ fieldtype: 'Link', fieldname: 'zone', label: 'Zone', options: 'CH Store Zone', reqd: 1,
 					get_query: () => ({ filters: { company, city: d.get_value('city') } }) },
 			],
