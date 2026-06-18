@@ -23,6 +23,7 @@ class CHWarrantyPlan(Document):
 		self._validate_duration()
 		self._validate_deductible()
 		self._validate_validity_dates()
+		self._validate_external_device_settings()
 		self._validate_benefit_rules()
 		self._validate_unique_plan_per_company()
 
@@ -148,6 +149,74 @@ class CHWarrantyPlan(Document):
 				seen.add(code)
 			if row.covered and not row.fulfillment_type:
 				row.fulfillment_type = self.fulfillment_type or "Repair Claim"
+
+	def _validate_external_device_settings(self):
+		"""External IMEI plans need an explicit generic device item."""
+		if not self.allow_external_device:
+			return
+
+		if self.plan_type not in ("Value Added Service", "Protection Plan"):
+			frappe.throw(
+				_("Customer-provided IMEI is only supported for VAS / Protection plans."),
+				title=_("Invalid External Device Setup"),
+			)
+
+		if not self.external_device_item:
+			frappe.throw(
+				_("External Device Item is required when Customer-Provided IMEI is allowed."),
+				title=_("Missing External Device Item"),
+			)
+
+		item = frappe.db.get_value(
+			"Item",
+			self.external_device_item,
+			["disabled", "is_stock_item", "ch_category"],
+			as_dict=True,
+		)
+		if not item:
+			frappe.throw(
+				_("External Device Item {0} does not exist").format(
+					frappe.bold(self.external_device_item)
+				),
+				title=_("Invalid External Device Item"),
+			)
+		if item.disabled:
+			frappe.throw(
+				_("External Device Item {0} is disabled").format(
+					frappe.bold(self.external_device_item)
+				),
+				title=_("Disabled External Device Item"),
+			)
+		if item.is_stock_item:
+			frappe.throw(
+				_("External Device Item {0} must be a non-stock generic item.").format(
+					frappe.bold(self.external_device_item)
+				),
+				title=_("Stock Item Not Allowed"),
+			)
+		if self.external_device_item == self.service_item:
+			frappe.throw(
+				_("External Device Item cannot be the same as the plan Service Item."),
+				title=_("Invalid External Device Setup"),
+			)
+
+		plan_categories = [row.category for row in (self.applicable_categories or []) if row.category]
+		if plan_categories and not item.ch_category:
+			frappe.throw(
+				_("External Device Item {0} has no CH Category, but this plan is category-restricted.").format(
+					frappe.bold(self.external_device_item)
+				),
+				title=_("External Device Category Required"),
+			)
+		if plan_categories and item.ch_category not in plan_categories:
+			frappe.throw(
+				_("External Device Item {0} belongs to {1}, but this plan is restricted to {2}.").format(
+					frappe.bold(self.external_device_item),
+					frappe.bold(item.ch_category),
+					frappe.bold(", ".join(plan_categories)),
+				),
+				title=_("External Device Category Mismatch"),
+			)
 
 	def _validate_unique_plan_per_company(self):
 		"""Warn if the same plan_name exists for another company (might be intentional for multi-company)."""

@@ -125,9 +125,51 @@ def validate_vas_category(serial_no, warranty_plan) -> dict:
 	# Look up item from Serial No
 	item_code = frappe.db.get_value("Serial No", serial_no, "item_code")
 	if not item_code:
-		# Serial not found — allow anyway (truly external device)
-		return {"valid": True, "item_code": None, "category": None,
-		        "message": _("Serial not found in system — no category restriction applied")}
+		plan = frappe.db.get_value(
+			"CH Warranty Plan",
+			warranty_plan,
+			["allow_external_device", "external_device_item"],
+			as_dict=True,
+		)
+		if plan and plan.allow_external_device and plan.external_device_item:
+			plan_categories = frappe.get_all(
+				"CH Warranty Plan Category",
+				filters={"parent": warranty_plan},
+				pluck="category",
+			)
+			external_category = frappe.db.get_value("Item", plan.external_device_item, "ch_category")
+			if plan_categories and not external_category:
+				return {
+					"valid": False,
+					"item_code": None,
+					"category": None,
+					"external_device": True,
+					"message": _("External Device Item has no category set — cannot verify eligibility"),
+				}
+			if plan_categories and external_category not in plan_categories:
+				return {
+					"valid": False,
+					"item_code": None,
+					"category": external_category,
+					"external_device": True,
+					"message": _("This plan is for {0} only, but the configured external device item is {1}").format(
+						", ".join(plan_categories), external_category
+					),
+				}
+			return {
+				"valid": True,
+				"item_code": None,
+				"category": external_category,
+				"external_device": True,
+				"message": _("Serial not found in system. This plan permits customer-provided IMEI."),
+			}
+		return {
+			"valid": False,
+			"item_code": None,
+			"category": None,
+			"external_device": True,
+			"message": _("This plan cannot be sold for an IMEI not found in GoGizmo inventory."),
+		}
 
 	# Get category of the item
 	category = frappe.db.get_value("Item", item_code, "ch_category")

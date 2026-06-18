@@ -153,6 +153,8 @@ class ActiveVASPlans(Document):
 			"post_repair_warranty_months": plan.post_repair_warranty_months,
 			"coverage_description": plan.coverage_description,
 			"terms_and_conditions": plan.terms_and_conditions,
+			"allow_external_device": plan.allow_external_device,
+			"external_device_item": plan.external_device_item,
 			"benefit_rules": benefit_rules,
 			"coverage_rules": _rows("coverage_rules"),
 			"fee_rules": _rows("fee_rules"),
@@ -166,6 +168,8 @@ class ActiveVASPlans(Document):
 	def _validate_category(self):
 		"""Ensure device category matches plan's applicable categories."""
 		if not self.warranty_plan or not self.item_code:
+			return
+		if self.is_external_device:
 			return
 		plan_categories = frappe.get_all(
 			"CH Warranty Plan Category",

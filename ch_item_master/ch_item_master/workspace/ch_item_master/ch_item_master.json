@@ -66,6 +66,16 @@
   {
    "hidden": 0,
    "is_query_report": 0,
+   "label": "CH Item Price",
+   "link_count": 0,
+   "link_to": "CH Item Price",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
    "label": "Channels & Tracking",
    "link_count": 3,
    "link_type": "DocType",
@@ -140,6 +150,26 @@
    "link_to": "CH Voucher",
    "link_type": "DocType",
    "onboard": 1,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "CH Coupon Campaign",
+   "link_count": 0,
+   "link_to": "CH Coupon Campaign",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "CH POS Override Log",
+   "link_count": 0,
+   "link_to": "CH POS Override Log",
+   "link_type": "DocType",
+   "onboard": 0,
    "type": "Link"
   },
   {

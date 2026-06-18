@@ -161,6 +161,23 @@
    "search_index": 1
   },
   {
+   "fieldname": "is_external_device",
+   "fieldtype": "Check",
+   "label": "External Customer Device",
+   "default": "0",
+   "read_only": 1,
+   "in_standard_filter": 1,
+   "description": "Checked when the plan was sold against a customer-provided IMEI outside GoGizmo inventory."
+  },
+  {
+   "fieldname": "external_device_source",
+   "fieldtype": "Data",
+   "label": "External Device Source",
+   "read_only": 1,
+   "depends_on": "eval:doc.is_external_device",
+   "description": "How the external IMEI was captured, e.g. POS Customer-Provided IMEI."
+  },
+  {
    "fieldname": "brand",
    "fieldtype": "Link",
    "label": "Brand",
@@ -261,9 +278,9 @@
   {
    "fieldname": "section_snapshot",
    "fieldtype": "Section Break",
-   "label": "Sold Plan Snapshot",
+   "label": "Active Plan Snapshot",
    "collapsible": 1,
-   "description": "Immutable copy of plan terms and benefits captured when the plan was sold."
+   "description": "Immutable copy of plan terms and benefits captured when the Active VAS Plan was issued."
   },
   {
    "fieldname": "fulfillment_type",

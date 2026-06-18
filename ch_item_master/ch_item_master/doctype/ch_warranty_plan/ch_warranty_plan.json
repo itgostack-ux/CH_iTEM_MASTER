@@ -255,6 +255,29 @@
    "description": "Channels where this plan is available. Leave blank = all channels."
   },
   {
+   "fieldname": "external_device_section",
+   "fieldtype": "Section Break",
+   "label": "External Customer Device",
+   "collapsible": 1,
+   "description": "Controls whether POS can sell this plan against a customer-provided IMEI that is not attached to GoGizmo stock or a device sold on the same bill."
+  },
+  {
+   "fieldname": "allow_external_device",
+   "fieldtype": "Check",
+   "label": "Allow Customer-Provided IMEI",
+   "default": "0",
+   "description": "If enabled, POS may sell this VAS/protection plan for an IMEI not found in our Serial No / customer device records."
+  },
+  {
+   "fieldname": "external_device_item",
+   "fieldtype": "Link",
+   "label": "External Device Item",
+   "options": "Item",
+   "depends_on": "eval:doc.allow_external_device",
+   "mandatory_depends_on": "eval:doc.allow_external_device",
+   "description": "Generic non-stock Item used on the Active VAS Plan when the customer-provided IMEI is outside our inventory."
+  },
+  {
    "fieldname": "section_vas_benefits",
    "fieldtype": "Section Break",
    "label": "VAS Benefits & Fulfillment",
