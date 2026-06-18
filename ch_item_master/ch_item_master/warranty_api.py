@@ -11,12 +11,26 @@ Usage from GoFix:
     from ch_item_master.ch_item_master.warranty_api import check_warranty, get_applicable_plans
 """
 
+import json
+
 import frappe
 from frappe import _
 from frappe.rate_limiter import rate_limit
 from frappe.utils import nowdate, now_datetime, getdate, add_months, flt
 
 from ch_item_master.security import get_company_filter_value, get_company_scope
+
+
+def _load_active_plan_benefits(active_plan) -> list[dict]:
+	"""Return benefit rules from the Active VAS Plan snapshot."""
+	raw = getattr(active_plan, "benefit_snapshot_json", None)
+	if not raw:
+		return []
+	try:
+		data = json.loads(raw)
+	except Exception:
+		return []
+	return data if isinstance(data, list) else []
 
 
 # ── Warranty Lookup ──────────────────────────────────────────────────────────
@@ -163,7 +177,7 @@ def issue_warranty_plan(warranty_plan, customer, item_code, serial_no=None,
 		plan_price: Actual price charged
 
 	Returns:
-		dict with: sold_plan name, status
+		dict with: active_plan name, status
 	"""
 	if not start_date:
 		start_date = nowdate()
@@ -195,12 +209,19 @@ def issue_warranty_plan(warranty_plan, customer, item_code, serial_no=None,
 		"max_claims": plan.max_claims or 0,
 		"deductible_amount": plan.deductible_amount or 0,
 		"claims_per_year": plan.claims_per_year or 0,
+		"fulfillment_type": plan.fulfillment_type or "Repair Claim",
 	})
 
 	doc.insert(ignore_permissions=True)
 	doc.submit()
 
-	return {"sold_plan": doc.name, "status": doc.status, "end_date": str(doc.end_date)}
+	return {
+		"active_plan": doc.name,
+		"sold_plan": doc.name,
+		"status": doc.status,
+		"end_date": str(doc.end_date),
+		"fulfillment_type": doc.fulfillment_type,
+	}
 
 
 # ── Claim Recording ─────────────────────────────────────────────────────────
@@ -326,8 +347,23 @@ def validate_claim(sold_plan_name, issue_type=None, estimate_amount=0) -> dict:
 	coverage_percent = 100
 	deductible = flt(sp.deductible_amount)
 	rule_match = None
+	benefit_match = None
 
-	if issue_type and sp.warranty_plan:
+	if issue_type:
+		for benefit in _load_active_plan_benefits(sp):
+			if benefit.get("issue_type") == issue_type:
+				benefit_match = benefit
+				break
+
+		if benefit_match:
+			if not int(flt(benefit_match.get("covered", 1))):
+				return {"eligible": False,
+				        "reason": _("Issue type '{0}' is not covered under this active plan benefit").format(issue_type)}
+			coverage_percent = flt(benefit_match.get("coverage_percent")) or coverage_percent
+			if benefit_match.get("deductible_amount") is not None:
+				deductible = flt(benefit_match.get("deductible_amount"))
+
+	if issue_type and sp.warranty_plan and not benefit_match:
 		plan = frappe.get_doc("CH Warranty Plan", sp.warranty_plan)
 		for rule in (plan.coverage_rules or []):
 			if rule.issue_type == issue_type:
@@ -361,6 +397,12 @@ def validate_claim(sold_plan_name, issue_type=None, estimate_amount=0) -> dict:
 	covered_amount = max(0, covered_before_deductible - deductible)
 	customer_payable = estimate_amount - covered_amount
 
+	if benefit_match and flt(benefit_match.get("value_limit")) > 0:
+		benefit_limit = flt(benefit_match.get("value_limit"))
+		if covered_amount > benefit_limit:
+			covered_amount = benefit_limit
+			customer_payable = estimate_amount - covered_amount
+
 	# Cap at remaining coverage value
 	if sp.max_coverage_value and sp.max_coverage_value > 0:
 		remaining_value = sp.max_coverage_value - flt(sp.total_claimed_value)
@@ -374,8 +416,9 @@ def validate_claim(sold_plan_name, issue_type=None, estimate_amount=0) -> dict:
 		"customer_payable": customer_payable,
 		"deductible": deductible,
 		"coverage_percent": coverage_percent,
-		"rule_match": rule_match.issue_type if rule_match else None,
-		"reason": _("Claim eligible"),
+			"rule_match": rule_match.issue_type if rule_match else None,
+			"benefit_match": benefit_match.get("benefit_code") if benefit_match else None,
+			"reason": _("Claim eligible"),
 	}
 
 

@@ -255,6 +255,28 @@
    "description": "Channels where this plan is available. Leave blank = all channels."
   },
   {
+   "fieldname": "section_vas_benefits",
+   "fieldtype": "Section Break",
+   "label": "VAS Benefits & Fulfillment",
+   "collapsible": 1,
+   "description": "Generic benefit and fulfillment model used for non-warranty VAS, bundles, partner services, digital activations, upgrades, and future plan types."
+  },
+  {
+   "fieldname": "fulfillment_type",
+   "fieldtype": "Select",
+   "label": "Fulfillment Type",
+   "options": "Repair Claim\nReplacement\nVoucher\nPickup/Logistics\nTech Support\nData Transfer\nDigital Activation\nUpgrade/Trade-in\nPayment/EMI\nPartner Managed\nManual",
+   "default": "Repair Claim",
+   "description": "Default operational flow for this plan. Individual benefit rows can override this."
+  },
+  {
+   "fieldname": "benefit_rules",
+   "fieldtype": "Table",
+   "label": "Benefit Rules",
+   "options": "CH VAS Benefit Rule",
+   "description": "Plan benefits captured as configurable entitlements. These are snapshotted when the Active VAS Plan is issued."
+  },
+  {
    "fieldname": "section_notes",
    "fieldtype": "Section Break",
    "label": "Notes"

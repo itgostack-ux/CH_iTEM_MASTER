@@ -23,6 +23,7 @@ class CHWarrantyPlan(Document):
 		self._validate_duration()
 		self._validate_deductible()
 		self._validate_validity_dates()
+		self._validate_benefit_rules()
 		self._validate_unique_plan_per_company()
 
 	def _validate_pricing(self):
@@ -131,6 +132,23 @@ class CHWarrantyPlan(Document):
 					title=_("Invalid Validity Period"),
 				)
 
+	def _validate_benefit_rules(self):
+		"""Benefit rows are optional, but when present they must be usable."""
+		seen = set()
+		for row in (self.benefit_rules or []):
+			code = (row.benefit_code or "").strip()
+			if code:
+				if code in seen:
+					frappe.throw(
+						_("Benefit Code {0} is duplicated. Use stable unique codes per plan.").format(
+							frappe.bold(code)
+						),
+						title=_("Duplicate Benefit Code"),
+					)
+				seen.add(code)
+			if row.covered and not row.fulfillment_type:
+				row.fulfillment_type = self.fulfillment_type or "Repair Claim"
+
 	def _validate_unique_plan_per_company(self):
 		"""Warn if the same plan_name exists for another company (might be intentional for multi-company)."""
 		if not self.plan_name or not self.company:
@@ -237,6 +255,7 @@ class CHWarrantyPlan(Document):
 					"brand", "valid_from", "valid_to", "max_claims",
 					"deductible_amount", "priority", "requires_approval",
 					"company_share_percent", "coverage_type_override",
+					"fulfillment_type",
 				],
 			)
 		else:
@@ -250,6 +269,7 @@ class CHWarrantyPlan(Document):
 					"brand", "valid_from", "valid_to", "max_claims",
 					"deductible_amount", "priority", "requires_approval",
 					"company_share_percent", "coverage_type_override",
+					"fulfillment_type",
 				],
 			)
 

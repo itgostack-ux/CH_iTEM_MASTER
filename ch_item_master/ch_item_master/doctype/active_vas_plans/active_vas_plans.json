@@ -259,6 +259,37 @@
    "description": "Actual price charged to the customer for this plan."
   },
   {
+   "fieldname": "section_snapshot",
+   "fieldtype": "Section Break",
+   "label": "Sold Plan Snapshot",
+   "collapsible": 1,
+   "description": "Immutable copy of plan terms and benefits captured when the plan was sold."
+  },
+  {
+   "fieldname": "fulfillment_type",
+   "fieldtype": "Data",
+   "label": "Fulfillment Type",
+   "read_only": 1,
+   "in_standard_filter": 1,
+   "description": "Snapshot of the operational fulfillment flow from the plan master."
+  },
+  {
+   "fieldname": "plan_snapshot_json",
+   "fieldtype": "Code",
+   "label": "Plan Snapshot JSON",
+   "options": "JSON",
+   "read_only": 1,
+   "description": "Immutable sale-time snapshot of commercial, coverage, fee, and fulfillment terms."
+  },
+  {
+   "fieldname": "benefit_snapshot_json",
+   "fieldtype": "Code",
+   "label": "Benefit Snapshot JSON",
+   "options": "JSON",
+   "read_only": 1,
+   "description": "Immutable sale-time snapshot of configured VAS benefit rules."
+  },
+  {
    "fieldname": "section_value_cap",
    "fieldtype": "Section Break",
    "label": "Value Cap & Tracking"

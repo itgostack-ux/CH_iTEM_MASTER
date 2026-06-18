@@ -11,10 +11,12 @@ Lifecycle:
   Any → Cancelled (via amend/cancel)
 """
 
+import json
+
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import nowdate, getdate, add_months, flt
+from frappe.utils import nowdate, now_datetime, getdate, add_months, flt
 
 from ch_item_master.ch_item_master.utils import validate_indian_phone
 
@@ -25,7 +27,7 @@ from ch_item_master.ch_item_master.exceptions import (
 )
 
 
-class CHSoldPlan(Document):
+class ActiveVASPlans(Document):
 	@property
 	def valid_to(self):
 		return self.end_date
@@ -35,7 +37,7 @@ class CHSoldPlan(Document):
 		self.end_date = value
 
 	def autoname(self):
-		"""Auto-generate sold_plan_id if not set."""
+		"""Auto-generate the active plan integration ID if not set."""
 		if not self.sold_plan_id:
 			max_id = frappe.db.sql(
 				"SELECT IFNULL(MAX(sold_plan_id), 0) FROM `tabActive VAS Plans`"
@@ -47,6 +49,7 @@ class CHSoldPlan(Document):
 			self.customer_phone = validate_indian_phone(self.customer_phone, "Customer Phone")
 		self._validate_dates()
 		self._validate_plan_active()
+		self._set_plan_snapshot()
 		self._validate_category()
 		self._validate_duplicate()
 		self._auto_compute_end_date()
@@ -87,6 +90,78 @@ class CHSoldPlan(Document):
 				),
 				title=_("Inactive Plan"),
 			)
+
+	def _set_plan_snapshot(self):
+		"""Capture immutable plan terms at sale time.
+
+		The master CH Warranty Plan can change after sale. Existing customers must
+		keep the commercial terms, fulfillment model, fee rules, coverage rules,
+		and benefit rules that were active when their plan was issued.
+		"""
+		if not self.warranty_plan:
+			return
+
+		plan = frappe.get_cached_doc("CH Warranty Plan", self.warranty_plan)
+		self.plan_title = self.plan_title or plan.plan_name
+		self.plan_type = self.plan_type or plan.plan_type
+		self.duration_months = self.duration_months or plan.duration_months
+		self.max_claims = self.max_claims or plan.max_claims or 0
+		self.deductible_amount = self.deductible_amount or plan.deductible_amount or 0
+		self.claims_per_year = self.claims_per_year or plan.claims_per_year or 0
+		self.fulfillment_type = self.fulfillment_type or plan.fulfillment_type or "Repair Claim"
+
+		if not self.end_date and self.start_date and plan.duration_months:
+			self.end_date = add_months(self.start_date, plan.duration_months)
+
+		if self.plan_snapshot_json and self.benefit_snapshot_json:
+			return
+
+		def _rows(table_name):
+			out = []
+			for row in (getattr(plan, table_name, None) or []):
+				out.append({
+					key: value
+					for key, value in row.as_dict().items()
+					if key not in {
+						"name", "owner", "creation", "modified", "modified_by",
+						"parent", "parentfield", "parenttype", "idx", "docstatus",
+					}
+				})
+			return out
+
+		benefit_rules = _rows("benefit_rules")
+		snapshot = {
+			"snapshot_version": 1,
+			"captured_at": str(now_datetime()),
+			"warranty_plan": plan.name,
+			"plan_name": plan.plan_name,
+			"plan_type": plan.plan_type,
+			"coverage_scope": plan.coverage_scope,
+			"fulfillment_type": plan.fulfillment_type or "Repair Claim",
+			"service_item": plan.service_item,
+			"duration_months": plan.duration_months,
+			"max_claims": plan.max_claims,
+			"claims_per_year": plan.claims_per_year,
+			"deductible_amount": plan.deductible_amount,
+			"price": plan.price,
+			"pricing_mode": plan.pricing_mode,
+			"percentage_value": plan.percentage_value,
+			"cost_to_company": plan.cost_to_company,
+			"company_share_percent": plan.company_share_percent,
+			"requires_approval": plan.requires_approval,
+			"coverage_type_override": plan.coverage_type_override,
+			"post_repair_warranty_months": plan.post_repair_warranty_months,
+			"coverage_description": plan.coverage_description,
+			"terms_and_conditions": plan.terms_and_conditions,
+			"benefit_rules": benefit_rules,
+			"coverage_rules": _rows("coverage_rules"),
+			"fee_rules": _rows("fee_rules"),
+		}
+
+		if not self.plan_snapshot_json:
+			self.plan_snapshot_json = json.dumps(snapshot, indent=2, sort_keys=True, default=str)
+		if not self.benefit_snapshot_json:
+			self.benefit_snapshot_json = json.dumps(benefit_rules, indent=2, sort_keys=True, default=str)
 
 	def _validate_category(self):
 		"""Ensure device category matches plan's applicable categories."""

@@ -30,18 +30,24 @@ def get_vas_plan_catalog(limit=100):
 	"""Phase-3 catalog API while still reusing CH Warranty Plan as source of truth."""
 	limit = min(int(limit or 100), 300)
 	if frappe.db.exists("DocType", "VAS Plan"):
-		return frappe.get_all(
+		plans = frappe.get_all(
 			"VAS Plan",
 			filters={"status": "Active"},
 			fields=["name", "plan_name", "vas_product", "source_warranty_plan", "list_price", "duration_months", "partner"],
 			order_by="modified desc",
 			limit=limit,
 		)
+		for plan in plans:
+			if plan.get("source_warranty_plan"):
+				plan["fulfillment_type"] = frappe.db.get_value(
+					"CH Warranty Plan", plan.source_warranty_plan, "fulfillment_type"
+				)
+		return plans
 
 	return frappe.get_all(
 		"CH Warranty Plan",
 		filters={"status": "Active"},
-		fields=["name", "plan_name", "service_item", "price", "duration_months", "plan_type"],
+		fields=["name", "plan_name", "service_item", "price", "duration_months", "plan_type", "fulfillment_type"],
 		order_by="modified desc",
 		limit=limit,
 	)
@@ -111,10 +117,19 @@ def get_vas_attach_offers(item_code: str, selling_price=None, company=None):
 			as_dict=True,
 		)
 		service_item = None
+		fulfillment_type = None
 		if plan and plan.get("vas_product"):
 			service_item = frappe.db.get_value("VAS Product", plan["vas_product"], "service_item")
 		if not service_item and plan and plan.get("source_warranty_plan"):
-			service_item = frappe.db.get_value("CH Warranty Plan", plan["source_warranty_plan"], "service_item")
+			source_plan = frappe.db.get_value(
+				"CH Warranty Plan",
+				plan["source_warranty_plan"],
+				["service_item", "fulfillment_type"],
+				as_dict=True,
+			)
+			if source_plan:
+				service_item = source_plan.service_item
+				fulfillment_type = source_plan.fulfillment_type
 
 		out.append(
 			{
@@ -127,6 +142,7 @@ def get_vas_attach_offers(item_code: str, selling_price=None, company=None):
 				"vas_plan": rule.vas_plan,
 				"plan_name": plan.get("plan_name") if plan else None,
 				"source_warranty_plan": plan.get("source_warranty_plan") if plan else None,
+				"fulfillment_type": fulfillment_type,
 				"attach_items": [
 					{
 						"item_code": service_item,

@@ -48,7 +48,7 @@ def _find_template_context() -> dict:
 def run():
 	print("Phase 7 - Active VAS Plan State Smoke")
 
-	from ch_item_master.ch_item_master.doctype.active_vas_plans.active_vas_plans import CHSoldPlan
+	from ch_item_master.ch_item_master.doctype.active_vas_plans.active_vas_plans import ActiveVASPlans
 
 	ctx = _find_template_context()
 	_must("Active warranty-plan context available", bool(ctx), str(ctx))

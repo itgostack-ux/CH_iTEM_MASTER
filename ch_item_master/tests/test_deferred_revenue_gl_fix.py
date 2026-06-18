@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import frappe
 
-from ch_item_master.ch_item_master.doctype.active_vas_plans.active_vas_plans import CHSoldPlan
+from ch_item_master.ch_item_master.doctype.active_vas_plans.active_vas_plans import ActiveVASPlans
 
 
 class _DummyPlan:
@@ -89,7 +89,7 @@ def run():
 		frappe.db.get_value = _fake_get_value
 
 		plan = _DummyPlan()
-		CHSoldPlan._post_deferred_revenue_gl(plan)
+		ActiveVASPlans._post_deferred_revenue_gl(plan)
 
 		je = captured.get("je")
 		if not je:
@@ -129,7 +129,7 @@ def run():
 
 		frappe.get_all = _fake_get_all_ambiguous
 		plan2 = _DummyPlan()
-		CHSoldPlan._post_deferred_revenue_gl(plan2)
+		ActiveVASPlans._post_deferred_revenue_gl(plan2)
 		je2 = captured.get("je")
 		if not je2 or len(je2.accounts) != 2:
 			raise AssertionError("Ambiguous case did not post a fallback deferred revenue JE")

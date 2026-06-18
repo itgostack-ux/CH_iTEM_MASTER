@@ -1,0 +1,125 @@
+{
+ "name": "CH VAS Benefit Rule",
+ "module": "CH Item Master",
+ "doctype": "DocType",
+ "document_type": "Setup",
+ "engine": "InnoDB",
+ "istable": 1,
+ "editable_grid": 1,
+ "track_changes": 1,
+ "fields": [
+  {
+   "fieldname": "benefit_code",
+   "fieldtype": "Data",
+   "label": "Benefit Code",
+   "in_list_view": 1,
+   "description": "Stable internal code used by API, partner integrations, and reporting."
+  },
+  {
+   "fieldname": "benefit_name",
+   "fieldtype": "Data",
+   "label": "Benefit Name",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "benefit_type",
+   "fieldtype": "Select",
+   "label": "Benefit Type",
+   "options": "Repair Coverage\nReplacement\nVoucher\nPickup/Logistics\nTech Support\nData Transfer\nDigital Service\nSecurity/Cloud\nUpgrade/Trade-in\nPayment/EMI\nAccessory Service\nPartner Service\nOther",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "fulfillment_type",
+   "fieldtype": "Select",
+   "label": "Fulfillment Type",
+   "options": "Repair Claim\nReplacement\nVoucher\nPickup/Logistics\nTech Support\nData Transfer\nDigital Activation\nUpgrade/Trade-in\nPayment/EMI\nPartner Managed\nManual",
+   "default": "Repair Claim",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "covered",
+   "fieldtype": "Check",
+   "label": "Covered",
+   "default": "1"
+  },
+  {
+   "fieldname": "column_break_limits",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "entitlement_basis",
+   "fieldtype": "Select",
+   "label": "Entitlement Basis",
+   "options": "Per Plan\nPer Claim\nPer Year\nPer Month\nOne Time\nUnlimited",
+   "default": "Per Plan"
+  },
+  {
+   "fieldname": "unit_limit",
+   "fieldtype": "Int",
+   "label": "Unit Limit",
+   "description": "Number of times this benefit can be consumed. 0 = unlimited."
+  },
+  {
+   "fieldname": "value_limit",
+   "fieldtype": "Currency",
+   "label": "Value Limit",
+   "description": "Maximum monetary value for this benefit. 0 = no explicit value limit."
+  },
+  {
+   "fieldname": "coverage_percent",
+   "fieldtype": "Percent",
+   "label": "Coverage %",
+   "default": "100"
+  },
+  {
+   "fieldname": "deductible_amount",
+   "fieldtype": "Currency",
+   "label": "Deductible"
+  },
+  {
+   "fieldname": "column_break_controls",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "issue_type",
+   "fieldtype": "Link",
+   "label": "Issue Type",
+   "options": "Issue Category",
+   "description": "Optional repair issue type this benefit applies to."
+  },
+  {
+   "fieldname": "reset_period",
+   "fieldtype": "Select",
+   "label": "Reset Period",
+   "options": "None\nMonthly\nYearly\nPlan Anniversary",
+   "default": "None"
+  },
+  {
+   "fieldname": "requires_partner_approval",
+   "fieldtype": "Check",
+   "label": "Requires Partner Approval"
+  },
+  {
+   "fieldname": "partner_reference_required",
+   "fieldtype": "Check",
+   "label": "Partner Reference Required"
+  },
+  {
+   "fieldname": "applicable_modes",
+   "fieldtype": "Small Text",
+   "label": "Applicable Modes",
+   "description": "Comma-separated service modes such as Walk-in, Pickup, Courier."
+  },
+  {
+   "fieldname": "terms",
+   "fieldtype": "Small Text",
+   "label": "Benefit Terms"
+  }
+ ],
+ "permissions": [],
+ "actions": [],
+ "modified": "2026-06-18 00:00:00.000000",
+ "creation": "2026-06-18 00:00:00.000000"
+}
