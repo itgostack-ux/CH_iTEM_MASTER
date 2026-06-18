@@ -1,7 +1,7 @@
 {
  "allow_import": 1,
  "actions": [],
- "autoname": "format:{state}-{city_name}",
+ "autoname": "format:{city_name}",
  "creation": "2026-04-28 00:00:00.000000",
  "doctype": "DocType",
  "engine": "InnoDB",

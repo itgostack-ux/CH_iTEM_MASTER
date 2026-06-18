@@ -180,7 +180,7 @@ class LocationHierarchyView {
 		</div>`).appendTo($city);
 
 		if (!isSynthetic) {
-			$header.find('[data-act="add-zone"]').on('click', () => this.add_zone(company, city.city));
+			$header.find('[data-act="add-zone"]').on('click', () => this.add_zone(company, city.city, city.city_name));
 			$header.find('[data-act="edit-city"]').on('click', (e) => { e.preventDefault(); this.edit_city(city.city); });
 			$header.find('[data-act="del-city"]').on('click', (e) => { e.preventDefault(); this.delete_city(city.city); });
 		} else {
@@ -531,6 +531,8 @@ class LocationHierarchyView {
 		const state_field = {
 			fieldtype: 'Link', fieldname: 'state', label: __('State'),
 			options: 'CH State', default: doc.state,
+			placeholder: __('Select a state…'),
+			description: __('Pick from CH State master. Use <b>Menu → Add State</b> if it is missing.'),
 			get_query: () => ({ filters: { disabled: 0 } }),
 		};
 		const fields = [
@@ -604,16 +606,27 @@ class LocationHierarchyView {
 		d.show();
 	}
 
-	add_zone(company, city) {
-		this._zone_dialog({ company: company || this.company, city }, !!(company && city));
+	add_zone(company, city, city_label) {
+		this._zone_dialog({ company: company || this.company, city, city_label }, !!(company && city));
 	}
 	edit_zone(name) {
 		frappe.db.get_doc('CH Store Zone', name).then(doc => this._zone_dialog(doc, false));
 	}
 	_zone_dialog(doc, lockContext) {
+		// Show the human label (city_name) instead of the raw link key, which
+		// for legacy records can be a long compounded autoname string like
+		// "Tamil Nadu-Tamil Nadu-…-Chennai". Fall back to the link key only
+		// if no label was passed.
+		const cityLabel = doc.city_label || doc.city || '';
+		const cityHref = doc.city
+			? `/app/ch-city/${encodeURIComponent(doc.city)}`
+			: null;
+		const cityHTML = cityHref
+			? `<a href="${cityHref}" target="_blank">${frappe.utils.escape_html(cityLabel)}</a>`
+			: frappe.utils.escape_html(cityLabel);
 		const ctxHTML = lockContext ? `<div class="text-muted small" style="margin:-4px 0 8px;">
-			<b>Company:</b> ${frappe.utils.escape_html(doc.company)} &nbsp;·&nbsp; 
-			<b>City:</b> ${frappe.utils.escape_html(doc.city)}
+			<b>Company:</b> ${frappe.utils.escape_html(doc.company)} &nbsp;·&nbsp;
+			<b>City:</b> ${cityHTML}
 		</div>` : '';
 		const fields = lockContext ? [
 			{ fieldtype: 'HTML', options: ctxHTML },
