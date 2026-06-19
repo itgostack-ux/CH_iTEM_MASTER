@@ -68,7 +68,13 @@ def _populate_from_model(doc):
             "CH Category", doc.ch_category, "item_group"
         ) or ""
 
-    if not doc.get("gst_hsn_code") and doc.ch_sub_category:
+    # Tax/HSN is authoritatively owned by CH Sub Category — always take it
+    # from there when a sub-category is resolved, even if a value was
+    # already supplied (e.g. by import/API), so tax can never silently
+    # diverge from the Sub Category's setting. See also
+    # _apply_subcategory_defaults() below and CHSubCategory's cascade,
+    # which keep this in sync if the Sub Category's tax changes later.
+    if doc.ch_sub_category:
         doc.gst_hsn_code = frappe.db.get_value(
             "CH Sub Category", doc.ch_sub_category, "hsn_code"
         ) or ""
@@ -196,15 +202,16 @@ def _apply_subcategory_defaults(doc):
     meta = _subcategory_meta(doc)
     nature = (meta.get("item_nature") or "").strip()
 
-    # HSN code (India Compliance mandatory) — pull from sub-cat if blank.
-    # Done here (not only in _populate_from_model) so non-model items also
-    # inherit HSN.
-    if not doc.get("gst_hsn_code"):
-        sc_hsn = frappe.db.get_value(
-            "CH Sub Category", doc.ch_sub_category, "hsn_code"
-        )
-        if sc_hsn:
-            doc.gst_hsn_code = sc_hsn
+    # HSN/tax code (India Compliance mandatory) — authoritatively owned by
+    # the Sub Category. Always (re)applied here, not just when blank, so
+    # non-model items inherit it the same way model-driven items do via
+    # _populate_from_model(), and a value can never drift from the Sub
+    # Category's setting at creation time.
+    sc_hsn = frappe.db.get_value(
+        "CH Sub Category", doc.ch_sub_category, "hsn_code"
+    )
+    if sc_hsn:
+        doc.gst_hsn_code = sc_hsn
 
     # Stock UOM — override the global "Nos" default when sub-cat specifies one.
     # Item.stock_uom defaults to "Nos" via Stock Settings, so we treat "Nos"
@@ -400,8 +407,11 @@ def _copy_ch_fields_from_template(doc):
         if not getattr(doc, field, None) and ch_fields.get(field):
             setattr(doc, field, ch_fields[field])
 
-    # Copy gst_hsn_code from template so India Compliance HSN validation passes
-    if not doc.get("gst_hsn_code") and ch_fields.get("gst_hsn_code"):
+    # Copy gst_hsn_code from template so India Compliance HSN validation
+    # passes. Authoritative (not just fill-if-blank) — a variant's tax must
+    # always match its template/Sub Category, never an independently-set
+    # value from import/API.
+    if ch_fields.get("gst_hsn_code"):
         doc.gst_hsn_code = ch_fields["gst_hsn_code"]
 
     # Copy property spec values from the saved template (FIX-10: always carry

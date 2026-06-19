@@ -110,6 +110,10 @@ def _force_recreate_item(item_name: str, **kw):
 	item = frappe.new_doc("Item")
 	item.item_name = item_name
 	item.item_group = kw.pop("item_group", ITEM_GROUP)
+	# ch_item_master's `validate_item_mrp` makes ch_item_mrp mandatory for
+	# stock items. Tests don't care about the actual MRP value — set a
+	# placeholder so the item validates. Callers can override via kw.
+	kw.setdefault("ch_item_mrp", 100)
 	for k, v in kw.items():
 		setattr(item, k, v)
 	item.insert(ignore_permissions=True)
@@ -338,7 +342,28 @@ class TestItemGovernanceTierA(unittest.TestCase):
 				"sub_categories": [],
 			}]
 		}
+		# Cascade-clean: CHCategory.on_trash blocks deletion when sub-categories
+		# remain (CategoryInUseError); each Sub Category likewise blocks when
+		# Items reference it (SubCategoryInUseError). Drop Items first, then
+		# Sub Categories, then the Category.
 		if frappe.db.exists("CH Category", "_Gov Idem Cat"):
+			sc_names = frappe.get_all(
+				"CH Sub Category", filters={"category": "_Gov Idem Cat"}, pluck="name"
+			)
+			if sc_names:
+				dep_items = frappe.get_all(
+					"Item",
+					filters={"ch_sub_category": ["in", sc_names]},
+					pluck="name",
+				)
+				for it_name in dep_items:
+					frappe.delete_doc(
+						"Item", it_name, force=1, ignore_permissions=True
+					)
+				for sc_name in sc_names:
+					frappe.delete_doc(
+						"CH Sub Category", sc_name, force=1, ignore_permissions=True
+					)
 			frappe.delete_doc("CH Category", "_Gov Idem Cat", force=1, ignore_permissions=True)
 
 		key = "test-idempotency-001"
