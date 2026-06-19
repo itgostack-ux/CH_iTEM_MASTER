@@ -212,11 +212,19 @@ def ensure_templates_for_subcategory(sub_category) -> dict:
 	companies = _india_companies()
 	result: dict[str, str | None] = {}
 
+	# Optional effective date authored on the Sub Category. None → the HSN
+	# row is inserted with no valid_from (legacy behaviour, suitable for
+	# initial provisioning where the rate applies retroactively). A real
+	# date → stamped on the HSN row so newly-created Items inherit it via
+	# India Compliance's `set_taxes_from_hsn_code` hook, mirroring the
+	# stamp `_cascade_tax_to_items` applies to existing items.
+	valid_from = sub_category.get("gst_rate_valid_from")
+
 	for company in companies:
 		template = ensure_item_tax_template(company, gst_rate, gst_treatment)
 		result[company] = template
 		if template:
-			_ensure_hsn_tax_row(sub_category.hsn_code, template)
+			_ensure_hsn_tax_row(sub_category.hsn_code, template, valid_from=valid_from)
 
 	return result
 
@@ -239,9 +247,16 @@ def _india_companies() -> list[str]:
 	return [c for c in rows if not c.startswith("_Test")]
 
 
-def _ensure_hsn_tax_row(hsn_code: str, item_tax_template: str) -> None:
+def _ensure_hsn_tax_row(hsn_code: str, item_tax_template: str, valid_from=None) -> None:
 	"""Append an `Item Tax` row to `GST HSN Code.taxes` for the given template
 	if (and only if) the HSN code does not already point at it.
+
+	``valid_from`` (optional): effective date stamped on the newly-appended
+	row. India Compliance's `set_taxes_from_hsn_code` copies HSN rows to
+	newly-created Items verbatim (`valid_from` included), so this controls
+	when new items will start using the template at PO/PR/PI/SI time.
+	Ignored if a row already exists (idempotent — we never mutate existing
+	rows here; existing-item updates go through ``_cascade_tax_to_items``).
 
 	Avoids `frappe.get_doc(...).save()` on GST HSN Code because that would
 	fire India Compliance's own validators repeatedly on every Sub Category
@@ -260,7 +275,10 @@ def _ensure_hsn_tax_row(hsn_code: str, item_tax_template: str) -> None:
 		return
 
 	parent = frappe.get_doc("GST HSN Code", hsn_code)
-	parent.append("taxes", {"item_tax_template": item_tax_template})
+	row = {"item_tax_template": item_tax_template}
+	if valid_from:
+		row["valid_from"] = valid_from
+	parent.append("taxes", row)
 	parent.flags.ignore_permissions = True
 	parent.flags.ignore_validate_update_after_submit = True
 	# GST HSN Code is non-submittable — save() is the canonical path to

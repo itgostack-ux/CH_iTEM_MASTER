@@ -577,22 +577,29 @@ class CHSubCategory(Document):
 		#   - HSN code change  → wholesale replace Item.taxes (different
 		#     product classification; previous rows are no longer valid).
 		#   - GST rate change  → APPEND rows pointing at the new template
-		#     with `valid_from = today`. Old rows stay so historical
-		#     transactions (before today) still resolve to the prior rate.
-		#     ERPNext's `_get_tax_template_for_item()` picks the latest
-		#     `valid_from` row that is ≤ posting_date, so this is honoured
-		#     automatically at PO/PR/PI/SI validate time.
+		#     stamped with `valid_from = self.gst_rate_valid_from` (or today
+		#     when blank). Old rows stay so historical transactions still
+		#     resolve to the prior rate. ERPNext's `_get_tax_template_for_item()`
+		#     picks the latest `valid_from` row that is ≤ posting_date, so
+		#     this is honoured automatically at PO/PR/PI/SI validate time.
+		#     A future `valid_from` lets admins schedule a rate change in
+		#     advance (mirrors SAP MWST condition validity periods and
+		#     Oracle Fusion effective-dated tax rates).
 		mode = "replace" if hsn_changed else "append_effective_today"
-		updated = self._cascade_tax_to_items(mode=mode)
+		valid_from = self.get("gst_rate_valid_from") if rate_changed else None
+		updated = self._cascade_tax_to_items(mode=mode, valid_from=valid_from)
 		if updated:
 			what = "Tax" if rate_changed and not hsn_changed else "Tax/HSN code"
+			suffix = ""
+			if rate_changed and valid_from:
+				suffix = _(" (effective {0})").format(frappe.utils.formatdate(valid_from))
 			frappe.msgprint(
-				_("{0} updated on {1} Item(s) linked to this Sub Category.").format(what, updated),
+				_("{0} updated on {1} Item(s) linked to this Sub Category{2}.").format(what, updated, suffix),
 				indicator="green",
 				alert=True,
 			)
 
-	def _cascade_tax_to_items(self, mode: str = "replace"):
+	def _cascade_tax_to_items(self, mode: str = "replace", valid_from=None):
 		"""Bulk-propagate self.hsn_code (and the Item Tax Template rows
 		that HSN code carries) to every Item where ch_sub_category == self.name.
 
@@ -602,11 +609,17 @@ class CHSubCategory(Document):
 		      changed (different product classification) — historical rows
 		      are no longer valid.
 		    - ``"append_effective_today"``: keep existing rows, add new ones
-		      for templates not yet present, with ``valid_from = today``. Used
-		      on `gst_rate` change so historical documents still resolve at
-		      the old rate while new documents use the new rate. Mirrors
+		      for templates not yet present, with ``valid_from = today`` (or
+		      ``valid_from`` arg when provided). Used on `gst_rate` change so
+		      historical documents still resolve at the old rate while new
+		      documents (posting_date ≥ valid_from) use the new rate. Mirrors
 		      SAP condition-record validity / Oracle effective-dated tax
 		      rates / ERPNext's own ``_get_tax_template_for_item()`` picker.
+
+		``valid_from`` (only honoured in append mode): explicit effective date
+		for the newly-appended rows. ``None`` → today. A future date schedules
+		the new rate to kick in from that date onwards; past dates back-date
+		corrections.
 
 		Deliberately uses raw SQL / bulk_insert instead of looping
 		``frappe.get_doc("Item", ...).save()`` — Item.validate()/before_save()
@@ -662,10 +675,10 @@ class CHSubCategory(Document):
 
 		# Effective-dated append mode: filter HSN rows down to ones whose
 		# `(item_tax_template, tax_category)` is NOT already on each Item,
-		# and stamp `valid_from = today` so the new rate kicks in from
-		# today onwards while historical transactions still resolve via the
+		# and stamp `valid_from` so the new rate kicks in from that date
+		# onwards while historical transactions still resolve via the
 		# older rows.
-		valid_from_override = nowdate() if mode == "append_effective_today" else None
+		valid_from_override = (valid_from or nowdate()) if mode == "append_effective_today" else None
 
 		user = frappe.session.user
 		fields = [

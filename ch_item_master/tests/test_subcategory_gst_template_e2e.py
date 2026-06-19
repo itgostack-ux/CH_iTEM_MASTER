@@ -16,6 +16,10 @@ Coverage:
      to the new template).
   7. `Nil-Rated` treatment with `gst_rate=0` creates a tax-row-less template.
   8. Non-India companies are skipped.
+  9. Setting `gst_rate_valid_from` to a future date schedules the new rate
+     from that date — the appended `Item.taxes` row carries that exact date,
+     letting admins pre-schedule rate revisions (SAP MWST / Oracle EBS
+     effective-dated tax rate parity).
 """
 
 from __future__ import annotations
@@ -479,3 +483,94 @@ class TestSubCategoryGSTTemplateE2E(unittest.TestCase):
 		sc = frappe.get_doc("CH Sub Category", sc_name)
 		sc.gst_rate = 18
 		sc.save(ignore_permissions=True)
+
+	# -- 10. Future-dated rate change via gst_rate_valid_from ---------------
+
+	def test_future_dated_rate_change(self):
+		"""`gst_rate_valid_from` lets an admin schedule a rate change.
+
+		SAP S/4HANA condition records (KOMV with future-dated validity) and
+		Oracle Fusion effective-dated tax rates both support this. We mirror
+		it here: setting `gst_rate_valid_from` to a future date AND changing
+		`gst_rate` on the same save must stamp the appended `Item.taxes`
+		row with that future date (not today). ERPNext's
+		`_get_tax_template_for_item()` picker will then keep using the OLD
+		row for any posting_date < future_date, and switch to the NEW row
+		for posting_date >= future_date — automatically and per-transaction.
+		"""
+		if not self.eligible_companies:
+			self.skipTest("No India companies have GST Accounts wired on this site")
+
+		from datetime import timedelta
+
+		from frappe.utils import add_days, getdate, nowdate
+
+		future = add_days(nowdate(), 30)  # 30 days out
+
+		# Use a dedicated Sub Category so we don't fight with state from
+		# the previous effective-date test.
+		sc_name = _make_subcat("_Test GST Future Sub", gst_rate=18)
+		sc = frappe.get_doc("CH Sub Category", sc_name)
+		ensure_templates_for_subcategory(sc)
+
+		# Fresh item under this Sub Category.
+		item_code = "_Test GST Future Date Item"
+		if frappe.db.exists("Item", item_code):
+			frappe.delete_doc("Item", item_code, force=1, ignore_permissions=True)
+		it = frappe.new_doc("Item")
+		it.item_code = item_code
+		it.item_name = item_code
+		it.item_group = ITEM_GROUP
+		it.stock_uom = "Nos"
+		it.ch_category = _ensure_category()
+		it.ch_sub_category = sc_name
+		it.ch_item_mrp = 100
+		it.insert(ignore_permissions=True)
+
+		# Trim non-18% rows so we cleanly observe the appended 5% rows.
+		frappe.db.sql(
+			"""
+			DELETE FROM `tabItem Tax`
+			WHERE parenttype = 'Item' AND parent = %s
+			AND item_tax_template NOT LIKE 'GST 18%%'
+			""",
+			(item_code,),
+		)
+
+		# Change rate to 5% AND set the future effective date on the same save.
+		sc = frappe.get_doc("CH Sub Category", sc_name)
+		sc.gst_rate = 5
+		sc.gst_rate_valid_from = future
+		sc.save(ignore_permissions=True)
+
+		rows_after = frappe.get_all(
+			"Item Tax",
+			filters={"parenttype": "Item", "parent": item_code},
+			fields=["item_tax_template", "valid_from"],
+		)
+
+		future_5 = [
+			r for r in rows_after
+			if r.valid_from
+			and getdate(r.valid_from) == getdate(future)
+			and "GST 5%" in (r.item_tax_template or "")
+		]
+		self.assertGreater(
+			len(future_5),
+			0,
+			f"Expected ≥1 new 5% row with valid_from={future}, got {rows_after}",
+		)
+
+		# The 18% rows must still be present — historical transactions need them.
+		old_18 = [
+			r for r in rows_after
+			if "GST 18%" in (r.item_tax_template or "")
+		]
+		self.assertGreater(
+			len(old_18),
+			0,
+			f"Future-dated cascade must NOT delete pre-existing rows, got {rows_after}",
+		)
+
+		# Cleanup
+		frappe.delete_doc("Item", item_code, force=1, ignore_permissions=True)

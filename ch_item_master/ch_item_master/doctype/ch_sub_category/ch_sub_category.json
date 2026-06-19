@@ -48,6 +48,7 @@
   "hsn_code",
   "column_break_tax",
   "gst_rate",
+  "gst_rate_valid_from",
   "name_logic_section",
   "include_manufacturer_in_name",
   "include_brand_in_name",
@@ -342,6 +343,12 @@
    "fieldtype": "Float",
    "label": "GST Rate (%)",
    "precision": "2"
+  },
+  {
+   "fieldname": "gst_rate_valid_from",
+   "fieldtype": "Date",
+   "label": "GST Rate Valid From",
+   "description": "Optional. When the GST Rate above is changed and saved, every linked Item gets a new tax row stamped with this date as `valid_from`. Leave blank to use today. Set a future date to schedule a rate change in advance (mirrors SAP MWST condition validity / Oracle effective-dated tax rates). Past dates are allowed for back-corrections."
   },
   {
    "fieldname": "name_logic_section",
