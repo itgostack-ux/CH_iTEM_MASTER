@@ -411,8 +411,18 @@ def save_city(city_name, state=None, name=None, disabled=0, description=None, co
 	_reject_synthetic(name, "city")
 	clean_name = (city_name or "").strip().title()
 	clean_state = (state or "").strip() or None
-	if name:
-		doc = frappe.get_doc("CH City", name)
+
+	# City masters are deduplicated by name (autoname = format:{city_name}, so
+	# the record name IS the city name — there is no uniqueness suffix). A
+	# "create" request for a city that already exists must therefore UPSERT,
+	# not blindly insert: otherwise the PRIMARY-key collision surfaces to the
+	# user as a raw DuplicateEntryError (e.g. two people both adding
+	# "Chennai-33"). When no explicit `name` was supplied, fall back to any
+	# existing row whose name already matches the cleaned city name.
+	target = name or (clean_name if frappe.db.exists("CH City", clean_name) else None)
+
+	if target:
+		doc = frappe.get_doc("CH City", target)
 		doc.city_name = clean_name
 		doc.state = clean_state
 		doc.disabled = int(disabled or 0)
