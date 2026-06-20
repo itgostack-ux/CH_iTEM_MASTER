@@ -53,19 +53,21 @@ class CHExceptionRequest(Document):
 		roles = set(frappe.get_roles(approver))
 		bypass_roles = {"System Manager", "Administrator"}
 
-		# When a specific approver was assigned (e.g. Category Manager routing),
-		# only that user may approve/reject. System Manager / Administrator can
-		# still override (audited via the standard audit log).
-		if self.assigned_approver and approver != self.assigned_approver:
-			if not roles.intersection(bypass_roles):
-				frappe.throw(
-					_("This exception is assigned to {0}. Only that user can approve or reject it.").format(
-						self.assigned_approver
-					),
-					title=_("Unauthorized Approver"),
-				)
-			return approver
+		# When a specific approver was assigned (matrix routing or Category
+		# Manager), the routing already vetted their authority — that exact
+		# user (or a bypass role) may act, with no further role-allowlist gate.
+		if self.assigned_approver:
+			if approver == self.assigned_approver or roles.intersection(bypass_roles):
+				return approver
+			frappe.throw(
+				_("This exception is assigned to {0}. Only that user can approve or reject it.").format(
+					self.assigned_approver
+				),
+				title=_("Unauthorized Approver"),
+			)
 
+		# Open pool (no specific assignee, e.g. no matrix band matched) —
+		# fall back to the manager role allowlist.
 		allowed_roles = {
 			"Store Manager",
 			"Sales Manager",

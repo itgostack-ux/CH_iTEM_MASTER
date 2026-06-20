@@ -28,6 +28,19 @@ frappe.ui.form.on('Active VAS Plans', {
 			);
 		}
 
+		// External customer-device banner — parity with Oracle Service Contracts
+		// "Covered Level = Customer Item Instance" and MS Dynamics Customer Asset
+		// "Source = Customer-Owned". Makes it visually obvious that the IMEI on
+		// this plan was provided by the customer and is NOT an inventory serial
+		// — this plan does not write to any tabSerial No or CH Stock Bin row.
+		if (frm.doc.is_external_device) {
+			frm.dashboard.add_comment(
+				__('External Customer Device — IMEI <b>{0}</b> was provided by the customer ({1}). This plan covers a device that was not sold by us; no inventory serial / stock bin is linked.',
+					[frm.doc.serial_no || '—', frm.doc.external_device_source || __('external source')]),
+				'blue', true
+			);
+		}
+
 		// Claims progress
 		if (frm.doc.max_claims && frm.doc.max_claims > 0) {
 			let pct = ((frm.doc.claims_used || 0) / frm.doc.max_claims * 100).toFixed(0);
@@ -58,6 +71,20 @@ frappe.ui.form.on('Active VAS Plans', {
 					}
 				);
 			}, __('Actions'));
+		}
+
+		// Dynamic field label / description so the cashier looking at this
+		// record knows the IMEI's provenance.
+		if (frm.fields_dict.serial_no) {
+			if (frm.doc.is_external_device) {
+				frm.set_df_property('serial_no', 'label', __('Customer Device IMEI'));
+				frm.set_df_property('serial_no', 'description',
+					__('Customer-provided IMEI captured at sale time. Not bound to any inventory Serial No / Stock Bin.'));
+			} else {
+				frm.set_df_property('serial_no', 'label', __('Covered Device IMEI / Serial'));
+				frm.set_df_property('serial_no', 'description',
+					__('Serial / IMEI of the device covered by this plan (links to inventory Serial No).'));
+			}
 		}
 	},
 

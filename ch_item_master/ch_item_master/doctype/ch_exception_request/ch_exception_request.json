@@ -22,6 +22,7 @@
   "serial_no",
   "category",
   "assigned_approver",
+  "approval_role",
   "request_section",
   "requested_by",
   "requested_by_name",
@@ -37,6 +38,7 @@
   "column_break_appr",
   "approved_at",
   "approval_expiry",
+  "last_escalated_at",
   "otp_reference",
   "resolution_section",
   "resolution_value",
@@ -94,7 +96,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Status",
-   "options": "Pending\nApproved\nRejected\nExpired\nAuto-Approved",
+   "options": "Pending\nApproved\nRejected\nExpired\nAuto-Approved\nEscalated",
    "read_only": 1,
    "search_index": 1
   },
@@ -163,6 +165,14 @@
    "options": "User",
    "read_only": 1,
    "description": "Specific user (e.g. Category Manager) who must approve this request"
+  },
+  {
+   "fieldname": "approval_role",
+   "fieldtype": "Link",
+   "label": "Approval Role (Band)",
+   "options": "Role",
+   "read_only": 1,
+   "description": "Matrix-resolved role/level that owns this request's value band. Drives SLA escalation to the next band up."
   },
   {
    "fieldname": "request_section",
@@ -253,6 +263,13 @@
    "fieldtype": "Datetime",
    "label": "Approval Expiry",
    "read_only": 1
+  },
+  {
+   "fieldname": "last_escalated_at",
+   "fieldtype": "Datetime",
+   "label": "Last Escalated At",
+   "read_only": 1,
+   "description": "When this request was last auto-escalated to a higher band. Re-arms the SLA window."
   },
   {
    "fieldname": "otp_reference",

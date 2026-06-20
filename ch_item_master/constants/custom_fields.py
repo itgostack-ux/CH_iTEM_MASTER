@@ -100,6 +100,30 @@ CUSTOM_FIELDS = {
 			"in_standard_filter": 1,
 			"description": _("Zone this office/branch belongs to."),
 		},
+		{
+			"fieldname": "ch_branch_address_section",
+			"label": _("Branch Address"),
+			"fieldtype": "Section Break",
+			"insert_after": "ch_zone",
+			"collapsible": 1,
+		},
+		{
+			"fieldname": "ch_branch_address",
+			"label": _("Branch Address"),
+			"fieldtype": "Link",
+			"options": "Address",
+			"insert_after": "ch_branch_address_section",
+			"description": _("Registered / issuing address for this branch. Stored as a standard Address linked to this Branch and Company."),
+		},
+		{
+			"fieldname": "ch_branch_address_display",
+			"label": _("Branch Address Preview"),
+			"fieldtype": "Text Editor",
+			"insert_after": "ch_branch_address",
+			"read_only": 1,
+			"no_copy": 1,
+			"depends_on": "eval:doc.ch_branch_address",
+		},
 	],
 	# ──────────────────────────────────────────────
 	# Manufacturer: Add integer ID for mobile/API

@@ -22,7 +22,11 @@ add_to_apps_screen = [
 ]
 
 app_include_js = "/assets/ch_item_master/js/item_quick_entry.js"
-doctype_js = {"Item": "public/js/item.js", "Customer": "public/js/customer.js"}
+doctype_js = {
+	"Item": "public/js/item.js",
+	"Customer": "public/js/customer.js",
+	"Branch": "public/js/branch.js",
+}
 
 # Installation / Migration
 after_install = "ch_item_master.install.after_install"
@@ -33,6 +37,7 @@ after_migrate = [
 	"ch_item_master.setup.setup_channels",
 	"ch_item_master.setup.sync_workspace",
 	"ch_item_master.setup.setup_vas_settings",
+	"ch_item_master.setup.seed_stock_count_variance_exception_type",
 	"ch_item_master.ch_core.location_hierarchy.backfill_location_hierarchy",
 	"ch_item_master.ch_core.location_hierarchy.backfill_store_bins",
 	"ch_item_master.ch_core.location_hierarchy.backfill_zone_hubs",
@@ -67,6 +72,7 @@ scheduler_events = {
 		"ch_item_master.ch_item_master.rbac.expire_role_assignments",
 	],
 	"hourly": [
+		"ch_item_master.ch_item_master.exception_api.escalate_pending_exceptions",
 		"ch_item_master.ch_item_master.exception_api.expire_stale_exceptions",
 	],
 	"weekly": [
@@ -128,6 +134,9 @@ doc_events = {
 	"Brand": {
 		"before_insert": "ch_item_master.ch_item_master.overrides.brand.before_insert",
 		"before_save": "ch_item_master.ch_item_master.overrides.brand.before_save",
+	},
+	"Branch": {
+		"validate": "ch_item_master.ch_core.branch.validate",
 	},
 	"Item Group": {
 		"before_insert": "ch_item_master.ch_item_master.overrides.item_group.before_insert",

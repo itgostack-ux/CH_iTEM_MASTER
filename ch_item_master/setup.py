@@ -257,6 +257,42 @@ def setup_vas_settings():
         frappe.logger("ch_item_master").info("CH VAS Settings created with defaults")
 
 
+def seed_stock_count_variance_exception_type():
+    """Ensure the 'Stock Count Variance' CH Exception Type exists.
+
+    Raised by CH Cycle Count when a physical count variance exceeds tolerance;
+    routed through the CH Approval Authority matrix before any Stock
+    Reconciliation (ledger/accounting) adjustment is posted. Idempotent.
+    """
+    import frappe
+
+    name = "Stock Count Variance"
+    if not frappe.db.exists("DocType", "CH Exception Type"):
+        return
+    if frappe.db.exists("CH Exception Type", name):
+        return
+    try:
+        doc = frappe.get_doc({
+            "doctype": "CH Exception Type",
+            "exception_type": name,
+            "enabled": 1,
+            "routing_mode": "Approval Matrix",
+            "requires_otp": 0,
+            "max_value_without_approval": 0,
+            "validity_minutes": 1440,
+            "escalation_sla_minutes": 120,
+            "applicable_to_ggr": 1,
+            "applicable_to_gfs": 1,
+        })
+        doc.flags.ignore_permissions = True
+        doc.insert(ignore_permissions=True)
+        frappe.db.commit()
+        frappe.logger("ch_item_master").info("Seeded 'Stock Count Variance' CH Exception Type")
+    except Exception:
+        frappe.log_error(title="seed Stock Count Variance exception type failed",
+                         message=frappe.get_traceback())
+
+
 def delete_ch_custom_fields():
     """Remove custom fields created by CH Item Master. Called on uninstall."""
     import frappe

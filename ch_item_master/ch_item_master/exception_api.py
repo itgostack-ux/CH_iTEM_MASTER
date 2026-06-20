@@ -94,33 +94,7 @@ def raise_exception(exception_type, company, reason, requested_value=0,
 		if cust:
 			exc.customer_phone = cust.mobile_no or cust.ch_alternate_phone or ""
 
-	# Category Manager routing — resolve item's category and its manager.
-	# When the exception type is configured for "Category Manager" approval,
-	# the request must carry an item and that item must belong to a CH Category
-	# whose `category_manager` is set. The resolved user is recorded on the
-	# request and is the only one (besides System Manager) allowed to approve it.
-	if (etype.approval_level or "") == "Category Manager":
-		if not item_code:
-			frappe.throw(
-				_("Category Manager approval requires an item. Please raise this exception from a cart line."),
-				title=_("Item Required"),
-			)
-		category = frappe.db.get_value("Item", item_code, "ch_category")
-		if not category:
-			frappe.throw(
-				_("Item {0} is not mapped to a CH Category. Cannot route to a Category Manager.").format(item_code),
-				title=_("Category Not Set"),
-			)
-		manager = frappe.db.get_value("CH Category", category, "category_manager")
-		if not manager:
-			frappe.throw(
-				_("No Category Manager is configured for category {0}. Please set 'Category Manager' on CH Category {0}.").format(category),
-				title=_("Category Manager Missing"),
-			)
-		exc.category = category
-		exc.assigned_approver = manager
-
-	# Auto-approve if value is within threshold
+	# Auto-approve short-circuit — value within policy threshold needs no approver.
 	if (flt(etype.max_value_without_approval) > 0
 			and flt(requested_value) <= flt(etype.max_value_without_approval)):
 		exc.status = "Auto-Approved"
@@ -139,56 +113,246 @@ def raise_exception(exception_type, company, reason, requested_value=0,
 			"approval_expiry": str(exc.approval_expiry),
 		}
 
+	# Routing — single source of truth = CH Approval Authority matrix.
+	# Resolves exc.category / exc.approval_role / exc.assigned_approver in place.
+	resolve_exception_approver(exc, etype)
+
 	exc.insert(ignore_permissions=True)
 
-	# Notify the assigned Category Manager (best-effort; never block the request).
-	if exc.assigned_approver:
-		try:
-			_notify_assigned_approver(exc)
-		except Exception:
-			frappe.log_error(
-				frappe.get_traceback(),
-				f"CH Exception Request approver notification failed for {exc.name}",
-			)
+	# Alert the responsible team, the assigned approver, and their manager
+	# (best-effort; never block the request).
+	try:
+		_notify_exception_raised(exc, etype)
+	except Exception:
+		frappe.log_error(
+			frappe.get_traceback(),
+			f"CH Exception Request raise-notification failed for {exc.name}",
+		)
 
 	return {
 		"name": exc.name,
 		"status": "Pending",
 		"requires_otp": bool(etype.requires_otp),
 		"requires_ho_approval": bool(etype.requires_ho_approval),
-		"approval_level": etype.approval_level,
+		"routing_mode": etype.routing_mode or "Approval Matrix",
+		"approval_role": exc.approval_role,
 		"assigned_approver": exc.assigned_approver,
 		"category": exc.category,
 	}
 
 
-def _notify_assigned_approver(exc) -> None:
-	"""Email the user assigned to approve a specific exception request.
-	
-	Includes pricing details (original, requested, cost) for faster approval decision-making.
+# ─────────────────────────────────────────────────────────────────────────────
+# Approver routing — matrix-driven (single source of truth)
+# ─────────────────────────────────────────────────────────────────────────────
+
+_AUTH_ACTION = "Approve"
+_AUTH_DOCTYPE = "CH Exception Request"
+
+
+def _authority():
+	"""Return the ch_erp15 authority engine, or None if unavailable.
+
+	Cross-app dependency is optional — if ch_erp15 is not installed the
+	matrix simply yields no routing and the request stays unassigned (any
+	authorised manager can still action it).
 	"""
-	approver = exc.assigned_approver
-	approver_name = frappe.db.get_value("User", approver, "full_name") or approver
-	approver_email = frappe.db.get_value("User", approver, "email") or ""
-	if not approver_email:
-		frappe.log_error(
-			f"No email configured for assigned approver {approver}",
-			f"CH Exception Request approver email missing for {exc.name}",
-		)
+	try:
+		from ch_erp15.ch_erp15.auth import authority
+		return authority
+	except Exception:
+		return None
+
+
+def resolve_exception_approver(exc, etype) -> None:
+	"""Resolve who must approve `exc` and record it on the document.
+
+	Sets ``exc.category`` (from the item), ``exc.approval_role`` (the matrix
+	band) and ``exc.assigned_approver`` (the resolved person). Two modes:
+
+	* **Category Manager** — person-routed to the item's CH Category manager.
+	* **Approval Matrix** (default) — the value band → role is read from
+	  CH Approval Authority and the role → person from CH User Scope.
+	"""
+	mode = etype.routing_mode or "Approval Matrix"
+
+	# Best-effort category resolution (used for routing + condition eval).
+	if exc.item_code and not exc.category:
+		exc.category = frappe.db.get_value("Item", exc.item_code, "ch_category") or None
+
+	if mode == "Category Manager":
+		_route_to_category_manager(exc)
 		return
-	
-	# Format currency for display
+
+	# Approval Matrix mode.
+	auth = _authority()
+	if not auth:
+		return
+	role = auth.required_role_for_amount(
+		_AUTH_ACTION, _AUTH_DOCTYPE, flt(exc.requested_value), doc=exc
+	)
+	if not role:
+		# No band matched — leave unassigned (graceful); team alert still fires.
+		return
+	exc.approval_role = role
+	exc.assigned_approver = _apply_delegation(
+		_resolve_user_by_scope(role, exc.store_warehouse)
+	)
+
+
+def _route_to_category_manager(exc) -> None:
+	"""Legacy person-routing: item → CH Category → category_manager."""
+	if not exc.item_code:
+		frappe.throw(
+			_("Category Manager routing requires an item. Please raise this exception from a cart line."),
+			title=_("Item Required"),
+		)
+	category = exc.category or frappe.db.get_value("Item", exc.item_code, "ch_category")
+	if not category:
+		frappe.throw(
+			_("Item {0} is not mapped to a CH Category. Cannot route to a Category Manager.").format(exc.item_code),
+			title=_("Category Not Set"),
+		)
+	manager = frappe.db.get_value("CH Category", category, "category_manager")
+	if not manager:
+		frappe.throw(
+			_("No Category Manager is configured for category {0}. Please set 'Category Manager' on CH Category {0}.").format(category),
+			title=_("Category Manager Missing"),
+		)
+	exc.category = category
+	exc.assigned_approver = _apply_delegation(manager)
+
+
+def _resolve_user_by_scope(role, store):
+	"""Resolve a role to a single user, preferring those scoped to `store`.
+
+	Mirrors the SAP responsibility-rule / Oracle position-hierarchy pattern:
+	the approver is the holder of `role` whose CH User Scope covers the store.
+	Falls back to any enabled role-holder when no scoped user exists.
+	"""
+	if not role:
+		return None
+	users = []
+	try:
+		from ch_erp15.ch_erp15.notification_router import get_scoped_users
+		users = get_scoped_users([role], store=store) or []
+	except Exception:
+		users = []
+	if not users:
+		users = _users_with_role(role)
+	return users[0] if users else None
+
+
+def _users_with_role(role):
+	"""Enabled, real users holding `role` (excludes Administrator/Guest)."""
+	rows = frappe.get_all(
+		"Has Role",
+		filters={"role": role, "parenttype": "User"},
+		pluck="parent",
+	)
+	return [
+		u for u in rows
+		if u not in ("Administrator", "Guest")
+		and frappe.db.get_value("User", u, "enabled")
+	]
+
+
+def _apply_delegation(user):
+	"""Forward delegation: if `user` has an active CH Approval Delegation,
+	route to the delegate instead (vacation / out-of-office substitution)."""
+	if not user:
+		return user
+	today_d = getdate()
+	for d in frappe.get_all(
+		"CH Approval Delegation",
+		filters={"delegator": user, "active": 1},
+		fields=["delegate", "valid_from", "valid_to"],
+	):
+		if d.valid_from and getdate(d.valid_from) > today_d:
+			continue
+		if d.valid_to and getdate(d.valid_to) < today_d:
+			continue
+		if d.delegate and d.delegate != user:
+			return d.delegate
+	return user
+
+
+def _manager_role_for(exc):
+	"""The role one band ABOVE the assigned band — i.e. the approver's manager."""
+	auth = _authority()
+	if not auth or not exc.approval_role:
+		return None
+	cur_max = auth.max_amount_for_role(_AUTH_ACTION, _AUTH_DOCTYPE, exc.approval_role)
+	if cur_max == float("inf"):
+		return None  # already top of the ladder
+	return auth.next_band_above(_AUTH_ACTION, _AUTH_DOCTYPE, cur_max)
+
+
+def _notify_exception_raised(exc, etype, escalated: bool = False) -> None:
+	"""Alert the responsible team, the assigned approver, and their manager.
+
+	Recipient model (MS Dynamics 365 assigned-to + escalation-owner):
+	  • assigned approver — the matrix/category-resolved person who must act;
+	  • team              — holders of ``notify_team_role`` scoped to the store;
+	  • manager           — holders of the next band-up role scoped to the store.
+	The requester is excluded. Best-effort: missing recipients are skipped.
+	"""
+	store = exc.store_warehouse
+	recipient_users: set[str] = set()
+
+	if exc.assigned_approver:
+		recipient_users.add(exc.assigned_approver)
+
+	team_role = etype.notify_team_role or etype.alert_role
+	if team_role:
+		recipient_users.update(_scoped_or_role(team_role, store))
+
+	mgr_role = _manager_role_for(exc)
+	if mgr_role:
+		recipient_users.update(_scoped_or_role(mgr_role, store))
+
+	# Resolve to emails; drop the requester and blanks.
+	emails: set[str] = set()
+	for u in recipient_users:
+		if u == exc.requested_by:
+			continue
+		email = frappe.db.get_value("User", u, "email")
+		if email:
+			emails.add(email)
+	if not emails:
+		return
+
+	heading = _("Exception Escalated") if escalated else _("Exception Approval Required")
+	subject = _("{0} | {1} | {2}").format(heading, exc.exception_type, exc.name)
+	frappe.sendmail(
+		recipients=sorted(emails),
+		subject=subject,
+		message=_build_exception_email(exc, heading),
+		reference_doctype="CH Exception Request",
+		reference_name=exc.name,
+	)
+
+
+def _scoped_or_role(role, store):
+	"""Store-scoped holders of `role`, falling back to all role-holders."""
+	try:
+		from ch_erp15.ch_erp15.notification_router import get_scoped_users
+		users = get_scoped_users([role], store=store) or []
+	except Exception:
+		users = []
+	return users or _users_with_role(role)
+
+
+def _build_exception_email(exc, heading) -> str:
+	"""Render the rich approval email (device + pricing + request details)."""
 	def fmt_currency(value):
 		val = flt(value or 0)
 		return f"₹{val:,.2f}" if val else "—"
-	
-	# Calculate discount details for pricing section
+
 	original_price = flt(exc.original_value or 0)
 	requested_price = flt(exc.requested_value or 0)
 	discount_amount = max(0, original_price - requested_price)
 	discount_pct = (discount_amount / original_price * 100) if original_price > 0 else 0
-	
-	# Build pricing table HTML for clarity
+
 	pricing_table = (
 		"<table style='width:100%; border-collapse: collapse; margin: 10px 0;'>"
 		"<tr style='background-color: #f5f5f5;'>"
@@ -209,57 +373,48 @@ def _notify_assigned_approver(exc) -> None:
 		"</tr>"
 		"</table>"
 	)
-	
-	subject = _("Exception Approval Required | {0} | {1}").format(
-		exc.exception_type, exc.name
-	)
-	message = _(
-		"<p>Hi {0},</p>"
-		"<p>An exception request requires your approval as <b>Category Manager</b>"
-		" for category <b>{1}</b>.</p>"
+
+	role_line = ""
+	if exc.approval_role:
+		role_line = _("<li><b>Approval Band:</b> {0}</li>").format(exc.approval_role)
+
+	return _(
+		"<p><b>{0}</b></p>"
+		"<p>Exception request <b>{1}</b> requires action.</p>"
 		"<hr style='margin: 15px 0;'>"
 		"<p style='font-size: 14px; margin-bottom: 10px;'><b>📱 Device Details</b></p>"
 		"<ul style='margin: 10px 0; padding-left: 20px;'>"
-		"<li><b>Item:</b> {4} ({5})</li>"
-		"<li><b>Serial No (IMEI):</b> {6}</li>"
-		"<li><b>Category:</b> {14}</li>"
+		"<li><b>Item:</b> {2} ({3})</li>"
+		"<li><b>Serial No (IMEI):</b> {4}</li>"
+		"<li><b>Category:</b> {5}</li>"
 		"</ul>"
 		"<p style='font-size: 14px; margin-bottom: 10px;'><b>💰 Pricing Details</b></p>"
-		"{10}"
+		"{6}"
 		"<p style='font-size: 14px; margin-bottom: 10px;'><b>👤 Request Information</b></p>"
 		"<ul style='margin: 10px 0; padding-left: 20px;'>"
-		"<li><b>Request ID:</b> {2}</li>"
-		"<li><b>Type:</b> {3}</li>"
-		"<li><b>Customer:</b> {7}</li>"
-		"<li><b>Requested By:</b> {8}</li>"
-		"<li><b>Reason:</b> {9}</li>"
+		"<li><b>Type:</b> {7}</li>"
+		"{8}"
+		"<li><b>Customer:</b> {9}</li>"
+		"<li><b>Requested By:</b> {10}</li>"
+		"<li><b>Reason:</b> {11}</li>"
 		"</ul>"
-		"<p><a href='{11}' style='display: inline-block; padding: 10px 20px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 4px;'>"
+		"<p><a href='{12}' style='display: inline-block; padding: 10px 20px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 4px;'>"
 		"👉 Review & Approve in ERPNext</a></p>"
-		"<p style='color: #666; font-size: 12px;'><em>CH Exception Request {2}</em></p>"
+		"<p style='color: #666; font-size: 12px;'><em>CH Exception Request {1}</em></p>"
 	).format(
-		approver_name,
-		exc.category or "",
+		heading,
 		exc.name,
-		exc.exception_type or "",
 		exc.item_name or "",
 		exc.item_code or "",
 		exc.serial_no or "-",
+		exc.category or "-",
+		pricing_table,
+		exc.exception_type or "",
+		role_line,
 		exc.customer_name or exc.customer or "-",
 		exc.requested_by_name or exc.requested_by or "",
 		exc.requested_reason or "",
-		pricing_table,
 		frappe.utils.get_url(f"/app/ch-exception-request/{exc.name}"),
-		"",
-		"",
-		exc.category or "-",
-	)
-	frappe.sendmail(
-		recipients=[approver_email],
-		subject=subject,
-		message=message,
-		reference_doctype="CH Exception Request",
-		reference_name=exc.name,
 	)
 
 
@@ -274,7 +429,7 @@ def approve_exception(exception_name, approver_user=None, channel=None,
 	cannot also approve it (System Manager bypass is audited).
 	"""
 	exc = frappe.get_doc("CH Exception Request", exception_name)
-	if exc.status != "Pending":
+	if exc.status not in ("Pending", "Escalated"):
 		frappe.throw(_("Exception {0} is already {1}").format(exception_name, exc.status), title=_("API Error"))
 
 	frappe.has_permission("CH Exception Request", "write", throw=True)
@@ -323,7 +478,7 @@ def approve_exception(exception_name, approver_user=None, channel=None,
 def reject_exception(exception_name, reason=None) -> dict:
 	"""Reject an exception request."""
 	exc = frappe.get_doc("CH Exception Request", exception_name)
-	if exc.status != "Pending":
+	if exc.status not in ("Pending", "Escalated"):
 		frappe.throw(_("Exception {0} is already {1}").format(exception_name, exc.status), title=_("API Error"))
 
 	frappe.has_permission("CH Exception Request", "write", throw=True)
@@ -364,7 +519,7 @@ def request_exception_otp(exception_name, mobile_no) -> dict:
 	Uses the exception type as the OTP purpose.
 	"""
 	exc = frappe.get_doc("CH Exception Request", exception_name)
-	if exc.status != "Pending":
+	if exc.status not in ("Pending", "Escalated"):
 		frappe.throw(_("Exception {0} is already {1}").format(exception_name, exc.status), title=_("API Error"))
 
 	from ch_item_master.ch_core.doctype.ch_otp_log.ch_otp_log import CHOTPLog
@@ -398,7 +553,7 @@ def get_pending_exceptions(company=None, store_warehouse=None, exception_type=No
 	user = frappe.session.user
 	filters = {
 		"requested_by": user,
-		"status": ("in", ["Pending", "Awaiting Approval", "Approved", "Auto-Approved"]),
+		"status": ("in", ["Pending", "Escalated", "Awaiting Approval", "Approved", "Auto-Approved"]),
 		"docstatus": ("!=", 2),
 	}
 	if company:
@@ -451,19 +606,95 @@ def get_exception_summary(company, from_date=None, to_date=None) -> dict:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Scheduled: expire stale pending requests
+# Scheduled: SLA escalation, then hard expiry
 # ─────────────────────────────────────────────────────────────────────────────
 
+def escalate_pending_exceptions():
+	"""Escalate SLA-breached Pending requests to the next matrix band up.
+
+	Market-standard escalate-then-expire ladder (SAP deadlines / Oracle timeout /
+	D365 escalation owner). For each Pending/Escalated request whose exception
+	type defines an ``escalation_sla_minutes`` and that has waited longer than
+	that window since it was raised (or last escalated), the assigned band is
+	moved up one level, the approver is re-resolved, and the team + new approver
+	+ their manager are re-alerted. Requests already at the top band are left for
+	the 24h hard expiry. Runs hourly.
+	"""
+	auth = _authority()
+	if not auth:
+		return
+
+	now = now_datetime()
+	candidates = frappe.get_all("CH Exception Request",
+		filters={"status": ("in", ["Pending", "Escalated"]), "docstatus": 0},
+		fields=["name", "exception_type", "approval_role", "raised_at", "last_escalated_at"],
+		limit=500,
+	)
+
+	escalated = 0
+	for row in candidates:
+		try:
+			if not row.approval_role:
+				continue
+			etype = frappe.get_cached_doc("CH Exception Type", row.exception_type)
+			sla = etype.escalation_sla_minutes or 0
+			if sla <= 0:
+				continue
+			anchor = row.last_escalated_at or row.raised_at
+			if not anchor or now < add_to_date(anchor, minutes=sla):
+				continue
+
+			cur_max = auth.max_amount_for_role(_AUTH_ACTION, _AUTH_DOCTYPE, row.approval_role)
+			if cur_max == float("inf"):
+				continue  # already top band — leave for hard expiry
+			next_role = auth.next_band_above(_AUTH_ACTION, _AUTH_DOCTYPE, cur_max)
+			if not next_role or next_role == row.approval_role:
+				continue
+
+			exc = frappe.get_doc("CH Exception Request", row.name)
+			prior_role = exc.approval_role
+			exc.approval_role = next_role
+			exc.assigned_approver = _apply_delegation(
+				_resolve_user_by_scope(next_role, exc.store_warehouse)
+			)
+			exc.status = "Escalated"
+			exc.last_escalated_at = now
+			exc.save(ignore_permissions=True)
+
+			try:
+				_notify_exception_raised(exc, etype, escalated=True)
+			except Exception:
+				frappe.log_error(
+					frappe.get_traceback(),
+					f"Escalation alert failed for {exc.name}",
+				)
+			exc._write_audit_log(
+				before=f"Band {prior_role}",
+				after=f"Escalated to {next_role}",
+				remarks=f"SLA breach ({sla} min) auto-escalation",
+				event_type="Other",
+			)
+			escalated += 1
+		except Exception:
+			frappe.log_error(
+				frappe.get_traceback(),
+				f"Exception escalation failed for {row.name}",
+			)
+
+	if escalated:
+		frappe.db.commit()
+
+
 def expire_stale_exceptions():
-	"""Mark old pending exceptions as Expired.
+	"""Mark old pending/escalated exceptions as Expired.
 
 	Called via scheduler (hourly). An exception that has been pending for
-	more than 24 hours is auto-expired.
+	more than 24 hours — after exhausting SLA escalation — is auto-expired.
 	"""
 	cutoff = add_to_date(now_datetime(), hours=-24)
 	stale = frappe.get_all("CH Exception Request",
 		filters={
-			"status": "Pending",
+			"status": ("in", ["Pending", "Escalated"]),
 			"docstatus": 0,
 			"raised_at": ("<=", cutoff),
 		},

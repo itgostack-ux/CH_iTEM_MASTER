@@ -30,3 +30,4 @@ ch_item_master.patches.v21_unify_ch_city_master
 ch_item_master.patches.v22_ensure_item_mrp_on_variants
 ch_item_master.patches.v23_canonicalise_city_state_names
 ch_item_master.patches.v24_finalize_city_state_canonicalisation
+ch_item_master.patches.v25_exception_routing_mode

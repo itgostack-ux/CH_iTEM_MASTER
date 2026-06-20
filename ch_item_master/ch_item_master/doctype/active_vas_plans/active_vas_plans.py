@@ -219,7 +219,7 @@ class ActiveVASPlans(Document):
 		)
 		if existing:
 			plan_title = (
-				frappe.db.get_value("CH Warranty Plan", self.warranty_plan, "plan_title")
+				frappe.db.get_value("CH Warranty Plan", self.warranty_plan, "plan_name")
 				or self.warranty_plan
 			)
 			frappe.throw(

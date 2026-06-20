@@ -12,16 +12,18 @@
   "requires_otp",
   "requires_ho_approval",
   "column_break_cfg",
-  "approval_level",
+  "routing_mode",
   "max_value_without_approval",
   "validity_section",
   "validity_minutes",
+  "escalation_sla_minutes",
   "column_break_val",
   "max_occurrences_per_day",
   "applicable_section",
   "applicable_to_ggr",
   "applicable_to_gfs",
   "column_break_app",
+  "notify_team_role",
   "alert_role"
  ],
  "fields": [
@@ -65,12 +67,13 @@
    "fieldtype": "Column Break"
   },
   {
-   "default": "Store Manager",
-   "fieldname": "approval_level",
+   "default": "Approval Matrix",
+   "fieldname": "routing_mode",
    "fieldtype": "Select",
-   "label": "Approval Level",
-   "options": "Store Manager\nArea Manager\nRegional Head\nHO Finance\nCOO\nMD\nCategory Manager",
-   "description": "If 'Category Manager' is selected, the request is routed to the manager of the item's CH Category."
+   "label": "Routing Mode",
+   "options": "Approval Matrix\nCategory Manager",
+   "reqd": 1,
+   "description": "<b>Approval Matrix</b> (default): value band → role is resolved from CH Approval Authority (the single source of truth) and the person from CH User Scope. <b>Category Manager</b>: routed to the manager of the item's CH Category. The old flat 'Approval Level' list has been removed — define the role ladder in CH Approval Authority (Approval Matrix page)."
   },
   {
    "default": "0",
@@ -89,6 +92,13 @@
    "fieldtype": "Int",
    "label": "Approval Validity (Minutes)",
    "description": "How long the approval remains valid after granted"
+  },
+  {
+   "default": "60",
+   "fieldname": "escalation_sla_minutes",
+   "fieldtype": "Int",
+   "label": "Escalation SLA (Minutes)",
+   "description": "If still Pending after this many minutes, auto-escalate to the next role band up the matrix and re-alert. 0 = no auto-escalation (only the 24h hard expiry applies)."
   },
   {
    "fieldname": "column_break_val",
@@ -123,11 +133,19 @@
    "fieldtype": "Column Break"
   },
   {
+   "fieldname": "notify_team_role",
+   "fieldtype": "Link",
+   "label": "Notify Team Role",
+   "options": "Role",
+   "description": "The responsible team to alert (store-scoped) when this exception is raised. The assigned approver and their manager (next band up) are always alerted in addition."
+  },
+  {
    "fieldname": "alert_role",
    "fieldtype": "Link",
-   "label": "Alert Role",
+   "label": "Alert Role (Legacy)",
    "options": "Role",
-   "description": "Role to notify when this exception is raised"
+   "description": "Deprecated — kept for backward compatibility. Used as the team to alert only when 'Notify Team Role' is empty.",
+   "depends_on": "alert_role"
   }
  ],
  "index_web_pages_for_search": 0,
