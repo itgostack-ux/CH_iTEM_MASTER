@@ -543,12 +543,28 @@ def request_exception_otp(exception_name, mobile_no) -> dict:
 # Query / Report helpers
 # ─────────────────────────────────────────────────────────────────────────────
 
+# Exception types that belong to the cycle-count / inventory audit workflow,
+# NOT the cashier "override the bill" workflow. Keeping these out of the POS
+# Exceptions tab matches the market-standard separation (SAP CAR / Oracle
+# Retail / Dynamics 365 Commerce): price/discount overrides live in the POS
+# transaction context; stock variance approvals live in the audit workspace.
+_CYCLE_COUNT_EXCEPTION_TYPES = ("Stock Count Variance",)
+
+
 @frappe.whitelist()
-def get_pending_exceptions(company=None, store_warehouse=None, exception_type=None) -> list:
+def get_pending_exceptions(
+	company=None, store_warehouse=None, exception_type=None, scope="bill"
+) -> list:
 	"""Return pending and recently-approved exception requests for the current user.
 
-	Approved exceptions (not yet consumed) are included so the cashier can use
-	the "Apply & Bill" button without relying solely on the background poll.
+	``scope`` filters by request family so the two workspaces don't bleed
+	into each other:
+	- ``"bill"`` (default) – cashier overrides only (Discount Override,
+	  Free Accessory, Below Margin Sale, Return Beyond Policy, …).
+	  Excludes Stock Count Variance / any CH Cycle Count-sourced request.
+	- ``"cycle_count"`` – only Stock Count Variance requests (Stock Audit
+	  workspace).
+	- ``"all"`` – no scope filter (admin / legacy callers).
 	"""
 	user = frappe.session.user
 	filters = {
@@ -562,6 +578,11 @@ def get_pending_exceptions(company=None, store_warehouse=None, exception_type=No
 		filters["store_warehouse"] = store_warehouse
 	if exception_type:
 		filters["exception_type"] = exception_type
+	elif scope == "cycle_count":
+		filters["exception_type"] = ("in", list(_CYCLE_COUNT_EXCEPTION_TYPES))
+	elif scope == "bill":
+		filters["exception_type"] = ("not in", list(_CYCLE_COUNT_EXCEPTION_TYPES))
+	# scope == "all" → no exception_type clause
 
 	return frappe.get_all("CH Exception Request",
 		filters=filters,
