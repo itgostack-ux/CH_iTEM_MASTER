@@ -263,6 +263,18 @@ def get_company_location_tree(company=None, warehouse_view="all"):
 			"offices": [],
 		}
 
+	# Pre-fetch CH Store labels so warehouse pills (especially Store Bins) can
+	# display the friendly store name instead of the verbose warehouse code.
+	# In-memory dict join — cheaper than SQL JOIN since the CH Store master is
+	# tiny and we'd otherwise have to denormalise via get_all hacks.
+	# We surface `store_name` (long descriptive label, e.g. "Kelambakkam Store")
+	# so the JS pill can render "<ch_store> (<ch_store_name>)" on bin pills
+	# whenever the short id and long label differ.
+	store_labels = {
+		s.name: s.store_name
+		for s in frappe.get_all("CH Store", fields=["name", "store_name"])
+	}
+
 	for warehouse in frappe.get_all(
 		"Warehouse",
 		filters={"disabled": 0, "is_group": 0},
@@ -273,7 +285,17 @@ def get_company_location_tree(company=None, warehouse_view="all"):
 			continue
 		if not _warehouse_matches_view(warehouse, warehouse_view):
 			continue
-		_zone_bucket(companies, warehouse.company, warehouse.ch_city, warehouse.ch_zone)["warehouses"].append(warehouse)
+		# Decorate with the friendly store label (None for warehouses not
+		# attached to a CH Store, which is fine — JS falls back gracefully).
+		warehouse["ch_store_name"] = (
+			store_labels.get(warehouse.ch_store) if warehouse.ch_store else None
+		)
+		_zone_bucket(
+			companies,
+			warehouse.company,
+			warehouse.ch_city,
+			warehouse.ch_zone,
+		)["warehouses"].append(warehouse)
 
 	store_filters = {"disabled": 0}
 	if company:

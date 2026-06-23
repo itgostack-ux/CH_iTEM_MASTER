@@ -271,9 +271,17 @@ class LocationHierarchyView {
 					const storeActions = isSynthetic
 						? `<a href="#" data-act="move-store" class="btn-link text-primary">${__('→ Assign Zone')}</a>`
 						: `<a href="#" data-act="del-store" class="btn-link text-danger">×</a>`;
-					const $p = $(`<span class="lh-pill lh-store">
-						<a href="/app/ch-store/${encodeURIComponent(s.name)}" target="_blank">${frappe.utils.escape_html(s.store_code || s.name)}</a>
-						<small class="text-muted">${s.store_name ? '· ' + s.store_name : ''}</small>
+					// Show the CH Store identity in the requested format:
+					//   "<name> · <store_name>"   →  e.g. "Doveton · Doveton"
+					//                                  or "Doveton · Kelambakkam Store"
+					// The store_code (STO-BMPL-CHENNA-…) is dropped from the
+					// visible label and demoted to a tooltip — it was visually
+					// noisy and didn't help users identify the store at a glance.
+					const primary   = s.name || s.store_code;
+					const secondary = s.store_name || s.name;
+					const $p = $(`<span class="lh-pill lh-store" title="${frappe.utils.escape_html(s.store_code || s.name)}">
+						<a href="/app/ch-store/${encodeURIComponent(s.name)}" target="_blank">${frappe.utils.escape_html(primary)}</a>
+						<small class="text-muted">· ${frappe.utils.escape_html(secondary)}</small>
 						<span class="lh-actions">${storeActions}</span>
 					</span>`).appendTo($sRow);
 					if (isSynthetic) {
@@ -445,15 +453,39 @@ class LocationHierarchyView {
 	}
 
 	_draw_bin_pill($parent, w, company, city, zone) {
-		// Specialised pill for Store Bin warehouses — prepends the bin type
-		// (e.g. "BUYBACK") as a small tag so users can scan the grid by state
-		// without reading the full warehouse name.
+		// Specialised pill for Store Bin warehouses. We deliberately do NOT
+		// render the verbose warehouse name (e.g. "STO-BMPL-CHENNA-0003-Buyback")
+		// because the bin_type tag already conveys the stock-state bucket and
+		// the CH Store identity is what users actually need to scan for.
+		//
+		// Layout:  [BUYBACK]  Doveton (Kelambakkam Store)
+		//          ^tag       ^ch_store  ^ch_store_name (parens only when distinct)
+		//
+		// Falls back gracefully when the bin isn't linked to a CH Store —
+		// shows the warehouse_name / name so legacy data stays visible.
 		const binType = w.ch_bin_type || '';
 		const tag = binType
 			? `<span class="lh-bin-type-tag">${frappe.utils.escape_html(binType)}</span>`
 			: '';
+
+		// Resolve the display label from the in-memory CH Store join the
+		// server performs in get_company_location_tree.
+		const storeId   = w.ch_store || '';
+		const storeName = w.ch_store_name || '';
+		let label;
+		if (storeId && storeName && storeId !== storeName) {
+			// Distinct short id + long name → render both: "Doveton (Kelambakkam Store)"
+			label = `${frappe.utils.escape_html(storeId)} <span class="text-muted">(${frappe.utils.escape_html(storeName)})</span>`;
+		} else if (storeId || storeName) {
+			// Only one of the two is set, or they're identical — show once.
+			label = frappe.utils.escape_html(storeId || storeName);
+		} else {
+			// Orphan bin (no CH Store linked) — fall back to warehouse identity.
+			label = frappe.utils.escape_html(w.warehouse_name || w.name);
+		}
+
 		const $p = $(`<span class="lh-pill lh-warehouse-bin" title="${frappe.utils.escape_html(w.name)}">
-			${tag}<a href="/app/warehouse/${encodeURIComponent(w.name)}" target="_blank">${frappe.utils.escape_html(w.warehouse_name || w.name)}</a>
+			${tag}<a href="/app/warehouse/${encodeURIComponent(w.name)}" target="_blank">${label}</a>
 		</span>`).appendTo($parent);
 		return $p;
 	}
