@@ -244,8 +244,17 @@ class CHExceptionRequest(Document):
 		return self
 
 	def is_valid(self):
-		"""Check if this approved exception is still within its validity window."""
-		if self.status != "Approved" or self.docstatus != 1:
+		"""Check if this approved exception is still within its validity window.
+
+		Both ``Approved`` (manual / OTP-approved) and ``Auto-Approved`` (under
+		policy threshold) statuses are treated as consumable — they mean the
+		same thing operationally (the request has cleared approval and is
+		ready to back a Sales Invoice). Excluding ``Auto-Approved`` here
+		silently blocks every short-circuit policy approval from ever being
+		applied to a bill, even though the JS layer (``_is_appliable``)
+		whitelists both.
+		"""
+		if self.status not in ("Approved", "Auto-Approved") or self.docstatus != 1:
 			return False
 		if self.approval_expiry and now_datetime() > self.approval_expiry:
 			return False
