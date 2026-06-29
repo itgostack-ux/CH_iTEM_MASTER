@@ -34,3 +34,4 @@ ch_item_master.patches.v25_exception_routing_mode
 ch_item_master.patches.seed_whatsapp_account_from_single
 ch_item_master.patches.seed_whatsapp_events
 ch_item_master.patches.seed_message_templates
+ch_item_master.patches.v16_prune_legacy_bin_types

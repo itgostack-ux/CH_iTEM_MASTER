@@ -100,16 +100,36 @@ class CHStore(Document):
 # The store warehouse itself is the implicit "Sellable" bin (it carries
 # ch_bin_type='Sellable' so all existing resolvers keep working).
 # (Bin type label, suffix used in warehouse name)
+#
+# Path B Phase 1 cleanup (2026-06-29):
+#   * Reserved   — removed; soft reservations are tracked in the
+#                  reservation tables (e.g. Spare Parts Usage), no
+#                  physical bin needed. Mirrors SAP/Oracle reservation
+#                  semantics. Existing per-store Reserved warehouses
+#                  with stock are left in place (disabled by patch only
+#                  when empty).
+#   * Disposed   — removed; disposal posts a write-off Stock Entry to
+#                  a Disposal expense account (SAP/Oracle parity).
+#                  Stock leaves on-hand; no permanent "Disposed" bucket.
+#   * In-Transit — removed at store level; transit is handled by the
+#                  company-level `Goods In Transit - <abbr>` warehouse
+#                  that ERPNext already provisions and the Material
+#                  Transfer workflow uses.
+# Phase 2 (Inventory Dimension) will eventually fold the remaining 3
+# bins into a CH Stock Status dimension on the base warehouse so the
+# tree stops multiplying physical warehouses by status.
 STORE_BIN_TYPES = (
-    ("In-Transit", "InTransit"),
     ("Damaged", "Damaged"),
-    ("Disposed", "Disposed"),
-    ("Reserved", "Reserved"),
-    ("Buyback", "Buyback"),
     # Demo: valued stock used for in-store demonstration units. Counted in
     # warehouse stock value but tagged so reports/aging can isolate it.
     ("Demo", "Demo"),
+    ("Buyback", "Buyback"),
 )
+
+# Legacy bin types still recognised for read/display compatibility but
+# never auto-created on new stores. The custom_fields.py Select still
+# lists them so existing warehouses remain valid.
+LEGACY_STORE_BIN_TYPES = ("In-Transit", "Disposed", "Reserved")
 
 
 def ensure_store_bins(store):

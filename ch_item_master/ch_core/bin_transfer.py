@@ -1,7 +1,11 @@
 """Bin transfer / stock allocation engine for CH Store warehouses.
 
-Every CH Store has exactly 5 stock-state bins (see ch_store.STORE_BIN_TYPES):
-	Sellable, In-Transit, Damaged, Disposed, Reserved
+Active bins on new stores (see ch_store.STORE_BIN_TYPES):
+	Sellable, Damaged, Demo, Buyback
+
+Legacy bins still recognised for read/display compatibility (see
+ch_store.LEGACY_STORE_BIN_TYPES):
+	In-Transit, Disposed, Reserved
 
 This module is the single source of truth for:
  1. Bin lookup helpers (store + bin_type -> warehouse name)

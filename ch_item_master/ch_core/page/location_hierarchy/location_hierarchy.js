@@ -500,7 +500,11 @@ class LocationHierarchyView {
 			&nbsp;·&nbsp; <b>${__('Zone')}:</b> ${frappe.utils.escape_html(zone.zone_name || zone.zone)}
 		</div>`;
 
-		const STANDARD = ['In-Transit', 'Damaged', 'Disposed', 'Reserved', 'Buyback'];
+		// Path B Phase 1: only the 3 active bin types are offered for new
+		// creation. Reserved / Disposed / In-Transit were removed (see
+		// ch_store.py STORE_BIN_TYPES rationale). Existing warehouses of
+		// those types remain readable in the tree.
+		const STANDARD = ['Damaged', 'Demo', 'Buyback'];
 		const d = new frappe.ui.Dialog({
 			title: __('Add Bin to {0}', [store.store_code || store.name]),
 			fields: [
