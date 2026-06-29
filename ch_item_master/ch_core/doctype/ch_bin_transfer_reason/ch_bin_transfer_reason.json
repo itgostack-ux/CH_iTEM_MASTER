@@ -32,7 +32,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Move To Bin",
-   "options": "\nSellable\nIn-Transit\nDamaged\nDisposed\nReserved",
+   "options": "\nSellable\nDamaged\nBuyback\nDemo",
    "reqd": 1,
    "description": "Destination bin type when this reason is selected."
   },
@@ -45,7 +45,7 @@
    "fieldtype": "Select",
    "in_standard_filter": 1,
    "label": "Move From Bin (Optional)",
-   "options": "\nSellable\nIn-Transit\nDamaged\nDisposed\nReserved",
+   "options": "\nSellable\nDamaged\nBuyback\nDemo",
    "description": "Leave blank to allow any source bin (POS user picks)."
   },
   {

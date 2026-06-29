@@ -1,11 +1,13 @@
 """Bin transfer / stock allocation engine for CH Store warehouses.
 
-Active bins on new stores (see ch_store.STORE_BIN_TYPES):
+Canonical bins on every store (see ch_store.STORE_BIN_TYPES):
 	Sellable, Damaged, Demo, Buyback
 
-Legacy bins still recognised for read/display compatibility (see
-ch_store.LEGACY_STORE_BIN_TYPES):
-	In-Transit, Disposed, Reserved
+Transit between stores uses the company-level ``Goods In Transit - <abbr>``
+warehouse that ERPNext provisions for every Company, not per-store transit
+bins. Soft reservations live in reservation tables. Disposal posts a
+write-off Stock Entry against a disposal expense account. There is no
+``In-Transit`` / ``Reserved`` / ``Disposed`` bin in the canonical model.
 
 This module is the single source of truth for:
  1. Bin lookup helpers (store + bin_type -> warehouse name)
@@ -33,24 +35,32 @@ from erpnext.stock.serial_batch_bundle import SerialBatchCreation
 # ──────────────────────────────────────────────────────────────────────────
 
 # Canonical list of bin types (mirrors ch_store.STORE_BIN_TYPES).
-BIN_TYPES = ("Sellable", "In-Transit", "Damaged", "Disposed", "Reserved", "Demo")
+# In-Transit / Disposed / Reserved were removed in Path B Phase 3
+# (2026-06-29) along with their per-store warehouses, in favour of:
+#   - Goods In Transit - <abbr>  (company-level, for transit)
+#   - reservation tables         (soft reservations)
+#   - write-off Stock Entry      (disposal)
+BIN_TYPES = ("Sellable", "Damaged", "Demo", "Buyback")
 
 # Default rules: for each business event, where do items move?
 # Format: { event: (from_bin_type, to_bin_type) }
-# `None` means "decided at runtime" (e.g. POS user picks).
+# ``None`` means "decided at runtime" (e.g. POS user picks).
+# NOTE: this dict is currently declarative — the live API
+# (``transfer_between_bins`` / ``pos_bin_transfer``) takes explicit
+# from/to bin types from the caller. It exists as a contract reference
+# for downstream features (e.g. workflow buttons) that need to map a
+# business event to the canonical bin pair.
 DEFAULT_ALLOCATION_RULES = {
 	# Outbound to customer — always debits Sellable.
 	"pos_sale": ("Sellable", None),               # leaves the store entirely
 	"sales_return": (None, "Sellable"),           # back into Sellable by default
-	# Internal movements.
-	"pre_book": ("Sellable", "Reserved"),         # holds stock for an order
-	"release_reservation": ("Reserved", "Sellable"),
+	# Internal bin moves within a single store.
 	"mark_damaged": ("Sellable", "Damaged"),
-	"damaged_in_transit": ("In-Transit", "Damaged"),
-	"received_from_zone": ("In-Transit", "Sellable"),  # inbound completion
-	"dispatch_to_zone": ("Sellable", "In-Transit"),    # outbound start
-	"dispose": ("Damaged", "Disposed"),
 	"return_to_sellable": ("Damaged", "Sellable"),     # repaired / re-graded
+	"buyback_intake": (None, "Buyback"),               # used-device intake
+	"buyback_to_sellable": ("Buyback", "Sellable"),    # refurbished re-sale
+	"to_demo": ("Sellable", "Demo"),                   # promote to display unit
+	"from_demo": ("Demo", "Sellable"),                 # retire demo back to floor
 }
 
 
@@ -721,16 +731,25 @@ def backfill_existing_stock_to_sellable(store: str | None = None, dry_run: int =
 
 DEFAULT_REASONS = [
 	# (reason_name, target_bin, source_bin, requires_serial, description)
-	("Customer Pre-Booking", "Reserved", "Sellable", 0, "Hold stock against a confirmed booking."),
-	("Release Reservation", "Sellable", "Reserved", 0, "Free up reserved stock back to sellable."),
+	# Damage handling.
 	("Damaged on Shop Floor", "Damaged", "Sellable", 0, "Item broken / damaged while on shelf."),
-	("Damaged In Transit", "Damaged", "In-Transit", 0, "Damaged during transfer from zone."),
+	("Repaired - Back To Sellable", "Sellable", "Damaged", 0, "Repaired and re-graded."),
+	# Customer returns.
 	("Customer Return - Sellable", "Sellable", None, 0, "Returned item is resellable."),
 	("Customer Return - Damaged", "Damaged", None, 0, "Returned item is damaged."),
-	("Received From Zone Hub", "Sellable", "In-Transit", 0, "Goods receipt completion."),
-	("Dispatch To Zone Hub", "In-Transit", "Sellable", 0, "Outbound transfer to hub."),
-	("Dispose Damaged Item", "Disposed", "Damaged", 1, "Scrap / write-off; requires serial."),
-	("Repaired - Back To Sellable", "Sellable", "Damaged", 0, "Repaired and re-graded."),
+	# Buyback workflow.
+	("Buyback Intake", "Buyback", None, 1, "Used device received from customer."),
+	("Buyback Refurbished", "Sellable", "Buyback", 1, "Refurbished buyback unit ready for re-sale."),
+	# Demo / display units.
+	("Promote To Demo", "Demo", "Sellable", 1, "Move a Sellable unit to in-store demo."),
+	("Retire Demo", "Sellable", "Demo", 1, "Retire a demo unit back to the sales floor."),
+	# NOTE: legacy reasons (Customer Pre-Booking, Release Reservation,
+	# Damaged In Transit, Received/Dispatch To Zone Hub, Dispose Damaged
+	# Item) were retired in Path B Phase 3 (2026-06-29) when the
+	# In-Transit / Reserved / Disposed bin types were removed from the
+	# canonical model. Reservations live in reservation tables, transit
+	# uses the company-level Goods In Transit warehouse, and disposal
+	# posts a write-off Stock Entry.
 ]
 
 

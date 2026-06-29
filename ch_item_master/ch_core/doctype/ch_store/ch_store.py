@@ -105,9 +105,7 @@ class CHStore(Document):
 #   * Reserved   — removed; soft reservations are tracked in the
 #                  reservation tables (e.g. Spare Parts Usage), no
 #                  physical bin needed. Mirrors SAP/Oracle reservation
-#                  semantics. Existing per-store Reserved warehouses
-#                  with stock are left in place (disabled by patch only
-#                  when empty).
+#                  semantics.
 #   * Disposed   — removed; disposal posts a write-off Stock Entry to
 #                  a Disposal expense account (SAP/Oracle parity).
 #                  Stock leaves on-hand; no permanent "Disposed" bucket.
@@ -115,7 +113,14 @@ class CHStore(Document):
 #                  company-level `Goods In Transit - <abbr>` warehouse
 #                  that ERPNext already provisions and the Material
 #                  Transfer workflow uses.
-# Phase 2 (Inventory Dimension) will eventually fold the remaining 3
+#
+# Path B Phase 3 (2026-06-29): the three legacy bin types above were
+# hard-purged from the dev dataset and removed from the
+# ``ch_bin_type`` Select options. The corresponding
+# ``LEGACY_STORE_BIN_TYPES`` constant is gone — there is now exactly
+# one canonical set of bin types.
+#
+# Phase 4 (Inventory Dimension) will eventually fold the remaining 3
 # bins into a CH Stock Status dimension on the base warehouse so the
 # tree stops multiplying physical warehouses by status.
 STORE_BIN_TYPES = (
@@ -125,11 +130,6 @@ STORE_BIN_TYPES = (
     ("Demo", "Demo"),
     ("Buyback", "Buyback"),
 )
-
-# Legacy bin types still recognised for read/display compatibility but
-# never auto-created on new stores. The custom_fields.py Select still
-# lists them so existing warehouses remain valid.
-LEGACY_STORE_BIN_TYPES = ("In-Transit", "Disposed", "Reserved")
 
 
 def ensure_store_bins(store):

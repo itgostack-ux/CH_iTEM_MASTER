@@ -179,7 +179,7 @@ def test_store_bins_created():
             pluck="ch_bin_type",
         )
         bin_types = set(bins)
-        expected = {"In-Transit", "Damaged", "Disposed", "Reserved", "Buyback"}
+        expected = {"Damaged", "Demo", "Buyback"}
         missing = expected - bin_types
         frappe.db.rollback()
 
