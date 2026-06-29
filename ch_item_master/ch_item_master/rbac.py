@@ -403,3 +403,146 @@ def _notify_break_glass(log_name: str, reason: str) -> None:
 		)
 	except Exception:
 		frappe.log_error(title="Break Glass notification failed", message=frappe.get_traceback())
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Break-Glass session monitoring (SAP GRC / Oracle Fusion Firefighter parity)
+# Hourly scheduled task: escalates sessions that stay open past the SLA window.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# SLA targets (hours). Aligned with the CH Break Glass Audit report buckets.
+BREAK_GLASS_SLA_HOURS = 4
+BREAK_GLASS_HARD_LIMIT_HOURS = 24
+
+
+def monitor_break_glass_sessions() -> dict:
+	"""Hourly scheduler hook.
+
+	1. Marks sessions open beyond :data:`BREAK_GLASS_SLA_HOURS` as ``Escalated``.
+	2. Sends a consolidated digest e-mail to System Managers listing every
+	   currently-open session (with hours-open) and every closed session that
+	   is still ``Pending Review`` — so security can act in one place.
+
+	Idempotent: only flips ``review_status`` when it is not already
+	``Escalated``; the digest is sent only when there is something to report.
+	"""
+	from frappe.utils import get_datetime
+
+	now = now_datetime()
+
+	open_rows = frappe.get_all(
+		"CH Break Glass Log",
+		filters={"end_time": ["is", "not set"]},
+		fields=["name", "user", "reason", "start_time", "review_status"],
+		order_by="start_time asc",
+	)
+
+	overdue: list[dict] = []
+	hard_breach: list[dict] = []
+	for row in open_rows:
+		start = get_datetime(row.start_time) if row.start_time else None
+		if not start:
+			continue
+		hours = (now - start).total_seconds() / 3600
+		row["hours_open"] = round(hours, 2)
+		if hours > BREAK_GLASS_HARD_LIMIT_HOURS:
+			hard_breach.append(row)
+		elif hours > BREAK_GLASS_SLA_HOURS:
+			overdue.append(row)
+
+	# Escalate (status flip) — only when not already escalated.
+	for row in overdue + hard_breach:
+		if row.get("review_status") != "Escalated":
+			try:
+				frappe.db.set_value(
+					"CH Break Glass Log", row["name"], "review_status", "Escalated",
+					update_modified=False,
+				)
+			except Exception:
+				frappe.log_error(
+					title=f"Break Glass escalation failed for {row['name']}",
+					message=frappe.get_traceback(),
+				)
+	if overdue or hard_breach:
+		frappe.db.commit()
+
+	pending_review = frappe.get_all(
+		"CH Break Glass Log",
+		filters={"end_time": ["is", "set"], "review_status": "Pending Review"},
+		fields=["name", "user", "start_time", "end_time", "duration_hours"],
+		order_by="end_time asc",
+		limit_page_length=20,
+	)
+
+	if not (overdue or hard_breach or pending_review):
+		return {"open_overdue": 0, "open_hard_breach": 0, "pending_review": 0}
+
+	_send_break_glass_digest(overdue, hard_breach, pending_review)
+	return {
+		"open_overdue": len(overdue),
+		"open_hard_breach": len(hard_breach),
+		"pending_review": len(pending_review),
+	}
+
+
+def _send_break_glass_digest(
+	overdue: list[dict],
+	hard_breach: list[dict],
+	pending_review: list[dict],
+) -> None:
+	"""Email a consolidated security digest to System Managers (best-effort)."""
+	try:
+		recipients = frappe.get_all(
+			"Has Role",
+			filters={"role": "System Manager", "parenttype": "User"},
+			pluck="parent",
+		)
+		recipients = [e for e in recipients if "@" in (e or "")]
+		if not recipients:
+			return
+
+		def _table(title: str, rows: list[dict], cols: list[tuple[str, str]]) -> str:
+			if not rows:
+				return ""
+			header = "".join(f"<th align='left' style='padding:6px 10px;border-bottom:1px solid #e5e7eb'>{label}</th>" for _, label in cols)
+			body = "".join(
+				"<tr>" + "".join(
+					f"<td style='padding:6px 10px;border-bottom:1px solid #f1f5f9'>{frappe.utils.escape_html(str(r.get(key) or '-'))}</td>"
+					for key, _ in cols
+				) + "</tr>"
+				for r in rows
+			)
+			return (
+				f"<h3 style='margin:18px 0 6px;color:#0f172a'>{title}</h3>"
+				f"<table style='border-collapse:collapse;width:100%;font-size:13px'>"
+				f"<thead><tr>{header}</tr></thead><tbody>{body}</tbody></table>"
+			)
+
+		open_cols = [
+			("name", "Log"), ("user", "User"),
+			("hours_open", "Hours Open"), ("start_time", "Started"),
+		]
+		review_cols = [
+			("name", "Log"), ("user", "User"),
+			("duration_hours", "Duration (h)"), ("end_time", "Closed"),
+		]
+
+		html = (
+			"<p>Hourly Break Glass governance digest. Review and close the "
+			"items below in the <b>CH Break Glass Audit</b> report.</p>"
+			+ _table("Hard SLA Breach (>24h open)", hard_breach, open_cols)
+			+ _table(f"SLA Breach (>{BREAK_GLASS_SLA_HOURS}h open)", overdue, open_cols)
+			+ _table("Closed sessions pending review", pending_review, review_cols)
+		)
+
+		frappe.sendmail(
+			recipients=recipients,
+			subject="[SECURITY DIGEST] Break Glass — open & pending-review sessions",
+			message=html,
+			now=False,
+		)
+	except Exception:
+		frappe.log_error(
+			title="Break Glass digest failed",
+			message=frappe.get_traceback(),
+		)

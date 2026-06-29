@@ -22,8 +22,10 @@
   "parity_alert_role",
   "override_control_section",
   "log_all_pos_overrides",
+  "override_alert_threshold",
   "column_break_override",
   "require_manager_pin_above",
+  "override_alert_role",
   "return_policy_section",
   "return_policy_days",
   "column_break_return",
@@ -145,6 +147,13 @@
    "description": "Create a CH POS Override Log whenever POS rate differs from CH Item Price"
   },
   {
+   "default": "0",
+   "fieldname": "override_alert_threshold",
+   "fieldtype": "Int",
+   "label": "Override Alert Threshold (per cashier / day)",
+   "description": "Send an alert when a single cashier logs more than this many overrides per day. 0 = disabled."
+  },
+  {
    "fieldname": "column_break_override",
    "fieldtype": "Column Break"
   },
@@ -154,6 +163,14 @@
    "fieldtype": "Percent",
    "label": "Require Manager PIN Above %",
    "description": "POS must enter manager PIN for discounts above this %. 0 = disabled."
+  },
+  {
+   "default": "CH Master Manager",
+   "fieldname": "override_alert_role",
+   "fieldtype": "Link",
+   "label": "Override Alert Role",
+   "options": "Role",
+   "description": "Role to notify when the override threshold is breached."
   },
   {
    "fieldname": "return_policy_section",

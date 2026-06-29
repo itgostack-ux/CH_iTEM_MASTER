@@ -132,6 +132,16 @@
   },
   {
    "hidden": 0,
+   "is_query_report": 1,
+   "label": "Break Glass Audit",
+   "link_count": 0,
+   "link_to": "CH Break Glass Audit",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
    "is_query_report": 0,
    "label": "Finance Reports",
    "link_count": 0,

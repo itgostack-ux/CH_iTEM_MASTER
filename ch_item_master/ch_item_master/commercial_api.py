@@ -233,7 +233,7 @@ def log_pos_override(pos_invoice, item_code, original_price, applied_price,
                      override_type="Rate Override", serial_no=None,
                      approved_by_manager=False, manager_user=None,
                      override_reason=None, pos_profile=None, company=None,
-                     warehouse=None):
+                     warehouse=None, customer=None, posting_date=None):
 	"""Create a CH POS Override Log entry.
 
 	Called from POS Invoice validate hook when rate differs from CH Item Price.
@@ -250,11 +250,16 @@ def log_pos_override(pos_invoice, item_code, original_price, applied_price,
 	discount_amount = original_price - applied_price
 	discount_percent = (discount_amount / original_price * 100) if original_price else 0
 
+	currency = None
+	if company:
+		currency = frappe.db.get_value("Company", company, "default_currency")
+
 	log = frappe.new_doc("CH POS Override Log")
 	log.pos_invoice = pos_invoice
 	log.pos_profile = pos_profile
 	log.company = company or ""
 	log.store_warehouse = warehouse or ""
+	log.currency = currency or ""
 	log.item_code = item_code
 	log.serial_no = serial_no or ""
 	log.override_type = override_type
@@ -266,6 +271,8 @@ def log_pos_override(pos_invoice, item_code, original_price, applied_price,
 	log.manager_user = manager_user or ""
 	log.override_reason = override_reason or ""
 	log.pos_user = frappe.session.user
+	log.customer = customer or ""
+	log.posting_date = posting_date or nowdate()
 	log.override_at = now_datetime()
 	log.insert(ignore_permissions=True)
 	return log.name
@@ -609,3 +616,133 @@ def _expire_tag(item_code, tag):
 			"status": "Expired",
 			"effective_to": nowdate(),
 		})
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# POS Override threshold monitor
+# ─────────────────────────────────────────────────────────────────────────────
+# Mirrors Oracle Retail Xstore "Excessive Override Threshold Alert" and
+# NCR Counterpoint "Manager Override Threshold". Runs hourly via scheduler.
+# Sends one consolidated digest email per company when one or more cashiers
+# exceed the configured per-day threshold.
+
+def monitor_pos_override_thresholds():
+	"""Scheduled hourly job — flag cashiers exceeding the per-day override threshold."""
+	today = nowdate()
+
+	# CH Commercial Policy is a Single doctype today (one row per site). We read
+	# the single doc and apply its threshold to the company it points at. If/when
+	# this is converted to a per-company table, this loop trivially generalises.
+	try:
+		policy = frappe.get_cached_doc("CH Commercial Policy")
+	except frappe.DoesNotExistError:
+		return
+
+	if not cint(policy.get("enabled")) or not cint(policy.get("log_all_pos_overrides")):
+		return
+
+	threshold = cint(policy.get("override_alert_threshold"))
+	if threshold <= 0:
+		return
+
+	company = policy.get("company")
+	if not company:
+		return
+
+	offenders = frappe.db.sql(
+		"""
+		SELECT pos_user,
+		       COUNT(*) AS override_count,
+		       SUM(IF(IFNULL(approved_by_manager,0)=0,1,0)) AS unapproved_count,
+		       SUM(discount_amount) AS leakage
+		FROM `tabCH POS Override Log`
+		WHERE company = %(company)s
+		  AND posting_date = %(today)s
+		GROUP BY pos_user
+		HAVING override_count > %(threshold)s
+		ORDER BY override_count DESC
+		""",
+		{"company": company, "today": today, "threshold": threshold},
+		as_dict=True,
+	)
+
+	if not offenders:
+		return
+
+	_send_override_threshold_alert(
+		company=company,
+		threshold=threshold,
+		offenders=offenders,
+		alert_role=policy.get("override_alert_role") or "CH Master Manager",
+	)
+
+
+def _send_override_threshold_alert(company, threshold, offenders, alert_role):
+	"""Send a digest email to the configured alert role + System Managers."""
+	recipients = set()
+	role_users = frappe.get_all(
+		"Has Role",
+		filters={"role": alert_role, "parenttype": "User"},
+		fields=["parent"],
+	)
+	recipients.update(u.parent for u in role_users if u.parent and u.parent != "Administrator")
+
+	# Always loop in System Managers as a safety net
+	sysmgr_users = frappe.get_all(
+		"Has Role",
+		filters={"role": "System Manager", "parenttype": "User"},
+		fields=["parent"],
+	)
+	recipients.update(u.parent for u in sysmgr_users if u.parent and u.parent != "Administrator")
+
+	recipients = [r for r in recipients if frappe.db.get_value("User", r, "enabled")]
+	if not recipients:
+		return
+
+	rows_html = "".join(
+		f"<tr>"
+		f"<td>{frappe.utils.escape_html(o.pos_user or '—')}</td>"
+		f"<td style='text-align:right'>{cint(o.override_count)}</td>"
+		f"<td style='text-align:right'>{cint(o.unapproved_count)}</td>"
+		f"<td style='text-align:right'>{frappe.utils.fmt_money(flt(o.leakage), currency=frappe.db.get_value('Company', company, 'default_currency'))}</td>"
+		f"</tr>"
+		for o in offenders
+	)
+
+	body = f"""
+		<p>The following cashiers exceeded the daily POS override threshold
+		   (<b>{threshold}</b>) for <b>{frappe.utils.escape_html(company)}</b> on
+		   <b>{nowdate()}</b>:</p>
+		<table border="1" cellpadding="6" cellspacing="0"
+		       style="border-collapse:collapse;font-family:sans-serif;font-size:13px;">
+			<thead style="background:#f5f5f5;">
+				<tr>
+					<th align="left">Cashier</th>
+					<th align="right">Overrides</th>
+					<th align="right">Unapproved</th>
+					<th align="right">Margin Leakage</th>
+				</tr>
+			</thead>
+			<tbody>{rows_html}</tbody>
+		</table>
+		<p style="margin-top:16px;">
+			Review the
+			<a href="/app/query-report/CH POS Override Audit?company={frappe.utils.quoted(company)}&from_date={nowdate()}&to_date={nowdate()}">
+			CH POS Override Audit report</a> for full details.
+		</p>
+	"""
+
+	try:
+		frappe.sendmail(
+			recipients=list(recipients),
+			subject=f"[POS Override Alert] {company} — {len(offenders)} cashier(s) over threshold",
+			message=body,
+			reference_doctype="CH Commercial Policy",
+			reference_name=company,
+			delayed=False,
+		)
+	except Exception:
+		frappe.log_error(
+			title="POS Override threshold alert failed",
+			message=frappe.get_traceback(),
+		)

@@ -156,17 +156,19 @@ def request_login_otp(mobile_no: str, customer_name: str = "Customer", email_id:
     sent_whatsapp = False
     sent_email = False
     try:
-        wa_settings = frappe.get_cached_doc("CH WhatsApp Settings")
+        from ch_item_master.ch_core.whatsapp import get_whatsapp_settings
+        _company = frappe.defaults.get_user_default("Company")
+        wa_settings = get_whatsapp_settings(_company)
         if wa_settings and cint(wa_settings.enabled):
-            template_name = wa_settings.get("general_otp") or "ch_otp_verification"
             send_template_message(
                 phone=mobile_no,
-                template_name=template_name,
+                event="general_otp",
                 body_values={"1": otp_code},
                 customer_name=(customer_name or "Customer")[:140],
                 ref_doctype="Customer",
                 ref_name="",
                 enqueue=False,
+                company=_company,
             )
             sent_whatsapp = True
     except Exception:

@@ -9,8 +9,14 @@
   "recipient_phone",
   "recipient_name",
   "template_name",
+  "company",
+  "event",
+  "provider",
   "column_break_1",
   "status",
+  "provider_message_id",
+  "delivered_at",
+  "read_at",
   "reference_doctype",
   "reference_name",
   "section_detail",
@@ -48,7 +54,7 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Status",
-   "options": "Queued\nSent\nFailed"
+   "options": "Queued\nSent\nDelivered\nRead\nFailed"
   },
   {
    "fieldname": "reference_doctype",
@@ -85,11 +91,47 @@
    "fieldname": "error_message",
    "fieldtype": "Small Text",
    "label": "Error Message"
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "options": "Company",
+   "label": "Company",
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "event",
+   "fieldtype": "Data",
+   "label": "Event",
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "provider",
+   "fieldtype": "Data",
+   "label": "Provider"
+  },
+  {
+   "fieldname": "provider_message_id",
+   "fieldtype": "Data",
+   "label": "Provider Message ID",
+   "search_index": 1
+  },
+  {
+   "fieldname": "delivered_at",
+   "fieldtype": "Datetime",
+   "label": "Delivered At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "read_at",
+   "fieldtype": "Datetime",
+   "label": "Read At",
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 0,
  "links": [],
- "modified": "2026-03-30 00:00:00.000000",
+ "modified": "2026-06-26 00:00:01",
  "modified_by": "Administrator",
  "module": "CH Core",
  "name": "CH WhatsApp Log",

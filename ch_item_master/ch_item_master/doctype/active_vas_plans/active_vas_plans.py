@@ -54,6 +54,7 @@ class ActiveVASPlans(Document):
 		self._validate_duplicate()
 		self._auto_compute_end_date()
 		self._set_sold_by()
+		self._validate_source_document()
 
 	def on_submit(self):
 		self._sync_to_serial_lifecycle()
@@ -246,6 +247,33 @@ class ActiveVASPlans(Document):
 		"""Set sold_by to current user if not already set."""
 		if not self.sold_by:
 			self.sold_by = frappe.session.user
+
+	def _validate_source_document(self):
+		"""Every active plan must trace back to a commercial source.
+
+		Market-standard (Croma / Reliance Digital): a care/VAS plan must originate
+		from a sale (Sales Invoice / Sales Order) or be an explicit external-device
+		intake. This prevents orphan plans with no commercial backing from showing
+		up as Active in Customer 360. Skip the check while the row is still a Draft
+		so back-office staff can stage a plan before linking the document.
+		"""
+		if self.docstatus == 0:
+			return
+
+		has_source = any([
+			(self.get("sales_invoice") or "").strip(),
+			(self.get("sales_order") or "").strip(),
+			(self.get("external_device_source") or "").strip(),
+		])
+		if not has_source:
+			frappe.throw(
+				_(
+					"An Active VAS Plan must be linked to a source document before submission: "
+					"a Sales Invoice, a Sales Order, or an External Device Source. "
+					"Set one of these fields to record where this plan was sold."
+				),
+				title=_("Missing Source Document"),
+			)
 
 	def _send_welcome_notification(self):
 		"""Send a welcome message to the customer after plan activation.

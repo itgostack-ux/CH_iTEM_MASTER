@@ -46,7 +46,7 @@ _NUMBER_CARDS = [
 		"label": "Audit Events Today",
 		"document_type": "CH Item Audit Log",
 		"function": "Count",
-		"filters_json": '[["CH Item Audit Log","changed_on",">=",["Today",""],false]]',
+		"filters_json": '[["CH Item Audit Log","changed_on","Timespan","today"]]',
 		"color": "#2da847",
 	},
 ]
@@ -58,16 +58,16 @@ def install_number_cards() -> None:
 
 	for card in _NUMBER_CARDS:
 		if frappe.db.exists("Number Card", card["name"]):
+			doc = frappe.get_doc("Number Card", card["name"])
+			doc.update(card)
+			doc.is_public = 1
+			doc.save(ignore_permissions=True)
 			continue
 		try:
 			doc = frappe.new_doc("Number Card")
-			doc.label = card["label"]
-			doc.document_type = card["document_type"]
-			doc.function = card["function"]
-			doc.filters_json = card["filters_json"]
-			doc.color = card["color"]
+			doc.update(card)
 			doc.is_public = 1
-			doc.insert(ignore_permissions=True)
+			doc.insert(ignore_permissions=True, set_name=card["name"])
 		except Exception:
 			frappe.log_error(
 				title=f"Number Card install failed: {card['name']}",

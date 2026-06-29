@@ -74,6 +74,8 @@ scheduler_events = {
 	"hourly": [
 		"ch_item_master.ch_item_master.exception_api.escalate_pending_exceptions",
 		"ch_item_master.ch_item_master.exception_api.expire_stale_exceptions",
+		"ch_item_master.ch_item_master.rbac.monitor_break_glass_sessions",
+		"ch_item_master.ch_item_master.commercial_api.monitor_pos_override_thresholds",
 	],
 	"weekly": [
 		"ch_item_master.ch_item_master.doctype.ch_scheme_receivable.ch_scheme_receivable.run_scheduled_dunning",

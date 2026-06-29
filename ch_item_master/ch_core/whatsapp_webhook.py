@@ -7,6 +7,16 @@ from ch_item_master.ch_core.whatsapp import _normalize_phone
 
 FAILED_STATUSES = {"failed", "error", "undelivered", "rejected"}
 
+# Map provider delivery-status strings to CH WhatsApp Log lifecycle states.
+STATUS_MAP = {
+    "sent": "Sent", "submitted": "Sent", "accepted": "Sent",
+    "delivered": "Delivered",
+    "read": "Read", "seen": "Read",
+    "failed": "Failed", "error": "Failed", "undelivered": "Failed", "rejected": "Failed",
+}
+# Rank so a late/out-of-order webhook never regresses a more advanced state.
+STATUS_RANK = {"Queued": 0, "Sent": 1, "Delivered": 2, "Read": 3, "Failed": 1}
+
 
 def _request_payload() -> dict:
     if getattr(frappe, "request", None) and frappe.request.method == "GET":
@@ -51,6 +61,36 @@ def _extract_delivery_status(payload: dict) -> str:
     return "received"
 
 
+def _extract_message_id(payload: dict) -> str:
+    """Pull the provider message id from a status webhook (Gallabox/Meta shapes)."""
+    for key in ("whatsappMessageId", "messageId", "message_id", "id", "wamid"):
+        v = payload.get(key)
+        if isinstance(v, (str, int)) and str(v).strip():
+            return str(v).strip()
+    for nest in ("whatsapp", "message", "data", "statuses", "entry"):
+        v = payload.get(nest)
+        if isinstance(v, dict):
+            got = _extract_message_id(v)
+            if got:
+                return got
+        if isinstance(v, list) and v and isinstance(v[0], dict):
+            got = _extract_message_id(v[0])
+            if got:
+                return got
+    return ""
+
+
+def _find_log_by_message_id(message_id: str):
+    if not message_id:
+        return None
+    rows = frappe.get_all(
+        "CH WhatsApp Log",
+        filters={"provider_message_id": message_id},
+        fields=["name", "status"], order_by="creation desc", limit_page_length=1,
+    )
+    return rows[0] if rows else None
+
+
 def _find_recent_log(phone: str, template_name: str):
     if not phone:
         return None
@@ -73,36 +113,43 @@ def gallabox_webhook():
     payload = _request_payload()
     if payload.get("challenge"):
         return payload["challenge"]
+    return process_status_event(payload)
 
+
+def process_status_event(payload: dict) -> dict:
+    """Apply a provider status/inbound webhook to the CH WhatsApp Log.
+    Pure function (no request access) so it is unit-testable."""
     phone = _extract_phone(payload)
     template_name = _extract_template(payload)
+    message_id = _extract_message_id(payload)
     delivery_status = _extract_delivery_status(payload)
-    mapped_status = "Failed" if delivery_status in FAILED_STATUSES else "Sent"
+    mapped_status = STATUS_MAP.get(
+        delivery_status, "Failed" if delivery_status in FAILED_STATUSES else "Sent"
+    )
 
-    existing = _find_recent_log(phone, template_name)
+    # Match by provider message id first (reliable), then fall back to phone+template.
+    existing = _find_log_by_message_id(message_id) or _find_recent_log(phone, template_name)
     if existing:
-        frappe.db.set_value("CH WhatsApp Log", existing["name"], "status", mapped_status, update_modified=True)
-        frappe.db.set_value(
-            "CH WhatsApp Log",
-            existing["name"],
-            "gallabox_response",
-            json.dumps(payload),
-            update_modified=False,
-        )
-        if mapped_status == "Failed":
-            frappe.db.set_value(
-                "CH WhatsApp Log",
-                existing["name"],
-                "error_message",
-                json.dumps(payload)[:500],
-                update_modified=False,
-            )
+        updates = {"gallabox_response": json.dumps(payload)}
+        # Never regress a more-advanced lifecycle state (out-of-order webhooks).
+        cur_rank = STATUS_RANK.get(existing.get("status"), 0)
+        if mapped_status == "Failed" or STATUS_RANK.get(mapped_status, 0) >= cur_rank:
+            updates["status"] = mapped_status
+        if mapped_status == "Delivered":
+            updates["delivered_at"] = frappe.utils.now_datetime()
+        elif mapped_status == "Read":
+            # a read implies delivered; backfill if the delivered webhook was missed
+            updates["read_at"] = frappe.utils.now_datetime()
+        elif mapped_status == "Failed":
+            updates["error_message"] = json.dumps(payload)[:500]
+        frappe.db.set_value("CH WhatsApp Log", existing["name"], updates, update_modified=True)
     else:
         log_doc = frappe.get_doc(
             {
                 "doctype": "CH WhatsApp Log",
                 "recipient_phone": phone,
                 "template_name": template_name or f"webhook:{delivery_status}",
+                "provider_message_id": message_id,
                 "status": mapped_status,
                 "body_values": json.dumps({"event": delivery_status, "direction": "inbound"}),
                 "gallabox_response": json.dumps(payload),
@@ -112,4 +159,5 @@ def gallabox_webhook():
         log_doc.insert(ignore_permissions=True)
 
     frappe.db.commit()
-    return {"ok": True, "status": mapped_status, "template_name": template_name, "phone": phone}
+    return {"ok": True, "status": mapped_status, "message_id": message_id,
+            "template_name": template_name, "phone": phone}

@@ -74,35 +74,106 @@ def _normalize_phone(phone: str) -> str:
     return phone
 
 
-def _get_settings():
-    """Return cached CH WhatsApp Settings singleton."""
+def get_whatsapp_settings(company: str | None = None):
+    """Resolve the WhatsApp config to use.
+
+    Per-company **CH WhatsApp Account** (credentials *and* template names) takes
+    precedence; if a company has no enabled account we fall back to the global
+    **CH WhatsApp Settings** single. Backward compatible — existing single-tenant
+    sites keep working with no per-company setup.
+    """
+    if company:
+        try:
+            if frappe.db.exists("CH WhatsApp Account", company):
+                acct = frappe.get_cached_doc("CH WhatsApp Account", company)
+                if acct.enabled:
+                    return acct
+        except Exception:
+            pass
     try:
         return frappe.get_cached_doc("CH WhatsApp Settings")
     except frappe.DoesNotExistError:
         return None
 
 
+def _resolve_company(company, ref_doctype, ref_name):
+    """Use the explicit company, else derive it from the referenced document
+    (Buyback Order / Sales Invoice / Manifest … all carry `company`)."""
+    if company:
+        return company
+    if ref_doctype and ref_name:
+        try:
+            if frappe.get_meta(ref_doctype).has_field("company"):
+                return frappe.db.get_value(ref_doctype, ref_name, "company")
+        except Exception:
+            pass
+    return None
+
+
+def _get_settings(company: str | None = None):
+    """Backward-compatible alias — resolves per-company then global single."""
+    return get_whatsapp_settings(company)
+
+
+def get_template(company: str | None, event: str | None):
+    """Resolve (template_name, language) for an ops event.
+
+    Order: the company's enabled **CH WhatsApp Template** mapped to the event →
+    the **CH WhatsApp Event** catalog's `default_template` → (None, "en").
+    Lets admins register any provider template and connect it to a trigger,
+    instead of hardcoded fields.
+    """
+    if not event:
+        return None, "en"
+    if company:
+        row = frappe.get_all(
+            "CH WhatsApp Template",
+            filters={"company": company, "event": event, "enabled": 1},
+            fields=["template_name", "language"], limit=1,
+        )
+        if row:
+            return row[0].template_name, (row[0].language or "en")
+    default = None
+    if frappe.db.exists("CH WhatsApp Event", event):
+        default = frappe.db.get_value("CH WhatsApp Event", event, "default_template")
+    return (default or None), "en"
+
+
 def send_template_message(
     phone: str,
-    template_name: str,
+    template_name: str | None = None,
     body_values: dict | None = None,
     customer_name: str | None = None,
     ref_doctype: str | None = None,
     ref_name: str | None = None,
     enqueue: bool = True,
+    company: str | None = None,
+    event: str | None = None,
 ):
-    """Send a WhatsApp template message via Gallabox.
+    """Send a WhatsApp template message via the company's provider (Gallabox).
 
     Args:
         phone: Recipient mobile number (Indian 10-digit or with country code).
-        template_name: Gallabox template name.
+        template_name: Explicit provider template. If omitted, resolved from `event`.
         body_values: Dict of positional body values e.g. {"1": "John", "2": "SR-001"}.
         customer_name: Recipient display name.
         ref_doctype: Linked DocType for audit trail.
         ref_name: Linked document name for audit trail.
         enqueue: If True, runs via background job (default). Set False for
                  synchronous calls (e.g. OTP delivery where caller needs result).
+        company: Route via this company's WhatsApp account; auto-derived from
+                 the referenced document when omitted.
+        event: Ops trigger key (e.g. "buyback_otp"); resolves the template from
+               the per-company library when `template_name` is not given.
     """
+    company = _resolve_company(company, ref_doctype, ref_name)
+    if not template_name and event:
+        template_name, _ = get_template(company, event)
+    if not template_name:
+        frappe.logger("whatsapp").info(
+            f"WhatsApp: no template mapped for event={event} company={company}; skipping"
+        )
+        return
     if enqueue:
         # Deduplication: skip if the same message was enqueued for this doc within the last 10 minutes
         _phone_norm = _normalize_phone(phone or "")
@@ -125,6 +196,8 @@ def send_template_message(
             customer_name=customer_name,
             ref_doctype=ref_doctype,
             ref_name=ref_name,
+            company=company,
+            event=event,
         )
     else:
         _send_now(
@@ -134,7 +207,28 @@ def send_template_message(
             customer_name=customer_name,
             ref_doctype=ref_doctype,
             ref_name=ref_name,
+            company=company,
+            event=event,
         )
+
+
+def _extract_message_id(resp_json) -> str | None:
+    """Pull the provider message id from a send response (Gallabox/Meta shapes),
+    so delivery-status webhooks can be matched back to the log row."""
+    if not isinstance(resp_json, dict):
+        return None
+    for key in ("id", "messageId", "whatsappMessageId", "message_id", "wamid"):
+        v = resp_json.get(key)
+        if v:
+            return str(v)
+    # Meta Cloud API: {"messages": [{"id": "wamid..."}]}
+    msgs = resp_json.get("messages")
+    if isinstance(msgs, list) and msgs and isinstance(msgs[0], dict) and msgs[0].get("id"):
+        return str(msgs[0]["id"])
+    data = resp_json.get("data")
+    if isinstance(data, dict):
+        return _extract_message_id(data)
+    return None
 
 
 def _send_now(
@@ -144,11 +238,13 @@ def _send_now(
     customer_name: str | None = None,
     ref_doctype: str | None = None,
     ref_name: str | None = None,
+    company: str | None = None,
+    event: str | None = None,
 ):
     """Actual HTTP call to Gallabox + audit log creation."""
     import json
 
-    settings = _get_settings()
+    settings = get_whatsapp_settings(company)
     if not settings or not settings.enabled:
         frappe.logger("whatsapp").info(
             f"WhatsApp disabled — skipping {template_name} to {phone}"
@@ -186,6 +282,9 @@ def _send_now(
         "recipient_phone": phone,
         "recipient_name": customer_name,
         "template_name": template_name,
+        "company": company,
+        "event": event,
+        "provider": settings.get("provider") or "Gallabox",
         "body_values": json.dumps(_redact_otp_from_body_values(body_values)),
         "reference_doctype": ref_doctype,
         "reference_name": ref_name,
@@ -206,8 +305,12 @@ def _send_now(
             timeout=30,
         )
         resp.raise_for_status()
+        resp_json = resp.json()
         log_doc.db_set("status", "Sent", update_modified=True)
-        log_doc.db_set("gallabox_response", json.dumps(resp.json()), update_modified=False)
+        log_doc.db_set("gallabox_response", json.dumps(resp_json), update_modified=False)
+        msg_id = _extract_message_id(resp_json)
+        if msg_id:
+            log_doc.db_set("provider_message_id", msg_id, update_modified=False)
     except Exception as e:
         frappe.log_error(
             title="WhatsApp Send Failed",
