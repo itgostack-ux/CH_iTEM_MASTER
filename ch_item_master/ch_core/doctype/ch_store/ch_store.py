@@ -135,12 +135,17 @@ LEGACY_STORE_BIN_TYPES = ("In-Transit", "Disposed", "Reserved")
 def ensure_store_bins(store):
     """Create the operational stock-state bins for a store.
 
-    Architecture (post-v12 collapse):
-      - The store's base warehouse IS the Sellable bin (kept as a leaf so it
-        can post Stock Ledger Entries directly from POS / Sales).
-      - In-Transit / Damaged / Disposed / Reserved / Buyback bins are created
-        as SIBLINGS of the base warehouse (parented to the same node), linked
-        back to the store via the ``ch_store`` custom field.
+    Architecture (Path B Phase 2, SAP/Oracle parity):
+      - The store's ``warehouse`` is the Sellable LEAF (kept as a leaf so
+        it can post Stock Ledger Entries directly from POS / Sales).
+      - A group warehouse (the "Store Group", recorded on
+        ``CH Store.warehouse_group``) sits one level above and holds the
+        Sellable leaf + the operational bin leaves as siblings.
+      - The Store Group is itself parented under the Zone Group, which is
+        parented under the City Group, which lives under the company root.
+        See ``ch_core.warehouse_geo`` for the full hierarchy contract.
+      - Bin leaves (Damaged / Demo / Buyback) are CHILDREN of the Store
+        Group, not siblings of the Sellable leaf.
 
     Idempotent.
     """
@@ -156,23 +161,50 @@ def ensure_store_bins(store):
     if not base:
         return
 
+    # Resolve / create the City -> Zone -> Store Group chain so the new
+    # bins land in the right place from day one. Failing the chain is non
+    # fatal: bins still get created as siblings of the base warehouse.
+    from ch_item_master.ch_core.warehouse_geo import ensure_store_group
+
+    store_group = None
+    try:
+        store_group = ensure_store_group(store)
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), f"ensure_store_group failed: {store.name}")
+
     # Stamp hierarchy fields on the base warehouse and mark it as the Sellable bin.
+    # In the new SAP-aligned tree (Path B Phase 2) every leaf — including
+    # Sellable — is a 'Store Bin'; the parent 'Store Group' carries the
+    # store identity. _warehouse_matches_view() treats ch_bin_type='Sellable'
+    # as a synonym for a Store Warehouse entry in the 'location' view, so
+    # nothing visible breaks.
+    base_updates = {
+        "ch_city": store.city,
+        "ch_zone": store.zone,
+        "ch_location_type": "Store Bin",
+        "ch_store": store.name,
+        "ch_bin_type": "Sellable",
+    }
+    if store_group:
+        base_updates["parent_warehouse"] = store_group
     frappe.db.set_value(
         "Warehouse",
         base.name,
-        {
-            "ch_city": store.city,
-            "ch_zone": store.zone,
-            "ch_location_type": "Store Warehouse",
-            "ch_store": store.name,
-            "ch_bin_type": "Sellable",
-        },
+        base_updates,
         update_modified=False,
     )
 
-    # Operational bins are siblings of the store warehouse so the store can
-    # remain a leaf and accept direct Stock Ledger Entries.
-    sibling_parent = base.parent_warehouse or None
+    # Persist the group pointer for downstream code (Location Hierarchy page,
+    # reports, etc.) without disturbing CH Store.warehouse semantics.
+    if store_group and store.get("warehouse_group") != store_group:
+        frappe.db.set_value(
+            "CH Store", store.name, "warehouse_group", store_group,
+            update_modified=False,
+        )
+
+    # New bin leaves are children of the Store Group so the tree reads
+    # cleanly:  Store Group -> [Sellable, Damaged, Demo, Buyback].
+    bin_parent = store_group or base.parent_warehouse or None
 
     for bin_type, suffix in STORE_BIN_TYPES:
         existing = frappe.db.exists(
@@ -184,12 +216,21 @@ def ensure_store_bins(store):
             },
         )
         if existing:
+            if bin_parent:
+                current_parent = frappe.db.get_value(
+                    "Warehouse", existing, "parent_warehouse"
+                )
+                if current_parent != bin_parent:
+                    frappe.db.set_value(
+                        "Warehouse", existing, "parent_warehouse", bin_parent,
+                        update_modified=False,
+                    )
             continue
 
         wh = frappe.new_doc("Warehouse")
         wh.warehouse_name = f"{store.store_code}-{suffix}"
-        if sibling_parent:
-            wh.parent_warehouse = sibling_parent
+        if bin_parent:
+            wh.parent_warehouse = bin_parent
         wh.company = store.company
         wh.is_group = 0
         wh.ch_city = store.city

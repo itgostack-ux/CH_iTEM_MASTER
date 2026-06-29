@@ -50,7 +50,9 @@ def backfill_location_hierarchy():
 			if store.city:
 				warehouse_updates["city"] = city
 			if store.zone:
-				warehouse_updates["ch_location_type"] = "Store Warehouse"
+				# Path B Phase 2: Sellable leaves are tagged 'Store Bin' (their
+				# parent Store Group represents the store in the location view).
+				warehouse_updates["ch_location_type"] = "Store Bin"
 			frappe.db.set_value("Warehouse", store.warehouse, warehouse_updates, update_modified=False)
 
 		if store.branch and frappe.db.exists("Branch", store.branch):
@@ -326,14 +328,20 @@ def _zone_bucket(companies, company, city, zone):
 
 
 def _warehouse_matches_view(warehouse, warehouse_view):
-	location_types = {"Store Warehouse", "Zone Warehouse"}
+	# Warehouses that *represent a physical site* in the location view.
+	# Sellable bin leaves are ALSO surfaced here even though their
+	# ch_location_type is 'Store Bin', because in the SAP-aligned tree
+	# (Path B Phase 2) the Sellable leaf IS the operational store warehouse
+	# (its parent 'Store Group' is is_group=1 and gets filtered out elsewhere).
+	location_types = {"Store Warehouse", "Zone Warehouse", "Transit Warehouse", "Service Warehouse"}
 	view = (warehouse_view or "all").strip().lower()
 	w_type = (warehouse.ch_location_type or "").strip()
+	is_sellable = (warehouse.ch_bin_type or "").strip() == "Sellable"
 
 	if view == "location":
-		return w_type in location_types
+		return w_type in location_types or is_sellable
 	if view == "operational":
-		return w_type not in location_types
+		return (w_type not in location_types) and (not is_sellable)
 	return True
 
 

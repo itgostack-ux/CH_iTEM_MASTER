@@ -367,10 +367,15 @@ class LocationHierarchyView {
 				if (!bins.length) {
 					$row.append(`<span class="text-muted small">${__('No bins yet.')}</span>`);
 				} else {
-					// Sort bins by ch_bin_type for stable ordering.
-					bins.sort((a, b) =>
-						String(a.ch_bin_type || '').localeCompare(String(b.ch_bin_type || ''))
-					);
+					// Sort bins so Sellable always comes first (primary stock),
+					// then Damaged / Demo / Buyback alphabetically.
+					const order = { 'Sellable': 0 };
+					bins.sort((a, b) => {
+						const ra = order[a.ch_bin_type] ?? 10;
+						const rb = order[b.ch_bin_type] ?? 10;
+						if (ra !== rb) return ra - rb;
+						return String(a.ch_bin_type || '').localeCompare(String(b.ch_bin_type || ''));
+					});
 					for (const w of bins) {
 						this._draw_bin_pill($row, w, company, city, zone);
 					}

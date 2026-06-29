@@ -43,7 +43,7 @@ CUSTOM_FIELDS = {
 			"fieldname": "ch_location_type",
 			"label": _("Location Type"),
 			"fieldtype": "Select",
-			"options": "\nStore Warehouse\nZone Warehouse\nTransit Warehouse\nService Warehouse\nStore Bin\nOther",
+			"options": "\nCity Group\nZone Group\nStore Group\nStore Warehouse\nZone Warehouse\nTransit Warehouse\nService Warehouse\nStore Bin\nOther",
 			"insert_after": "ch_zone",
 			"in_standard_filter": 1,
 		},

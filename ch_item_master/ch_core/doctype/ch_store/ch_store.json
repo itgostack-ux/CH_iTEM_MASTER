@@ -12,6 +12,7 @@
   "column_break_01",
   "company",
   "warehouse",
+  "warehouse_group",
   "pos_profile",
   "disabled",
   "territory_section",
@@ -82,7 +83,16 @@
    "fieldname": "warehouse",
    "fieldtype": "Link",
    "label": "Default Warehouse",
-   "options": "Warehouse"
+   "options": "Warehouse",
+   "description": "The Sellable leaf warehouse for this store. Stock postings (POS sale, returns) land here. Always a non-group warehouse."
+  },
+  {
+   "fieldname": "warehouse_group",
+   "fieldtype": "Link",
+   "label": "Warehouse Group",
+   "options": "Warehouse",
+   "read_only": 1,
+   "description": "Group warehouse that aggregates all bins of this store (Sellable + Damaged + Demo + Buyback). Auto-managed; do not edit manually."
   },
   {
    "fieldname": "pos_profile",
