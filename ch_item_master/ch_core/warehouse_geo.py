@@ -26,6 +26,7 @@ after_insert, after_migrate, or one-shot patches.
 from __future__ import annotations
 
 import frappe
+from frappe.model.rename_doc import rename_doc as _rename_doc
 
 
 # ---------------------------------------------------------------------------
@@ -362,7 +363,11 @@ def restructure_store_tree(store_name: str) -> dict:
 			# as the canonical Sellable leaf and leave the current one alone.
 			result["skipped"] = f"target_leaf_already_exists:{target_leaf}"
 		else:
-			frappe.rename_doc(
+			# NOTE: ``frappe.rename_doc`` (top-level) is a thin whitelisted
+			# wrapper that does NOT accept ``ignore_permissions``. Call the
+			# internal model helper directly so we can rename even when the
+			# running user lacks an explicit Warehouse write permission row.
+			_rename_doc(
 				"Warehouse", current_leaf, target_leaf,
 				force=False, merge=False,
 				ignore_permissions=True, show_alert=False,
