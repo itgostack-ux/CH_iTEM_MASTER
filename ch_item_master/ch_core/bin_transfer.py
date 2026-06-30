@@ -532,6 +532,64 @@ def get_store_bin_serials(
 	}
 
 
+# In-transit is company-level (Goods In Transit warehouse), surfaced read-only
+# per store from the manifest that owns the movement — the canonical model has
+# no per-store In-Transit bin (removed in Path B Phase 3).
+_IN_TRANSIT_MANIFEST_STATES = ("Assigned", "Pickup Started", "In Transit", "Delivered")
+
+
+@frappe.whitelist()
+def get_store_in_transit(store: str | None = None) -> dict:
+	"""Read-only: stock currently in transit TO this store.
+
+	Resolved from active (dispatched, not-yet-received) CH Transfer Manifests
+	whose destination is this store. Transit stock physically lives in the
+	company ``Goods In Transit`` warehouse; the destination + ETA come from the
+	manifest. Returns rows shaped like get_store_bin_serials for the UI.
+	"""
+	if not store:
+		return {"warehouse": _("Goods In Transit"), "count": 0, "serials": []}
+
+	# A manifest is "to this store" if it names the store directly, or its
+	# destination warehouse belongs to the store (some manifests set only the
+	# warehouse). Collect the store's warehouses for the warehouse match.
+	store_whs = set(filter(None, [frappe.db.get_value("CH Store", store, "warehouse")]))
+	store_whs.update(frappe.get_all("Warehouse", filters={"ch_store": store}, pluck="name"))
+
+	or_filters = [{"destination_store": store}]
+	if store_whs:
+		or_filters.append({"destination_warehouse": ["in", list(store_whs)]})
+
+	manifests = frappe.get_all(
+		"CH Transfer Manifest",
+		filters={"docstatus": 1, "status": ["in", _IN_TRANSIT_MANIFEST_STATES]},
+		or_filters=or_filters,
+		fields=["name", "status", "source_store", "source_warehouse",
+				"estimated_delivery_date", "driver_name"],
+	)
+	rows = []
+	for m in manifests:
+		se_names = [s for s in frappe.get_all(
+			"CH Transfer Manifest Item", filters={"parent": m.name}, pluck="stock_entry") if s]
+		if not se_names:
+			continue
+		for it in frappe.get_all(
+			"Stock Entry Detail", filters={"parent": ["in", se_names]},
+			fields=["item_code", "item_name", "qty", "serial_no"],
+		):
+			rows.append({
+				"serial_no": (it.serial_no or "").strip().split("\n")[0],
+				"item_code": it.item_code,
+				"item_name": it.item_name,
+				"qty": it.qty,
+				"manifest": m.name,
+				"source": m.source_store or m.source_warehouse or "",
+				"eta": m.estimated_delivery_date,
+				"status": m.status,
+			})
+	return {"warehouse": _("Goods In Transit"), "count": len(rows), "serials": rows}
+
+
 @frappe.whitelist()
 def get_serial_bin_context(serial_no: str, store: str | None = None) -> dict:
 	"""Resolve a serial to its current store bin context (item + bin type)."""
