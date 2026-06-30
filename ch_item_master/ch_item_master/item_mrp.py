@@ -160,7 +160,14 @@ def validate_purchase_mrp_ceiling(doc, method=None):
 	"""
 	violations = []
 	missing_mrp = []
-	hard_stop = doc.doctype == "Purchase Order" or getattr(doc.flags, "ch_block_above_mrp", False)
+	# During bulk data import we warn instead of hard-blocking so that the
+	# operator can finish the import and fix MRP on items afterwards.
+	# Explicit ch_block_above_mrp flag on the document still forces a hard stop.
+	in_import = frappe.flags.get("in_import", False)
+	hard_stop = (
+		(doc.doctype == "Purchase Order" and not in_import)
+		or getattr(doc.flags, "ch_block_above_mrp", False)
+	)
 	for row in (doc.items or []):
 		item_code = row.item_code
 		if not item_code:
