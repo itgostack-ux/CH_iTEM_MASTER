@@ -12,9 +12,58 @@ frappe.ui.form.on("CH Store", {
 
         if (!frm.is_new()) {
             frm.add_custom_button(__("In-Transit Stock"), () => show_in_transit(frm), __("View"));
+
+            // POS Profile — auto-provisioning is best-effort, so surface a
+            // manual "Create / Refresh" action for cases where creation
+            // was skipped (no warehouse yet at insert) or an admin wants
+            // to rebuild after fixing masters (cost centre, accounts).
+            const pos_label = frm.doc.pos_profile
+                ? __("Refresh POS Profile")
+                : __("Create POS Profile");
+            frm.add_custom_button(pos_label, () => create_pos_profile(frm), __("Actions"));
+            if (frm.doc.pos_profile) {
+                frm.add_custom_button(__("Open POS Profile"), () => {
+                    frappe.set_route("Form", "POS Profile", frm.doc.pos_profile);
+                }, __("View"));
+            }
         }
     },
 });
+
+// Provision (or re-link) a minimal, DISABLED POS Profile for this store.
+// The profile is intentionally left disabled — an operator must add
+// payment methods and un-check disabled before cashiers can log in.
+function create_pos_profile(frm) {
+    if (!frm.doc.warehouse) {
+        frappe.msgprint({
+            title: __("Warehouse Required"),
+            message: __("Assign a Sellable Warehouse on this store before creating a POS Profile."),
+            indicator: "orange",
+        });
+        return;
+    }
+    frappe.call({
+        method: "ch_item_master.ch_core.doctype.ch_store.ch_store.create_pos_profile_for_store",
+        args: { store: frm.doc.name },
+        freeze: true,
+        freeze_message: __("Provisioning POS Profile…"),
+        callback: (r) => {
+            const res = r.message || {};
+            if (!res.pos_profile) {
+                frappe.show_alert({
+                    message: __("POS Profile could not be created — check Error Log."),
+                    indicator: "red",
+                });
+                return;
+            }
+            frm.reload_doc();
+            const msg = res.created
+                ? __("POS Profile <b>{0}</b> created (disabled — add payment methods to activate).", [res.pos_profile])
+                : __("POS Profile already exists: <b>{0}</b>", [res.pos_profile]);
+            frappe.show_alert({ message: msg, indicator: res.created ? "green" : "orange" });
+        },
+    });
+}
 
 // Read-only: stock currently in transit TO this store (dispatched on an active
 // manifest, not yet received). Transit is company-level (Goods In Transit);

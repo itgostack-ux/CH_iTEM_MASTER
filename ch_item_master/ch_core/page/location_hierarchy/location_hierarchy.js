@@ -209,11 +209,13 @@ class LocationHierarchyView {
 		// Post-v12 the store base warehouse IS the Sellable bin and is
 		// already represented by the CH Store record below, so we omit
 		// a separate "Store Warehouses" section to avoid duplication.
-		const buckets = { hub: [], bin: [], other: [] };
+		const buckets = { hub: [], hub_bin: [], bin: [], other: [] };
 		for (const w of zone.warehouses) {
 			const t = (w.ch_location_type || '').trim();
 			if (t === 'Zone Warehouse' || t === 'Transit Warehouse' || t === 'Service Warehouse') {
 				buckets.hub.push(w);
+			} else if (t === 'Hub Bin') {
+				buckets.hub_bin.push(w);
 			} else if (t === 'Store Bin') {
 				buckets.bin.push(w);
 			} else if (t === 'Store Warehouse') {
@@ -298,10 +300,33 @@ class LocationHierarchyView {
 			const $hSec = $(`<div class="lh-section"></div>`).appendTo($z);
 			const assignLink = isSynthetic ? '' : `<span class="lh-add-btn" data-act="assign-hub">+ ${__('Assign')}</span>`;
 			$hSec.append(`<div class="lh-section-title"><span>${__('Hub')}</span>${assignLink}</div>`);
-			if (!isSynthetic) $hSec.find('[data-act="assign-hub"]').on('click', () => this.assign_warehouse_dialog(company, city.city, zone.zone));
+			if (!isSynthetic) $hSec.find('[data-act="assign-hub"]').on('click', () => this.assign_warehouse_dialog(company, city.city, zone.zone, null, 'hub'));
 			const $hRow = $(`<div class="lh-row"></div>`).appendTo($hSec);
 			for (const w of buckets.hub) {
 				this._draw_warehouse_pill($hRow, w, 'lh-warehouse-hub', company, city, zone);
+			}
+		}
+
+		// ── Hub Bins (only for hubs — free-form sub-warehouses) ──────
+		// Show whenever a hub is assigned or hub bins already exist. Store
+		// zones don't get this — store-side bins are the fixed operational
+		// set (Damaged/Demo/Buyback) and handled separately below.
+		if (!isSynthetic && (buckets.hub.length || buckets.hub_bin.length)) {
+			const $hbSec = $(`<div class="lh-section"></div>`).appendTo($z);
+			const addLink = buckets.hub.length
+				? `<span class="lh-add-btn" data-act="add-hub-bin">+ ${__('Add Bin')}</span>`
+				: `<span class="text-muted small">${__('Assign a Hub first')}</span>`;
+			$hbSec.append(`<div class="lh-section-title"><span>${__('Hub Bins')}</span>${addLink}</div>`);
+			if (buckets.hub.length) {
+				$hbSec.find('[data-act="add-hub-bin"]').on('click', () => this.add_hub_bin_dialog(company, city, zone));
+			}
+			if (buckets.hub_bin.length) {
+				const $hbRow = $(`<div class="lh-row"></div>`).appendTo($hbSec);
+				for (const w of buckets.hub_bin) {
+					this._draw_hub_bin_pill($hbRow, w, company, city, zone);
+				}
+			} else if (buckets.hub.length) {
+				$(`<div class="text-muted small" style="margin:4px 0 0">${__('No hub bins yet. Use + Add Bin to create Sellable-01, Sellable-02, Quarantine, etc.')}</div>`).appendTo($hbSec);
 			}
 		}
 
@@ -310,7 +335,7 @@ class LocationHierarchyView {
 			const $oSec = $(`<div class="lh-section"></div>`).appendTo($z);
 			const assignLink = isSynthetic ? '' : `<span class="lh-add-btn" data-act="assign-other">+ ${__('Assign')}</span>`;
 			$oSec.append(`<div class="lh-section-title"><span>${__('Other Warehouses')}</span>${assignLink}</div>`);
-			if (!isSynthetic) $oSec.find('[data-act="assign-other"]').on('click', () => this.assign_warehouse_dialog(company, city.city, zone.zone));
+			if (!isSynthetic) $oSec.find('[data-act="assign-other"]').on('click', () => this.assign_warehouse_dialog(company, city.city, zone.zone, null, 'other'));
 			const $oWhRow = $(`<div class="lh-row"></div>`).appendTo($oSec);
 			for (const w of buckets.other) {
 				this._draw_warehouse_pill($oWhRow, w, 'lh-warehouse', company, city, zone);
@@ -429,7 +454,7 @@ class LocationHierarchyView {
 		// ── Footer: quick add-links for whatever is missing ──────────
 		if (!isSynthetic) {
 			const missing = [];
-			if (!buckets.hub.length)    missing.push({ label: __('+ Hub'),    act: () => this.assign_warehouse_dialog(company, city.city, zone.zone) });
+			if (!buckets.hub.length)    missing.push({ label: __('+ Hub'),    act: () => this.assign_warehouse_dialog(company, city.city, zone.zone, null, 'hub') });
 			if (!zone.offices.length)   missing.push({ label: __('+ Office'), act: () => this.assign_office_dialog(company, city.city, zone.zone) });
 			if (missing.length) {
 				const $footer = $(`<div class="lh-section-empty"><span class="text-muted">${__('Add to zone:')}</span><span></span></div>`).appendTo($z);
@@ -552,6 +577,64 @@ class LocationHierarchyView {
 			},
 		});
 		d.show();
+	}
+
+	add_hub_bin_dialog(company, city, zone) {
+		// Free-form sub-warehouse creator for hubs. Unlike store bins
+		// (fixed enum), hub bins accept arbitrary labels — Sellable-01,
+		// Sellable-02, Quarantine, Inbound-Dock-A, etc. Idempotent:
+		// server refuses a duplicate (zone, label) pair and returns the
+		// existing warehouse.
+		const ctxHTML = `<div class="text-muted small" style="margin:-4px 0 8px;">
+			<b>${__('Zone:')}</b> ${frappe.utils.escape_html(zone.zone_name || zone.zone)}
+			&nbsp;·&nbsp; <b>${__('City:')}</b> ${frappe.utils.escape_html(city.city_name || city.city)}
+			&nbsp;·&nbsp; <b>${__('Company:')}</b> ${frappe.utils.escape_html(company)}
+		</div>`;
+		const d = new frappe.ui.Dialog({
+			title: __('Add Hub Bin'),
+			fields: [
+				{ fieldtype: 'HTML', options: ctxHTML },
+				{
+					fieldtype: 'Data', fieldname: 'label', label: __('Bin Label'), reqd: 1,
+					description: __('Free-form identifier — e.g. Sellable-01, Sellable-02, Quarantine, Inbound-Dock-A. Letters, digits, spaces, dash and underscore only. Max 40 chars.'),
+				},
+				{ fieldtype: 'HTML', options: `<div class="text-muted small">${__('The bin is created as a sibling of the Hub warehouse under the Zone Group. It receives its own Stock Ledger so you can post transfers into it.')}</div>` },
+			],
+			primary_action_label: __('Create Hub Bin'),
+			primary_action: (v) => {
+				frappe.call({
+					method: 'ch_item_master.ch_core.location_hierarchy.create_hub_bin',
+					args: { zone: zone.zone, label: v.label },
+					freeze: true,
+					freeze_message: __('Creating hub bin…'),
+					callback: (r) => {
+						d.hide();
+						if (r.message && r.message.created === false) {
+							frappe.show_alert({
+								message: __('Hub bin already exists: {0}', [r.message.warehouse]),
+								indicator: 'orange',
+							});
+						} else if (r.message) {
+							frappe.show_alert({
+								message: __('Hub bin created: {0}', [r.message.warehouse]),
+								indicator: 'green',
+							});
+						}
+						this.render();
+					},
+				});
+			},
+		});
+		d.show();
+	}
+
+	_draw_hub_bin_pill($parent, w, company, city, zone) {
+		const label = w.ch_hub_bin_type || w.warehouse_name || w.name;
+		const $p = $(`<span class="lh-pill lh-warehouse-bin" title="${frappe.utils.escape_html(w.name)}">
+			<i class="fa fa-inbox" style="margin-right:4px;color:#e69500"></i>
+			<a href="/app/warehouse/${encodeURIComponent(w.name)}" target="_blank">${frappe.utils.escape_html(label)}</a>
+		</span>`).appendTo($parent);
+		return $p;
 	}
 
 	// ----------------- Dialogs -----------------
@@ -785,43 +868,95 @@ class LocationHierarchyView {
 		});
 	}
 
-	assign_warehouse_dialog(company, city, zone, existing) {
+	assign_warehouse_dialog(company, city, zone, existing, intent) {
 		const e = existing || {};
 		const hasContext = !!(company && city && zone) && !existing;
+		// intent bifurcates the Warehouse picker so users can't accidentally
+		// wire a store-owned Sellable bin as a Hub (or vice-versa). We route
+		// to a whitelisted server-side query per intent instead of using a
+		// loose client-side filter, so null semantics on ch_bin_type /
+		// ch_zone / warehouse_type are handled correctly and Transit
+		// warehouses (e.g. Goods In Transit) are excluded from every path.
+		const inferredIntent = (intent
+			|| (e.ch_location_type === 'Zone Warehouse' ? 'hub'
+				: (['Store Warehouse', 'Store Bin'].includes(e.ch_location_type) ? 'store'
+					: (e.ch_location_type ? 'other' : null))));
+		const isHub   = inferredIntent === 'hub';
+		const isOther = inferredIntent === 'other';
+		const hubQuery = (co, zn) => ({
+			query: 'ch_item_master.ch_core.location_hierarchy.hub_warehouse_query',
+			filters: { company: co, zone: zn },
+		});
+		const otherQuery = (co) => ({
+			query: 'ch_item_master.ch_core.location_hierarchy.other_warehouse_query',
+			filters: { company: co },
+		});
+		const looseFilters = (co) => ({ is_group: 0, disabled: 0, company: co });
+		const pickerHelp = isHub
+			? __('Only leaf warehouses that are not already a store bin or a Transit warehouse are shown. The selected warehouse will become this zone\u2019s Hub.')
+			: (isOther
+				? __('Only utility / transit / service warehouses are shown. Store-owned bins and hubs are hidden.')
+				: '');
+		const helpHTML = pickerHelp ? `<div class="text-muted small" style="margin:-4px 0 8px;">${pickerHelp}</div>` : '';
+
 		const ctxHTML = hasContext ? `<div class="text-muted small" style="margin:-4px 0 8px;">
 			<b>Company:</b> ${frappe.utils.escape_html(company)} &nbsp;·&nbsp; 
 			<b>City:</b> ${frappe.utils.escape_html(city)} &nbsp;·&nbsp; 
 			<b>Zone:</b> ${frappe.utils.escape_html(zone)}
 		</div>` : '';
 
+		// Location Type options are trimmed by intent so ops can't pick
+		// "Store Warehouse" from the Hub dialog etc.
+		const hubTypeOpts   = 'Zone Warehouse';
+		const otherTypeOpts = '\nTransit Warehouse\nService Warehouse\nOther';
+		const fullTypeOpts  = 'Store Warehouse\nZone Warehouse\nTransit Warehouse\nService Warehouse\nOther';
+		const editTypeOpts  = '\nStore Warehouse\nZone Warehouse\nTransit Warehouse\nService Warehouse\nOther';
+
 		const fields = [];
 		if (hasContext) {
 			fields.push({ fieldtype: 'HTML', options: ctxHTML });
-			fields.push({ fieldtype: 'Link', fieldname: 'warehouse', label: 'Warehouse', options: 'Warehouse', reqd: 1,
-				get_query: () => ({ filters: { is_group: 0, company } }) });
-			fields.push({ fieldtype: 'Select', fieldname: 'location_type', label: 'Location Type',
-				options: 'Store Warehouse\nZone Warehouse\nTransit Warehouse\nService Warehouse\nOther',
-				default: 'Store Warehouse' });
+			fields.push({ fieldtype: 'Link', fieldname: 'warehouse',
+				label: isHub ? __('Hub Warehouse') : (isOther ? __('Other Warehouse') : __('Warehouse')),
+				options: 'Warehouse', reqd: 1,
+				get_query: () => (isHub ? hubQuery(company, zone)
+					: isOther ? otherQuery(company)
+					: looseFilters(company)) });
+			if (pickerHelp) fields.push({ fieldtype: 'HTML', options: helpHTML });
+			fields.push({ fieldtype: 'Select', fieldname: 'location_type', label: __('Location Type'),
+				options: isHub ? hubTypeOpts : (isOther ? otherTypeOpts : fullTypeOpts),
+				default: isHub ? 'Zone Warehouse' : (isOther ? 'Transit Warehouse' : 'Store Warehouse'),
+				read_only: isHub ? 1 : 0 });
 		} else {
-			fields.push({ fieldtype: 'Link', fieldname: 'warehouse', label: 'Warehouse', options: 'Warehouse', reqd: 1,
-				default: e.name,
-				get_query: () => ({ filters: { is_group: 0, company: d.get_value('company') || undefined } }) });
+			fields.push({ fieldtype: 'Link', fieldname: 'warehouse', label: __('Warehouse'),
+				options: 'Warehouse', reqd: 1, default: e.name,
+				get_query: () => (isHub
+					? hubQuery(d.get_value('company'), d.get_value('zone'))
+					: (isOther
+						? otherQuery(d.get_value('company'))
+						: looseFilters(d.get_value('company') || undefined))) });
+			if (pickerHelp) fields.push({ fieldtype: 'HTML', options: helpHTML });
 			fields.push({ fieldtype: 'Link', fieldname: 'company', label: 'Company', options: 'Company', reqd: 1, default: e.company || this.company });
 			fields.push({ fieldtype: 'Link', fieldname: 'city', label: 'City', options: 'CH City', default: e.ch_city,
 				get_query: () => ({ filters: { disabled: 0 } }) });
 			fields.push({ fieldtype: 'Link', fieldname: 'zone', label: 'Zone', options: 'CH Store Zone', default: e.ch_zone,
 				get_query: () => ({ filters: { company: d.get_value('company'), city: d.get_value('city') } }) });
-			fields.push({ fieldtype: 'Select', fieldname: 'location_type', label: 'Location Type',
-				options: '\nStore Warehouse\nZone Warehouse\nTransit Warehouse\nService Warehouse\nOther',
+			fields.push({ fieldtype: 'Select', fieldname: 'location_type', label: __('Location Type'),
+				options: editTypeOpts,
 				default: e.ch_location_type });
 		}
 
+		const dialogTitle = existing
+			? __('Edit Warehouse Assignment')
+			: (isHub ? __('Assign Hub')
+				: (isOther ? __('Assign Other Warehouse') : __('Assign Warehouse')));
+
 		const d = new frappe.ui.Dialog({
-			title: existing ? __('Edit Warehouse Assignment') : __('Assign Warehouse'),
+			title: dialogTitle,
 			fields,
 			primary_action_label: __('Save'),
 			primary_action: (v) => {
-				const args = hasContext ? { warehouse: v.warehouse, company, city, zone, location_type: v.location_type } : v;
+				const location_type = isHub ? 'Zone Warehouse' : v.location_type;
+				const args = hasContext ? { warehouse: v.warehouse, company, city, zone, location_type } : Object.assign({}, v, { location_type });
 				frappe.call({
 					method: 'ch_item_master.ch_core.location_hierarchy.assign_warehouse',
 					args,
@@ -916,12 +1051,31 @@ class LocationHierarchyView {
 			<b>Zone:</b> ${frappe.utils.escape_html(zone)}
 		</div>` : '';
 
+		// Sellable-Warehouse picker: delegated to the server-side
+		// ``sellable_warehouse_query`` so null-safe filters (in particular
+		// ``warehouse_type != 'Transit'``, which the client filter DSL
+		// cannot express against nullable columns) run in one place.
+		// Excludes: store-owned bins, hubs (Zone Warehouse), Transit
+		// warehouses (Goods In Transit), disabled warehouses, and any
+		// warehouse already scoped to a different zone.
+		const sellableWarehouseQuery = (co, zn) => ({
+			query: 'ch_item_master.ch_core.location_hierarchy.sellable_warehouse_query',
+			filters: { company: co, zone: zn },
+		});
+
+		const sellableHelperHTML = `<div class="text-muted small" style="margin:-4px 0 8px;">
+			${__('This is the physical warehouse behind the store. POS sales, returns and the Sellable bin all post here. The operational bins (Damaged / Demo / Buyback) are created automatically as siblings after save.')}
+		</div>`;
+
 		const fields = hasContext ? [
 			{ fieldtype: 'HTML', options: ctxHTML },
 			{ fieldtype: 'Data', fieldname: 'store_name', label: 'Store Name', reqd: 1 },
 			{ fieldtype: 'Column Break' },
-			{ fieldtype: 'Link', fieldname: 'warehouse', label: 'Default Warehouse (optional)', options: 'Warehouse',
-				get_query: () => ({ filters: { company, is_group: 0 } }) },
+			{ fieldtype: 'Link', fieldname: 'warehouse',
+				label: __('Sellable Warehouse (POS postings land here)'),
+				options: 'Warehouse',
+				get_query: () => sellableWarehouseQuery(company, zone) },
+			{ fieldtype: 'HTML', options: sellableHelperHTML },
 			{ fieldtype: 'Section Break' },
 			{ fieldtype: 'HTML', options: '<div class="text-muted small">Store Code is auto-generated. Add Address & Contacts after creating.</div>' },
 		] : [
@@ -931,8 +1085,11 @@ class LocationHierarchyView {
 			{ fieldtype: 'Link', fieldname: 'zone', label: 'Zone', options: 'CH Store Zone', reqd: 1,
 				get_query: () => ({ filters: { company: d.get_value('company'), city: d.get_value('city') } }) },
 			{ fieldtype: 'Data', fieldname: 'store_name', label: 'Store Name', reqd: 1 },
-			{ fieldtype: 'Link', fieldname: 'warehouse', label: 'Default Warehouse (optional)', options: 'Warehouse',
-				get_query: () => ({ filters: { company: d.get_value('company'), is_group: 0 } }) },
+			{ fieldtype: 'Link', fieldname: 'warehouse',
+				label: __('Sellable Warehouse (POS postings land here)'),
+				options: 'Warehouse',
+				get_query: () => sellableWarehouseQuery(d.get_value('company'), d.get_value('zone')) },
+			{ fieldtype: 'HTML', options: sellableHelperHTML },
 		];
 
 		const d = new frappe.ui.Dialog({

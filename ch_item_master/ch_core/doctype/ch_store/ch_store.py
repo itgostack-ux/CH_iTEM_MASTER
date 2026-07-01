@@ -59,6 +59,11 @@ class CHStore(Document):
         if self.store_code:
             self.store_code = self.store_code.strip().upper()
 
+        if self.store_name:
+            self.store_name = self.store_name.strip()
+
+        self._validate_unique_store_name()
+
         if self.contact_phone:
             self.contact_phone = validate_indian_phone(self.contact_phone, "Contact Phone")
 
@@ -86,14 +91,149 @@ class CHStore(Document):
                         title=frappe._("Invalid Zone"),
                     )
 
+    def _validate_unique_store_name(self):
+        """Reject duplicate store_name within the same company.
+
+        ``store_code`` remains the primary key (auto-generated), but two
+        active stores in the same company sharing the exact same
+        ``store_name`` is almost always a data-entry mistake — reports and
+        dashboards key off the display name and would silently collapse
+        the two. We scope the check by company because a franchise group
+        legitimately runs identically-named stores under separate legal
+        entities.
+        """
+        if not (self.store_name and self.company):
+            return
+        dup = frappe.db.get_value(
+            "CH Store",
+            {
+                "store_name": self.store_name,
+                "company": self.company,
+                "name": ["!=", self.name or ""],
+                "disabled": 0,
+            },
+            "name",
+        )
+        if dup:
+            frappe.throw(
+                frappe._("A store named {0} already exists for {1}: {2}.").format(
+                    frappe.bold(self.store_name),
+                    frappe.bold(self.company),
+                    frappe.bold(dup),
+                ),
+                title=frappe._("Duplicate Store Name"),
+            )
+
     def after_insert(self):
         """Auto-create the operational stock-state bins as siblings of the store warehouse."""
         ensure_store_bins(self)
+        ensure_store_pos_profile(self)
 
     def on_update(self):
         """If warehouse is assigned later, ensure bins are created."""
         if self.has_value_changed("warehouse") and self.warehouse:
             ensure_store_bins(self)
+            ensure_store_pos_profile(self)
+
+
+@frappe.whitelist()
+def create_pos_profile_for_store(store):
+    """Idempotent whitelisted wrapper — invoked from the CH Store form button."""
+    doc = frappe.get_doc("CH Store", store)
+    return ensure_store_pos_profile(doc, force=True)
+
+
+def ensure_store_pos_profile(store, force=False):
+    """Provision a minimal, DISABLED POS Profile for a CH Store.
+
+    Design (matches HRMS / India Compliance ``ensure_*`` helpers):
+      * Skip when ``store.warehouse`` is not yet set — the sellable
+        warehouse is a hard dependency of POS Profile.
+      * Skip when ``store.pos_profile`` is already set, unless ``force``
+        (used by the manual "Create / Refresh" button so retail-ops can
+        rebuild the profile after fixing payment modes / cost centre).
+      * Create the profile DISABLED. Cashiers cannot use it until an
+        operator opens it, adds valid payment methods, and unchecks
+        ``disabled``. This mirrors the SAP "config in draft, activate
+        via change order" pattern and is safer than shipping a live
+        cashier profile with default payment modes.
+      * Everything is best-effort — POS Profile creation must never
+        block store creation. Failures are logged and swallowed.
+
+    Returns
+    -------
+    dict | None
+        ``{"pos_profile": <name>, "created": bool, "disabled": bool}``
+        or ``None`` when nothing was provisioned (missing prerequisites,
+        best-effort skip on error).
+    """
+    if not store.warehouse or not store.company:
+        return None
+
+    # Only auto-fill when there is no existing profile, unless the caller
+    # forced a rebuild via the desk button.
+    if store.pos_profile and not force:
+        return {"pos_profile": store.pos_profile, "created": False, "disabled": None}
+
+    if not store.store_code:
+        return None
+
+    profile_name = f"POS - {store.store_code}"
+
+    if frappe.db.exists("POS Profile", profile_name):
+        # Reuse — link it back to the store if the link was dropped.
+        if store.pos_profile != profile_name:
+            frappe.db.set_value(
+                "CH Store", store.name, "pos_profile", profile_name, update_modified=False,
+            )
+        disabled = frappe.db.get_value("POS Profile", profile_name, "disabled")
+        return {"pos_profile": profile_name, "created": False, "disabled": bool(disabled)}
+
+    try:
+        currency = frappe.db.get_value("Company", store.company, "default_currency")
+        cost_center = frappe.db.get_value("Company", store.company, "cost_center")
+        income_account = frappe.db.get_value("Company", store.company, "default_income_account")
+        expense_account = frappe.db.get_value(
+            "Company", store.company, "default_expense_account"
+        )
+        write_off_account = frappe.db.get_value(
+            "Company", store.company, "write_off_account"
+        )
+
+        pp = frappe.new_doc("POS Profile")
+        pp.name = profile_name
+        pp.company = store.company
+        pp.warehouse = store.warehouse
+        pp.currency = currency
+        pp.disabled = 1  # cashiers cannot use until payment methods are added
+        if cost_center:
+            pp.cost_center = cost_center
+        if income_account:
+            pp.income_account = income_account
+        if expense_account:
+            pp.expense_account = expense_account
+        if write_off_account:
+            pp.write_off_account = write_off_account
+
+        # Skip payment-methods validation on the seed insert — we want a
+        # blank skeleton that a retail-ops user completes on the form.
+        # ``validate_payment_methods`` throws if ``self.payments`` is empty,
+        # so we bypass validate() entirely on the initial insert; the
+        # user's Save will exercise full validation once modes are added.
+        pp.flags.ignore_validate = True
+        pp.flags.ignore_mandatory = True
+        pp.insert(ignore_permissions=True)
+
+        frappe.db.set_value(
+            "CH Store", store.name, "pos_profile", pp.name, update_modified=False,
+        )
+        return {"pos_profile": pp.name, "created": True, "disabled": True}
+    except Exception:
+        frappe.log_error(
+            frappe.get_traceback(),
+            f"ensure_store_pos_profile failed for {store.name}",
+        )
+        return None
 
 
 # Operational stock-state bins created as siblings of the store warehouse.

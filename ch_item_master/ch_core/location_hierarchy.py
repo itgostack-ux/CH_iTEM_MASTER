@@ -281,7 +281,8 @@ def get_company_location_tree(company=None, warehouse_view="all"):
 		"Warehouse",
 		filters={"disabled": 0, "is_group": 0},
 		fields=["name", "warehouse_name", "company", "ch_city", "ch_zone",
-			"ch_location_type", "ch_store", "ch_bin_type"],
+			"ch_location_type", "ch_store", "ch_bin_type", "ch_hub_bin_type",
+			"parent_warehouse"],
 	):
 		if company and warehouse.company != company:
 			continue
@@ -333,7 +334,9 @@ def _warehouse_matches_view(warehouse, warehouse_view):
 	# ch_location_type is 'Store Bin', because in the SAP-aligned tree
 	# (Path B Phase 2) the Sellable leaf IS the operational store warehouse
 	# (its parent 'Store Group' is is_group=1 and gets filtered out elsewhere).
-	location_types = {"Store Warehouse", "Zone Warehouse", "Transit Warehouse", "Service Warehouse"}
+	# Hub Bins are hub sub-warehouses (Sellable-01, Sellable-02, quarantine,
+	# etc.) — they belong to the location view alongside their Zone Warehouse.
+	location_types = {"Store Warehouse", "Zone Warehouse", "Transit Warehouse", "Service Warehouse", "Hub Bin"}
 	view = (warehouse_view or "all").strip().lower()
 	w_type = (warehouse.ch_location_type or "").strip()
 	is_sellable = (warehouse.ch_bin_type or "").strip() == "Sellable"
@@ -594,6 +597,27 @@ def assign_warehouse(warehouse, company=None, city=None, zone=None, location_typ
 	_check_master_permission()
 	if not frappe.db.exists("Warehouse", warehouse):
 		frappe.throw(f"Warehouse {warehouse} not found")
+	# A zone can only have ONE Hub (Zone Warehouse). If another warehouse is
+	# already tagged as the Zone Warehouse for this zone, refuse the tag —
+	# duplicate hubs corrupt trip planning and the location hierarchy view.
+	if (location_type or "") == "Zone Warehouse" and zone:
+		other = frappe.db.get_value(
+			"Warehouse",
+			{
+				"ch_zone": zone,
+				"ch_location_type": "Zone Warehouse",
+				"name": ["!=", warehouse],
+				"disabled": 0,
+			},
+			"name",
+		)
+		if other:
+			frappe.throw(
+				frappe._("Zone {0} already has a Hub: {1}. Unassign it before assigning a new one.").format(
+					frappe.bold(zone), frappe.bold(other),
+				),
+				title=frappe._("Duplicate Hub"),
+			)
 	updates = {"ch_city": city or None, "ch_zone": zone or None, "ch_location_type": location_type or None}
 	frappe.db.set_value("Warehouse", warehouse, updates)
 	# Cascade zone/city to child bins so they don't appear as Unassigned
@@ -780,3 +804,327 @@ def create_store_bin(store, bin_type, custom_suffix=None):
 	wh.insert(ignore_permissions=True)
 
 	return {"warehouse": wh.name, "bin_type": bin_type, "created": True}
+
+
+# ---------------------------------------------------------------------------
+# Hub Bins (Phase 4 — hub-side sub-warehouses)
+# ---------------------------------------------------------------------------
+#
+# Unlike store bins (fixed set: Damaged / Demo / Buyback), hub bins are
+# free-form: an operator can create ``Sellable-01``, ``Sellable-02``,
+# ``Quarantine``, ``Inbound-Dock-A`` etc. as siblings of the Zone
+# Warehouse. This mirrors SAP Storage Bins under a Plant and Oracle
+# Locators under an Inventory Org — the hub is the physical facility,
+# hub bins are addressable sub-locations inside it.
+#
+# Hub bins are parented under the ZONE GROUP (same parent as the Zone
+# Warehouse leaf) so we never have to flip the Zone Warehouse's
+# ``is_group`` flag (which would break Stock Ledger Entries).
+#
+# The ``ch_hub_bin_type`` custom field carries the free-form label so
+# reports can filter/aggregate without parsing warehouse names.
+
+
+_HUB_BIN_LABEL_MAX = 40
+
+
+def _resolve_hub_context(zone):
+	"""Return (zone_doc, hub_warehouse, hub_parent) for a zone.
+
+	``hub_parent`` is the Warehouse we'll attach new Hub Bins under. We
+	prefer the Zone Warehouse's ``parent_warehouse`` (the Zone Group);
+	falling back to the Zone Warehouse itself only if no parent group
+	exists (very old sites where the hub sits directly under the company
+	root).
+	"""
+	zone_doc = frappe.db.get_value(
+		"CH Store Zone", zone,
+		["name", "zone_name", "company", "city", "source_warehouse"],
+		as_dict=True,
+	)
+	if not zone_doc:
+		frappe.throw(frappe._("Zone {0} not found.").format(zone))
+	hub = zone_doc.source_warehouse
+	if not hub or not frappe.db.exists("Warehouse", hub):
+		frappe.throw(
+			frappe._("Zone {0} has no Hub warehouse assigned. Assign one first.").format(
+				frappe.bold(zone_doc.zone_name or zone),
+			),
+			title=frappe._("Hub Not Assigned"),
+		)
+	hub_parent = frappe.db.get_value("Warehouse", hub, "parent_warehouse") or hub
+	return zone_doc, hub, hub_parent
+
+
+def _sanitize_hub_bin_label(label):
+	import re
+	label = (label or "").strip()
+	if not label:
+		frappe.throw(frappe._("Hub Bin label is required."))
+	if len(label) > _HUB_BIN_LABEL_MAX:
+		frappe.throw(frappe._("Hub Bin label must be {0} characters or fewer.").format(_HUB_BIN_LABEL_MAX))
+	# Warehouse names must be safe for URLs and file paths. Allow letters,
+	# digits, spaces, dashes and underscores; reject everything else.
+	if not re.match(r"^[A-Za-z0-9][A-Za-z0-9 _\-]*$", label):
+		frappe.throw(
+			frappe._("Hub Bin label may only contain letters, digits, spaces, dashes and underscores."),
+			title=frappe._("Invalid Label"),
+		)
+	return label
+
+
+@frappe.whitelist()
+def list_hub_bins(zone):
+	"""Return the Hub Bin warehouses attached to a zone (for the UI)."""
+	_check_master_permission()
+	zone_doc, hub, _hub_parent = _resolve_hub_context(zone)
+	return frappe.get_all(
+		"Warehouse",
+		filters={
+			"disabled": 0,
+			"ch_zone": zone_doc.name,
+			"ch_location_type": "Hub Bin",
+		},
+		fields=["name", "warehouse_name", "ch_hub_bin_type", "parent_warehouse"],
+		order_by="ch_hub_bin_type asc",
+	)
+
+
+@frappe.whitelist()
+def create_hub_bin(zone, label):
+	"""Create one Hub Bin (child warehouse) under the given zone's hub.
+
+	Parameters
+	----------
+	zone : str
+		Name of the CH Store Zone (must already have ``source_warehouse``).
+	label : str
+		Free-form identifier for the bin (e.g. ``Sellable-01``). Sanitized
+		and used both for the warehouse-name suffix and for
+		``ch_hub_bin_type``. Must be unique within the zone.
+
+	Returns
+	-------
+	dict  { "warehouse": <name>, "label": <label>, "created": bool }
+
+	Idempotent: if a Hub Bin with the same (zone, label) already exists,
+	it is returned with ``created=False``.
+	"""
+	_check_master_permission()
+	label = _sanitize_hub_bin_label(label)
+	zone_doc, hub, hub_parent = _resolve_hub_context(zone)
+
+	# Idempotency: one Hub Bin per (zone, label).
+	existing = frappe.db.get_value(
+		"Warehouse",
+		{
+			"ch_zone": zone_doc.name,
+			"ch_location_type": "Hub Bin",
+			"ch_hub_bin_type": label,
+		},
+		"name",
+	)
+	if existing:
+		return {"warehouse": existing, "label": label, "created": False}
+
+	# Compose the warehouse_name from the hub's short name so the tree
+	# reads cleanly. Strip the " - <ABBR>" suffix that ERPNext appends so
+	# we don't double-suffix on autoname.
+	hub_display = frappe.db.get_value("Warehouse", hub, "warehouse_name") or hub
+	warehouse_name = f"{hub_display}-{label}"
+
+	wh = frappe.new_doc("Warehouse")
+	wh.warehouse_name = warehouse_name
+	wh.parent_warehouse = hub_parent
+	wh.company = zone_doc.company
+	wh.is_group = 0
+	wh.ch_city = zone_doc.city
+	wh.ch_zone = zone_doc.name
+	wh.ch_location_type = "Hub Bin"
+	wh.ch_hub_bin_type = label
+	try:
+		wh.insert(ignore_permissions=True)
+	except frappe.DuplicateEntryError:
+		# Race — another request beat us. Re-resolve and return.
+		existing = frappe.db.get_value(
+			"Warehouse",
+			{
+				"ch_zone": zone_doc.name,
+				"ch_location_type": "Hub Bin",
+				"ch_hub_bin_type": label,
+			},
+			"name",
+		)
+		return {"warehouse": existing, "label": label, "created": False}
+
+	return {"warehouse": wh.name, "label": label, "created": True}
+
+
+# ---------------------------------------------------------------------------
+# Link-picker query helpers — proper bifurcation for Hub / Store / Other
+# ---------------------------------------------------------------------------
+#
+# The "Assign Warehouse" dialog on the Location Hierarchy page is invoked
+# from three distinct actions (Assign Hub, +Hub, Assign Other Warehouse).
+# A single loose ``{is_group:0, company}`` filter used to leak every leaf
+# warehouse in the company — including store-owned Sellable/Damaged/Demo/
+# Buyback bins and the ERPNext-auto ``Goods In Transit`` — into the picker.
+#
+# These whitelisted, sanitized query functions are used as the ``query``
+# hook on the Link field so bifurcation happens server-side and null
+# semantics for ``ch_bin_type`` / ``ch_zone`` / ``warehouse_type`` are
+# handled correctly (Frappe's client-side ``['in', ['', null]]`` filter
+# does not survive the MariaDB null-in-list check).
+
+
+def _wh_search_txt(txt):
+	# Match Frappe's default LIKE pattern for Link picker searches.
+	return f"%{(txt or '').strip()}%"
+
+
+@frappe.whitelist()
+@frappe.validate_and_sanitize_search_inputs
+def hub_warehouse_query(doctype, txt, searchfield, start, page_len, filters):
+	"""Query for the Zone Hub (Zone Warehouse) picker.
+
+	A warehouse is Hub-eligible when it is:
+	  * a leaf (is_group=0) and not disabled
+	  * scoped to the correct company
+	  * NOT owned by any CH Store (ch_store IS NULL)
+	  * NOT tagged as a Store Warehouse / Store Bin / Hub Bin
+	  * NOT a Transit warehouse (warehouse_type='Transit')
+	  * NOT carrying a store-bin type (ch_bin_type IS NULL / '')
+	  * either untagged OR already tagged to this zone (so re-assign works)
+	"""
+	filters = filters or {}
+	company = filters.get("company")
+	zone = filters.get("zone")
+	values = {"txt": _wh_search_txt(txt), "start": start, "page_len": page_len}
+	conditions = [
+		"wh.disabled = 0",
+		"wh.is_group = 0",
+		"(wh.ch_store IS NULL OR wh.ch_store = '')",
+		"(wh.warehouse_type IS NULL OR wh.warehouse_type != 'Transit')",
+		"(wh.ch_location_type IS NULL OR wh.ch_location_type = ''"
+		" OR wh.ch_location_type = 'Zone Warehouse')",
+		"(wh.ch_bin_type IS NULL OR wh.ch_bin_type = '')",
+		f"wh.`{searchfield}` LIKE %(txt)s",
+	]
+	if company:
+		conditions.append("wh.company = %(company)s")
+		values["company"] = company
+	if zone:
+		conditions.append(
+			"(wh.ch_zone IS NULL OR wh.ch_zone = '' OR wh.ch_zone = %(zone)s)"
+		)
+		values["zone"] = zone
+	else:
+		conditions.append("(wh.ch_zone IS NULL OR wh.ch_zone = '')")
+
+	where_clause = " AND ".join(conditions)
+	return frappe.db.sql(
+		f"""
+		SELECT wh.name, IFNULL(wh.warehouse_name, wh.name),
+		       IFNULL(wh.ch_location_type, '')
+		FROM `tabWarehouse` wh
+		WHERE {where_clause}
+		ORDER BY
+			CASE WHEN wh.ch_location_type = 'Zone Warehouse' THEN 0 ELSE 1 END,
+			wh.name
+		LIMIT %(start)s, %(page_len)s
+		""",
+		values,
+	)
+
+
+@frappe.whitelist()
+@frappe.validate_and_sanitize_search_inputs
+def other_warehouse_query(doctype, txt, searchfield, start, page_len, filters):
+	"""Query for the "Other Warehouses" picker (Transit / Service / Other).
+
+	Excludes anything that is already a Store or Hub asset:
+	  * not owned by a CH Store
+	  * not tagged Store Warehouse / Store Bin / Zone Warehouse / Hub Bin
+	  * not carrying a store-bin type
+	"""
+	filters = filters or {}
+	company = filters.get("company")
+	values = {"txt": _wh_search_txt(txt), "start": start, "page_len": page_len}
+	conditions = [
+		"wh.disabled = 0",
+		"wh.is_group = 0",
+		"(wh.ch_store IS NULL OR wh.ch_store = '')",
+		"(wh.ch_location_type IS NULL OR wh.ch_location_type = ''"
+		" OR wh.ch_location_type IN ('Transit Warehouse','Service Warehouse','Other'))",
+		"(wh.ch_bin_type IS NULL OR wh.ch_bin_type = '')",
+		f"wh.`{searchfield}` LIKE %(txt)s",
+	]
+	if company:
+		conditions.append("wh.company = %(company)s")
+		values["company"] = company
+
+	where_clause = " AND ".join(conditions)
+	return frappe.db.sql(
+		f"""
+		SELECT wh.name, IFNULL(wh.warehouse_name, wh.name),
+		       IFNULL(wh.ch_location_type, '')
+		FROM `tabWarehouse` wh
+		WHERE {where_clause}
+		ORDER BY wh.name
+		LIMIT %(start)s, %(page_len)s
+		""",
+		values,
+	)
+
+
+@frappe.whitelist()
+@frappe.validate_and_sanitize_search_inputs
+def sellable_warehouse_query(doctype, txt, searchfield, start, page_len, filters):
+	"""Query for the Sellable Warehouse picker used by the Add Store dialog.
+
+	Mirrors the client-side ``sellableWarehouseFilters`` but adds the
+	``warehouse_type != 'Transit'`` guard that the client filter cannot
+	express (null-in-list semantics). A warehouse is Sellable-eligible when:
+	  * leaf, enabled, correct company
+	  * not owned by another CH Store (ch_store IS NULL)
+	  * ch_bin_type is blank or 'Sellable'
+	  * ch_location_type is blank or Store Warehouse / Store Bin
+	  * warehouse_type is not 'Transit'
+	  * either untagged OR already scoped to this zone
+	"""
+	filters = filters or {}
+	company = filters.get("company")
+	zone = filters.get("zone")
+	values = {"txt": _wh_search_txt(txt), "start": start, "page_len": page_len}
+	conditions = [
+		"wh.disabled = 0",
+		"wh.is_group = 0",
+		"(wh.ch_store IS NULL OR wh.ch_store = '')",
+		"(wh.warehouse_type IS NULL OR wh.warehouse_type != 'Transit')",
+		"(wh.ch_bin_type IS NULL OR wh.ch_bin_type IN ('', 'Sellable'))",
+		"(wh.ch_location_type IS NULL OR wh.ch_location_type IN ('', 'Store Warehouse', 'Store Bin'))",
+		f"wh.`{searchfield}` LIKE %(txt)s",
+	]
+	if company:
+		conditions.append("wh.company = %(company)s")
+		values["company"] = company
+	if zone:
+		conditions.append(
+			"(wh.ch_zone IS NULL OR wh.ch_zone = '' OR wh.ch_zone = %(zone)s)"
+		)
+		values["zone"] = zone
+	else:
+		conditions.append("(wh.ch_zone IS NULL OR wh.ch_zone = '')")
+
+	where_clause = " AND ".join(conditions)
+	return frappe.db.sql(
+		f"""
+		SELECT wh.name, IFNULL(wh.warehouse_name, wh.name),
+		       IFNULL(wh.ch_bin_type, '')
+		FROM `tabWarehouse` wh
+		WHERE {where_clause}
+		ORDER BY wh.name
+		LIMIT %(start)s, %(page_len)s
+		""",
+		values,
+	)
