@@ -1128,3 +1128,67 @@ def sellable_warehouse_query(doctype, txt, searchfield, start, page_len, filters
 		""",
 		values,
 	)
+
+
+@frappe.whitelist()
+@frappe.validate_and_sanitize_search_inputs
+def master_city_query(doctype, txt, searchfield, start, page_len, filters):
+	"""Unrestricted CH City picker for Location Hierarchy admin dialogs.
+
+	The default Link picker on ``CH City`` runs through
+	``ch_erp15.ch_erp15.scope.ch_city_query`` (a ``permission_query_conditions``
+	hook) which restricts results to the operator's ``CH User Scope`` cities.
+	That scoping is correct for transactional / reporting screens (an operator
+	scoped to Chennai should not see Mumbai customer addresses) but is WRONG
+	on this master-data admin page: when creating a NEW hub / zone / store /
+	office the operator needs to pick ANY Indian city — not just the ones
+	already inside their existing scope. Otherwise the page becomes a
+	chicken-and-egg trap (can't seed a city they don't yet operate in).
+
+	Route the Location Hierarchy CH City pickers through this whitelisted
+	query so the scope filter is bypassed. Access to this page is already
+	gated by role (Location Hierarchy is a master-data admin tool), so
+	exposing the full CH City master here is safe. Keeps the
+	``disabled = 0`` guard and mirrors the doctype's ``search_fields``
+	(``city_name, state, country``) plus ``name`` for the LIKE match, so
+	typing "che" surfaces Chennai, Chengalpattu, Puducherry-area cities
+	(state LIKE), etc. Ordering prefers name-prefix matches so exact
+	prefixes (Chennai, Chengalpattu) beat mid-word matches.
+	"""
+	filters = filters or {}
+	txt_like = f"%{txt or ''}%"
+	prefix_like = f"{txt or ''}%"
+	values = {
+		"txt": txt_like,
+		"prefix": prefix_like,
+		"start": start,
+		"page_len": page_len,
+	}
+	conditions = ["IFNULL(c.disabled, 0) = 0"]
+	if filters.get("state"):
+		conditions.append("c.state = %(state)s")
+		values["state"] = filters["state"]
+	if filters.get("country"):
+		conditions.append("c.country = %(country)s")
+		values["country"] = filters["country"]
+	conditions.append(
+		"(c.name LIKE %(txt)s OR c.city_name LIKE %(txt)s"
+		" OR c.state LIKE %(txt)s OR c.country LIKE %(txt)s)"
+	)
+	where_clause = " AND ".join(conditions)
+	return frappe.db.sql(
+		f"""
+		SELECT c.name,
+		       IFNULL(c.city_name, c.name),
+		       CONCAT_WS(', ', c.state, c.country)
+		FROM `tabCH City` c
+		WHERE {where_clause}
+		ORDER BY
+			CASE WHEN c.name LIKE %(prefix)s THEN 0
+			     WHEN c.city_name LIKE %(prefix)s THEN 1
+			     ELSE 2 END,
+			c.name
+		LIMIT %(start)s, %(page_len)s
+		""",
+		values,
+	)
