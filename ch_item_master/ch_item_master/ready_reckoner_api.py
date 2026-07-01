@@ -303,9 +303,13 @@ def get_ready_reckoner_data(
             "item_code", "name as buyback_name",
             "current_market_price", "vendor_price",
             "a_grade_iw_0_3", "b_grade_iw_0_3", "c_grade_iw_0_3",
+            "scrap_iw_0_3", "phone_dead_iw_0_3",
             "a_grade_iw_0_6", "b_grade_iw_0_6", "c_grade_iw_0_6", "d_grade_iw_0_6",
+            "scrap_iw_0_6", "phone_dead_iw_0_6",
             "a_grade_iw_6_11", "b_grade_iw_6_11", "c_grade_iw_6_11", "d_grade_iw_6_11",
+            "scrap_iw_6_11", "phone_dead_iw_6_11",
             "a_grade_oow_11", "b_grade_oow_11", "c_grade_oow_11", "d_grade_oow_11",
+            "scrap_oow_11", "phone_dead_oow_11",
         ]
         bpm_records = frappe.get_all(
             "Buyback Price Master",
@@ -561,9 +565,13 @@ def get_item_price_detail(item_code, company=None) -> dict:
         fields=[
             "name", "item_code", "current_market_price", "vendor_price",
             "a_grade_iw_0_3", "b_grade_iw_0_3", "c_grade_iw_0_3",
+            "scrap_iw_0_3", "phone_dead_iw_0_3",
             "a_grade_iw_0_6", "b_grade_iw_0_6", "c_grade_iw_0_6", "d_grade_iw_0_6",
+            "scrap_iw_0_6", "phone_dead_iw_0_6",
             "a_grade_iw_6_11", "b_grade_iw_6_11", "c_grade_iw_6_11", "d_grade_iw_6_11",
+            "scrap_iw_6_11", "phone_dead_iw_6_11",
             "a_grade_oow_11", "b_grade_oow_11", "c_grade_oow_11", "d_grade_oow_11",
+            "scrap_oow_11", "phone_dead_oow_11",
         ],
         limit=1,
     )
@@ -904,12 +912,7 @@ def export_ready_reckoner(
             bpm_rows = frappe.get_all(
                 "Buyback Price Master",
                 filters={"item_code": ("in", all_export_items), "is_active": 1},
-                fields=["item_code", "current_market_price", "vendor_price"] + [
-                    "a_grade_iw_0_3", "b_grade_iw_0_3", "c_grade_iw_0_3",
-                    "a_grade_iw_0_6", "b_grade_iw_0_6", "c_grade_iw_0_6", "d_grade_iw_0_6",
-                    "a_grade_iw_6_11", "b_grade_iw_6_11", "c_grade_iw_6_11", "d_grade_iw_6_11",
-                    "a_grade_oow_11", "b_grade_oow_11", "c_grade_oow_11", "d_grade_oow_11",
-                ],
+                fields=["item_code", "current_market_price", "vendor_price"] + BUYBACK_GRADE_FIELDS,
             )
             for bp in bpm_rows:
                 buyback_export_index[bp.item_code] = bp
@@ -922,10 +925,16 @@ def export_ready_reckoner(
     price_headers = []
     # Grade×warranty label map for human-readable headers
     _GRADE_LABELS = [
+    (
         ("a_grade_iw_0_3", "A IW 0-3"), ("b_grade_iw_0_3", "B IW 0-3"), ("c_grade_iw_0_3", "C IW 0-3"),
-        ("a_grade_iw_0_6", "A IW 0-6"), ("b_grade_iw_0_6", "B IW 0-6"), ("c_grade_iw_0_6", "C IW 0-6"), ("d_grade_iw_0_6", "D IW 0-6"),
+        ("scrap_iw_0_3", "Scrap IW 0-3"), ("phone_dead_iw_0_3", "Phone Dead IW 0-3"),
+        ("a_grade_iw_0_6", "A IW 4-6"), ("b_grade_iw_0_6", "B IW 4-6"), ("c_grade_iw_0_6", "C IW 4-6"), ("d_grade_iw_0_6", "D IW 4-6"),
+        ("scrap_iw_0_6", "Scrap IW 4-6"), ("phone_dead_iw_0_6", "Phone Dead IW 4-6"),
         ("a_grade_iw_6_11", "A IW 6-11"), ("b_grade_iw_6_11", "B IW 6-11"), ("c_grade_iw_6_11", "C IW 6-11"), ("d_grade_iw_6_11", "D IW 6-11"),
+        ("scrap_iw_6_11", "Scrap IW 6-11"), ("phone_dead_iw_6_11", "Phone Dead IW 6-11"),
         ("a_grade_oow_11", "A OOW 11+"), ("b_grade_oow_11", "B OOW 11+"), ("c_grade_oow_11", "C OOW 11+"), ("d_grade_oow_11", "D OOW 11+"),
+        ("scrap_oow_11", "Scrap OOW 11+"), ("phone_dead_oow_11", "Phone Dead OOW 11+"),
+    )
     ]
     for ch in channels:
         if ch in buying_channels:
@@ -985,18 +994,26 @@ def export_ready_reckoner(
 
 BUYBACK_GRADE_FIELDS = [
     "a_grade_iw_0_3", "b_grade_iw_0_3", "c_grade_iw_0_3",
+    "scrap_iw_0_3", "phone_dead_iw_0_3",
     "a_grade_iw_0_6", "b_grade_iw_0_6", "c_grade_iw_0_6", "d_grade_iw_0_6",
+    "scrap_iw_0_6", "phone_dead_iw_0_6",
     "a_grade_iw_6_11", "b_grade_iw_6_11", "c_grade_iw_6_11", "d_grade_iw_6_11",
+    "scrap_iw_6_11", "phone_dead_iw_6_11",
     "a_grade_oow_11", "b_grade_oow_11", "c_grade_oow_11", "d_grade_oow_11",
+    "scrap_oow_11", "phone_dead_oow_11",
 ]
 
 _BUYBACK_FIELD_LABELS = {
     "current_market_price": "Market Price",
     "vendor_price": "Vendor Price",
     "a_grade_iw_0_3": "A IW 0-3", "b_grade_iw_0_3": "B IW 0-3", "c_grade_iw_0_3": "C IW 0-3",
-    "a_grade_iw_0_6": "A IW 0-6", "b_grade_iw_0_6": "B IW 0-6", "c_grade_iw_0_6": "C IW 0-6", "d_grade_iw_0_6": "D IW 0-6",
+    "scrap_iw_0_3": "Scrap IW 0-3", "phone_dead_iw_0_3": "Phone Dead IW 0-3",
+    "a_grade_iw_0_6": "A IW 4-6", "b_grade_iw_0_6": "B IW 4-6", "c_grade_iw_0_6": "C IW 4-6", "d_grade_iw_0_6": "D IW 4-6",
+    "scrap_iw_0_6": "Scrap IW 4-6", "phone_dead_iw_0_6": "Phone Dead IW 4-6",
     "a_grade_iw_6_11": "A IW 6-11", "b_grade_iw_6_11": "B IW 6-11", "c_grade_iw_6_11": "C IW 6-11", "d_grade_iw_6_11": "D IW 6-11",
+    "scrap_iw_6_11": "Scrap IW 6-11", "phone_dead_iw_6_11": "Phone Dead IW 6-11",
     "a_grade_oow_11": "A OOW 11+", "b_grade_oow_11": "B OOW 11+", "c_grade_oow_11": "C OOW 11+", "d_grade_oow_11": "D OOW 11+",
+    "scrap_oow_11": "Scrap OOW 11+", "phone_dead_oow_11": "Phone Dead OOW 11+",
 }
 
 
@@ -1347,18 +1364,26 @@ _BUYBACK_HEADER_MAP = {
     "A IW 0-3": "a_grade_iw_0_3",
     "B IW 0-3": "b_grade_iw_0_3",
     "C IW 0-3": "c_grade_iw_0_3",
-    "A IW 0-6": "a_grade_iw_0_6",
-    "B IW 0-6": "b_grade_iw_0_6",
-    "C IW 0-6": "c_grade_iw_0_6",
-    "D IW 0-6": "d_grade_iw_0_6",
+    "Scrap IW 0-3": "scrap_iw_0_3",                  
+    "Phone Dead IW 0-3": "phone_dead_iw_0_3",        
+    "A IW 4-6": "a_grade_iw_0_6",
+    "B IW 4-6": "b_grade_iw_0_6",
+    "C IW 4-6": "c_grade_iw_0_6",
+    "D IW 4-6": "d_grade_iw_0_6",
+    "Scrap IW 4-6": "scrap_iw_0_6",                  
+    "Phone Dead IW 4-6": "phone_dead_iw_0_6",        
     "A IW 6-11": "a_grade_iw_6_11",
     "B IW 6-11": "b_grade_iw_6_11",
     "C IW 6-11": "c_grade_iw_6_11",
     "D IW 6-11": "d_grade_iw_6_11",
+    "Scrap IW 6-11": "scrap_iw_6_11",                
+    "Phone Dead IW 6-11": "phone_dead_iw_6_11",      
     "A OOW 11+": "a_grade_oow_11",
     "B OOW 11+": "b_grade_oow_11",
     "C OOW 11+": "c_grade_oow_11",
     "D OOW 11+": "d_grade_oow_11",
+    "Scrap OOW 11+": "scrap_oow_11",                 
+    "Phone Dead OOW 11+": "phone_dead_oow_11",       
 }
 
 

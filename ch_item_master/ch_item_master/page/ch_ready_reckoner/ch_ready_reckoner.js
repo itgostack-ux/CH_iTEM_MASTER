@@ -989,22 +989,28 @@ function _buyback_price_dialog(item_code, on_success, existing_data) {
     // If we have existing data, pre-fill; otherwise fetch from API
     const _show = (data) => {
         const bb = data || {};
-        const bb_has_data = !!(bb.current_market_price || bb.vendor_price || bb.a_grade_iw_0_3);
+        const bb_has_data = !!(bb.current_market_price || bb.vendor_price || bb.a_grade_iw_0_3 || bb.scrap_iw_0_3 || bb.phone_dead_iw_0_3);
         const fields = [
             { fieldtype: 'Section Break', label: 'Reference Prices' },
             { fieldtype: 'Currency', fieldname: 'current_market_price', label: 'Current Market Price',
-              reqd: 1, default: bb.current_market_price || 0 },
+            reqd: 1, default: bb.current_market_price || 0 },
             { fieldtype: 'Column Break' },
             { fieldtype: 'Currency', fieldname: 'vendor_price', label: 'Vendor Price',
-              reqd: 1, default: bb.vendor_price || 0 },
+            reqd: 1, default: bb.vendor_price || 0 },
 
+            // ─── IW 0-3 Months ───────────────────────────────────────
             { fieldtype: 'Section Break', label: 'IW 0-3 Months (In Warranty)' },
             { fieldtype: 'Currency', fieldname: 'a_grade_iw_0_3', label: 'A Grade', default: bb.a_grade_iw_0_3 || 0 },
             { fieldtype: 'Column Break' },
             { fieldtype: 'Currency', fieldname: 'b_grade_iw_0_3', label: 'B Grade', default: bb.b_grade_iw_0_3 || 0 },
             { fieldtype: 'Column Break' },
             { fieldtype: 'Currency', fieldname: 'c_grade_iw_0_3', label: 'C Grade', default: bb.c_grade_iw_0_3 || 0 },
+            { fieldtype: 'Column Break' },
+            { fieldtype: 'Currency', fieldname: 'scrap_iw_0_3', label: 'Scrap Price', default: bb.scrap_iw_0_3 || 0 },
+            { fieldtype: 'Column Break' },
+            { fieldtype: 'Currency', fieldname: 'phone_dead_iw_0_3', label: 'Phone Dead', default: bb.phone_dead_iw_0_3 || 0 },
 
+            // ─── IW 4-6 Months ───────────────────────────────────────
             { fieldtype: 'Section Break', label: 'IW 4-6 Months (In Warranty)' },
             { fieldtype: 'Currency', fieldname: 'a_grade_iw_0_6', label: 'A Grade', default: bb.a_grade_iw_0_6 || 0 },
             { fieldtype: 'Column Break' },
@@ -1013,7 +1019,12 @@ function _buyback_price_dialog(item_code, on_success, existing_data) {
             { fieldtype: 'Currency', fieldname: 'c_grade_iw_0_6', label: 'C Grade', default: bb.c_grade_iw_0_6 || 0 },
             { fieldtype: 'Column Break' },
             { fieldtype: 'Currency', fieldname: 'd_grade_iw_0_6', label: 'D Grade', default: bb.d_grade_iw_0_6 || 0 },
+            { fieldtype: 'Column Break' },
+            { fieldtype: 'Currency', fieldname: 'scrap_iw_0_6', label: 'Scrap Price', default: bb.scrap_iw_0_6 || 0 },
+            { fieldtype: 'Column Break' },
+            { fieldtype: 'Currency', fieldname: 'phone_dead_iw_0_6', label: 'Phone Dead', default: bb.phone_dead_iw_0_6 || 0 },
 
+            // ─── IW 6-11 Months ──────────────────────────────────────
             { fieldtype: 'Section Break', label: 'IW 6-11 Months (In Warranty)' },
             { fieldtype: 'Currency', fieldname: 'a_grade_iw_6_11', label: 'A Grade', default: bb.a_grade_iw_6_11 || 0 },
             { fieldtype: 'Column Break' },
@@ -1022,7 +1033,12 @@ function _buyback_price_dialog(item_code, on_success, existing_data) {
             { fieldtype: 'Currency', fieldname: 'c_grade_iw_6_11', label: 'C Grade', default: bb.c_grade_iw_6_11 || 0 },
             { fieldtype: 'Column Break' },
             { fieldtype: 'Currency', fieldname: 'd_grade_iw_6_11', label: 'D Grade', default: bb.d_grade_iw_6_11 || 0 },
+            { fieldtype: 'Column Break' },
+            { fieldtype: 'Currency', fieldname: 'scrap_iw_6_11', label: 'Scrap Price', default: bb.scrap_iw_6_11 || 0 },
+            { fieldtype: 'Column Break' },
+            { fieldtype: 'Currency', fieldname: 'phone_dead_iw_6_11', label: 'Phone Dead', default: bb.phone_dead_iw_6_11 || 0 },
 
+            // ─── OOW 11+ Months ──────────────────────────────────────
             { fieldtype: 'Section Break', label: 'OOW 11+ Months (Out of Warranty)' },
             { fieldtype: 'Currency', fieldname: 'a_grade_oow_11', label: 'A Grade', default: bb.a_grade_oow_11 || 0 },
             { fieldtype: 'Column Break' },
@@ -1031,11 +1047,15 @@ function _buyback_price_dialog(item_code, on_success, existing_data) {
             { fieldtype: 'Currency', fieldname: 'c_grade_oow_11', label: 'C Grade', default: bb.c_grade_oow_11 || 0 },
             { fieldtype: 'Column Break' },
             { fieldtype: 'Currency', fieldname: 'd_grade_oow_11', label: 'D Grade', default: bb.d_grade_oow_11 || 0 },
+            { fieldtype: 'Column Break' },
+            { fieldtype: 'Currency', fieldname: 'scrap_oow_11', label: 'Scrap Price', default: bb.scrap_oow_11 || 0 },
+            { fieldtype: 'Column Break' },
+            { fieldtype: 'Currency', fieldname: 'phone_dead_oow_11', label: 'Phone Dead', default: bb.phone_dead_oow_11 || 0 },
 
             { fieldtype: 'Section Break' },
             { fieldtype: 'Small Text', fieldname: 'reason', label: 'Reason for Change',
-              reqd: bb_has_data ? 1 : 0,
-              description: bb_has_data ? 'Required — explain why these prices are being changed' : '' },
+            reqd: bb_has_data ? 1 : 0,
+            description: bb_has_data ? 'Required — explain why these prices are being changed' : '' },
         ];
 
         const d = new frappe.ui.Dialog({
@@ -1053,21 +1073,37 @@ function _buyback_price_dialog(item_code, on_success, existing_data) {
                         reason: vals.reason || '',
                         current_market_price: vals.current_market_price || 0,
                         vendor_price: vals.vendor_price || 0,
+
+                        // IW 0-3
                         a_grade_iw_0_3: vals.a_grade_iw_0_3 || 0,
                         b_grade_iw_0_3: vals.b_grade_iw_0_3 || 0,
                         c_grade_iw_0_3: vals.c_grade_iw_0_3 || 0,
+                        scrap_iw_0_3: vals.scrap_iw_0_3 || 0,
+                        phone_dead_iw_0_3: vals.phone_dead_iw_0_3 || 0,
+
+                        // IW 4-6
                         a_grade_iw_0_6: vals.a_grade_iw_0_6 || 0,
                         b_grade_iw_0_6: vals.b_grade_iw_0_6 || 0,
                         c_grade_iw_0_6: vals.c_grade_iw_0_6 || 0,
                         d_grade_iw_0_6: vals.d_grade_iw_0_6 || 0,
+                        scrap_iw_0_6: vals.scrap_iw_0_6 || 0,
+                        phone_dead_iw_0_6: vals.phone_dead_iw_0_6 || 0,
+
+                        // IW 6-11
                         a_grade_iw_6_11: vals.a_grade_iw_6_11 || 0,
                         b_grade_iw_6_11: vals.b_grade_iw_6_11 || 0,
                         c_grade_iw_6_11: vals.c_grade_iw_6_11 || 0,
                         d_grade_iw_6_11: vals.d_grade_iw_6_11 || 0,
+                        scrap_iw_6_11: vals.scrap_iw_6_11 || 0,
+                        phone_dead_iw_6_11: vals.phone_dead_iw_6_11 || 0,
+
+                        // OOW 11+
                         a_grade_oow_11: vals.a_grade_oow_11 || 0,
                         b_grade_oow_11: vals.b_grade_oow_11 || 0,
                         c_grade_oow_11: vals.c_grade_oow_11 || 0,
                         d_grade_oow_11: vals.d_grade_oow_11 || 0,
+                        scrap_oow_11: vals.scrap_oow_11 || 0,
+                        phone_dead_oow_11: vals.phone_dead_oow_11 || 0,
                     },
                     callback(r) {
                         d.hide();
