@@ -14,6 +14,8 @@ from __future__ import annotations
 import frappe
 from frappe import _
 
+from ch_erp15.ch_erp15.report_scope import scope_where_clause
+
 
 def execute(filters: dict | None = None):
 	filters = frappe._dict(filters or {})
@@ -146,6 +148,13 @@ def _get_data(filters: frappe._dict) -> list[dict]:
 	elif status == "Disabled":
 		conditions.append("IFNULL(s.disabled, 0) = 1")
 	# else "All" — no filter
+
+	# Tier 4: fail-closed scope on the CH Store itself (this report IS the
+	# store directory — scope narrows the visible catalogue for non-bypass
+	# users to their assigned stores).
+	scope = scope_where_clause(store_field="s.name")
+	if scope is not None:
+		conditions.append(scope)
 
 	where_clause = " AND ".join(conditions)
 

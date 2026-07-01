@@ -1,6 +1,8 @@
 import frappe
 from frappe import _
 
+from ch_erp15.ch_erp15.report_scope import scope_where_clause
+
 
 def execute(filters=None):
 	filters = filters or {}
@@ -37,6 +39,11 @@ def get_data(filters):
 	if filters.get("store"):
 		conditions.append("sal.store = %(store)s")
 		values["store"] = filters["store"]
+
+	# Tier 4: fail-closed scope on the ledger's store (Link → Warehouse).
+	scope = scope_where_clause(warehouse_field="sal.store")
+	if scope is not None:
+		conditions.append(scope)
 
 	where = " AND ".join(conditions)
 

@@ -7,6 +7,8 @@ import frappe
 from frappe import _
 from frappe.utils import flt, cint, getdate, add_days, nowdate
 
+from ch_erp15.ch_erp15.report_scope import scope_where_clause
+
 
 def execute(filters=None):
 	filters = frappe._dict(filters or {})
@@ -60,6 +62,16 @@ def _fetch_rows(filters):
 
 	if filters.get("only_unapproved"):
 		conditions.append("IFNULL(l.approved_by_manager, 0) = 0")
+
+	# Tier 4: fail-closed scope on POS Override Log's store_warehouse and
+	# pos_profile. Enterprise parity with SAP IS-Retail POS auth object
+	# W_POS_STORE and Oracle Xstore's Register auth model.
+	scope = scope_where_clause(
+		warehouse_field="l.store_warehouse",
+		pos_profile_field="l.pos_profile",
+	)
+	if scope is not None:
+		conditions.append(scope)
 
 	where = " AND ".join(conditions)
 

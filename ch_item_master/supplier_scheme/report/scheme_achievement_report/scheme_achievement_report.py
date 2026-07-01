@@ -2,6 +2,8 @@ import frappe
 from frappe import _
 from frappe.utils import flt
 
+from ch_erp15.ch_erp15.report_scope import scope_where_clause
+
 
 def execute(filters=None):
 	filters = filters or {}
@@ -49,6 +51,11 @@ def get_data(filters):
 		values["to_date"] = filters["to_date"]
 	if not filters.get("show_reversed"):
 		conditions.append("sal.is_reversed = 0")
+
+	# Tier 4: fail-closed scope on the ledger's store (Link → Warehouse).
+	scope = scope_where_clause(warehouse_field="sal.store")
+	if scope is not None:
+		conditions.append(scope)
 
 	where = " AND ".join(conditions) if conditions else "1=1"
 
