@@ -253,22 +253,30 @@ def ensure_store_group(store) -> str | None:
 	if not store or not store.get("company") or not store.get("store_code"):
 		return None
 
-	parent = None
-	if store.get("zone"):
-		parent = ensure_zone_group(store["company"], store["zone"])
-	if not parent and store.get("city"):
-		parent = ensure_city_group(store["company"], store["city"])
-	if not parent:
-		parent = _company_root(store["company"])
+	# Read via .get() only — ``store`` may be a Frappe Document, which does
+	# not support subscripting (``doc["field"]`` raises TypeError). Using
+	# ``.get()`` keeps the helper polymorphic across dict and Document inputs.
+	company = store.get("company")
+	store_code = store.get("store_code")
 
-	name = _store_group_name(store["company"], store["store_code"])
+	zone = store.get("zone")
+	city = store.get("city")
+	parent = None
+	if zone:
+		parent = ensure_zone_group(company, zone)
+	if not parent and city:
+		parent = ensure_city_group(company, city)
+	if not parent:
+		parent = _company_root(company)
+
+	name = _store_group_name(company, store_code)
 	return _ensure_group(
 		name,
-		company=store["company"],
+		company=company,
 		parent=parent,
 		location_type="Store Group",
-		city=store.get("city"),
-		zone=store.get("zone"),
+		city=city,
+		zone=zone,
 	)
 
 
