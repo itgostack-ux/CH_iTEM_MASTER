@@ -243,7 +243,8 @@ def get_company_location_tree(company=None, warehouse_view="all"):
 		zone_filters["company"] = company
 
 	for zone in frappe.get_all("CH Store Zone", filters=zone_filters, fields=["name", "zone_name", "company", "city", "source_warehouse"]):
-		company_node = companies.setdefault(zone.company, {"company": zone.company, "cities": {}})
+		company_node = companies.setdefault(zone.company, {"company": zone.company, "cities": {}, "system_defaults": []})
+		company_node.setdefault("system_defaults", [])
 		city_key = zone.city or "Unassigned"
 		city_ref = city_map.get(city_key)
 		city_node = company_node["cities"].setdefault(
@@ -288,6 +289,20 @@ def get_company_location_tree(company=None, warehouse_view="all"):
 			continue
 		if not _warehouse_matches_view(warehouse, warehouse_view):
 			continue
+		# ERPNext-generated company defaults (Stores / WIP / Finished Goods)
+		# are tagged with ch_location_type="Other" by the seed importer.
+		# They have no retail role and hold no stock, so we lift them out of
+		# the city / zone iteration entirely and surface them once at the
+		# company level in a compact "System Warehouses" chip row (rendered
+		# above the cities in the JS). This keeps them findable without
+		# polluting the geographic tree with an "Unassigned" bucket.
+		if (warehouse.ch_location_type or "").strip() == "Other":
+			company_node = companies.setdefault(
+				warehouse.company,
+				{"company": warehouse.company, "cities": {}, "system_defaults": []},
+			)
+			company_node.setdefault("system_defaults", []).append(warehouse)
+			continue
 		# Decorate with the friendly store label (None for warehouses not
 		# attached to a CH Store, which is fine — JS falls back gracefully).
 		warehouse["ch_store_name"] = (
@@ -318,7 +333,8 @@ def get_company_location_tree(company=None, warehouse_view="all"):
 
 
 def _zone_bucket(companies, company, city, zone):
-	company_node = companies.setdefault(company, {"company": company, "cities": {}})
+	company_node = companies.setdefault(company, {"company": company, "cities": {}, "system_defaults": []})
+	company_node.setdefault("system_defaults", [])
 	city_key = city or "Unassigned"
 	city_node = company_node["cities"].setdefault(city_key, {"city": city_key, "city_name": city_key, "state": None, "state_code": None, "zones": {}})
 	zone_key = zone or "Unassigned"

@@ -149,6 +149,23 @@ class LocationHierarchyView {
 				</div>
 			</div>`).appendTo($c).find('[data-act="add-city"]').on('click', () => this.add_city(company.company));
 
+			// Company-level "System Warehouses" chip row: ERPNext-generated
+			// defaults (Stores / WIP / Finished Goods) that live at the
+			// warehouse-tree root, hold no stock, and have no retail role.
+			// They still need to be discoverable, so we surface them here as
+			// a compact chip row — never inside a city or zone bucket.
+			const sysDefaults = company.system_defaults || [];
+			if (sysDefaults.length) {
+				const $sys = $(`<div class="lh-section" style="margin:2px 0 8px 6px"></div>`).appendTo($c);
+				$sys.append(`<div class="lh-section-title"><span title="${__('ERPNext-generated defaults kept for accounting compatibility — no retail stock lives here.')}"><i class="fa fa-cog"></i> ${__('System Warehouses')}</span></div>`);
+				const $sysRow = $(`<div class="lh-row"></div>`).appendTo($sys);
+				for (const w of sysDefaults) {
+					$(`<span class="lh-pill lh-warehouse" title="${__('System default — kept for ERPNext accounting compatibility')}">
+						<a href="/app/warehouse/${encodeURIComponent(w.name)}" target="_blank">${frappe.utils.escape_html(w.warehouse_name || w.name)}</a>
+					</span>`).appendTo($sysRow);
+				}
+			}
+
 			const $body = $(`<div></div>`).appendTo($c);
 			if (!company.cities.length) {
 				$body.append(`<div class="lh-city text-muted">${__('No cities yet')}</div>`);
