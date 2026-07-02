@@ -31,34 +31,11 @@ Design parity:
 
 from __future__ import annotations
 
-import os
-
-import frappe
-
-from ch_item_master.ch_core.location_hierarchy_seed import import_from_file
-
-
-SEED_RELATIVE_PATH = os.path.join("data", "seed", "location_hierarchy_ch_baseline.json")
-
-
-def _seed_path() -> str | None:
-	app_path = frappe.get_app_path("ch_item_master")
-	candidate = os.path.join(app_path, SEED_RELATIVE_PATH)
-	return candidate if os.path.exists(candidate) else None
+from ch_item_master.ch_core.location_hierarchy_seed import seed_baseline_location_hierarchy
 
 
 def execute():
-	seed_path = _seed_path()
-	if not seed_path:
-		# Ship the JSON with the app; if a teammate has stripped it, log
-		# and no-op rather than crash the migrate.
-		print(
-			"v27_seed_location_hierarchy_baseline: seed file not found at "
-			f"ch_item_master/{SEED_RELATIVE_PATH}; skipping."
-		)
-		return
-
-	result = import_from_file(seed_path, apply=True)
+	result = seed_baseline_location_hierarchy()
 	summary = result.get("summary") or {}
 	print(
 		"v27_seed_location_hierarchy_baseline: "

@@ -78,6 +78,7 @@ import frappe
 # refuses to load a file whose version is newer than what this module
 # knows about.
 SEED_SCHEMA_VERSION = 1
+BASELINE_RELATIVE_PATH = os.path.join("data", "seed", "location_hierarchy_ch_baseline.json")
 
 # Fields captured per doctype.  We deliberately DON'T dump audit
 # columns (creation, modified, owner, _user_tags, _assign, _liked_by,
@@ -345,6 +346,50 @@ def _resolve_warehouse_for_seed(base_name: str, company: str, plan: dict, purpos
     return None
 
 
+def _ensure_seed_zone_warehouse(base_name: str, company: str, city: str, plan: dict) -> str | None:
+    """Ensure the seed's zone source warehouse exists.
+
+    Zone hubs are derived infrastructure for the hierarchy. A fresh site will
+    not have them yet, so the baseline importer must materialise them instead
+    of asking operators to create them first.
+    """
+    if not (base_name and company and city):
+        return None
+
+    target = _warehouse_target_name(base_name, company)
+    if frappe.db.exists("Warehouse", target):
+        return target
+
+    plan["to_create"].append(
+        {
+            "type": "Warehouse",
+            "name": target,
+            "values": {
+                "warehouse_name": base_name,
+                "company": company,
+                "city": city,
+                "ch_location_type": "Zone Warehouse",
+            },
+        }
+    )
+    if plan["dry_run"]:
+        return target
+
+    from ch_item_master.ch_core.warehouse_geo import ensure_city_group
+
+    parent = ensure_city_group(company, city)
+    wh = frappe.new_doc("Warehouse")
+    wh.warehouse_name = base_name
+    wh.company = company
+    wh.is_group = 0
+    if parent:
+        wh.parent_warehouse = parent
+    wh.ch_city = city
+    wh.ch_location_type = "Zone Warehouse"
+    wh.insert(ignore_permissions=True)
+    return wh.name
+
+
 def _upsert_zone(entry: dict, plan: dict, company_map: dict | None) -> None:
     company = _resolve_company(entry, company_map)
     if not company:
@@ -369,14 +414,25 @@ def _upsert_zone(entry: dict, plan: dict, company_map: dict | None) -> None:
         "name",
     )
     if existing:
+        if not plan["dry_run"]:
+            current_source = frappe.db.get_value("CH Store Zone", existing, "source_warehouse")
+            if not current_source:
+                source_wh = _ensure_seed_zone_warehouse(
+                    entry.get("source_warehouse_base"), company, city, plan
+                )
+                if source_wh:
+                    frappe.db.set_value(
+                        "CH Store Zone", existing, "source_warehouse", source_wh,
+                        update_modified=False,
+                    )
+                    from ch_item_master.ch_core.location_hierarchy import sync_zone_source_warehouse_metadata
+
+                    sync_zone_source_warehouse_metadata(existing)
         plan["skipped"].append({"type": "CH Store Zone", "name": existing, "reason": "already exists"})
         return
 
-    source_wh = _resolve_warehouse_for_seed(
-        entry.get("source_warehouse_base"),
-        company,
-        plan,
-        purpose=f"CH Store Zone {zone_name} source_warehouse",
+    source_wh = _ensure_seed_zone_warehouse(
+        entry.get("source_warehouse_base"), company, city, plan
     )
 
     values = {k: entry.get(k) for k in _ZONE_FIELDS}
@@ -415,39 +471,42 @@ def _upsert_store(entry: dict, plan: dict, company_map: dict | None) -> None:
         "name",
     )
     if existing:
+        if not plan["dry_run"] and not frappe.db.get_value("CH Store", existing, "warehouse"):
+            from ch_item_master.ch_core.warehouse_geo import provision_store_warehouse
+
+            provision_store_warehouse(existing)
         plan["skipped"].append({"type": "CH Store", "name": existing, "reason": "already exists"})
         return
 
-    warehouse = _resolve_warehouse_for_seed(
-        entry.get("warehouse_base"),
-        company,
-        plan,
-        purpose=f"CH Store {store_name} sellable warehouse",
-    )
-    if not warehouse:
-        # No warehouse → skip.  Store creation without a warehouse would
-        # succeed but leave the store bin-less; better to force manual
-        # remediation and re-run the import.
-        plan["skipped"].append(
-            {
-                "type": "CH Store",
-                "store_name": store_name,
-                "reason": "no target warehouse — see manual_followups",
-            }
-        )
-        return
+    warehouse = None
+    warehouse_base = entry.get("warehouse_base")
+    if warehouse_base:
+        target_warehouse = _warehouse_target_name(warehouse_base, company)
+        if frappe.db.exists("Warehouse", target_warehouse):
+            warehouse = target_warehouse
 
     values = {k: entry.get(k) for k in _STORE_FIELDS}
     values["company"] = company
     values["warehouse"] = warehouse
-    plan["to_create"].append({"type": "CH Store", "store_name": store_name, "values": values})
+    plan["to_create"].append(
+        {
+            "type": "CH Store",
+            "store_name": store_name,
+            "values": values,
+            "auto_provision_warehouse": not bool(warehouse),
+        }
+    )
     if not plan["dry_run"]:
         doc = frappe.new_doc("CH Store")
         for k, v in values.items():
             if v is not None:
                 setattr(doc, k, v)
         doc.insert(ignore_permissions=True)
-        # after_insert takes care of bins + POS Profile.
+        if not warehouse:
+            from ch_item_master.ch_core.warehouse_geo import provision_store_warehouse
+
+            provision_store_warehouse(doc.name)
+        # after_insert / provision_store_warehouse take care of bins + POS Profile.
 
 
 def import_location_hierarchy(
@@ -546,3 +605,36 @@ def import_from_file(in_path: str, apply: bool = False, company_map_json: str | 
         frappe.throw(f"Seed file not found: {in_path}")
     company_map = json.loads(company_map_json) if company_map_json else None
     return import_location_hierarchy(in_path, dry_run=not apply, company_map=company_map)
+
+
+def baseline_seed_path() -> str | None:
+    """Return the shipped baseline seed path, if present in this app build."""
+    candidate = os.path.join(frappe.get_app_path("ch_item_master"), BASELINE_RELATIVE_PATH)
+    return candidate if os.path.exists(candidate) else None
+
+
+def seed_baseline_location_hierarchy() -> dict:
+    """Idempotently import the shipped location hierarchy baseline.
+
+    This is safe to call from ``after_migrate``. Existing rows are skipped by
+    natural key; missing derived hubs / store Sellable warehouses are created.
+    """
+    path = baseline_seed_path()
+    if not path:
+        msg = (
+            "location hierarchy baseline seed file not found at "
+            f"ch_item_master/{BASELINE_RELATIVE_PATH}; skipping"
+        )
+        print(msg)
+        return {"skipped": True, "reason": msg}
+
+    result = import_from_file(path, apply=True)
+    summary = result.get("summary") or {}
+    print(
+        "seed_baseline_location_hierarchy: "
+        f"created={summary.get('to_create', 0)} "
+        f"skipped={summary.get('skipped', 0)} "
+        f"manual_followups={summary.get('manual_followups', 0)} "
+        f"errors={summary.get('errors', 0)}"
+    )
+    return result

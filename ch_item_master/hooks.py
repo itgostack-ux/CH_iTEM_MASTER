@@ -51,6 +51,7 @@ after_migrate = [
 	"ch_item_master.ch_item_master.monitoring.install_number_cards",
 	"ch_item_master.print_setup.ensure_print_formats",
 	"ch_item_master.ch_core.setup.seed_geography_masters.execute",
+	"ch_item_master.ch_core.location_hierarchy_seed.seed_baseline_location_hierarchy",
 ]
 before_uninstall = "ch_item_master.install.before_uninstall"
 
