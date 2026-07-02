@@ -76,6 +76,8 @@ class CHStore(Document):
         if self.zone:
             zone = frappe.db.get_value("CH Store Zone", self.zone, ["company", "city"], as_dict=True)
             if zone:
+                if not self.city and zone.city:
+                    self.city = zone.city
                 if self.company and zone.company != self.company:
                     frappe.throw(
                         frappe._("Zone {0} belongs to company {1}, not {2}.").format(
@@ -90,6 +92,10 @@ class CHStore(Document):
                         ),
                         title=frappe._("Invalid Zone"),
                     )
+
+        from ch_item_master.ch_core.location_hierarchy import validate_store_location_contract
+
+        validate_store_location_contract(self)
 
     def _validate_unique_store_name(self):
         """Reject duplicate store_name within the same company.
@@ -312,12 +318,8 @@ def ensure_store_bins(store):
     except Exception:
         frappe.log_error(frappe.get_traceback(), f"ensure_store_group failed: {store.name}")
 
-    # Stamp hierarchy fields on the base warehouse and mark it as the Sellable bin.
-    # In the new SAP-aligned tree (Path B Phase 2) every leaf — including
-    # Sellable — is a 'Store Bin'; the parent 'Store Group' carries the
-    # store identity. _warehouse_matches_view() treats ch_bin_type='Sellable'
-    # as a synonym for a Store Warehouse entry in the 'location' view, so
-    # nothing visible breaks.
+    # In the SAP-aligned tree every per-store Sellable leaf is a Store Bin;
+    # the parent Store Group carries the store identity.
     base_updates = {
         "ch_city": store.city,
         "ch_zone": store.zone,
@@ -383,4 +385,3 @@ def ensure_store_bins(store):
         except frappe.DuplicateEntryError:
             # Another save raced us; safe to skip.
             continue
-

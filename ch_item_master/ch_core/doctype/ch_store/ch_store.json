@@ -15,11 +15,13 @@
   "warehouse_group",
   "pos_profile",
   "disabled",
+  "store_status",
+  "opening_date",
   "territory_section",
   "territory",
   "branch",
   "zone_section",
-    "city",
+  "city",
   "zone",
   "address_section",
   "address",
@@ -109,6 +111,20 @@
    "in_standard_filter": 1
   },
   {
+   "fieldname": "store_status",
+   "fieldtype": "Select",
+   "label": "Store Status",
+   "options": "Active\nPlanned\nClosed",
+   "default": "Active",
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "opening_date",
+   "fieldtype": "Date",
+   "label": "Opening Date"
+  },
+  {
    "fieldname": "territory_section",
    "fieldtype": "Section Break",
    "label": "Territory"
@@ -151,12 +167,12 @@
   },
   {
    "fieldname": "city",
-    "fieldtype": "Link",
+   "fieldtype": "Link",
    "label": "City",
-    "options": "CH City",
+   "options": "CH City",
    "in_standard_filter": 1,
-    "search_index": 1,
-    "description": "City under the selected company. Zones, warehouses, and offices are grouped below this city."
+   "search_index": 1,
+   "description": "City under the selected company. Zones, warehouses, and offices are grouped below this city."
   },
   {
    "fieldname": "column_break_addr",
@@ -258,7 +274,7 @@
    "role": "All"
   }
  ],
- "search_fields": "store_name,company,city",
+ "search_fields": "store_code,city,company",
  "sort_field": "store_name",
  "sort_order": "ASC",
  "states": [],

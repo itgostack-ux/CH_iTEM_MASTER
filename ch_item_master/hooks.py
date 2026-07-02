@@ -42,6 +42,7 @@ after_migrate = [
 	"ch_item_master.ch_core.location_hierarchy.backfill_store_bins",
 	"ch_item_master.ch_core.location_hierarchy.backfill_zone_hubs",
 	"ch_item_master.ch_core.location_hierarchy.backfill_bin_zones",
+	"ch_item_master.ch_core.location_hierarchy.repair_retail_location_integrity",
 	"ch_item_master.ch_core.bin_transfer.seed_default_reasons",
 	"ch_item_master.ch_item_master.backfill_ids.backfill_ids_after_migrate",
 	"ch_item_master.seed_status_registry.validate_status_registry",
@@ -139,6 +140,9 @@ doc_events = {
 	},
 	"Branch": {
 		"validate": "ch_item_master.ch_core.branch.validate",
+	},
+	"Warehouse": {
+		"validate": "ch_item_master.ch_core.location_hierarchy.validate_warehouse_location_fields",
 	},
 	"Item Group": {
 		"before_insert": "ch_item_master.ch_item_master.overrides.item_group.before_insert",

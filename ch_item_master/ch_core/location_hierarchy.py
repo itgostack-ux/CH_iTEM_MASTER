@@ -1,4 +1,459 @@
+import json
+
 import frappe
+
+
+GROUP_LOCATION_TYPES = {"City Group", "Zone Group", "Store Group"}
+LEAF_LOCATION_TYPES = {
+	"Store Warehouse",
+	"Zone Warehouse",
+	"Transit Warehouse",
+	"Service Warehouse",
+	"Store Bin",
+	"Hub Bin",
+	"Other",
+}
+STORE_BIN_TYPES = {"Sellable", "Damaged", "Demo", "Buyback"}
+
+
+def _clean(value):
+	return (value or "").strip()
+
+
+def _warehouse_row(warehouse):
+	if not warehouse:
+		return None
+	return frappe.db.get_value(
+		"Warehouse",
+		warehouse,
+		[
+			"name", "warehouse_name", "company", "is_group", "disabled",
+			"parent_warehouse", "warehouse_type", "ch_city", "ch_zone",
+			"ch_location_type", "ch_store", "ch_bin_type", "ch_hub_bin_type",
+		],
+		as_dict=True,
+	)
+
+
+def _is_city_level_hub(warehouse):
+	"""Return True when the hub is a city-level DC leaf under a City Group."""
+	wh = _warehouse_row(warehouse)
+	if not wh or not wh.parent_warehouse:
+		return False
+	parent_type = frappe.db.get_value(
+		"Warehouse", wh.parent_warehouse, "ch_location_type"
+	)
+	return parent_type == "City Group"
+
+
+def _zones_using_hub(warehouse):
+	if not warehouse or not frappe.db.table_exists("CH Store Zone"):
+		return []
+	return frappe.get_all(
+		"CH Store Zone",
+		filters={"source_warehouse": warehouse},
+		fields=["name", "zone_name", "company", "city"],
+		order_by="name",
+	)
+
+
+def _stores_using_warehouse(warehouse):
+	if not warehouse or not frappe.db.table_exists("CH Store"):
+		return []
+	return frappe.get_all(
+		"CH Store",
+		filters={"warehouse": warehouse, "disabled": 0},
+		fields=["name", "store_name", "company", "city", "zone"],
+		order_by="name",
+	)
+
+
+def _hub_zone_value(warehouse):
+	"""Return the Warehouse.ch_zone value for a hub.
+
+	CH Store Zone.source_warehouse is authoritative. If one city-level hub
+	serves multiple zones, the Warehouse row cannot honestly carry a single
+	ch_zone, so leave it blank and attach it to each zone at render time.
+	"""
+	refs = _zones_using_hub(warehouse)
+	if len(refs) != 1:
+		return None
+	if _is_city_level_hub(warehouse):
+		return None
+	return refs[0].name
+
+
+def _validate_hub_candidate(warehouse, *, company=None, zone=None, city=None):
+	"""Validate that a warehouse can be used as CH Store Zone.source_warehouse."""
+	wh = _warehouse_row(warehouse)
+	if not wh:
+		frappe.throw(f"Warehouse {warehouse} not found.")
+	target_city = _clean(city)
+	if not target_city and zone and frappe.db.exists("CH Store Zone", zone):
+		target_city = _clean(frappe.db.get_value("CH Store Zone", zone, "city"))
+
+	if int(wh.disabled or 0):
+		frappe.throw(f"Warehouse {warehouse} is disabled.")
+	if int(wh.is_group or 0):
+		frappe.throw(
+			f"Warehouse {warehouse} is a group warehouse. "
+			"Zone source/hub warehouses must be ledger warehouses so stock can post."
+		)
+	if company and wh.company != company:
+		frappe.throw(
+			f"Warehouse {warehouse} belongs to company {wh.company}, not {company}."
+		)
+	if _clean(wh.ch_store):
+		frappe.throw(
+			f"Warehouse {warehouse} is linked to CH Store {wh.ch_store}; "
+			"a store warehouse cannot be used as a zone hub."
+		)
+	if _clean(wh.ch_bin_type):
+		frappe.throw(
+			f"Warehouse {warehouse} is a {_clean(wh.ch_bin_type)} store bin; "
+			"a bin cannot be used as a zone hub."
+		)
+	if _clean(wh.ch_location_type) not in {"", "Zone Warehouse"}:
+		frappe.throw(
+			f"Warehouse {warehouse} has Location Type {wh.ch_location_type}; "
+			"zone hubs must be blank or Zone Warehouse."
+		)
+	if _clean(wh.warehouse_type).lower() == "transit":
+		frappe.throw(f"Warehouse {warehouse} is a Transit warehouse, not a hub.")
+
+	if target_city and _clean(wh.ch_city) and _clean(wh.ch_city) != target_city:
+		frappe.throw(
+			f"Warehouse {warehouse} belongs to city {wh.ch_city}; "
+			f"it cannot be used as a hub for {target_city}."
+		)
+
+	parent_city = _clean(frappe.db.get_value("Warehouse", wh.parent_warehouse, "ch_city")) if wh.parent_warehouse else ""
+	if target_city and parent_city and parent_city != target_city:
+		frappe.throw(
+			f"Warehouse {warehouse} is under city {parent_city}; "
+			f"it cannot be used as a hub for {target_city}."
+		)
+
+	tagged_zone = _clean(wh.ch_zone)
+	if tagged_zone and tagged_zone != zone and frappe.db.exists("CH Store Zone", tagged_zone):
+		tagged = frappe.db.get_value(
+			"CH Store Zone", tagged_zone, ["company", "city"], as_dict=True
+		)
+		if company and tagged.company and tagged.company != company:
+			frappe.throw(
+				f"Warehouse {warehouse} is already tagged to zone {tagged_zone} "
+				f"in company {tagged.company}."
+			)
+		if target_city and tagged.city and tagged.city != target_city:
+			frappe.throw(
+				f"Warehouse {warehouse} is already tagged to zone {tagged_zone} "
+				f"in city {tagged.city}; it cannot be used for {target_city}."
+			)
+
+	for ref in _zones_using_hub(warehouse):
+		if zone and ref.name == zone:
+			continue
+		if company and ref.company and ref.company != company:
+			frappe.throw(
+				f"Warehouse {warehouse} already serves zone {ref.name} "
+				f"in company {ref.company}."
+			)
+		if target_city and ref.city and ref.city != target_city:
+			frappe.throw(
+				f"Warehouse {warehouse} already serves zone {ref.name} "
+				f"in city {ref.city}; it cannot be used for {target_city}."
+			)
+	return wh
+
+
+def validate_zone_source_warehouse(doc, method=None):
+	"""DocType validation for CH Store Zone."""
+	if not doc.get("source_warehouse"):
+		return
+	_validate_hub_candidate(
+		doc.source_warehouse,
+		company=doc.get("company"),
+		zone=doc.name,
+		city=doc.get("city"),
+	)
+
+
+def validate_warehouse_location_fields(doc, method=None):
+	"""Validate CH location metadata on Warehouse saves.
+
+	This prevents the dangerous mixed states we found: a store Sellable bin
+	being tagged as a Zone Warehouse, hubs carrying store ownership, or group
+	nodes being used as posting leaves.
+	"""
+	location_type = _clean(doc.get("ch_location_type"))
+	bin_type = _clean(doc.get("ch_bin_type"))
+
+	if location_type in GROUP_LOCATION_TYPES and not int(doc.get("is_group") or 0):
+		frappe.throw(f"{location_type} warehouses must be group warehouses.")
+	if location_type in LEAF_LOCATION_TYPES and int(doc.get("is_group") or 0):
+		frappe.throw(f"{location_type} warehouses must be ledger warehouses.")
+
+	if bin_type and location_type != "Store Bin":
+		frappe.throw("Bin Type is only valid when Location Type is Store Bin.")
+	if bin_type and bin_type not in STORE_BIN_TYPES:
+		frappe.throw(
+			f"Unsupported store Bin Type '{bin_type}'. "
+			f"Allowed values: {', '.join(sorted(STORE_BIN_TYPES))}."
+		)
+
+	if location_type == "Zone Warehouse":
+		if _clean(doc.get("ch_store")):
+			frappe.throw("Zone Warehouse cannot be linked to a CH Store.")
+		if bin_type:
+			frappe.throw("Zone Warehouse cannot carry a store Bin Type.")
+
+	if location_type == "Store Bin":
+		if not _clean(doc.get("ch_store")):
+			frappe.throw("Store Bin warehouses must be linked to a CH Store.")
+		if not bin_type:
+			frappe.throw("Store Bin warehouses must have a Bin Type.")
+
+	if location_type == "Hub Bin":
+		if _clean(doc.get("ch_store")) or bin_type:
+			frappe.throw("Hub Bin warehouses cannot be linked to a store or store bin type.")
+		if not _clean(doc.get("ch_zone")):
+			frappe.throw("Hub Bin warehouses must be linked to a zone.")
+		if not _clean(doc.get("ch_hub_bin_type")):
+			frappe.throw("Hub Bin warehouses must have a Hub Bin Label.")
+
+
+def validate_store_location_contract(store):
+	"""Validate that CH Store.warehouse remains a sellable store leaf."""
+	if store.get("disabled"):
+		return
+
+	if store.get("zone"):
+		zone = frappe.db.get_value(
+			"CH Store Zone", store.zone, ["company", "city"], as_dict=True
+		)
+		if zone and not store.get("city"):
+			store.city = zone.city
+
+	warehouse = store.get("warehouse")
+	if not warehouse:
+		return
+
+	wh = _warehouse_row(warehouse)
+	if not wh:
+		frappe.throw(f"Default Warehouse {warehouse} not found.")
+	if int(wh.is_group or 0):
+		frappe.throw(
+			f"Default Warehouse {warehouse} is a group warehouse. "
+			"CH Store.warehouse must be the Sellable leaf."
+		)
+	if wh.company != store.company:
+		frappe.throw(
+			f"Default Warehouse {warehouse} belongs to company {wh.company}, "
+			f"not {store.company}."
+		)
+	if store.get("city") and _clean(wh.ch_city) and _clean(wh.ch_city) != store.city:
+		frappe.throw(
+			f"Default Warehouse {warehouse} belongs to city {wh.ch_city}, "
+			f"not {store.city}."
+		)
+	if frappe.db.exists("CH Store Zone", {"source_warehouse": warehouse}):
+		frappe.throw(
+			f"Default Warehouse {warehouse} is configured as a zone hub. "
+			"Use a dedicated Sellable store warehouse instead."
+		)
+	if _clean(wh.ch_location_type) == "Zone Warehouse":
+		frappe.throw(
+			f"Default Warehouse {warehouse} is tagged as a Zone Warehouse, "
+			"not a store Sellable leaf."
+		)
+	if _clean(wh.ch_location_type) not in {"", "Store Warehouse", "Store Bin"}:
+		frappe.throw(
+			f"Default Warehouse {warehouse} has Location Type {wh.ch_location_type}; "
+			"store warehouses must be blank, Store Warehouse, or Store Bin."
+		)
+	if _clean(wh.ch_bin_type) and _clean(wh.ch_bin_type) != "Sellable":
+		frappe.throw(
+			f"Default Warehouse {warehouse} is a {wh.ch_bin_type} bin; "
+			"CH Store.warehouse must be Sellable."
+		)
+
+	if _clean(wh.ch_store) and wh.ch_store != store.name:
+		frappe.throw(
+			f"Default Warehouse {warehouse} is already linked to CH Store {wh.ch_store}. "
+			"Each store must have its own Sellable warehouse."
+		)
+
+	if _clean(wh.ch_zone) and wh.ch_zone != store.get("zone"):
+		tagged_zone = frappe.db.get_value(
+			"CH Store Zone", wh.ch_zone, ["company", "city"], as_dict=True
+		)
+		if tagged_zone:
+			if tagged_zone.company != store.company:
+				frappe.throw(
+					f"Default Warehouse {warehouse} is tagged to zone {wh.ch_zone} "
+					f"in company {tagged_zone.company}."
+				)
+			if store.get("city") and tagged_zone.city and tagged_zone.city != store.city:
+				frappe.throw(
+					f"Default Warehouse {warehouse} is tagged to zone {wh.ch_zone} "
+					f"in city {tagged_zone.city}; it cannot be used for {store.city}."
+				)
+
+	for ref in _stores_using_warehouse(warehouse):
+		if ref.name == store.name:
+			continue
+		frappe.throw(
+			f"Default Warehouse {warehouse} already serves store {ref.name}. "
+			"Each store must have its own Sellable warehouse."
+		)
+
+
+def sync_zone_source_warehouse_metadata(zone):
+	"""Stamp the source warehouse for one zone without corrupting shared hubs."""
+	if isinstance(zone, str):
+		zone = frappe.db.get_value(
+			"CH Store Zone",
+			zone,
+			["name", "company", "city", "source_warehouse"],
+			as_dict=True,
+		)
+	if not zone or not zone.source_warehouse:
+		return None
+
+	_validate_hub_candidate(
+		zone.source_warehouse,
+		company=zone.company,
+		zone=zone.name,
+		city=zone.city,
+	)
+	ch_zone = _hub_zone_value(zone.source_warehouse)
+	frappe.db.set_value(
+		"Warehouse",
+		zone.source_warehouse,
+		{
+			"ch_city": zone.city or None,
+			"ch_zone": ch_zone,
+			"ch_location_type": "Zone Warehouse",
+			"ch_store": None,
+			"ch_bin_type": None,
+		},
+		update_modified=False,
+	)
+	return zone.source_warehouse
+
+
+def repair_retail_location_integrity(company=None):
+	"""Repair hub/store mapping drift and return an audit summary.
+
+	Idempotent. This fixes the dangerous states automatically:
+	- a store Sellable leaf configured as a zone source warehouse
+	- shared city hubs stamped to one zone
+	- source hub metadata missing/blank
+
+	It intentionally does not guess city/zone for incomplete stores; those
+	rows are reported so an operator can classify or disable them.
+	"""
+	if not frappe.db.table_exists("CH Store Zone"):
+		return {"fixed": [], "warnings": []}
+
+	from ch_item_master.ch_core.warehouse_geo import ensure_city_hub, restructure_store_tree
+	from ch_item_master.ch_core.doctype.ch_store.ch_store import ensure_store_bins
+
+	fixed = []
+	warnings = []
+	zone_filters = {}
+	if company:
+		zone_filters["company"] = company
+
+	for zone in frappe.get_all(
+		"CH Store Zone",
+		filters=zone_filters,
+		fields=["name", "zone_name", "company", "city", "source_warehouse"],
+		order_by="name",
+	):
+		source = zone.source_warehouse
+		needs_replacement = False
+		if not source or not frappe.db.exists("Warehouse", source):
+			needs_replacement = True
+		else:
+			wh = _warehouse_row(source)
+			if (
+				int(wh.is_group or 0)
+				or _clean(wh.ch_store)
+				or _clean(wh.ch_bin_type)
+				or _clean(wh.ch_location_type) not in {"", "Zone Warehouse"}
+			):
+				needs_replacement = True
+
+		if needs_replacement:
+			hub = ensure_city_hub(zone.company, zone.city)
+			if hub:
+				frappe.db.set_value(
+					"CH Store Zone", zone.name, "source_warehouse", hub,
+					update_modified=False,
+				)
+				zone.source_warehouse = hub
+				fixed.append(
+					f"zone {zone.name}: source_warehouse {source or '(missing)'} -> {hub}"
+				)
+			else:
+				warnings.append(f"zone {zone.name}: could not resolve replacement hub")
+				continue
+
+		try:
+			sync_zone_source_warehouse_metadata(zone)
+		except Exception as exc:
+			warnings.append(f"zone {zone.name}: source metadata not synced: {exc}")
+
+	# Any store-owned warehouse that was previously mislabeled as a hub should
+	# return to Store Bin/Sellable semantics.
+	store_filters = {"disabled": 0}
+	if company:
+		store_filters["company"] = company
+	for store in frappe.get_all(
+		"CH Store",
+		filters=store_filters,
+		fields=["name", "company", "city", "zone", "warehouse"],
+		order_by="name",
+	):
+		if not (store.city and store.zone and store.warehouse):
+			warnings.append(
+				f"store {store.name}: incomplete city/zone/warehouse; manual classification required"
+			)
+			continue
+		wh = _warehouse_row(store.warehouse)
+		if not wh:
+			warnings.append(f"store {store.name}: warehouse {store.warehouse} not found")
+			continue
+		warehouse_refs = _stores_using_warehouse(store.warehouse)
+		if len(warehouse_refs) > 1:
+			warnings.append(
+				f"store {store.name}: warehouse {store.warehouse} is shared by "
+				f"{len(warehouse_refs)} stores; each store needs its own Sellable warehouse"
+			)
+			continue
+		elif _clean(wh.ch_location_type) == "Zone Warehouse" or _clean(wh.ch_bin_type) != "Sellable":
+			frappe.db.set_value(
+				"Warehouse",
+				store.warehouse,
+				{
+					"ch_city": store.city,
+					"ch_zone": store.zone,
+					"ch_location_type": "Store Bin",
+					"ch_store": store.name,
+					"ch_bin_type": "Sellable",
+				},
+				update_modified=False,
+			)
+			fixed.append(f"store {store.name}: restored Sellable bin metadata")
+		try:
+			ensure_store_bins(frappe.get_doc("CH Store", store.name))
+			restructure_store_tree(store.name)
+		except Exception as exc:
+			warnings.append(f"store {store.name}: tree not synced: {exc}")
+
+	frappe.db.commit()
+	return {"fixed": fixed, "warnings": warnings}
 
 
 def ensure_city(company, city_name, state=None):
@@ -63,15 +518,21 @@ def backfill_location_hierarchy():
 				update_modified=False,
 			)
 
-	# Mark zone source warehouses as zone warehouses.
-	for zone in frappe.get_all("CH Store Zone", fields=["name", "city", "source_warehouse"]):
+	# Mark zone source warehouses as zone warehouses. The source mapping lives
+	# on CH Store Zone; shared city hubs intentionally keep Warehouse.ch_zone
+	# blank and are attached to each zone at render time.
+	for zone in frappe.get_all(
+		"CH Store Zone",
+		fields=["name", "company", "city", "source_warehouse"],
+	):
 		if zone.source_warehouse and frappe.db.exists("Warehouse", zone.source_warehouse):
-			frappe.db.set_value(
-				"Warehouse",
-				zone.source_warehouse,
-				{"ch_city": zone.city, "ch_zone": zone.name, "ch_location_type": "Zone Warehouse"},
-				update_modified=False,
-			)
+			try:
+				sync_zone_source_warehouse_metadata(zone)
+			except Exception:
+				frappe.log_error(
+					frappe.get_traceback(),
+					f"source warehouse sync failed for zone {zone.name}",
+				)
 
 
 def backfill_store_bins():
@@ -103,7 +564,7 @@ def backfill_store_bins():
 def backfill_zone_hubs():
 	"""Ensure every CH Store Zone has a Distribution Hub warehouse.
 
-	A "Hub" is a Warehouse Group sitting at the city level that aggregates
+	A "Hub" is a ledger warehouse sitting at the city/zone level that aggregates
 	stock for all stores in the zone. We don't reparent existing Store
 	Warehouses (that would rewrite the warehouse tree and is risky for
 	in-flight stock); we only:
@@ -112,7 +573,7 @@ def backfill_zone_hubs():
 	  2. Stamp ch_location_type='Zone Warehouse' + ch_city + ch_zone on it.
 	  3. Point the Zone's source_warehouse at it.
 
-	Result: every zone has a designated central warehouse retail users can
+	Result: every zone has a designated central posting warehouse retail users can
 	think of as the "back-end" / consolidation point, without disturbing
 	stock ledgers on the leaf store warehouses.
 
@@ -132,17 +593,15 @@ def backfill_zone_hubs():
 			continue
 
 		hub = zone.source_warehouse
-		# 1. If a source_warehouse is already set and exists, just stamp it.
+		# 1. If a valid source_warehouse is already set and exists, just stamp it.
 		if hub and frappe.db.exists("Warehouse", hub):
-			frappe.db.set_value(
-				"Warehouse", hub,
-				{
-					"ch_city": zone.city,
-					"ch_zone": zone.name,
-					"ch_location_type": "Zone Warehouse",
-				},
-				update_modified=False,
-			)
+			try:
+				sync_zone_source_warehouse_metadata(zone)
+			except Exception:
+				frappe.log_error(
+					frappe.get_traceback(),
+					f"backfill_zone_hubs: invalid hub for {zone.name}",
+				)
 			continue
 
 		# 2. Otherwise, create one — name it after the zone (deterministic
@@ -158,7 +617,7 @@ def backfill_zone_hubs():
 				wh = frappe.new_doc("Warehouse")
 				wh.warehouse_name = base_name
 				wh.company = zone.company
-				wh.is_group = 1
+				wh.is_group = 0
 				wh.ch_city = zone.city
 				wh.ch_zone = zone.name
 				wh.ch_location_type = "Zone Warehouse"
@@ -176,6 +635,14 @@ def backfill_zone_hubs():
 			"CH Store Zone", zone.name, "source_warehouse", hub,
 			update_modified=False,
 		)
+		try:
+			zone.source_warehouse = hub
+			sync_zone_source_warehouse_metadata(zone)
+		except Exception:
+			frappe.log_error(
+				frappe.get_traceback(),
+				f"backfill_zone_hubs: metadata sync failed for {zone.name}",
+			)
 
 
 def backfill_bin_zones():
@@ -242,6 +709,7 @@ def get_company_location_tree(company=None, warehouse_view="all"):
 	if company:
 		zone_filters["company"] = company
 
+	zone_rows = []
 	for zone in frappe.get_all("CH Store Zone", filters=zone_filters, fields=["name", "zone_name", "company", "city", "source_warehouse"]):
 		company_node = companies.setdefault(zone.company, {"company": zone.company, "cities": {}, "system_defaults": []})
 		company_node.setdefault("system_defaults", [])
@@ -255,6 +723,8 @@ def get_company_location_tree(company=None, warehouse_view="all"):
 				"state": city_ref.state if city_ref else None,
 				"state_code": city_ref.state_code if city_ref else None,
 				"zones": {},
+				"hubs": [],
+				"transit": [],
 			},
 		)
 		city_node["zones"][zone.name] = {
@@ -265,6 +735,7 @@ def get_company_location_tree(company=None, warehouse_view="all"):
 			"stores": [],
 			"offices": [],
 		}
+		zone_rows.append(zone)
 
 	# Pre-fetch CH Store labels so warehouse pills (especially Store Bins) can
 	# display the friendly store name instead of the verbose warehouse code.
@@ -278,24 +749,79 @@ def get_company_location_tree(company=None, warehouse_view="all"):
 		for s in frappe.get_all("CH Store", fields=["name", "store_name"])
 	}
 
+	source_hubs = {z.source_warehouse for z in zone_rows if z.source_warehouse}
+	source_hub_rows = {}
+	if source_hubs:
+		for hub in frappe.get_all(
+			"Warehouse",
+			filters={"name": ["in", list(source_hubs)], "disabled": 0},
+			fields=["name", "warehouse_name", "company", "ch_city", "ch_zone",
+				"ch_location_type", "ch_store", "ch_bin_type", "ch_hub_bin_type",
+				"parent_warehouse"],
+		):
+			source_hub_rows[hub.name] = hub
+
+	# ── City-level hubs ──────────────────────────────────────────
+	# A physical hub (DC) commonly sources several zones, so render it ONCE
+	# per city with the list of zones it supplies — not repeated inside every
+	# zone. Hub Bins belong to the hub (not a zone), so they attach here too.
+	city_hubs = {}          # (company, city_key) -> { hub_name: node }
+	zone_hub = {}           # zone.name -> hub_name (its source_warehouse)
+	zone_city = {}          # zone.name -> (company, city_key)
+	for zone in zone_rows:
+		zone_city[zone.name] = (zone.company, zone.city or "Unassigned")
+		if not zone.source_warehouse:
+			continue
+		hub = source_hub_rows.get(zone.source_warehouse)
+		if not hub:
+			continue
+		if company and hub.company != company:
+			continue
+		if not _warehouse_matches_view(hub, warehouse_view):
+			continue
+		ck = (zone.company, zone.city or "Unassigned")
+		bucket = city_hubs.setdefault(ck, {})
+		node = bucket.get(zone.source_warehouse)
+		if node is None:
+			node = {"warehouse": frappe._dict(hub), "zones_served": [], "bins": []}
+			bucket[zone.source_warehouse] = node
+		node["zones_served"].append({"zone": zone.name, "zone_name": zone.zone_name})
+		zone_hub[zone.name] = zone.source_warehouse
+
+	# City-level transit ("In-Transit") warehouses: system locations for the
+	# hub↔store transfer pipeline. They belong to the city, not to a sales zone,
+	# so they render alongside the hub — never in a zone / "Unassigned" bucket.
+	city_transit = {}       # (company, city_key) -> [warehouse rows]
+
 	for warehouse in frappe.get_all(
 		"Warehouse",
 		filters={"disabled": 0, "is_group": 0},
 		fields=["name", "warehouse_name", "company", "ch_city", "ch_zone",
 			"ch_location_type", "ch_store", "ch_bin_type", "ch_hub_bin_type",
-			"parent_warehouse"],
+			"warehouse_type", "parent_warehouse"],
 	):
 		if company and warehouse.company != company:
 			continue
+		if (
+			warehouse.name in source_hubs
+			and (warehouse.ch_location_type or "").strip() == "Zone Warehouse"
+		):
+			continue
 		if not _warehouse_matches_view(warehouse, warehouse_view):
 			continue
-		# ERPNext-generated company defaults (Stores / WIP / Finished Goods)
-		# are tagged with ch_location_type="Other" by the seed importer.
-		# They have no retail role and hold no stock, so we lift them out of
-		# the city / zone iteration entirely and surface them once at the
-		# company level in a compact "System Warehouses" chip row (rendered
-		# above the cities in the JS). This keeps them findable without
-		# polluting the geographic tree with an "Unassigned" bucket.
+		# Transit / In-Transit warehouses → city-level "In-Transit" section.
+		if (warehouse.ch_location_type or "").strip() == "Transit Warehouse" or \
+			(warehouse.warehouse_type or "").strip() == "Transit":
+			ck = (warehouse.company, warehouse.ch_city or "Unassigned")
+			city_transit.setdefault(ck, []).append(warehouse)
+			continue
+		# ERPNext-generated company defaults (Stores / WIP / Finished Goods,
+		# etc.) are tagged with ch_location_type="Other" by the seed importer.
+		# They have no retail role and hold no stock, so we lift them out of the
+		# city / zone iteration entirely and surface them once at the company
+		# level in a compact "System Warehouses" chip row (rendered above the
+		# cities in the JS). This keeps them findable without polluting the
+		# geographic tree with an "Unassigned" bucket.
 		if (warehouse.ch_location_type or "").strip() == "Other":
 			company_node = companies.setdefault(
 				warehouse.company,
@@ -303,6 +829,16 @@ def get_company_location_tree(company=None, warehouse_view="all"):
 			)
 			company_node.setdefault("system_defaults", []).append(warehouse)
 			continue
+		# Hub Bins belong to the hub (rendered once at city level). Resolve the
+		# owning hub via the zone the bin was created under → its source hub.
+		if (warehouse.ch_location_type or "").strip() == "Hub Bin":
+			hub_name = zone_hub.get(warehouse.ch_zone)
+			ck = zone_city.get(warehouse.ch_zone)
+			node = city_hubs.get(ck, {}).get(hub_name) if (hub_name and ck) else None
+			if node is not None:
+				node["bins"].append(warehouse)
+				continue
+			# else fall through: orphan hub bin (no resolvable hub) → zone bucket
 		# Decorate with the friendly store label (None for warehouses not
 		# attached to a CH Store, which is fine — JS falls back gracefully).
 		warehouse["ch_store_name"] = (
@@ -315,10 +851,28 @@ def get_company_location_tree(company=None, warehouse_view="all"):
 			warehouse.ch_zone,
 		)["warehouses"].append(warehouse)
 
+	# Attach each city's hubs to its city node.
+	for (comp, city_key), hubs in city_hubs.items():
+		company_node = companies.get(comp)
+		if not company_node:
+			continue
+		city_node = company_node["cities"].get(city_key)
+		if city_node is not None:
+			city_node["hubs"] = list(hubs.values())
+
+	# Attach each city's transit ("In-Transit") warehouses.
+	for (comp, city_key), whs in city_transit.items():
+		company_node = companies.get(comp)
+		if not company_node:
+			continue
+		city_node = company_node["cities"].get(city_key)
+		if city_node is not None:
+			city_node["transit"] = whs
+
 	store_filters = {"disabled": 0}
 	if company:
 		store_filters["company"] = company
-	for store in frappe.get_all("CH Store", filters=store_filters, fields=["name", "store_code", "store_name", "company", "city", "zone", "warehouse"]):
+	for store in frappe.get_all("CH Store", filters=store_filters, fields=["name", "store_code", "store_name", "company", "city", "zone", "warehouse", "store_status", "opening_date"]):
 		_zone_bucket(companies, store.company, store.city, store.zone)["stores"].append(store)
 
 	for office in frappe.get_all("Branch", fields=["name", "branch", "ch_company", "ch_city", "ch_zone"]):
@@ -336,7 +890,7 @@ def _zone_bucket(companies, company, city, zone):
 	company_node = companies.setdefault(company, {"company": company, "cities": {}, "system_defaults": []})
 	company_node.setdefault("system_defaults", [])
 	city_key = city or "Unassigned"
-	city_node = company_node["cities"].setdefault(city_key, {"city": city_key, "city_name": city_key, "state": None, "state_code": None, "zones": {}})
+	city_node = company_node["cities"].setdefault(city_key, {"city": city_key, "city_name": city_key, "state": None, "state_code": None, "zones": {}, "hubs": [], "transit": []})
 	zone_key = zone or "Unassigned"
 	return city_node["zones"].setdefault(
 		zone_key,
@@ -563,6 +1117,8 @@ def save_zone(company, city, zone_name, source_warehouse=None, name=None, descri
 	_reject_synthetic(zone_name, "zone")
 	_reject_synthetic(name, "zone")
 	_reject_synthetic(city, "city")
+	if source_warehouse:
+		_validate_hub_candidate(source_warehouse, company=company, zone=name, city=city)
 	if name:
 		doc = frappe.get_doc("CH Store Zone", name)
 		doc.zone_name = zone_name
@@ -582,14 +1138,10 @@ def save_zone(company, city, zone_name, source_warehouse=None, name=None, descri
 			doc.description = description
 		doc.insert()
 
-	# Sync source warehouse tagging
+	# Sync source warehouse tagging. CH Store Zone.source_warehouse stays
+	# authoritative; shared city hubs keep Warehouse.ch_zone blank.
 	if doc.source_warehouse and frappe.db.exists("Warehouse", doc.source_warehouse):
-		frappe.db.set_value(
-			"Warehouse",
-			doc.source_warehouse,
-			{"ch_city": doc.city, "ch_zone": doc.name, "ch_location_type": "Zone Warehouse"},
-			update_modified=False,
-		)
+		sync_zone_source_warehouse_metadata(doc)
 	return doc.name
 
 
@@ -613,6 +1165,39 @@ def assign_warehouse(warehouse, company=None, city=None, zone=None, location_typ
 	_check_master_permission()
 	if not frappe.db.exists("Warehouse", warehouse):
 		frappe.throw(f"Warehouse {warehouse} not found")
+	if (location_type or "") == "Zone Warehouse":
+		if zone:
+			if not frappe.db.exists("CH Store Zone", zone):
+				frappe.throw(f"Zone {zone} not found")
+			zone_doc = frappe.db.get_value(
+				"CH Store Zone", zone, ["company", "city"], as_dict=True
+			)
+			if company and zone_doc.company and zone_doc.company != company:
+				frappe.throw(
+					f"Zone {zone} belongs to company {zone_doc.company}, not {company}."
+				)
+			if city and zone_doc.city and zone_doc.city != city:
+				frappe.throw(
+					f"Zone {zone} belongs to city {zone_doc.city}, not {city}."
+				)
+			company = zone_doc.company or company
+			city = zone_doc.city or city
+		_validate_hub_candidate(warehouse, company=company, zone=zone, city=city)
+		if zone:
+			old_hub = frappe.db.get_value("CH Store Zone", zone, "source_warehouse")
+			frappe.db.set_value(
+				"CH Store Zone", zone, "source_warehouse", warehouse,
+				update_modified=False,
+			)
+			sync_zone_source_warehouse_metadata(zone)
+			if old_hub and old_hub != warehouse and not _zones_using_hub(old_hub):
+				frappe.db.set_value(
+					"Warehouse",
+					old_hub,
+					{"ch_zone": None, "ch_location_type": None},
+					update_modified=False,
+				)
+			return True
 	# A zone can only have ONE Hub (Zone Warehouse). If another warehouse is
 	# already tagged as the Zone Warehouse for this zone, refuse the tag —
 	# duplicate hubs corrupt trip planning and the location hierarchy view.
@@ -659,6 +1244,108 @@ def unassign_warehouse(warehouse):
 
 
 @frappe.whitelist()
+def create_hub(company, city, hub_name=None, warehouse=None, zones=None):
+	"""Create or assign a city-level Distribution Hub (DC) and point the city's
+	zones at it as their ``source_warehouse``.
+
+	A physical hub commonly supplies every zone in a city, so by default this
+	assigns the hub to ALL of the city's zones (new zones inherit it later).
+	A zone-level override is still possible via Edit Zone → Source Warehouse.
+
+	Parameters
+	----------
+	warehouse : str, optional
+		Assign this existing leaf warehouse as the hub.
+	hub_name : str, optional
+		Create a new leaf Warehouse (``Zone Warehouse``) with this name and use
+		it as the hub. Ignored when ``warehouse`` is supplied.
+	zones : list | JSON | csv, optional
+		Restrict to these zones; defaults to every zone in the city.
+	"""
+	_check_master_permission()
+	if not company or not city:
+		frappe.throw("Company and City are required.")
+
+	if isinstance(zones, str) and zones.strip():
+		try:
+			zones = json.loads(zones)
+		except Exception:
+			zones = [z.strip() for z in zones.split(",") if z.strip()]
+	if not zones:
+		zones = frappe.get_all(
+			"CH Store Zone", filters={"company": company, "city": city}, pluck="name"
+		)
+	if not zones:
+		frappe.throw(f"Create a zone in {city} first, then add a hub.")
+
+	warehouse = _clean(warehouse)
+	if not warehouse:
+		hub_name = _clean(hub_name)
+		if not hub_name:
+			frappe.throw("Provide an existing warehouse or a new hub name.")
+		# Parent the DC under the city group so it inherits the right city (the
+		# company root carries the HQ city and would fail the city check).
+		parent = None
+		sibling_hub = frappe.db.get_value(
+			"CH Store Zone",
+			{"company": company, "city": city, "source_warehouse": ["is", "set"]},
+			"source_warehouse",
+		)
+		if sibling_hub:
+			parent = frappe.db.get_value("Warehouse", sibling_hub, "parent_warehouse")
+		if not parent:
+			parent = frappe.db.get_value(
+				"Warehouse",
+				{"company": company, "is_group": 1, "ch_city": city, "ch_location_type": "City Group"},
+				"name",
+			)
+		if not parent:
+			parent = frappe.db.get_value(
+				"Warehouse", {"company": company, "is_group": 1, "ch_city": city}, "name"
+			)
+		wh = frappe.new_doc("Warehouse")
+		wh.warehouse_name = hub_name
+		wh.company = company
+		wh.is_group = 0
+		wh.ch_city = city
+		wh.ch_location_type = "Zone Warehouse"
+		if parent:
+			wh.parent_warehouse = parent
+		wh.insert(ignore_permissions=True)
+		warehouse = wh.name
+	elif not frappe.db.exists("Warehouse", warehouse):
+		frappe.throw(f"Warehouse {warehouse} not found.")
+
+	# Validate against every target zone (all in the same city → allowed).
+	for z in zones:
+		_validate_hub_candidate(warehouse, company=company, zone=z, city=city)
+	for z in zones:
+		frappe.db.set_value(
+			"CH Store Zone", z, "source_warehouse", warehouse, update_modified=False
+		)
+		sync_zone_source_warehouse_metadata(z)
+	frappe.db.commit()
+	return {"warehouse": warehouse, "zones": zones}
+
+
+@frappe.whitelist()
+def add_hub_bin_at_city(company, city, label, hub=None):
+	"""Create a Hub Bin under the city's hub (any zone the hub serves works —
+	bins render under the hub regardless of the creating zone)."""
+	_check_master_permission()
+	zones = frappe.get_all(
+		"CH Store Zone",
+		filters={"company": company, "city": city, "source_warehouse": ["is", "set"]},
+		fields=["name", "source_warehouse"],
+	)
+	if hub:
+		zones = [z for z in zones if z.source_warehouse == hub] or zones
+	if not zones:
+		frappe.throw("No hub is assigned for this city yet. Add a hub first.")
+	return create_hub_bin(zones[0].name, label)
+
+
+@frappe.whitelist()
 def assign_office(branch, company=None, city=None, zone=None):
 	_check_master_permission()
 	if not frappe.db.exists("Branch", branch):
@@ -693,7 +1380,8 @@ def create_office(branch, company=None, city=None, zone=None):
 
 
 @frappe.whitelist()
-def save_store(company, city, zone, store_name, store_code=None, warehouse=None, branch=None, name=None):
+def save_store(company, city, zone, store_name, store_code=None, warehouse=None, branch=None, name=None,
+			   store_status=None, opening_date=None):
 	_check_master_permission()
 	if name:
 		doc = frappe.get_doc("CH Store", name)
@@ -709,7 +1397,15 @@ def save_store(company, city, zone, store_name, store_code=None, warehouse=None,
 		doc.warehouse = warehouse
 	if branch:
 		doc.branch = branch
+	if store_status:
+		doc.store_status = store_status
+	if opening_date:
+		doc.opening_date = opening_date
 	doc.save() if name else doc.insert()
+	if not doc.warehouse:
+		from ch_item_master.ch_core.warehouse_geo import provision_store_warehouse
+
+		provision_store_warehouse(doc.name)
 	return doc.name
 
 
@@ -868,6 +1564,9 @@ def _resolve_hub_context(zone):
 			),
 			title=frappe._("Hub Not Assigned"),
 		)
+	_validate_hub_candidate(
+		hub, company=zone_doc.company, zone=zone_doc.name, city=zone_doc.city
+	)
 	hub_parent = frappe.db.get_value("Warehouse", hub, "parent_warehouse") or hub
 	return zone_doc, hub, hub_parent
 
@@ -1010,11 +1709,12 @@ def hub_warehouse_query(doctype, txt, searchfield, start, page_len, filters):
 	  * NOT tagged as a Store Warehouse / Store Bin / Hub Bin
 	  * NOT a Transit warehouse (warehouse_type='Transit')
 	  * NOT carrying a store-bin type (ch_bin_type IS NULL / '')
-	  * either untagged OR already tagged to this zone (so re-assign works)
+	  * either untagged OR already tagged to this zone / same-city zones
 	"""
 	filters = filters or {}
 	company = filters.get("company")
 	zone = filters.get("zone")
+	city = filters.get("city")
 	values = {"txt": _wh_search_txt(txt), "start": start, "page_len": page_len}
 	conditions = [
 		"wh.disabled = 0",
@@ -1029,13 +1729,57 @@ def hub_warehouse_query(doctype, txt, searchfield, start, page_len, filters):
 	if company:
 		conditions.append("wh.company = %(company)s")
 		values["company"] = company
-	if zone:
+	if city:
+		conditions.append("(wh.ch_city IS NULL OR wh.ch_city = '' OR wh.ch_city = %(city)s)")
 		conditions.append(
-			"(wh.ch_zone IS NULL OR wh.ch_zone = '' OR wh.ch_zone = %(zone)s)"
+			"""
+			NOT EXISTS (
+				SELECT 1
+				FROM `tabCH Store Zone` source_zone
+				WHERE source_zone.source_warehouse = wh.name
+				  AND IFNULL(source_zone.city, '') != ''
+				  AND source_zone.city != %(city)s
+			)
+			"""
 		)
+		values["city"] = city
+	if zone:
+		if city:
+			conditions.append(
+				"""
+				(
+					wh.ch_zone IS NULL OR wh.ch_zone = '' OR wh.ch_zone = %(zone)s
+					OR EXISTS (
+						SELECT 1
+						FROM `tabCH Store Zone` tagged_zone
+						WHERE tagged_zone.name = wh.ch_zone
+						  AND tagged_zone.city = %(city)s
+					)
+				)
+				"""
+			)
+		else:
+			conditions.append(
+				"(wh.ch_zone IS NULL OR wh.ch_zone = '' OR wh.ch_zone = %(zone)s)"
+			)
 		values["zone"] = zone
 	else:
-		conditions.append("(wh.ch_zone IS NULL OR wh.ch_zone = '')")
+		if city:
+			conditions.append(
+				"""
+				(
+					wh.ch_zone IS NULL OR wh.ch_zone = ''
+					OR EXISTS (
+						SELECT 1
+						FROM `tabCH Store Zone` tagged_zone
+						WHERE tagged_zone.name = wh.ch_zone
+						  AND tagged_zone.city = %(city)s
+					)
+				)
+				"""
+			)
+		else:
+			conditions.append("(wh.ch_zone IS NULL OR wh.ch_zone = '')")
 
 	where_clause = " AND ".join(conditions)
 	return frappe.db.sql(
@@ -1102,7 +1846,8 @@ def sellable_warehouse_query(doctype, txt, searchfield, start, page_len, filters
 	``warehouse_type != 'Transit'`` guard that the client filter cannot
 	express (null-in-list semantics). A warehouse is Sellable-eligible when:
 	  * leaf, enabled, correct company
-	  * not owned by another CH Store (ch_store IS NULL)
+	  * not owned by any CH Store
+	  * not already selected as any active CH Store.warehouse
 	  * ch_bin_type is blank or 'Sellable'
 	  * ch_location_type is blank or Store Warehouse / Store Bin
 	  * warehouse_type is not 'Transit'
@@ -1111,11 +1856,20 @@ def sellable_warehouse_query(doctype, txt, searchfield, start, page_len, filters
 	filters = filters or {}
 	company = filters.get("company")
 	zone = filters.get("zone")
+	city = filters.get("city")
 	values = {"txt": _wh_search_txt(txt), "start": start, "page_len": page_len}
 	conditions = [
 		"wh.disabled = 0",
 		"wh.is_group = 0",
 		"(wh.ch_store IS NULL OR wh.ch_store = '')",
+		"""
+		NOT EXISTS (
+			SELECT 1
+			FROM `tabCH Store` assigned_store
+			WHERE assigned_store.warehouse = wh.name
+			  AND IFNULL(assigned_store.disabled, 0) = 0
+		)
+		""",
 		"(wh.warehouse_type IS NULL OR wh.warehouse_type != 'Transit')",
 		"(wh.ch_bin_type IS NULL OR wh.ch_bin_type IN ('', 'Sellable'))",
 		"(wh.ch_location_type IS NULL OR wh.ch_location_type IN ('', 'Store Warehouse', 'Store Bin'))",
@@ -1124,6 +1878,9 @@ def sellable_warehouse_query(doctype, txt, searchfield, start, page_len, filters
 	if company:
 		conditions.append("wh.company = %(company)s")
 		values["company"] = company
+	if city:
+		conditions.append("(wh.ch_city IS NULL OR wh.ch_city = '' OR wh.ch_city = %(city)s)")
+		values["city"] = city
 	if zone:
 		conditions.append(
 			"(wh.ch_zone IS NULL OR wh.ch_zone = '' OR wh.ch_zone = %(zone)s)"

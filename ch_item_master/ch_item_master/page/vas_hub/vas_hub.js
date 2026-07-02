@@ -22,35 +22,18 @@ class VASHub {
 	}
 
 	_setup_controls() {
-		this.company_field = this.page.add_field({
-			fieldname: "company", label: __("Company"),
-			fieldtype: "Link", options: "Company",
-			default: frappe.defaults.get_user_default("Company"),
-			change: () => this.refresh(),
+		// Shared Company → City → Zone → Store hierarchy filter (same as every
+		// other hub). Store = CH Store; warranty claims are scoped by the store
+		// they were reported at.
+		const f = ch_erp15.hub_filters.attach(this.page, {
+			include_dates: true,
+			on_change: () => this.refresh(),
 		});
-		this.store_field = this.page.add_field({
-			fieldname: "store", label: __("Store / Warehouse"),
-			fieldtype: "Link", options: "Warehouse",
-			get_query: () => {
-				const company = this.company_field?.get_value();
-				const filters = { is_group: 0 };
-				if (company) filters.company = company;
-				return { filters };
-			},
-			change: () => this.refresh(),
-		});
-		this.from_date_field = this.page.add_field({
-			fieldname: "from_date", label: __("From Date"),
-			fieldtype: "Date",
-			default: frappe.datetime.month_start(),
-			change: () => this.refresh(),
-		});
-		this.to_date_field = this.page.add_field({
-			fieldname: "to_date", label: __("To Date"),
-			fieldtype: "Date",
-			default: frappe.datetime.month_end(),
-			change: () => this.refresh(),
-		});
+		this.filters = f;
+		this.company_field = f.fields.company;
+		this.store_field = f.fields.store;
+		this.from_date_field = f.fields.from_date;
+		this.to_date_field = f.fields.to_date;
 		this.page.add_button(__("Refresh"), () => this.refresh(), { icon: "refresh" });
 	}
 
@@ -65,13 +48,9 @@ class VASHub {
 	}
 
 	refresh() {
-		const company = this.company_field?.get_value() || "";
-		const store = this.store_field?.get_value() || "";
-		const from_date = this.from_date_field?.get_value() || "";
-		const to_date = this.to_date_field?.get_value() || "";
 		this.$root.html(`<div class="hub-loading"><i class="fa fa-spinner fa-spin"></i> ${__("Loading VAS Hub...")}</div>`);
 		frappe.xcall("ch_item_master.ch_item_master.page.vas_hub.vas_hub_api.get_vas_hub_data",
-			{ company, store, from_date, to_date })
+			this.filters.values())
 			.then((data) => this._render(data))
 			.catch(() => {
 				this.$root.html(`<div class="hub-loading text-danger">${__("Failed to load data. Please try again.")}</div>`);

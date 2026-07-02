@@ -252,136 +252,140 @@ def _cleanup_duplicate_store(state):
 
 
 # ---------------------------------------------------------------------------
-# Test D — Duplicate Zone Warehouse (hub) tag rejected (issue #6)
+# Test D — Hub source assignment is authoritative
 # ---------------------------------------------------------------------------
 def test_duplicate_hub_tag():
-	# The zone's source_warehouse is the current hub. Tag it as Zone
-	# Warehouse first so we have a legitimate incumbent to duplicate against.
 	hub = frappe.db.get_value("CH Store Zone", ZONE, "source_warehouse")
 	assert hub, f"Zone {ZONE} has no source_warehouse"
 
-	# Snapshot original tag state so we can restore.
 	orig = frappe.db.get_value(
 		"Warehouse", hub,
 		["ch_city", "ch_zone", "ch_location_type"],
 		as_dict=True,
 	)
 
-	# Ensure only one Zone Warehouse tag exists in this zone before we start.
-	# (There may be pre-existing ones from prior manual assigns — if so we
-	# treat that as the incumbent.)
-	existing_tag = frappe.db.get_value(
-		"Warehouse",
-		{"ch_zone": ZONE, "ch_location_type": "Zone Warehouse", "disabled": 0},
-		"name",
-	)
-	if not existing_tag:
-		# Tag the hub as Zone Warehouse via the real API.
-		lh.assign_warehouse(
-			warehouse=hub, company=COMPANY, city=CITY, zone=ZONE,
-			location_type="Zone Warehouse",
-		)
-		incumbent = hub
-	else:
-		incumbent = existing_tag
-
-	# Find a DIFFERENT untagged warehouse in the same company to attempt duplicate.
+	# Find a DIFFERENT untagged warehouse in the same company to assign as the
+	# temporary source hub. In the hardened model, the zone source field is
+	# authoritative, so assigning a clean hub replaces the source instead of
+	# relying on duplicate Warehouse.ch_zone tags.
 	candidate = frappe.db.sql("""
 		SELECT name FROM `tabWarehouse`
 		WHERE company = %(c)s AND disabled = 0 AND is_group = 0
 		  AND name != %(h)s
+		  AND (ch_store IS NULL OR ch_store = '')
+		  AND (ch_city IS NULL OR ch_city = '' OR ch_city = %(city)s)
+		  AND (ch_bin_type IS NULL OR ch_bin_type = '')
 		  AND (ch_location_type IS NULL OR ch_location_type = '')
 		LIMIT 1
-	""", {"c": COMPANY, "h": incumbent}, as_dict=True)
-	assert candidate, "No candidate warehouse available for duplicate-hub test"
-	candidate_name = candidate[0].name
+	""", {"c": COMPANY, "h": hub, "city": CITY}, as_dict=True)
+	created_candidate = False
+	if candidate:
+		candidate_name = candidate[0].name
+	else:
+		seed_name = "E2E-Hub-Candidate"
+		seed_full = f"{seed_name} - BMPL"
+		if frappe.db.exists("Warehouse", seed_full):
+			frappe.delete_doc("Warehouse", seed_full, ignore_permissions=True, force=True)
+		wh = frappe.new_doc("Warehouse")
+		wh.warehouse_name = seed_name
+		wh.company = COMPANY
+		wh.is_group = 0
+		wh.insert(ignore_permissions=True)
+		candidate_name = wh.name
+		created_candidate = True
 
-	# Snapshot candidate's tag state for restore.
 	cand_orig = frappe.db.get_value(
 		"Warehouse", candidate_name,
 		["ch_city", "ch_zone", "ch_location_type"],
 		as_dict=True,
 	)
 
-	try:
-		lh.assign_warehouse(
-			warehouse=candidate_name, company=COMPANY, city=CITY, zone=ZONE,
-			location_type="Zone Warehouse",
-		)
-	except frappe.ValidationError as exc:
-		msg = str(exc)
-		assert "already has a Hub" in msg or "Duplicate Hub" in msg, (
-			f"Wrong error message: {msg}"
-		)
-	else:
-		raise AssertionError(
-			f"Duplicate Zone Warehouse assign should have been rejected "
-			f"(zone {ZONE} already has {incumbent})"
-		)
+	lh.assign_warehouse(
+		warehouse=candidate_name, company=COMPANY, city=CITY, zone=ZONE,
+		location_type="Zone Warehouse",
+	)
+	linked = frappe.db.get_value("CH Store Zone", ZONE, "source_warehouse")
+	assert linked == candidate_name, (
+		f"Assign Hub should update CH Store Zone.source_warehouse, got {linked}"
+	)
+	candidate_type = frappe.db.get_value("Warehouse", candidate_name, "ch_location_type")
+	assert candidate_type == "Zone Warehouse", (
+		f"Candidate should be tagged Zone Warehouse, got {candidate_type}"
+	)
 
-	_log("D. Duplicate hub tag rejected", True,
-	     f"incumbent={incumbent}, second assign {candidate_name} raised ValidationError")
+	_log("D. Hub source assignment", True,
+	     f"{ZONE}: {hub} -> {candidate_name}")
 	return {"hub": hub, "orig": orig, "candidate": candidate_name, "cand_orig": cand_orig,
-	        "we_tagged_hub": not existing_tag}
+	        "zone": ZONE, "created_candidate": created_candidate}
 
 
 def _cleanup_duplicate_hub(state):
 	if not state:
 		return
-	# Restore hub tag if WE set it (otherwise leave the incumbent alone).
-	if state.get("we_tagged_hub"):
-		orig = state.get("orig") or {}
+	if state.get("zone") and state.get("hub"):
 		frappe.db.set_value(
-			"Warehouse", state["hub"],
-			{
-				"ch_city": orig.get("ch_city") or None,
-				"ch_zone": orig.get("ch_zone") or None,
-				"ch_location_type": orig.get("ch_location_type") or None,
-			},
+			"CH Store Zone", state["zone"], "source_warehouse", state["hub"],
 			update_modified=False,
 		)
-	# Restore candidate tag (should be unchanged since assign raised).
+		lh.sync_zone_source_warehouse_metadata(state["zone"])
+
 	cand_orig = state.get("cand_orig") or {}
 	if state.get("candidate"):
-		frappe.db.set_value(
-			"Warehouse", state["candidate"],
-			{
-				"ch_city": cand_orig.get("ch_city") or None,
-				"ch_zone": cand_orig.get("ch_zone") or None,
-				"ch_location_type": cand_orig.get("ch_location_type") or None,
-			},
-			update_modified=False,
-		)
+		if state.get("created_candidate"):
+			_delete_warehouse_if_exists(state["candidate"])
+		else:
+			frappe.db.set_value(
+				"Warehouse", state["candidate"],
+				{
+					"ch_city": cand_orig.get("ch_city") or None,
+					"ch_zone": cand_orig.get("ch_zone") or None,
+					"ch_location_type": cand_orig.get("ch_location_type") or None,
+				},
+				update_modified=False,
+			)
 
 
 # ---------------------------------------------------------------------------
 # Test E — Sellable warehouse filter used by Add Store dialog (issue #2)
 # ---------------------------------------------------------------------------
 def test_sellable_warehouse_filter():
-	"""Replicate the dialog's server-side filter and verify hygiene."""
-	rows = frappe.get_all(
-		"Warehouse",
-		filters={
-			"company": COMPANY,
-			"disabled": 0,
-			"is_group": 0,
-			"ch_bin_type": ["in", ["", "Sellable"]],
-			"ch_location_type": ["in", ["", "Store Warehouse", "Store Bin"]],
-			"ch_store": ["is", "not set"],
-			"ch_zone": ["in", [ZONE, ""]],
-		},
-		fields=["name", "ch_bin_type", "ch_store", "ch_location_type"],
-		limit_page_length=200,
+	"""The Add Store Sellable picker excludes every store-owned warehouse."""
+	rows = frappe.call(
+		"ch_item_master.ch_core.location_hierarchy.sellable_warehouse_query",
+		doctype="Warehouse",
+		txt="",
+		searchfield="name",
+		start=0,
+		page_len=500,
+		filters={"company": COMPANY, "city": CITY, "zone": ZONE},
 	)
-	# Every row must NOT be tagged to another store, must NOT be a hub/buyback,
-	# must NOT be in a different zone.
+	names = {row[0] for row in (rows or [])}
+
 	bad = []
-	for r in rows:
-		if r.ch_store:
-			bad.append(f"{r.name} tagged to store {r.ch_store}")
+	for name in names:
+		r = frappe.db.get_value(
+			"Warehouse",
+			name,
+			["ch_city", "ch_store", "ch_bin_type", "ch_location_type"],
+			as_dict=True,
+		)
+		if r.ch_city and r.ch_city != CITY:
+			bad.append(f"{name} city={r.ch_city}")
 			continue
 		if r.ch_bin_type and r.ch_bin_type not in ("Sellable",):
-			bad.append(f"{r.name} bin_type={r.ch_bin_type}")
+			bad.append(f"{name} bin_type={r.ch_bin_type}")
+			continue
+		if r.ch_location_type == "Zone Warehouse":
+			bad.append(f"{name} is a Zone Warehouse")
+			continue
+		if r.ch_store:
+			bad.append(f"{name} tagged to store {r.ch_store}")
+			continue
+		assigned_store = frappe.db.get_value(
+			"CH Store", {"warehouse": name, "disabled": 0}, "name"
+		)
+		if assigned_store:
+			bad.append(f"{name} assigned to store {assigned_store}")
 			continue
 	assert not bad, f"Filter leaked non-sellable rows: {bad[:5]}"
 
@@ -396,11 +400,11 @@ def test_sellable_warehouse_filter():
 		},
 		pluck="name",
 	)
-	leaked = [n for n in forbidden if any(r.name == n for r in rows)]
+	leaked = [n for n in forbidden if n in names]
 	assert not leaked, f"Buyback bins leaked into Sellable dialog: {leaked}"
 
 	_log("E. Sellable warehouse filter", True,
-	     f"returned {len(rows)} candidates, no Buyback/store-tagged leakage")
+	     f"returned {len(names)} candidates, no store-owned/Buyback/hub leakage")
 
 
 # ---------------------------------------------------------------------------
@@ -462,7 +466,7 @@ def test_picker_bifurcation():
 		# --- Hub picker ---
 		hub_names = call_query(
 			"ch_item_master.ch_core.location_hierarchy.hub_warehouse_query",
-			{"zone": ZONE},
+			{"city": CITY, "zone": ZONE},
 		)
 		if store_bin:
 			assert store_bin not in hub_names, f"Hub picker leaked store bin {store_bin}"
@@ -497,7 +501,7 @@ def test_picker_bifurcation():
 		# --- Sellable picker ---
 		sellable_names = call_query(
 			"ch_item_master.ch_core.location_hierarchy.sellable_warehouse_query",
-			{"zone": ZONE},
+			{"city": CITY, "zone": ZONE},
 		)
 		if store_bin:
 			assert store_bin not in sellable_names, (
@@ -505,7 +509,7 @@ def test_picker_bifurcation():
 			)
 		if store_sellable:
 			assert store_sellable not in sellable_names, (
-				f"Sellable picker leaked store-owned sellable {store_sellable}"
+				f"Sellable picker leaked store sellable {store_sellable}"
 			)
 		if transit:
 			assert transit not in sellable_names, (
@@ -522,7 +526,7 @@ def test_picker_bifurcation():
 		_log("F. Picker bifurcation", True,
 		     f"hub={len(hub_names)} other={len(other_names)} sellable={len(sellable_names)}; "
 		     f"seed {seed_full} appears in all three; no cross-leaks "
-		     f"(store_bin/sellable/hub/transit filtered correctly)")
+		     f"(store sellables/bins, hubs, and transit filtered correctly)")
 	finally:
 		# Cleanup seed warehouse
 		if frappe.db.exists("Warehouse", seed_full):
@@ -530,6 +534,308 @@ def test_picker_bifurcation():
 				frappe.delete_doc("Warehouse", seed_full, ignore_permissions=True, force=True)
 			except Exception:
 				pass
+
+
+# ---------------------------------------------------------------------------
+# Test G — Retail location integrity hardening
+# ---------------------------------------------------------------------------
+def test_retail_location_integrity():
+	"""Hub/store contracts match the SAP/Oracle-style hierarchy invariants."""
+	result = lh.repair_retail_location_integrity(COMPANY)
+	assert isinstance(result, dict), f"repair returned unexpected result: {result}"
+
+	zones = frappe.get_all(
+		"CH Store Zone",
+		filters={"company": COMPANY},
+		fields=["name", "city", "source_warehouse"],
+		order_by="name",
+	)
+	assert zones, f"No CH Store Zones found for {COMPANY}"
+
+	source_counts = {}
+	source_cities = {}
+	bad = []
+	for z in zones:
+		if not z.source_warehouse:
+			bad.append(f"{z.name}: missing source_warehouse")
+			continue
+		source_counts[z.source_warehouse] = source_counts.get(z.source_warehouse, 0) + 1
+		source_cities.setdefault(z.source_warehouse, set()).add(z.city)
+		wh = frappe.db.get_value(
+			"Warehouse",
+			z.source_warehouse,
+			["company", "is_group", "ch_city", "ch_location_type", "ch_store", "ch_bin_type"],
+			as_dict=True,
+		)
+		if not wh:
+			bad.append(f"{z.name}: source {z.source_warehouse} does not exist")
+			continue
+		if wh.company != COMPANY:
+			bad.append(f"{z.name}: source company {wh.company}")
+		if wh.is_group:
+			bad.append(f"{z.name}: source {z.source_warehouse} is a group")
+		if wh.ch_location_type != "Zone Warehouse":
+			bad.append(f"{z.name}: source type {wh.ch_location_type}")
+		if wh.ch_city and wh.ch_city != z.city:
+			bad.append(f"{z.name}: source city {wh.ch_city}, zone city {z.city}")
+		if wh.ch_store:
+			bad.append(f"{z.name}: source is store-owned {wh.ch_store}")
+		if wh.ch_bin_type:
+			bad.append(f"{z.name}: source has store bin type {wh.ch_bin_type}")
+	for source, cities in source_cities.items():
+		clean_cities = {c for c in cities if c}
+		if len(clean_cities) > 1:
+			bad.append(f"{source}: shared across cities {sorted(clean_cities)}")
+	assert not bad, "Invalid zone source warehouses:\n" + "\n".join(bad)
+
+	for source, count in source_counts.items():
+		if count <= 1:
+			continue
+		ch_zone = frappe.db.get_value("Warehouse", source, "ch_zone")
+		assert not ch_zone, (
+			f"Shared hub {source} is referenced by {count} zones but still "
+			f"carries Warehouse.ch_zone={ch_zone}"
+		)
+
+	tree = lh.get_company_location_tree(COMPANY, warehouse_view="location")
+	zone_buckets = {}
+	for company_node in tree:
+		for city in company_node.get("cities") or []:
+			for zone in city.get("zones") or []:
+				zone_buckets[zone["zone"]] = zone
+
+	missing_in_tree = []
+	for z in zones:
+		bucket = zone_buckets.get(z.name)
+		if not bucket:
+			missing_in_tree.append(f"{z.name}: no tree bucket")
+			continue
+		names = {w.get("name") for w in bucket.get("warehouses") or []}
+		if z.source_warehouse not in names:
+			missing_in_tree.append(
+				f"{z.name}: source {z.source_warehouse} not rendered in zone"
+			)
+	assert not missing_in_tree, "Source hubs missing from Location Hierarchy tree:\n" + "\n".join(missing_in_tree)
+
+	from ch_erp15.ch_erp15.store_request_api import _get_zone_source_warehouse
+
+	store = frappe.db.get_value(
+		"CH Store",
+		{"company": COMPANY, "zone": ZONE, "disabled": 0},
+		"name",
+	)
+	assert store, f"No active store found in {ZONE}"
+	expected_source = frappe.db.get_value("CH Store Zone", ZONE, "source_warehouse")
+	assert _get_zone_source_warehouse(store) == expected_source, (
+		f"Store {store} should resolve source {expected_source}"
+	)
+
+	other_zone = frappe.db.get_value(
+		"CH Store Zone",
+		{"company": COMPANY, "city": ["!=", CITY]},
+		["name", "city"],
+		as_dict=True,
+	)
+	if other_zone:
+		other_city = other_zone.city
+		cross_city_picker = frappe.call(
+			"ch_item_master.ch_core.location_hierarchy.hub_warehouse_query",
+			doctype="Warehouse",
+			txt="",
+			searchfield="name",
+			start=0,
+			page_len=500,
+			filters={"company": COMPANY, "city": other_city, "zone": other_zone.name},
+		)
+		cross_city_names = {row[0] for row in (cross_city_picker or [])}
+		assert expected_source not in cross_city_names, (
+			f"Hub picker leaked {expected_source} from {CITY} into {other_city}"
+		)
+
+		temp_zone = "E2E Cross City Hub Zone"
+		if frappe.db.exists("CH Store Zone", temp_zone):
+			frappe.delete_doc("CH Store Zone", temp_zone, force=True, ignore_permissions=True)
+		try:
+			lh.save_zone(
+				company=COMPANY,
+				city=other_city,
+				zone_name=temp_zone,
+				source_warehouse=expected_source,
+			)
+		except frappe.ValidationError:
+			pass
+		else:
+			raise AssertionError(
+				f"Hub {expected_source} from {CITY} should be rejected for {other_city}"
+			)
+		finally:
+			if frappe.db.exists("CH Store Zone", temp_zone):
+				frappe.delete_doc("CH Store Zone", temp_zone, force=True, ignore_permissions=True)
+
+	# Incomplete legacy/test stores must not silently route through an arbitrary
+	# company zone. Operators should classify or disable them explicitly.
+	unzoned = frappe.db.get_value(
+		"CH Store",
+		{"company": COMPANY, "zone": ["is", "not set"], "disabled": 0},
+		"name",
+	)
+	if unzoned:
+		assert _get_zone_source_warehouse(unzoned) is None, (
+			f"Unzoned store {unzoned} should not get a fallback source warehouse"
+		)
+
+	store_sellable = frappe.db.get_value(
+		"Warehouse",
+		{"company": COMPANY, "ch_store": ["is", "set"], "ch_bin_type": "Sellable"},
+		"name",
+	)
+	if store_sellable:
+		temp_zone = "E2E Invalid Hub Zone"
+		if frappe.db.exists("CH Store Zone", temp_zone):
+			frappe.delete_doc("CH Store Zone", temp_zone, force=True, ignore_permissions=True)
+		try:
+			lh.save_zone(
+				company=COMPANY,
+				city=CITY,
+				zone_name=temp_zone,
+				source_warehouse=store_sellable,
+			)
+		except frappe.ValidationError:
+			pass
+		else:
+			raise AssertionError(
+				f"Store sellable warehouse {store_sellable} should be rejected as a hub"
+			)
+		finally:
+			if frappe.db.exists("CH Store Zone", temp_zone):
+				frappe.delete_doc("CH Store Zone", temp_zone, force=True, ignore_permissions=True)
+
+	_log(
+		"G. Retail location integrity",
+		True,
+		f"zones={len(zones)}, fixed={len(result.get('fixed') or [])}, "
+		f"warnings={len(result.get('warnings') or [])}",
+	)
+
+
+# ---------------------------------------------------------------------------
+# Test H — Store Sellable warehouse auto-provisioning
+# ---------------------------------------------------------------------------
+def test_store_warehouse_auto_provision():
+	store_names = [
+		"E2E Auto Warehouse Store",
+		"E2E Reuse Warehouse Store",
+	]
+	leftover_stores = []
+	for store_name in store_names:
+		leftover_stores.extend(frappe.get_all(
+			"CH Store",
+			filters={"company": COMPANY, "store_name": store_name},
+			pluck="name",
+		))
+	_cleanup_auto_store_warehouse({"stores": leftover_stores})
+
+	created_stores = []
+	try:
+		store = lh.save_store(
+			company=COMPANY,
+			city=CITY,
+			zone=ZONE,
+			store_name=store_names[0],
+		)
+		created_stores.append(store)
+
+		store_doc = frappe.db.get_value(
+			"CH Store",
+			store,
+			["warehouse", "warehouse_group", "pos_profile"],
+			as_dict=True,
+		)
+		assert store_doc.warehouse, "Store warehouse was not auto-created"
+		assert store_doc.warehouse_group, "Store warehouse group was not auto-created"
+		meta = frappe.db.get_value(
+			"Warehouse",
+			store_doc.warehouse,
+			["ch_city", "ch_zone", "ch_location_type", "ch_store", "ch_bin_type"],
+			as_dict=True,
+		)
+		assert meta.ch_city == CITY, f"auto warehouse city={meta.ch_city}"
+		assert meta.ch_zone == ZONE, f"auto warehouse zone={meta.ch_zone}"
+		assert meta.ch_location_type == "Store Bin", (
+			f"auto warehouse type={meta.ch_location_type}"
+		)
+		assert meta.ch_store == store, f"auto warehouse store={meta.ch_store}"
+		assert meta.ch_bin_type == "Sellable", (
+			f"auto warehouse bin type={meta.ch_bin_type}"
+		)
+
+		from ch_item_master.ch_core.bin_transfer import get_store_bin
+
+		assert get_store_bin(store, "Sellable") == store_doc.warehouse
+
+		picker_rows = frappe.call(
+			"ch_item_master.ch_core.location_hierarchy.sellable_warehouse_query",
+			doctype="Warehouse",
+			txt="",
+			searchfield="name",
+			start=0,
+			page_len=500,
+			filters={"company": COMPANY, "city": CITY, "zone": ZONE},
+		)
+		picker_names = {row[0] for row in (picker_rows or [])}
+		assert store_doc.warehouse not in picker_names, (
+			f"Add Store picker leaked assigned Sellable warehouse {store_doc.warehouse}"
+		)
+
+		try:
+			duplicate = lh.save_store(
+				company=COMPANY,
+				city=CITY,
+				zone=ZONE,
+				store_name=store_names[1],
+				warehouse=store_doc.warehouse,
+			)
+		except frappe.ValidationError:
+			pass
+		else:
+			created_stores.append(duplicate)
+			raise AssertionError(
+				f"Store warehouse {store_doc.warehouse} should not be reusable"
+			)
+
+		_log(
+			"H. Store warehouse auto-provision",
+			True,
+			f"{store} -> {store_doc.warehouse}; reuse blocked",
+		)
+		return {"stores": created_stores}
+	except Exception:
+		_cleanup_auto_store_warehouse({"stores": created_stores})
+		raise
+
+
+def _cleanup_auto_store_warehouse(state):
+	if not state:
+		return
+	stores = state.get("stores") or []
+	groups = []
+	for store in stores:
+		if not store or not frappe.db.exists("CH Store", store):
+			continue
+		store_doc = frappe.db.get_value(
+			"CH Store", store, ["pos_profile", "warehouse_group"], as_dict=True
+		)
+		if store_doc and store_doc.pos_profile:
+			frappe.db.set_value("CH Store", store, "pos_profile", None, update_modified=False)
+			_delete_pos_profile_if_exists(store_doc.pos_profile)
+		if store_doc and store_doc.warehouse_group:
+			groups.append(store_doc.warehouse_group)
+		for bin_wh in frappe.get_all("Warehouse", filters={"ch_store": store}, pluck="name"):
+			_delete_warehouse_if_exists(bin_wh)
+		_delete_store_if_exists(store)
+
+	for group in groups:
+		_delete_warehouse_if_exists(group)
 
 
 # ---------------------------------------------------------------------------
@@ -546,6 +852,8 @@ def run():
 		("D_duplicate_hub", test_duplicate_hub_tag, _cleanup_duplicate_hub),
 		("E_sellable_filter", test_sellable_warehouse_filter, None),
 		("F_picker_bifurcation", test_picker_bifurcation, None),
+		("G_retail_location_integrity", test_retail_location_integrity, None),
+		("H_store_warehouse_auto_provision", test_store_warehouse_auto_provision, _cleanup_auto_store_warehouse),
 	]
 
 	first_failure = None

@@ -36,3 +36,4 @@ ch_item_master.patches.seed_whatsapp_events
 ch_item_master.patches.seed_message_templates
 ch_item_master.patches.v16_prune_legacy_bin_types
 ch_item_master.patches.v17_warehouse_geographic_hierarchy
+ch_item_master.patches.v26_retail_location_integrity

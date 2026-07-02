@@ -3,8 +3,22 @@
 import frappe
 from frappe.utils import flt, nowdate, get_first_day, cint, getdate, add_days
 
+try:
+    from ch_erp15.ch_erp15.scope import intersect_filters
+except ImportError:
+    def intersect_filters(**kwargs):
+        return {"company": kwargs.get("company"), "store": kwargs.get("store"),
+                "allowed_stores": None, "allowed_warehouses": None}
 
-def _build_filters(company=None, store=None, from_date=None, to_date=None):
+
+def _build_filters(company=None, store=None, from_date=None, to_date=None, city=None, zone=None):
+    # Resolve the Company → City → Zone → Store hierarchy to the set of CH
+    # Stores in scope. Warranty claims store the CH Store name in
+    # `reported_at_store`, so we match against that set.
+    eff = intersect_filters(company=company, city=city, zone=zone, store=store)
+    company = eff["company"]
+    allowed_stores = eff["allowed_stores"]  # None = unrestricted, [] = block, [..] = restrict
+
     prm = {}
     co_sp = ""
     co_wc = ""
@@ -14,11 +28,15 @@ def _build_filters(company=None, store=None, from_date=None, to_date=None):
         co_wc = " AND wc.company = %(company)s"
         co_v = " AND v.company = %(company)s"
         prm["company"] = company
-    # Active VAS Plans has no store field; CH Warranty Claim has reported_at_store
+    # Active VAS Plans / vouchers have no store; CH Warranty Claim is scoped by
+    # reported_at_store (holds the CH Store name).
     wh_wc = ""
-    if store:
-        wh_wc = " AND wc.reported_at_store = %(store)s"
-        prm["store"] = store
+    if allowed_stores is not None:
+        if not allowed_stores:
+            wh_wc = " AND 1=0"
+        else:
+            s_in = "(" + ", ".join(frappe.db.escape(s) for s in allowed_stores) + ")"
+            wh_wc = f" AND wc.reported_at_store IN {s_in}"
     from_date = str(getdate(from_date)) if from_date else None
     to_date = str(getdate(to_date)) if to_date else None
     if from_date:
@@ -40,9 +58,9 @@ def _build_filters(company=None, store=None, from_date=None, to_date=None):
 
 
 @frappe.whitelist()
-def get_vas_hub_data(company=None, store=None, from_date=None, to_date=None):
+def get_vas_hub_data(company=None, store=None, from_date=None, to_date=None, city=None, zone=None):
     """VAS dashboard: Warranty Plans → Active VAS Plans → Claims → Vouchers."""
-    f = _build_filters(company, store, from_date, to_date)
+    f = _build_filters(company, store, from_date, to_date, city=city, zone=zone)
     prm = f["prm"]
     co_sp = f["co_sp"]
     co_wc = f["co_wc"]

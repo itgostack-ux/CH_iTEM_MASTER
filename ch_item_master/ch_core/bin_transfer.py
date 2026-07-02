@@ -117,12 +117,17 @@ def get_store_bin(store: str, bin_type: str) -> str:
 
 def get_store_bins(store: str) -> dict:
 	"""Return {bin_type: warehouse_name} for all bins of the store."""
+	bins = {}
+	base = frappe.db.get_value("CH Store", store, "warehouse")
+	if base:
+		bins["Sellable"] = base
 	rows = frappe.get_all(
 		"Warehouse",
 		filters={"ch_store": store, "ch_bin_type": ["!=", ""], "disabled": 0},
 		fields=["ch_bin_type", "name"],
 	)
-	return {r.ch_bin_type: r.name for r in rows}
+	bins.update({r.ch_bin_type: r.name for r in rows})
+	return bins
 
 
 def get_store_for_user() -> str | None:
@@ -635,6 +640,18 @@ def get_serial_bin_context(serial_no: str, store: str | None = None) -> dict:
 	if not serial or not serial.warehouse:
 		return {}
 
+	store_base = frappe.db.get_value("CH Store", store, "warehouse")
+	if store_base and serial.warehouse == store_base:
+		return {
+			"serial_no": serial.name,
+			"item_code": serial.item_code,
+			"item_name": serial.item_name,
+			"warehouse": serial.warehouse,
+			"bin_type": "Sellable",
+			"store": store,
+			"status": serial.status,
+		}
+
 	wh = frappe.db.get_value(
 		"Warehouse",
 		{"name": serial.warehouse, "ch_store": store},
@@ -698,7 +715,7 @@ def backfill_existing_stock_to_sellable(store: str | None = None, dry_run: int =
 			"Warehouse",
 			{"ch_store": st.name, "ch_bin_type": "Sellable", "disabled": 0},
 			"name",
-		)
+		) or st.warehouse
 		if not sellable:
 			errors.append({"store": st.name, "reason": "missing Sellable bin"})
 			continue

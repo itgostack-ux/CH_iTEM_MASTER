@@ -250,14 +250,13 @@ def ensure_store_group(store) -> str | None:
 			["name", "company", "zone", "city", "store_code"],
 			as_dict=True,
 		)
-	if not store or not store.get("company") or not store.get("store_code"):
-		return None
-
 	# Read via .get() only — ``store`` may be a Frappe Document, which does
 	# not support subscripting (``doc["field"]`` raises TypeError). Using
 	# ``.get()`` keeps the helper polymorphic across dict and Document inputs.
 	company = store.get("company")
 	store_code = store.get("store_code")
+	if not company or not store_code:
+		return None
 
 	zone = store.get("zone")
 	city = store.get("city")
@@ -315,6 +314,7 @@ def _ensure_leaf(
 	city: str | None = None,
 	zone: str | None = None,
 	bin_type: str | None = None,
+	store: str | None = None,
 ) -> str | None:
 	"""Idempotently ensure a NON-group warehouse with the given metadata exists.
 
@@ -336,6 +336,8 @@ def _ensure_leaf(
 			updates["ch_location_type"] = location_type
 		if bin_type is not None:
 			updates["ch_bin_type"] = bin_type
+		if store is not None:
+			updates["ch_store"] = store or None
 		if parent and not _is_descendant(parent, name):
 			current_parent = frappe.db.get_value(
 				"Warehouse", name, "parent_warehouse"
@@ -366,6 +368,8 @@ def _ensure_leaf(
 		wh.ch_location_type = location_type
 	if bin_type:
 		wh.ch_bin_type = bin_type
+	if store:
+		wh.ch_store = store
 	wh.flags.ignore_permissions = True
 	wh.insert(ignore_permissions=True)
 	return wh.name
@@ -505,6 +509,16 @@ def restructure_store_tree(store_name: str) -> dict:
 				update_modified=False,
 			)
 		return result
+
+	store_refs = frappe.get_all(
+		"CH Store",
+		filters={"warehouse": current_leaf, "disabled": 0},
+		fields=["name", "company", "city", "zone"],
+		order_by="name",
+	)
+	if len({ref.name for ref in store_refs}) > 1:
+		result["skipped"] = "shared_default_warehouse_manual_split_required"
+		return result
 	elif current_leaf != target_leaf:
 		# Make sure the destination name isn't already taken by something else.
 		if frappe.db.exists("Warehouse", target_leaf):
@@ -603,6 +617,7 @@ def provision_store_warehouse(store_name: str) -> dict:
 			city=store.city,
 			zone=store.zone,
 			bin_type="Sellable",
+			store=store.name,
 		)
 		result["actions"].append(f"created_sellable:{sellable}")
 
@@ -617,9 +632,14 @@ def provision_store_warehouse(store_name: str) -> dict:
 		result["actions"].append("repointed_warehouse")
 
 	# 3. Trigger the 3 sibling bins via the canonical entry point.
-	from ch_item_master.ch_core.doctype.ch_store.ch_store import ensure_store_bins
+	from ch_item_master.ch_core.doctype.ch_store.ch_store import (
+		ensure_store_bins,
+		ensure_store_pos_profile,
+	)
 	ensure_store_bins(store)
 	result["actions"].append("ensured_bins")
+	ensure_store_pos_profile(store)
+	result["actions"].append("ensured_pos_profile")
 
 	# 4. Reparent under City → Zone → Store Group.
 	res = restructure_store_tree(store.name)
