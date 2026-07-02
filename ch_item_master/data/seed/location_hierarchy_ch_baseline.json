@@ -1,0 +1,7083 @@
+{
+  "cities": [
+    {
+      "city_name": "Adilabad",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Telangana"
+    },
+    {
+      "city_name": "Agar Malwa",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Madhya Pradesh"
+    },
+    {
+      "city_name": "Agartala",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Tripura"
+    },
+    {
+      "city_name": "Agra",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Ahmedabad",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Gujarat"
+    },
+    {
+      "city_name": "Ahmednagar",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Maharashtra"
+    },
+    {
+      "city_name": "Aizawl",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Mizoram"
+    },
+    {
+      "city_name": "Ajmer",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Rajasthan"
+    },
+    {
+      "city_name": "Akola",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Maharashtra"
+    },
+    {
+      "city_name": "Alappuzha",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Kerala"
+    },
+    {
+      "city_name": "Aligarh",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Alipurduar",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "West Bengal"
+    },
+    {
+      "city_name": "Alirajpur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Madhya Pradesh"
+    },
+    {
+      "city_name": "Almora",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttarakhand"
+    },
+    {
+      "city_name": "Alwar",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Rajasthan"
+    },
+    {
+      "city_name": "Ambagarh Chowki",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Chhattisgarh"
+    },
+    {
+      "city_name": "Ambala",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Haryana"
+    },
+    {
+      "city_name": "Ambedkar Nagar",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Amethi",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Amravati",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Maharashtra"
+    },
+    {
+      "city_name": "Amreli",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Gujarat"
+    },
+    {
+      "city_name": "Amritsar",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Punjab"
+    },
+    {
+      "city_name": "Amroha",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Anakapalli",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Andhra Pradesh"
+    },
+    {
+      "city_name": "Anand",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Gujarat"
+    },
+    {
+      "city_name": "Anantapur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Andhra Pradesh"
+    },
+    {
+      "city_name": "Anantnag",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Jammu And Kashmir"
+    },
+    {
+      "city_name": "Angul",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Odisha"
+    },
+    {
+      "city_name": "Anjaw",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Arunachal Pradesh"
+    },
+    {
+      "city_name": "Annamayya",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Andhra Pradesh"
+    },
+    {
+      "city_name": "Anuppur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Madhya Pradesh"
+    },
+    {
+      "city_name": "Araria",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Bihar"
+    },
+    {
+      "city_name": "Aravalli",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Gujarat"
+    },
+    {
+      "city_name": "Ariyalur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Tamil Nadu"
+    },
+    {
+      "city_name": "Arwal",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Bihar"
+    },
+    {
+      "city_name": "Ashoknagar",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Madhya Pradesh"
+    },
+    {
+      "city_name": "Auraiya",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Aurangabad",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Maharashtra"
+    },
+    {
+      "city_name": "Ayodhya",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Azamgarh",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Bagalkot",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Karnataka"
+    },
+    {
+      "city_name": "Bageshwar",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttarakhand"
+    },
+    {
+      "city_name": "Baghpat",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Bahraich",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Baksa",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Assam"
+    },
+    {
+      "city_name": "Balaghat",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Madhya Pradesh"
+    },
+    {
+      "city_name": "Balangir",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Odisha"
+    },
+    {
+      "city_name": "Balasore",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Odisha"
+    },
+    {
+      "city_name": "Ballari",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Karnataka"
+    },
+    {
+      "city_name": "Ballia",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Balod",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Chhattisgarh"
+    },
+    {
+      "city_name": "Baloda Bazar",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Chhattisgarh"
+    },
+    {
+      "city_name": "Balrampur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Chhattisgarh"
+    },
+    {
+      "city_name": "Banaskantha",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Gujarat"
+    },
+    {
+      "city_name": "Banda",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Bandipora",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Jammu And Kashmir"
+    },
+    {
+      "city_name": "Banka",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Bihar"
+    },
+    {
+      "city_name": "Bankura",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "West Bengal"
+    },
+    {
+      "city_name": "Banswara",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Rajasthan"
+    },
+    {
+      "city_name": "Bapatla",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Andhra Pradesh"
+    },
+    {
+      "city_name": "Barabanki",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Baramulla",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Jammu And Kashmir"
+    },
+    {
+      "city_name": "Baran",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Rajasthan"
+    },
+    {
+      "city_name": "Bareilly",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Bargarh",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Odisha"
+    },
+    {
+      "city_name": "Barmer",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Rajasthan"
+    },
+    {
+      "city_name": "Barnala",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Punjab"
+    },
+    {
+      "city_name": "Barpeta",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Assam"
+    },
+    {
+      "city_name": "Barwani",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Madhya Pradesh"
+    },
+    {
+      "city_name": "Bastar",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Chhattisgarh"
+    },
+    {
+      "city_name": "Basti",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Bathinda",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Punjab"
+    },
+    {
+      "city_name": "Beed",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Maharashtra"
+    },
+    {
+      "city_name": "Begusarai",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Bihar"
+    },
+    {
+      "city_name": "Belagavi",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Karnataka"
+    },
+    {
+      "city_name": "Bemetara",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Chhattisgarh"
+    },
+    {
+      "city_name": "Bengaluru",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Karnataka"
+    },
+    {
+      "city_name": "Bengaluru Rural",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Karnataka"
+    },
+    {
+      "city_name": "Bengaluru Urban",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Karnataka"
+    },
+    {
+      "city_name": "Betul",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Madhya Pradesh"
+    },
+    {
+      "city_name": "Bhadohi",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Bhadradri Kothagudem",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Telangana"
+    },
+    {
+      "city_name": "Bhadrak",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Odisha"
+    },
+    {
+      "city_name": "Bhagalpur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Bihar"
+    },
+    {
+      "city_name": "Bhandara",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Maharashtra"
+    },
+    {
+      "city_name": "Bharatpur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Rajasthan"
+    },
+    {
+      "city_name": "Bharuch",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Gujarat"
+    },
+    {
+      "city_name": "Bhavnagar",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Gujarat"
+    },
+    {
+      "city_name": "Bhilwara",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Rajasthan"
+    },
+    {
+      "city_name": "Bhind",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Madhya Pradesh"
+    },
+    {
+      "city_name": "Bhiwani",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Haryana"
+    },
+    {
+      "city_name": "Bhojpur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Bihar"
+    },
+    {
+      "city_name": "Bhopal",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Madhya Pradesh"
+    },
+    {
+      "city_name": "Bhubaneswar",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Odisha"
+    },
+    {
+      "city_name": "Bidar",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Karnataka"
+    },
+    {
+      "city_name": "Bijapur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Chhattisgarh"
+    },
+    {
+      "city_name": "Bijnor",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Bikaner",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Rajasthan"
+    },
+    {
+      "city_name": "Bilaigarh",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Chhattisgarh"
+    },
+    {
+      "city_name": "Bilaspur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Chhattisgarh"
+    },
+    {
+      "city_name": "Birbhum",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "West Bengal"
+    },
+    {
+      "city_name": "Bishnupur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Manipur"
+    },
+    {
+      "city_name": "Biswanath",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Assam"
+    },
+    {
+      "city_name": "Bokaro",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Jharkhand"
+    },
+    {
+      "city_name": "Bongaigaon",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Assam"
+    },
+    {
+      "city_name": "Botad",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Gujarat"
+    },
+    {
+      "city_name": "Boudh",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Odisha"
+    },
+    {
+      "city_name": "Budaun",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Budgam",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Jammu And Kashmir"
+    },
+    {
+      "city_name": "Bulandshahr",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Buldhana",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Maharashtra"
+    },
+    {
+      "city_name": "Bundi",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Rajasthan"
+    },
+    {
+      "city_name": "Burhanpur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Madhya Pradesh"
+    },
+    {
+      "city_name": "Buxar",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Bihar"
+    },
+    {
+      "city_name": "Cachar",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Assam"
+    },
+    {
+      "city_name": "Central Delhi",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Delhi"
+    },
+    {
+      "city_name": "Chamarajanagar",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Karnataka"
+    },
+    {
+      "city_name": "Chamba",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Himachal Pradesh"
+    },
+    {
+      "city_name": "Chamoli",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttarakhand"
+    },
+    {
+      "city_name": "Champa",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Chhattisgarh"
+    },
+    {
+      "city_name": "Champawat",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttarakhand"
+    },
+    {
+      "city_name": "Champhai",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Mizoram"
+    },
+    {
+      "city_name": "Chandauli",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Chandel",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Manipur"
+    },
+    {
+      "city_name": "Chandigarh",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Chandigarh"
+    },
+    {
+      "city_name": "Chandrapur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Maharashtra"
+    },
+    {
+      "city_name": "Changlang",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Arunachal Pradesh"
+    },
+    {
+      "city_name": "Charaideo",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Assam"
+    },
+    {
+      "city_name": "Charkhi Dadri",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Haryana"
+    },
+    {
+      "city_name": "Chatra",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Jharkhand"
+    },
+    {
+      "city_name": "Chengalpattu",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Tamil Nadu"
+    },
+    {
+      "city_name": "Chennai",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Tamil Nadu"
+    },
+    {
+      "city_name": "Chhatarpur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Madhya Pradesh"
+    },
+    {
+      "city_name": "Chhindwara",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Madhya Pradesh"
+    },
+    {
+      "city_name": "Chhota Udaipur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Gujarat"
+    },
+    {
+      "city_name": "Chikkaballapur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Karnataka"
+    },
+    {
+      "city_name": "Chikkamagaluru",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Karnataka"
+    },
+    {
+      "city_name": "Chirang",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Assam"
+    },
+    {
+      "city_name": "Chitradurga",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Karnataka"
+    },
+    {
+      "city_name": "Chitrakoot",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Chittoor",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Andhra Pradesh"
+    },
+    {
+      "city_name": "Chittorgarh",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Rajasthan"
+    },
+    {
+      "city_name": "Chumoukedima",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Nagaland"
+    },
+    {
+      "city_name": "Churachandpur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Manipur"
+    },
+    {
+      "city_name": "Churu",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Rajasthan"
+    },
+    {
+      "city_name": "Coimbatore",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Tamil Nadu"
+    },
+    {
+      "city_name": "Cooch Behar",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "West Bengal"
+    },
+    {
+      "city_name": "Cuddalore",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Tamil Nadu"
+    },
+    {
+      "city_name": "Cuttack",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Odisha"
+    },
+    {
+      "city_name": "Dadra And Nagar Haveli",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Dadra And Nagar Haveli And Daman And Diu"
+    },
+    {
+      "city_name": "Dahod",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Gujarat"
+    },
+    {
+      "city_name": "Dakshin Dinajpur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "West Bengal"
+    },
+    {
+      "city_name": "Dakshina Kannada",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Karnataka"
+    },
+    {
+      "city_name": "Daman",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Dadra And Nagar Haveli And Daman And Diu"
+    },
+    {
+      "city_name": "Damoh",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Madhya Pradesh"
+    },
+    {
+      "city_name": "Dang",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Gujarat"
+    },
+    {
+      "city_name": "Dantewada",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Chhattisgarh"
+    },
+    {
+      "city_name": "Darbhanga",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Bihar"
+    },
+    {
+      "city_name": "Darjeeling",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "West Bengal"
+    },
+    {
+      "city_name": "Darrang",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Assam"
+    },
+    {
+      "city_name": "Datia",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Madhya Pradesh"
+    },
+    {
+      "city_name": "Dausa",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Rajasthan"
+    },
+    {
+      "city_name": "Davanagere",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Karnataka"
+    },
+    {
+      "city_name": "Dehradun",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttarakhand"
+    },
+    {
+      "city_name": "Delhi",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Delhi"
+    },
+    {
+      "city_name": "Deogarh",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Odisha"
+    },
+    {
+      "city_name": "Deoghar",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Jharkhand"
+    },
+    {
+      "city_name": "Deoria",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Devbhoomi Dwarka",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Gujarat"
+    },
+    {
+      "city_name": "Dewas",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Madhya Pradesh"
+    },
+    {
+      "city_name": "Dhalai",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Tripura"
+    },
+    {
+      "city_name": "Dhamtari",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Chhattisgarh"
+    },
+    {
+      "city_name": "Dhanbad",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Jharkhand"
+    },
+    {
+      "city_name": "Dhar",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Madhya Pradesh"
+    },
+    {
+      "city_name": "Dharamshala",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Himachal Pradesh"
+    },
+    {
+      "city_name": "Dharmapuri",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Tamil Nadu"
+    },
+    {
+      "city_name": "Dharwad",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Karnataka"
+    },
+    {
+      "city_name": "Dhemaji",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Assam"
+    },
+    {
+      "city_name": "Dhenkanal",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Odisha"
+    },
+    {
+      "city_name": "Dholpur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Rajasthan"
+    },
+    {
+      "city_name": "Dhubri",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Assam"
+    },
+    {
+      "city_name": "Dhule",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Maharashtra"
+    },
+    {
+      "city_name": "Dibang Valley",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Arunachal Pradesh"
+    },
+    {
+      "city_name": "Dibrugarh",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Assam"
+    },
+    {
+      "city_name": "Dima Hasao",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Assam"
+    },
+    {
+      "city_name": "Dimapur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Nagaland"
+    },
+    {
+      "city_name": "Dindigul",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Tamil Nadu"
+    },
+    {
+      "city_name": "Dindori",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Madhya Pradesh"
+    },
+    {
+      "city_name": "Diu",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Dadra And Nagar Haveli And Daman And Diu"
+    },
+    {
+      "city_name": "Doda",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Jammu And Kashmir"
+    },
+    {
+      "city_name": "Dumka",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Jharkhand"
+    },
+    {
+      "city_name": "Dungarpur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Rajasthan"
+    },
+    {
+      "city_name": "Durg",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Chhattisgarh"
+    },
+    {
+      "city_name": "Durgapur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "West Bengal"
+    },
+    {
+      "city_name": "Dwarka",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Delhi"
+    },
+    {
+      "city_name": "East Champaran",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Bihar"
+    },
+    {
+      "city_name": "East Delhi",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Delhi"
+    },
+    {
+      "city_name": "East Garo Hills",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Meghalaya"
+    },
+    {
+      "city_name": "East Godavari",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Andhra Pradesh"
+    },
+    {
+      "city_name": "East Jaintia Hills",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Meghalaya"
+    },
+    {
+      "city_name": "East Kameng",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Arunachal Pradesh"
+    },
+    {
+      "city_name": "East Khasi Hills",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Meghalaya"
+    },
+    {
+      "city_name": "East Siang",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Arunachal Pradesh"
+    },
+    {
+      "city_name": "East Singhbhum",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Jharkhand"
+    },
+    {
+      "city_name": "Eastern West Khasi Hills",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Meghalaya"
+    },
+    {
+      "city_name": "Eluru",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Andhra Pradesh"
+    },
+    {
+      "city_name": "Ernakulam",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Kerala"
+    },
+    {
+      "city_name": "Erode",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Tamil Nadu"
+    },
+    {
+      "city_name": "Etah",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Etawah",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Faridabad",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Haryana"
+    },
+    {
+      "city_name": "Faridkot",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Punjab"
+    },
+    {
+      "city_name": "Farrukhabad",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Fatehabad",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Haryana"
+    },
+    {
+      "city_name": "Fatehgarh Sahib",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Punjab"
+    },
+    {
+      "city_name": "Fatehpur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Fazilka",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Punjab"
+    },
+    {
+      "city_name": "Ferozepur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Punjab"
+    },
+    {
+      "city_name": "Firozabad",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Gadag",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Karnataka"
+    },
+    {
+      "city_name": "Gadchiroli",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Maharashtra"
+    },
+    {
+      "city_name": "Gajapati",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Odisha"
+    },
+    {
+      "city_name": "Gandai",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Chhattisgarh"
+    },
+    {
+      "city_name": "Ganderbal",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Jammu And Kashmir"
+    },
+    {
+      "city_name": "Gandhinagar",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Gujarat"
+    },
+    {
+      "city_name": "Gangtok",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Sikkim"
+    },
+    {
+      "city_name": "Ganjam",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Odisha"
+    },
+    {
+      "city_name": "Garhwa",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Jharkhand"
+    },
+    {
+      "city_name": "Gariaband",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Chhattisgarh"
+    },
+    {
+      "city_name": "Gaurela-Pendra-Marwahi",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Chhattisgarh"
+    },
+    {
+      "city_name": "Gautam Buddha Nagar",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Gaya",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Bihar"
+    },
+    {
+      "city_name": "Ghaziabad",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Ghazipur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Gir Somnath",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Gujarat"
+    },
+    {
+      "city_name": "Giridih",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Jharkhand"
+    },
+    {
+      "city_name": "Goalpara",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Assam"
+    },
+    {
+      "city_name": "Godda",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Jharkhand"
+    },
+    {
+      "city_name": "Golaghat",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Assam"
+    },
+    {
+      "city_name": "Gomati",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Tripura"
+    },
+    {
+      "city_name": "Gonda",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Gondia",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Maharashtra"
+    },
+    {
+      "city_name": "Gopalganj",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Bihar"
+    },
+    {
+      "city_name": "Gorakhpur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Gumla",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Jharkhand"
+    },
+    {
+      "city_name": "Guna",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Madhya Pradesh"
+    },
+    {
+      "city_name": "Guntur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Andhra Pradesh"
+    },
+    {
+      "city_name": "Gurdaspur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Punjab"
+    },
+    {
+      "city_name": "Gurugram",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Haryana"
+    },
+    {
+      "city_name": "Guwahati",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Assam"
+    },
+    {
+      "city_name": "Gwalior",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Madhya Pradesh"
+    },
+    {
+      "city_name": "Gyalshing",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Sikkim"
+    },
+    {
+      "city_name": "Hailakandi",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Assam"
+    },
+    {
+      "city_name": "Hamirpur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Himachal Pradesh"
+    },
+    {
+      "city_name": "Hanumakonda",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Telangana"
+    },
+    {
+      "city_name": "Hanumangarh",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Rajasthan"
+    },
+    {
+      "city_name": "Hapur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Harda",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Madhya Pradesh"
+    },
+    {
+      "city_name": "Hardoi",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Haridwar",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttarakhand"
+    },
+    {
+      "city_name": "Hassan",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Karnataka"
+    },
+    {
+      "city_name": "Hathras",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Haveri",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Karnataka"
+    },
+    {
+      "city_name": "Hazaribagh",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Jharkhand"
+    },
+    {
+      "city_name": "Hingoli",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Maharashtra"
+    },
+    {
+      "city_name": "Hisar",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Haryana"
+    },
+    {
+      "city_name": "Hnahthial",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Mizoram"
+    },
+    {
+      "city_name": "Hojai",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Assam"
+    },
+    {
+      "city_name": "Hooghly",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "West Bengal"
+    },
+    {
+      "city_name": "Hoshiarpur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Punjab"
+    },
+    {
+      "city_name": "Howrah",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "West Bengal"
+    },
+    {
+      "city_name": "Hubli",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Karnataka"
+    },
+    {
+      "city_name": "Hyderabad",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Telangana"
+    },
+    {
+      "city_name": "Idukki",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Kerala"
+    },
+    {
+      "city_name": "Imphal",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Manipur"
+    },
+    {
+      "city_name": "Imphal East",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Manipur"
+    },
+    {
+      "city_name": "Imphal West",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Manipur"
+    },
+    {
+      "city_name": "Indore",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Madhya Pradesh"
+    },
+    {
+      "city_name": "Itanagar",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Arunachal Pradesh"
+    },
+    {
+      "city_name": "Jabalpur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Madhya Pradesh"
+    },
+    {
+      "city_name": "Jagatsinghpur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Odisha"
+    },
+    {
+      "city_name": "Jagtial",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Telangana"
+    },
+    {
+      "city_name": "Jaipur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Rajasthan"
+    },
+    {
+      "city_name": "Jaisalmer",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Rajasthan"
+    },
+    {
+      "city_name": "Jajpur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Odisha"
+    },
+    {
+      "city_name": "Jalandhar",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Punjab"
+    },
+    {
+      "city_name": "Jalaun",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Jalgaon",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Maharashtra"
+    },
+    {
+      "city_name": "Jalna",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Maharashtra"
+    },
+    {
+      "city_name": "Jalore",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Rajasthan"
+    },
+    {
+      "city_name": "Jalpaiguri",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "West Bengal"
+    },
+    {
+      "city_name": "Jammu",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Jammu And Kashmir"
+    },
+    {
+      "city_name": "Jamnagar",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Gujarat"
+    },
+    {
+      "city_name": "Jamshedpur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Jharkhand"
+    },
+    {
+      "city_name": "Jamtara",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Jharkhand"
+    },
+    {
+      "city_name": "Jamui",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Bihar"
+    },
+    {
+      "city_name": "Jangaon",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Telangana"
+    },
+    {
+      "city_name": "Janjgir-Champa",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Chhattisgarh"
+    },
+    {
+      "city_name": "Jashpur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Chhattisgarh"
+    },
+    {
+      "city_name": "Jaunpur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Jayashankar Bhupalpally",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Telangana"
+    },
+    {
+      "city_name": "Jehanabad",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Bihar"
+    },
+    {
+      "city_name": "Jhabua",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Madhya Pradesh"
+    },
+    {
+      "city_name": "Jhajjar",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Haryana"
+    },
+    {
+      "city_name": "Jhalawar",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Rajasthan"
+    },
+    {
+      "city_name": "Jhansi",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Jhargram",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "West Bengal"
+    },
+    {
+      "city_name": "Jharsuguda",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Odisha"
+    },
+    {
+      "city_name": "Jhunjhunu",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Rajasthan"
+    },
+    {
+      "city_name": "Jind",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Haryana"
+    },
+    {
+      "city_name": "Jiribam",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Manipur"
+    },
+    {
+      "city_name": "Jodhpur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Rajasthan"
+    },
+    {
+      "city_name": "Jogulamba Gadwal",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Telangana"
+    },
+    {
+      "city_name": "Jorhat",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Assam"
+    },
+    {
+      "city_name": "Junagadh",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Gujarat"
+    },
+    {
+      "city_name": "Kabirdham",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Chhattisgarh"
+    },
+    {
+      "city_name": "Kadapa",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Andhra Pradesh"
+    },
+    {
+      "city_name": "Kaimur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Bihar"
+    },
+    {
+      "city_name": "Kaithal",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Haryana"
+    },
+    {
+      "city_name": "Kakching",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Manipur"
+    },
+    {
+      "city_name": "Kakinada",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Andhra Pradesh"
+    },
+    {
+      "city_name": "Kalaburagi",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Karnataka"
+    },
+    {
+      "city_name": "Kalahandi",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Odisha"
+    },
+    {
+      "city_name": "Kalimpong",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "West Bengal"
+    },
+    {
+      "city_name": "Kallakurichi",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Tamil Nadu"
+    },
+    {
+      "city_name": "Kamareddy",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Telangana"
+    },
+    {
+      "city_name": "Kamjong",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Manipur"
+    },
+    {
+      "city_name": "Kamle",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Arunachal Pradesh"
+    },
+    {
+      "city_name": "Kamrup",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Assam"
+    },
+    {
+      "city_name": "Kamrup Metropolitan",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Assam"
+    },
+    {
+      "city_name": "Kanchipuram",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Tamil Nadu"
+    },
+    {
+      "city_name": "Kandhamal",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Odisha"
+    },
+    {
+      "city_name": "Kangpokpi",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Manipur"
+    },
+    {
+      "city_name": "Kangra",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Himachal Pradesh"
+    },
+    {
+      "city_name": "Kanker",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Chhattisgarh"
+    },
+    {
+      "city_name": "Kannauj",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Kannur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Kerala"
+    },
+    {
+      "city_name": "Kanpur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Kanpur Dehat",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Kanpur Nagar",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Kanyakumari",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Tamil Nadu"
+    },
+    {
+      "city_name": "Kapurthala",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Punjab"
+    },
+    {
+      "city_name": "Karaikal",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Puducherry"
+    },
+    {
+      "city_name": "Karauli",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Rajasthan"
+    },
+    {
+      "city_name": "Karbi Anglong",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Assam"
+    },
+    {
+      "city_name": "Kargil",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Ladakh"
+    },
+    {
+      "city_name": "Karimganj",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Assam"
+    },
+    {
+      "city_name": "Karimnagar",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Telangana"
+    },
+    {
+      "city_name": "Karnal",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Haryana"
+    },
+    {
+      "city_name": "Karol Bagh",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Delhi"
+    },
+    {
+      "city_name": "Karur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Tamil Nadu"
+    },
+    {
+      "city_name": "Kasaragod",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Kerala"
+    },
+    {
+      "city_name": "Kasganj",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Kathua",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Jammu And Kashmir"
+    },
+    {
+      "city_name": "Katihar",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Bihar"
+    },
+    {
+      "city_name": "Katni",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Madhya Pradesh"
+    },
+    {
+      "city_name": "Kaushambi",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Kavaratti",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Lakshadweep Islands"
+    },
+    {
+      "city_name": "Kendrapara",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Odisha"
+    },
+    {
+      "city_name": "Kendujhar",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Odisha"
+    },
+    {
+      "city_name": "Khagaria",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Bihar"
+    },
+    {
+      "city_name": "Khairagarh-Chhuikhadan-Gandai",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Chhattisgarh"
+    },
+    {
+      "city_name": "Khammam",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Telangana"
+    },
+    {
+      "city_name": "Khandwa",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Madhya Pradesh"
+    },
+    {
+      "city_name": "Khargone",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Madhya Pradesh"
+    },
+    {
+      "city_name": "Khawzawl",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Mizoram"
+    },
+    {
+      "city_name": "Kheda",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Gujarat"
+    },
+    {
+      "city_name": "Khordha",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Odisha"
+    },
+    {
+      "city_name": "Khowai",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Tripura"
+    },
+    {
+      "city_name": "Khunti",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Jharkhand"
+    },
+    {
+      "city_name": "Kinnaur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Himachal Pradesh"
+    },
+    {
+      "city_name": "Kiphire",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Nagaland"
+    },
+    {
+      "city_name": "Kishanganj",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Bihar"
+    },
+    {
+      "city_name": "Kishtwar",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Jammu And Kashmir"
+    },
+    {
+      "city_name": "Kochi",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Kerala"
+    },
+    {
+      "city_name": "Kodagu",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Karnataka"
+    },
+    {
+      "city_name": "Koderma",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Jharkhand"
+    },
+    {
+      "city_name": "Kohima",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Nagaland"
+    },
+    {
+      "city_name": "Kokrajhar",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Assam"
+    },
+    {
+      "city_name": "Kolar",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Karnataka"
+    },
+    {
+      "city_name": "Kolasib",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Mizoram"
+    },
+    {
+      "city_name": "Kolhapur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Maharashtra"
+    },
+    {
+      "city_name": "Kolkata",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "West Bengal"
+    },
+    {
+      "city_name": "Kollam",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Kerala"
+    },
+    {
+      "city_name": "Komaram Bheem",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Telangana"
+    },
+    {
+      "city_name": "Konaseema",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Andhra Pradesh"
+    },
+    {
+      "city_name": "Kondagaon",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Chhattisgarh"
+    },
+    {
+      "city_name": "Koppal",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Karnataka"
+    },
+    {
+      "city_name": "Koraput",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Odisha"
+    },
+    {
+      "city_name": "Korba",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Chhattisgarh"
+    },
+    {
+      "city_name": "Koriya",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Chhattisgarh"
+    },
+    {
+      "city_name": "Kota",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Rajasthan"
+    },
+    {
+      "city_name": "Kottayam",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Kerala"
+    },
+    {
+      "city_name": "Kozhikode",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Kerala"
+    },
+    {
+      "city_name": "Kra Daadi",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Arunachal Pradesh"
+    },
+    {
+      "city_name": "Krishna",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Andhra Pradesh"
+    },
+    {
+      "city_name": "Krishnagiri",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Tamil Nadu"
+    },
+    {
+      "city_name": "Kulgam",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Jammu And Kashmir"
+    },
+    {
+      "city_name": "Kullu",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Himachal Pradesh"
+    },
+    {
+      "city_name": "Kupwara",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Jammu And Kashmir"
+    },
+    {
+      "city_name": "Kurnool",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Andhra Pradesh"
+    },
+    {
+      "city_name": "Kurukshetra",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Haryana"
+    },
+    {
+      "city_name": "Kurung Kumey",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Arunachal Pradesh"
+    },
+    {
+      "city_name": "Kushinagar",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Kutch",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Gujarat"
+    },
+    {
+      "city_name": "Lahaul And Spiti",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Himachal Pradesh"
+    },
+    {
+      "city_name": "Lajpat Nagar",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Delhi"
+    },
+    {
+      "city_name": "Lakhimpur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Assam"
+    },
+    {
+      "city_name": "Lakhimpur Kheri",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Lakhisarai",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Bihar"
+    },
+    {
+      "city_name": "Lakshadweep",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Lakshadweep Islands"
+    },
+    {
+      "city_name": "Lalitpur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Latehar",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Jharkhand"
+    },
+    {
+      "city_name": "Latur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Maharashtra"
+    },
+    {
+      "city_name": "Lawngtlai",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Mizoram"
+    },
+    {
+      "city_name": "Leh",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Ladakh"
+    },
+    {
+      "city_name": "Lepa Rada",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Arunachal Pradesh"
+    },
+    {
+      "city_name": "Lohardaga",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Jharkhand"
+    },
+    {
+      "city_name": "Lohit",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Arunachal Pradesh"
+    },
+    {
+      "city_name": "Longding",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Arunachal Pradesh"
+    },
+    {
+      "city_name": "Longleng",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Nagaland"
+    },
+    {
+      "city_name": "Lower Dibang Valley",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Arunachal Pradesh"
+    },
+    {
+      "city_name": "Lower Siang",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Arunachal Pradesh"
+    },
+    {
+      "city_name": "Lower Subansiri",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Arunachal Pradesh"
+    },
+    {
+      "city_name": "Lucknow",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Ludhiana",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Punjab"
+    },
+    {
+      "city_name": "Lunglei",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Mizoram"
+    },
+    {
+      "city_name": "Madhepura",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Bihar"
+    },
+    {
+      "city_name": "Madhubani",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Bihar"
+    },
+    {
+      "city_name": "Madurai",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Tamil Nadu"
+    },
+    {
+      "city_name": "Mahabubabad",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Telangana"
+    },
+    {
+      "city_name": "Mahabubnagar",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Telangana"
+    },
+    {
+      "city_name": "Maharajganj",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Mahasamund",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Chhattisgarh"
+    },
+    {
+      "city_name": "Mahe",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Puducherry"
+    },
+    {
+      "city_name": "Mahendragarh",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Haryana"
+    },
+    {
+      "city_name": "Mahisagar",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Gujarat"
+    },
+    {
+      "city_name": "Mahoba",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Mainpuri",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Majuli",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Assam"
+    },
+    {
+      "city_name": "Malappuram",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Kerala"
+    },
+    {
+      "city_name": "Malda",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "West Bengal"
+    },
+    {
+      "city_name": "Malerkotla",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Punjab"
+    },
+    {
+      "city_name": "Malkajgiri",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Telangana"
+    },
+    {
+      "city_name": "Malkangiri",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Odisha"
+    },
+    {
+      "city_name": "Mamit",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Mizoram"
+    },
+    {
+      "city_name": "Manali",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Himachal Pradesh"
+    },
+    {
+      "city_name": "Mancherial",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Telangana"
+    },
+    {
+      "city_name": "Mandi",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Himachal Pradesh"
+    },
+    {
+      "city_name": "Mandla",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Madhya Pradesh"
+    },
+    {
+      "city_name": "Mandsaur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Madhya Pradesh"
+    },
+    {
+      "city_name": "Mandya",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Karnataka"
+    },
+    {
+      "city_name": "Manendragarh-Chirmiri-Bharatpur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Chhattisgarh"
+    },
+    {
+      "city_name": "Mangaluru",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Karnataka"
+    },
+    {
+      "city_name": "Mangan",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Sikkim"
+    },
+    {
+      "city_name": "Mankachar",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Assam"
+    },
+    {
+      "city_name": "Mansa",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Punjab"
+    },
+    {
+      "city_name": "Mapusa",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Goa"
+    },
+    {
+      "city_name": "Margao",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Goa"
+    },
+    {
+      "city_name": "Marwahi",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Chhattisgarh"
+    },
+    {
+      "city_name": "Mathura",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Mau",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Mayiladuthurai",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Tamil Nadu"
+    },
+    {
+      "city_name": "Mayurbhanj",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Odisha"
+    },
+    {
+      "city_name": "Medak",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Telangana"
+    },
+    {
+      "city_name": "Medchal-Malkajgiri",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Telangana"
+    },
+    {
+      "city_name": "Meerut",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Mehsana",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Gujarat"
+    },
+    {
+      "city_name": "Mirzapur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Moga",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Punjab"
+    },
+    {
+      "city_name": "Mohali",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Punjab"
+    },
+    {
+      "city_name": "Mohla-Manpur-Ambagarh Chowki",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Chhattisgarh"
+    },
+    {
+      "city_name": "Mokokchung",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Nagaland"
+    },
+    {
+      "city_name": "Mon",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Nagaland"
+    },
+    {
+      "city_name": "Moradabad",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Morbi",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Gujarat"
+    },
+    {
+      "city_name": "Morena",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Madhya Pradesh"
+    },
+    {
+      "city_name": "Morigaon",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Assam"
+    },
+    {
+      "city_name": "Muktsar",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Punjab"
+    },
+    {
+      "city_name": "Mulugu",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Telangana"
+    },
+    {
+      "city_name": "Mumbai",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Maharashtra"
+    },
+    {
+      "city_name": "Mumbai Suburban",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Maharashtra"
+    },
+    {
+      "city_name": "Mungeli",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Chhattisgarh"
+    },
+    {
+      "city_name": "Munger",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Bihar"
+    },
+    {
+      "city_name": "Murshidabad",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "West Bengal"
+    },
+    {
+      "city_name": "Muzaffarnagar",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Muzaffarpur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Bihar"
+    },
+    {
+      "city_name": "Mysuru",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Karnataka"
+    },
+    {
+      "city_name": "Nabarangpur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Odisha"
+    },
+    {
+      "city_name": "Nadia",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "West Bengal"
+    },
+    {
+      "city_name": "Nagaon",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Assam"
+    },
+    {
+      "city_name": "Nagapattinam",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Tamil Nadu"
+    },
+    {
+      "city_name": "Nagarkurnool",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Telangana"
+    },
+    {
+      "city_name": "Nagaur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Rajasthan"
+    },
+    {
+      "city_name": "Nagpur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Maharashtra"
+    },
+    {
+      "city_name": "Nainital",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttarakhand"
+    },
+    {
+      "city_name": "Nalanda",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Bihar"
+    },
+    {
+      "city_name": "Nalbari",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Assam"
+    },
+    {
+      "city_name": "Nalgonda",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Telangana"
+    },
+    {
+      "city_name": "Namakkal",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Tamil Nadu"
+    },
+    {
+      "city_name": "Namchi",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Sikkim"
+    },
+    {
+      "city_name": "Namsai",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Arunachal Pradesh"
+    },
+    {
+      "city_name": "Nanded",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Maharashtra"
+    },
+    {
+      "city_name": "Nandurbar",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Maharashtra"
+    },
+    {
+      "city_name": "Nandyal",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Andhra Pradesh"
+    },
+    {
+      "city_name": "Narayanpet",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Telangana"
+    },
+    {
+      "city_name": "Narayanpur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Chhattisgarh"
+    },
+    {
+      "city_name": "Narmada",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Gujarat"
+    },
+    {
+      "city_name": "Narmadapuram",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Madhya Pradesh"
+    },
+    {
+      "city_name": "Narsinghpur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Madhya Pradesh"
+    },
+    {
+      "city_name": "Nashik",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Maharashtra"
+    },
+    {
+      "city_name": "Navsari",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Gujarat"
+    },
+    {
+      "city_name": "Nawada",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Bihar"
+    },
+    {
+      "city_name": "Nayagarh",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Odisha"
+    },
+    {
+      "city_name": "Neemuch",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Madhya Pradesh"
+    },
+    {
+      "city_name": "Nellore",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Andhra Pradesh"
+    },
+    {
+      "city_name": "New Delhi",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Delhi"
+    },
+    {
+      "city_name": "Nicobar",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Andaman And Nicobar Islands"
+    },
+    {
+      "city_name": "Nilgiris",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Tamil Nadu"
+    },
+    {
+      "city_name": "Nirmal",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Telangana"
+    },
+    {
+      "city_name": "Niuland",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Nagaland"
+    },
+    {
+      "city_name": "Niwari",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Madhya Pradesh"
+    },
+    {
+      "city_name": "Nizamabad",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Telangana"
+    },
+    {
+      "city_name": "Noida",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Noklak",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Nagaland"
+    },
+    {
+      "city_name": "Noney",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Manipur"
+    },
+    {
+      "city_name": "North 24 Parganas",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "West Bengal"
+    },
+    {
+      "city_name": "North And Middle Andaman",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Andaman And Nicobar Islands"
+    },
+    {
+      "city_name": "North Delhi",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Delhi"
+    },
+    {
+      "city_name": "North East Delhi",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Delhi"
+    },
+    {
+      "city_name": "North Garo Hills",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Meghalaya"
+    },
+    {
+      "city_name": "North Goa",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Goa"
+    },
+    {
+      "city_name": "North Tripura",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Tripura"
+    },
+    {
+      "city_name": "North West Delhi",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Delhi"
+    },
+    {
+      "city_name": "Ntr",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Andhra Pradesh"
+    },
+    {
+      "city_name": "Nuapada",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Odisha"
+    },
+    {
+      "city_name": "Nuh",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Haryana"
+    },
+    {
+      "city_name": "Osmanabad",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Maharashtra"
+    },
+    {
+      "city_name": "Pakke Kessang",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Arunachal Pradesh"
+    },
+    {
+      "city_name": "Pakur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Jharkhand"
+    },
+    {
+      "city_name": "Pakyong",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Sikkim"
+    },
+    {
+      "city_name": "Palakkad",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Kerala"
+    },
+    {
+      "city_name": "Palamu",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Jharkhand"
+    },
+    {
+      "city_name": "Palghar",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Maharashtra"
+    },
+    {
+      "city_name": "Pali",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Rajasthan"
+    },
+    {
+      "city_name": "Palnadu",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Andhra Pradesh"
+    },
+    {
+      "city_name": "Palwal",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Haryana"
+    },
+    {
+      "city_name": "Panaji",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Goa"
+    },
+    {
+      "city_name": "Panchkula",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Haryana"
+    },
+    {
+      "city_name": "Panchmahal",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Gujarat"
+    },
+    {
+      "city_name": "Panipat",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Haryana"
+    },
+    {
+      "city_name": "Panna",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Madhya Pradesh"
+    },
+    {
+      "city_name": "Papum Pare",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Arunachal Pradesh"
+    },
+    {
+      "city_name": "Parbhani",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Maharashtra"
+    },
+    {
+      "city_name": "Parvathipuram Manyam",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Andhra Pradesh"
+    },
+    {
+      "city_name": "Paschim Bardhaman",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "West Bengal"
+    },
+    {
+      "city_name": "Paschim Medinipur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "West Bengal"
+    },
+    {
+      "city_name": "Patan",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Gujarat"
+    },
+    {
+      "city_name": "Pathanamthitta",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Kerala"
+    },
+    {
+      "city_name": "Pathankot",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Punjab"
+    },
+    {
+      "city_name": "Patiala",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Punjab"
+    },
+    {
+      "city_name": "Patna",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Bihar"
+    },
+    {
+      "city_name": "Pauri Garhwal",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttarakhand"
+    },
+    {
+      "city_name": "Peddapalli",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Telangana"
+    },
+    {
+      "city_name": "Perambalur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Tamil Nadu"
+    },
+    {
+      "city_name": "Peren",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Nagaland"
+    },
+    {
+      "city_name": "Phek",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Nagaland"
+    },
+    {
+      "city_name": "Pherzawl",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Manipur"
+    },
+    {
+      "city_name": "Pilibhit",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Pithoragarh",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttarakhand"
+    },
+    {
+      "city_name": "Poonch",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Jammu And Kashmir"
+    },
+    {
+      "city_name": "Porbandar",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Gujarat"
+    },
+    {
+      "city_name": "Port Blair",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Andaman And Nicobar Islands"
+    },
+    {
+      "city_name": "Prakasam",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Andhra Pradesh"
+    },
+    {
+      "city_name": "Pratapgarh",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Rajasthan"
+    },
+    {
+      "city_name": "Prayagraj",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Puducherry",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Puducherry"
+    },
+    {
+      "city_name": "Pudukkottai",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Tamil Nadu"
+    },
+    {
+      "city_name": "Pulwama",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Jammu And Kashmir"
+    },
+    {
+      "city_name": "Pune",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Maharashtra"
+    },
+    {
+      "city_name": "Purba Bardhaman",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "West Bengal"
+    },
+    {
+      "city_name": "Purba Medinipur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "West Bengal"
+    },
+    {
+      "city_name": "Puri",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Odisha"
+    },
+    {
+      "city_name": "Purnia",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Bihar"
+    },
+    {
+      "city_name": "Purulia",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "West Bengal"
+    },
+    {
+      "city_name": "Raebareli",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Raichur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Karnataka"
+    },
+    {
+      "city_name": "Raigad",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Maharashtra"
+    },
+    {
+      "city_name": "Raigarh",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Chhattisgarh"
+    },
+    {
+      "city_name": "Raipur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Chhattisgarh"
+    },
+    {
+      "city_name": "Raisen",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Madhya Pradesh"
+    },
+    {
+      "city_name": "Rajanna Sircilla",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Telangana"
+    },
+    {
+      "city_name": "Rajgarh",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Madhya Pradesh"
+    },
+    {
+      "city_name": "Rajkot",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Gujarat"
+    },
+    {
+      "city_name": "Rajnandgaon",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Chhattisgarh"
+    },
+    {
+      "city_name": "Rajouri",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Jammu And Kashmir"
+    },
+    {
+      "city_name": "Rajsamand",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Rajasthan"
+    },
+    {
+      "city_name": "Ramanagara",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Karnataka"
+    },
+    {
+      "city_name": "Ramanathapuram",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Tamil Nadu"
+    },
+    {
+      "city_name": "Ramban",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Jammu And Kashmir"
+    },
+    {
+      "city_name": "Ramgarh",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Jharkhand"
+    },
+    {
+      "city_name": "Rampur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Ranchi",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Jharkhand"
+    },
+    {
+      "city_name": "Rangareddy",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Telangana"
+    },
+    {
+      "city_name": "Ranipet",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Tamil Nadu"
+    },
+    {
+      "city_name": "Ratlam",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Madhya Pradesh"
+    },
+    {
+      "city_name": "Ratnagiri",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Maharashtra"
+    },
+    {
+      "city_name": "Rayagada",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Odisha"
+    },
+    {
+      "city_name": "Reasi",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Jammu And Kashmir"
+    },
+    {
+      "city_name": "Rewa",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Madhya Pradesh"
+    },
+    {
+      "city_name": "Rewari",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Haryana"
+    },
+    {
+      "city_name": "Ri Bhoi",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Meghalaya"
+    },
+    {
+      "city_name": "Rohini",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Delhi"
+    },
+    {
+      "city_name": "Rohtak",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Haryana"
+    },
+    {
+      "city_name": "Rohtas",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Bihar"
+    },
+    {
+      "city_name": "Rudraprayag",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttarakhand"
+    },
+    {
+      "city_name": "Rupnagar",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Punjab"
+    },
+    {
+      "city_name": "Sabarkantha",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Gujarat"
+    },
+    {
+      "city_name": "Sagar",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Madhya Pradesh"
+    },
+    {
+      "city_name": "Saharanpur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Saharsa",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Bihar"
+    },
+    {
+      "city_name": "Sahebganj",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Jharkhand"
+    },
+    {
+      "city_name": "Saiha",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Mizoram"
+    },
+    {
+      "city_name": "Saitual",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Mizoram"
+    },
+    {
+      "city_name": "Saket",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Delhi"
+    },
+    {
+      "city_name": "Sakti",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Chhattisgarh"
+    },
+    {
+      "city_name": "Salem",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Tamil Nadu"
+    },
+    {
+      "city_name": "Samastipur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Bihar"
+    },
+    {
+      "city_name": "Samba",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Jammu And Kashmir"
+    },
+    {
+      "city_name": "Sambalpur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Odisha"
+    },
+    {
+      "city_name": "Sambhal",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Sangareddy",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Telangana"
+    },
+    {
+      "city_name": "Sangli",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Maharashtra"
+    },
+    {
+      "city_name": "Sangrur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Punjab"
+    },
+    {
+      "city_name": "Sant Kabir Nagar",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Saran",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Bihar"
+    },
+    {
+      "city_name": "Sarangarh-Bilaigarh",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Chhattisgarh"
+    },
+    {
+      "city_name": "Satara",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Maharashtra"
+    },
+    {
+      "city_name": "Satna",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Madhya Pradesh"
+    },
+    {
+      "city_name": "Sawai Madhopur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Rajasthan"
+    },
+    {
+      "city_name": "Sehore",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Madhya Pradesh"
+    },
+    {
+      "city_name": "Senapati",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Manipur"
+    },
+    {
+      "city_name": "Seoni",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Madhya Pradesh"
+    },
+    {
+      "city_name": "Sepahijala",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Tripura"
+    },
+    {
+      "city_name": "Seraikela Kharsawan",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Jharkhand"
+    },
+    {
+      "city_name": "Serchhip",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Mizoram"
+    },
+    {
+      "city_name": "Shahdara",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Delhi"
+    },
+    {
+      "city_name": "Shahdol",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Madhya Pradesh"
+    },
+    {
+      "city_name": "Shaheed Bhagat Singh Nagar",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Punjab"
+    },
+    {
+      "city_name": "Shahjahanpur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Shajapur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Madhya Pradesh"
+    },
+    {
+      "city_name": "Shamator",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Nagaland"
+    },
+    {
+      "city_name": "Shamli",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Sheikhpura",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Bihar"
+    },
+    {
+      "city_name": "Sheohar",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Bihar"
+    },
+    {
+      "city_name": "Sheopur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Madhya Pradesh"
+    },
+    {
+      "city_name": "Shi Yomi",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Arunachal Pradesh"
+    },
+    {
+      "city_name": "Shillong",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Meghalaya"
+    },
+    {
+      "city_name": "Shimla",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Himachal Pradesh"
+    },
+    {
+      "city_name": "Shivamogga",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Karnataka"
+    },
+    {
+      "city_name": "Shivpuri",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Madhya Pradesh"
+    },
+    {
+      "city_name": "Shopian",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Jammu And Kashmir"
+    },
+    {
+      "city_name": "Shravasti",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Siang",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Arunachal Pradesh"
+    },
+    {
+      "city_name": "Siddharthnagar",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Siddipet",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Telangana"
+    },
+    {
+      "city_name": "Sidhi",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Madhya Pradesh"
+    },
+    {
+      "city_name": "Sikar",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Rajasthan"
+    },
+    {
+      "city_name": "Siliguri",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "West Bengal"
+    },
+    {
+      "city_name": "Simdega",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Jharkhand"
+    },
+    {
+      "city_name": "Sindhudurg",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Maharashtra"
+    },
+    {
+      "city_name": "Singrauli",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Madhya Pradesh"
+    },
+    {
+      "city_name": "Sirmaur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Himachal Pradesh"
+    },
+    {
+      "city_name": "Sirohi",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Rajasthan"
+    },
+    {
+      "city_name": "Sirsa",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Haryana"
+    },
+    {
+      "city_name": "Sitamarhi",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Bihar"
+    },
+    {
+      "city_name": "Sitapur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Sivaganga",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Tamil Nadu"
+    },
+    {
+      "city_name": "Sivasagar",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Assam"
+    },
+    {
+      "city_name": "Siwan",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Bihar"
+    },
+    {
+      "city_name": "Solan",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Himachal Pradesh"
+    },
+    {
+      "city_name": "Solapur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Maharashtra"
+    },
+    {
+      "city_name": "Sonbhadra",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Sonipat",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Haryana"
+    },
+    {
+      "city_name": "Sonitpur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Assam"
+    },
+    {
+      "city_name": "Soreng",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Sikkim"
+    },
+    {
+      "city_name": "South 24 Parganas",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "West Bengal"
+    },
+    {
+      "city_name": "South Andaman",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Andaman And Nicobar Islands"
+    },
+    {
+      "city_name": "South Delhi",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Delhi"
+    },
+    {
+      "city_name": "South East Delhi",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Delhi"
+    },
+    {
+      "city_name": "South Garo Hills",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Meghalaya"
+    },
+    {
+      "city_name": "South Goa",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Goa"
+    },
+    {
+      "city_name": "South Salmara-Mankachar",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Assam"
+    },
+    {
+      "city_name": "South Tripura",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Tripura"
+    },
+    {
+      "city_name": "South West Delhi",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Delhi"
+    },
+    {
+      "city_name": "South West Garo Hills",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Meghalaya"
+    },
+    {
+      "city_name": "South West Khasi Hills",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Meghalaya"
+    },
+    {
+      "city_name": "Sri Ganganagar",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Rajasthan"
+    },
+    {
+      "city_name": "Sri Sathya Sai",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Andhra Pradesh"
+    },
+    {
+      "city_name": "Srikakulam",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Andhra Pradesh"
+    },
+    {
+      "city_name": "Srinagar",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Jammu And Kashmir"
+    },
+    {
+      "city_name": "Subarnapur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Odisha"
+    },
+    {
+      "city_name": "Sukma",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Chhattisgarh"
+    },
+    {
+      "city_name": "Sultanpur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Sundargarh",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Odisha"
+    },
+    {
+      "city_name": "Supaul",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Bihar"
+    },
+    {
+      "city_name": "Surajpur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Chhattisgarh"
+    },
+    {
+      "city_name": "Surat",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Gujarat"
+    },
+    {
+      "city_name": "Surendranagar",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Gujarat"
+    },
+    {
+      "city_name": "Surguja",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Chhattisgarh"
+    },
+    {
+      "city_name": "Suryapet",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Telangana"
+    },
+    {
+      "city_name": "Tamenglong",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Manipur"
+    },
+    {
+      "city_name": "Tapi",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Gujarat"
+    },
+    {
+      "city_name": "Tarn Taran",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Punjab"
+    },
+    {
+      "city_name": "Tawang",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Arunachal Pradesh"
+    },
+    {
+      "city_name": "Tehri Garhwal",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttarakhand"
+    },
+    {
+      "city_name": "Tengnoupal",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Manipur"
+    },
+    {
+      "city_name": "Tenkasi",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Tamil Nadu"
+    },
+    {
+      "city_name": "Thane",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Maharashtra"
+    },
+    {
+      "city_name": "Thanjavur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Tamil Nadu"
+    },
+    {
+      "city_name": "Theni",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Tamil Nadu"
+    },
+    {
+      "city_name": "Thiruvananthapuram",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Kerala"
+    },
+    {
+      "city_name": "Thoothukudi",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Tamil Nadu"
+    },
+    {
+      "city_name": "Thoubal",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Manipur"
+    },
+    {
+      "city_name": "Thrissur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Kerala"
+    },
+    {
+      "city_name": "Tikamgarh",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Madhya Pradesh"
+    },
+    {
+      "city_name": "Tinsukia",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Assam"
+    },
+    {
+      "city_name": "Tirap",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Arunachal Pradesh"
+    },
+    {
+      "city_name": "Tiruchirappalli",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Tamil Nadu"
+    },
+    {
+      "city_name": "Tirunelveli",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Tamil Nadu"
+    },
+    {
+      "city_name": "Tirupathur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Tamil Nadu"
+    },
+    {
+      "city_name": "Tirupati",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Andhra Pradesh"
+    },
+    {
+      "city_name": "Tiruppur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Tamil Nadu"
+    },
+    {
+      "city_name": "Tiruvallur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Tamil Nadu"
+    },
+    {
+      "city_name": "Tiruvannamalai",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Tamil Nadu"
+    },
+    {
+      "city_name": "Tiruvarur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Tamil Nadu"
+    },
+    {
+      "city_name": "Tonk",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Rajasthan"
+    },
+    {
+      "city_name": "Tseminyu",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Nagaland"
+    },
+    {
+      "city_name": "Tuensang",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Nagaland"
+    },
+    {
+      "city_name": "Tumakuru",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Karnataka"
+    },
+    {
+      "city_name": "Udaipur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Rajasthan"
+    },
+    {
+      "city_name": "Udalguri",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Assam"
+    },
+    {
+      "city_name": "Udham Singh Nagar",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttarakhand"
+    },
+    {
+      "city_name": "Udhampur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Jammu And Kashmir"
+    },
+    {
+      "city_name": "Udupi",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Karnataka"
+    },
+    {
+      "city_name": "Ujjain",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Madhya Pradesh"
+    },
+    {
+      "city_name": "Ukhrul",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Manipur"
+    },
+    {
+      "city_name": "Umaria",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Madhya Pradesh"
+    },
+    {
+      "city_name": "Una",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Himachal Pradesh"
+    },
+    {
+      "city_name": "Unakoti",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Tripura"
+    },
+    {
+      "city_name": "Unnao",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Upper Siang",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Arunachal Pradesh"
+    },
+    {
+      "city_name": "Upper Subansiri",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Arunachal Pradesh"
+    },
+    {
+      "city_name": "Uttar Dinajpur",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "West Bengal"
+    },
+    {
+      "city_name": "Uttara Kannada",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Karnataka"
+    },
+    {
+      "city_name": "Uttarkashi",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttarakhand"
+    },
+    {
+      "city_name": "Vadodara",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Gujarat"
+    },
+    {
+      "city_name": "Vaishali",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Bihar"
+    },
+    {
+      "city_name": "Valsad",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Gujarat"
+    },
+    {
+      "city_name": "Varanasi",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Uttar Pradesh"
+    },
+    {
+      "city_name": "Vasco Da Gama",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Goa"
+    },
+    {
+      "city_name": "Vellore",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Tamil Nadu"
+    },
+    {
+      "city_name": "Vidisha",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Madhya Pradesh"
+    },
+    {
+      "city_name": "Vijayanagara",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Karnataka"
+    },
+    {
+      "city_name": "Vijayapura",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Karnataka"
+    },
+    {
+      "city_name": "Vijayawada",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Andhra Pradesh"
+    },
+    {
+      "city_name": "Vikarabad",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Telangana"
+    },
+    {
+      "city_name": "Viluppuram",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Tamil Nadu"
+    },
+    {
+      "city_name": "Virudhunagar",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Tamil Nadu"
+    },
+    {
+      "city_name": "Visakhapatnam",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Andhra Pradesh"
+    },
+    {
+      "city_name": "Vizianagaram",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Andhra Pradesh"
+    },
+    {
+      "city_name": "Wanaparthy",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Telangana"
+    },
+    {
+      "city_name": "Warangal",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Telangana"
+    },
+    {
+      "city_name": "Wardha",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Maharashtra"
+    },
+    {
+      "city_name": "Washim",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Maharashtra"
+    },
+    {
+      "city_name": "Wayanad",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Kerala"
+    },
+    {
+      "city_name": "West Champaran",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Bihar"
+    },
+    {
+      "city_name": "West Delhi",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Delhi"
+    },
+    {
+      "city_name": "West Garo Hills",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Meghalaya"
+    },
+    {
+      "city_name": "West Godavari",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Andhra Pradesh"
+    },
+    {
+      "city_name": "West Jaintia Hills",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Meghalaya"
+    },
+    {
+      "city_name": "West Kameng",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Arunachal Pradesh"
+    },
+    {
+      "city_name": "West Karbi Anglong",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Assam"
+    },
+    {
+      "city_name": "West Khasi Hills",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Meghalaya"
+    },
+    {
+      "city_name": "West Siang",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Arunachal Pradesh"
+    },
+    {
+      "city_name": "West Singhbhum",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Jharkhand"
+    },
+    {
+      "city_name": "West Tripura",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Tripura"
+    },
+    {
+      "city_name": "Wokha",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Nagaland"
+    },
+    {
+      "city_name": "Yadadri Bhuvanagiri",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Telangana"
+    },
+    {
+      "city_name": "Yadgir",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Karnataka"
+    },
+    {
+      "city_name": "Yamunanagar",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Haryana"
+    },
+    {
+      "city_name": "Yanam",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Puducherry"
+    },
+    {
+      "city_name": "Yavatmal",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Maharashtra"
+    },
+    {
+      "city_name": "Zunheboto",
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state": "Nagaland"
+    }
+  ],
+  "counts": {
+    "cities": 794,
+    "states": 38,
+    "stores": 49,
+    "zones": 9
+  },
+  "exported_at": "GOLDEN-BASELINE",
+  "filter_company": null,
+  "schema_version": 1,
+  "source_site": "REFERENCE",
+  "states": [
+    {
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state_code": "35",
+      "state_name": "Andaman And Nicobar Islands"
+    },
+    {
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state_code": "37",
+      "state_name": "Andhra Pradesh"
+    },
+    {
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state_code": "12",
+      "state_name": "Arunachal Pradesh"
+    },
+    {
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state_code": "18",
+      "state_name": "Assam"
+    },
+    {
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state_code": "10",
+      "state_name": "Bihar"
+    },
+    {
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state_code": "04",
+      "state_name": "Chandigarh"
+    },
+    {
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state_code": "22",
+      "state_name": "Chhattisgarh"
+    },
+    {
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state_code": "26",
+      "state_name": "Dadra And Nagar Haveli And Daman And Diu"
+    },
+    {
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state_code": "07",
+      "state_name": "Delhi"
+    },
+    {
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state_code": "30",
+      "state_name": "Goa"
+    },
+    {
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state_code": "24",
+      "state_name": "Gujarat"
+    },
+    {
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state_code": "06",
+      "state_name": "Haryana"
+    },
+    {
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state_code": "02",
+      "state_name": "Himachal Pradesh"
+    },
+    {
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state_code": "01",
+      "state_name": "Jammu And Kashmir"
+    },
+    {
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state_code": "20",
+      "state_name": "Jharkhand"
+    },
+    {
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state_code": "29",
+      "state_name": "Karnataka"
+    },
+    {
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state_code": "32",
+      "state_name": "Kerala"
+    },
+    {
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state_code": "38",
+      "state_name": "Ladakh"
+    },
+    {
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state_code": "31",
+      "state_name": "Lakshadweep Islands"
+    },
+    {
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state_code": "23",
+      "state_name": "Madhya Pradesh"
+    },
+    {
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state_code": "27",
+      "state_name": "Maharashtra"
+    },
+    {
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state_code": "14",
+      "state_name": "Manipur"
+    },
+    {
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state_code": "17",
+      "state_name": "Meghalaya"
+    },
+    {
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state_code": "15",
+      "state_name": "Mizoram"
+    },
+    {
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state_code": "13",
+      "state_name": "Nagaland"
+    },
+    {
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state_code": "21",
+      "state_name": "Odisha"
+    },
+    {
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state_code": "97",
+      "state_name": "Other Countries"
+    },
+    {
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state_code": "99",
+      "state_name": "Other Territory"
+    },
+    {
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state_code": "34",
+      "state_name": "Puducherry"
+    },
+    {
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state_code": "03",
+      "state_name": "Punjab"
+    },
+    {
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state_code": "08",
+      "state_name": "Rajasthan"
+    },
+    {
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state_code": "11",
+      "state_name": "Sikkim"
+    },
+    {
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state_code": "33",
+      "state_name": "Tamil Nadu"
+    },
+    {
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state_code": "36",
+      "state_name": "Telangana"
+    },
+    {
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state_code": "16",
+      "state_name": "Tripura"
+    },
+    {
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state_code": "09",
+      "state_name": "Uttar Pradesh"
+    },
+    {
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state_code": "05",
+      "state_name": "Uttarakhand"
+    },
+    {
+      "country": "India",
+      "description": null,
+      "disabled": 0,
+      "state_code": "19",
+      "state_name": "West Bengal"
+    }
+  ],
+  "stores": [
+    {
+      "address": "First Floor, K Sundaramoorthy Complex, 1A, Arcot Rd, Alwartirunagar, Valasaravakkam, Chennai",
+      "branch": null,
+      "city": "Chennai",
+      "company_abbr": "BMPL",
+      "contact_phone": null,
+      "custom_latitude": null,
+      "custom_longitude": null,
+      "disabled": 0,
+      "google_maps_url": "https://maps.google.com/?q=13.047486,80.183669",
+      "is_buyback_enabled": 0,
+      "is_retail_enabled": 0,
+      "is_service_enabled": 0,
+      "latitude": 13.047486,
+      "longitude": 80.183669,
+      "opening_date": null,
+      "pincode": "600087",
+      "store_code": "GG-ALWARTHIRUNAGAR",
+      "store_name": "Gogizmo - Alwarthirunagar",
+      "store_status": "Active",
+      "territory": "All Territories",
+      "warehouse_base": "GG-ALWARTHIRUNAGAR-Sellable",
+      "zone": "Chennai West"
+    },
+    {
+      "address": "No.395, Plot. 42, Madras Thiruvallur High Rd, Secretariat Colony, Vivek Nagar, Ambattur, Chennai",
+      "branch": null,
+      "city": "Chennai",
+      "company_abbr": "BMPL",
+      "contact_phone": null,
+      "custom_latitude": null,
+      "custom_longitude": null,
+      "disabled": 0,
+      "google_maps_url": "https://maps.google.com/?q=13.114894,80.15463",
+      "is_buyback_enabled": 0,
+      "is_retail_enabled": 0,
+      "is_service_enabled": 0,
+      "latitude": 13.114894,
+      "longitude": 80.15463,
+      "opening_date": null,
+      "pincode": "600053",
+      "store_code": "GG-AMBATTUR",
+      "store_name": "Gogizmo - Ambattur",
+      "store_status": "Active",
+      "territory": "All Territories",
+      "warehouse_base": "GG-AMBATTUR-Sellable",
+      "zone": "Chennai North"
+    },
+    {
+      "address": "A-45 3rd Avenue, next to P ORR & SONS, Anna Nagar, Chennai",
+      "branch": null,
+      "city": "Chennai",
+      "company_abbr": "BMPL",
+      "contact_phone": null,
+      "custom_latitude": null,
+      "custom_longitude": null,
+      "disabled": 0,
+      "google_maps_url": "https://maps.google.com/?q=13.091274,80.218177",
+      "is_buyback_enabled": 0,
+      "is_retail_enabled": 0,
+      "is_service_enabled": 0,
+      "latitude": 13.091274,
+      "longitude": 80.218177,
+      "opening_date": null,
+      "pincode": "600102",
+      "store_code": "GG-ANNANAGAR",
+      "store_name": "Gogizmo - Anna Nagar",
+      "store_status": "Active",
+      "territory": "All Territories",
+      "warehouse_base": "GG-ANNANAGAR-Sellable",
+      "zone": "Chennai Central"
+    },
+    {
+      "address": "Door no: 31 & 32, Anjugam nagar 1st Street, Jafferkhanpet, Ashok Nagar, Chennai",
+      "branch": null,
+      "city": "Chennai",
+      "company_abbr": "BMPL",
+      "contact_phone": null,
+      "custom_latitude": null,
+      "custom_longitude": null,
+      "disabled": 0,
+      "google_maps_url": "https://maps.google.com/?q=13.029759,80.208766",
+      "is_buyback_enabled": 0,
+      "is_retail_enabled": 0,
+      "is_service_enabled": 0,
+      "latitude": 13.029759,
+      "longitude": 80.208766,
+      "opening_date": null,
+      "pincode": "600083",
+      "store_code": "GG-ASHOKNAGAR",
+      "store_name": "Gogizmo - Ashok Nagar",
+      "store_status": "Active",
+      "territory": "All Territories",
+      "warehouse_base": "GG-ASHOKNAGAR-Sellable",
+      "zone": "Chennai Central"
+    },
+    {
+      "address": "12, Hunters Rd, Doveton, Choolai, Chennai",
+      "branch": null,
+      "city": "Chennai",
+      "company_abbr": "BMPL",
+      "contact_phone": "8044566340",
+      "custom_latitude": "13.0873218",
+      "custom_longitude": "80.258079",
+      "disabled": 0,
+      "google_maps_url": null,
+      "is_buyback_enabled": 0,
+      "is_retail_enabled": 1,
+      "is_service_enabled": 1,
+      "latitude": 13.087322,
+      "longitude": 80.258079,
+      "opening_date": null,
+      "pincode": "600007",
+      "store_code": "GG-DOVETON",
+      "store_name": "Gogizmo - Doveton",
+      "store_status": "Active",
+      "territory": "All Territories",
+      "warehouse_base": "GG-DOVETON-Sellable",
+      "zone": "Chennai Central"
+    },
+    {
+      "address": "New Survey No. 1530/7, Police Station, Shop No 2, Old survey No. 3, 2A3, Rajiv Gandhi Salai, near Kelambakkam",
+      "branch": null,
+      "city": "Chennai",
+      "company_abbr": "BMPL",
+      "contact_phone": null,
+      "custom_latitude": null,
+      "custom_longitude": null,
+      "disabled": 0,
+      "google_maps_url": "https://maps.google.com/?q=12.786249,80.221994",
+      "is_buyback_enabled": 0,
+      "is_retail_enabled": 0,
+      "is_service_enabled": 0,
+      "latitude": 12.786249,
+      "longitude": 80.221994,
+      "opening_date": null,
+      "pincode": "603103",
+      "store_code": "GG-KELAMBAKKAM",
+      "store_name": "GoGizmo - Kelambakkam",
+      "store_status": "Active",
+      "territory": "All Territories",
+      "warehouse_base": "GG-KELAMBAKKAM-Sellable",
+      "zone": "Chennai South"
+    },
+    {
+      "address": "Old No.163 / New No.237, Barakka Rd, Secretariat Colony, Kilpauk, Chennai",
+      "branch": null,
+      "city": "Chennai",
+      "company_abbr": "BMPL",
+      "contact_phone": "8048098389",
+      "custom_latitude": "13.0828189",
+      "custom_longitude": "80.2433281",
+      "disabled": 0,
+      "google_maps_url": null,
+      "is_buyback_enabled": 0,
+      "is_retail_enabled": 1,
+      "is_service_enabled": 1,
+      "latitude": 13.082819,
+      "longitude": 80.243328,
+      "opening_date": null,
+      "pincode": "600010",
+      "store_code": "GG-KELLYS",
+      "store_name": "Gogizmo - Kellys",
+      "store_status": "Active",
+      "territory": "All Territories",
+      "warehouse_base": "GG-KELLYS-Sellable",
+      "zone": "Chennai Central"
+    },
+    {
+      "address": "NO 41/71, Arcot Rd, United India Colony, Kodambakkam, Chennai",
+      "branch": null,
+      "city": "Chennai",
+      "company_abbr": "BMPL",
+      "contact_phone": null,
+      "custom_latitude": null,
+      "custom_longitude": null,
+      "disabled": 0,
+      "google_maps_url": "https://maps.google.com/?q=13.049208,80.224283",
+      "is_buyback_enabled": 0,
+      "is_retail_enabled": 0,
+      "is_service_enabled": 0,
+      "latitude": 13.049208,
+      "longitude": 80.224283,
+      "opening_date": null,
+      "pincode": "600024",
+      "store_code": "GG-KODAMBAKKAM",
+      "store_name": "Gogizmo - Kodambakkam",
+      "store_status": "Active",
+      "territory": "All Territories",
+      "warehouse_base": "GG-KODAMBAKKAM-Sellable",
+      "zone": "Chennai Central"
+    },
+    {
+      "address": "No: 144/1, Paper Mills Road, Anjugam Nagar, Sakthivel Nagar, Peravallur, Perambur, Chennai",
+      "branch": null,
+      "city": "Chennai",
+      "company_abbr": "BMPL",
+      "contact_phone": null,
+      "custom_latitude": null,
+      "custom_longitude": null,
+      "disabled": 0,
+      "google_maps_url": "https://maps.google.com/?q=13.124113,80.204628",
+      "is_buyback_enabled": 0,
+      "is_retail_enabled": 0,
+      "is_service_enabled": 0,
+      "latitude": 13.124113,
+      "longitude": 80.204628,
+      "opening_date": null,
+      "pincode": "600099",
+      "store_code": "GG-KOLATHUR",
+      "store_name": "Gogizmo - Kolathur",
+      "store_status": "Active",
+      "territory": "All Territories",
+      "warehouse_base": "GG-KOLATHUR-Sellable",
+      "zone": "Chennai North"
+    },
+    {
+      "address": "27 Sabari Salai, Medavakkam Main Rd, Madipakkam, Chennai",
+      "branch": null,
+      "city": "Chennai",
+      "company_abbr": "BMPL",
+      "contact_phone": null,
+      "custom_latitude": null,
+      "custom_longitude": null,
+      "disabled": 0,
+      "google_maps_url": "https://maps.google.com/?q=12.961135,80.200129",
+      "is_buyback_enabled": 0,
+      "is_retail_enabled": 0,
+      "is_service_enabled": 0,
+      "latitude": 12.961135,
+      "longitude": 80.200129,
+      "opening_date": null,
+      "pincode": "600091",
+      "store_code": "GG-MADIPAKKAM",
+      "store_name": "GoGizmo Mobiles Shop - Madipakkam",
+      "store_status": "Active",
+      "territory": "All Territories",
+      "warehouse_base": "GG-MADIPAKKAM-Sellable",
+      "zone": "Chennai South"
+    },
+    {
+      "address": "39, N Veli St, Simmakkal, Madurai Main, Madurai",
+      "branch": null,
+      "city": "Madurai",
+      "company_abbr": "BMPL",
+      "contact_phone": null,
+      "custom_latitude": null,
+      "custom_longitude": null,
+      "disabled": 0,
+      "google_maps_url": "https://maps.google.com/?q=9.924921,78.121088",
+      "is_buyback_enabled": 0,
+      "is_retail_enabled": 0,
+      "is_service_enabled": 0,
+      "latitude": 9.924921,
+      "longitude": 78.121088,
+      "opening_date": null,
+      "pincode": "625001",
+      "store_code": "GG-MADURAI",
+      "store_name": "Gogizmo - Madurai",
+      "store_status": "Active",
+      "territory": "All Territories",
+      "warehouse_base": "GG-MADURAI-Sellable",
+      "zone": "Madurai Central"
+    },
+    {
+      "address": "Mig 337, 80 Feet Rd, Anna Nagar, Madurai",
+      "branch": null,
+      "city": "Madurai",
+      "company_abbr": "BMPL",
+      "contact_phone": null,
+      "custom_latitude": null,
+      "custom_longitude": null,
+      "disabled": 0,
+      "google_maps_url": "https://maps.google.com/?q=9.921675,78.148137",
+      "is_buyback_enabled": 0,
+      "is_retail_enabled": 0,
+      "is_service_enabled": 0,
+      "latitude": 9.921675,
+      "longitude": 78.148137,
+      "opening_date": null,
+      "pincode": "625020",
+      "store_code": "GG-MADURAI-ANNANAGAR",
+      "store_name": "Gogizmo - Madurai Anna Nagar",
+      "store_status": "Active",
+      "territory": "All Territories",
+      "warehouse_base": "GG-MADURAI-ANNANAGAR-Sellable",
+      "zone": "Madurai Central"
+    },
+    {
+      "address": "No: 404, T.H.Road, Minjur, Chennai",
+      "branch": null,
+      "city": "Chennai",
+      "company_abbr": "BMPL",
+      "contact_phone": null,
+      "custom_latitude": null,
+      "custom_longitude": null,
+      "disabled": 0,
+      "google_maps_url": "https://maps.google.com/?q=13.28782,80.255861",
+      "is_buyback_enabled": 0,
+      "is_retail_enabled": 0,
+      "is_service_enabled": 0,
+      "latitude": 13.28782,
+      "longitude": 80.255861,
+      "opening_date": null,
+      "pincode": "601203",
+      "store_code": "GG-MINJUR",
+      "store_name": "Gogizmo - Minjur",
+      "store_status": "Active",
+      "territory": "All Territories",
+      "warehouse_base": "GG-MINJUR-Sellable",
+      "zone": "Chennai North"
+    },
+    {
+      "address": "Shop no. G-2, Ground Floor, Plot No4/PC-2, Bharathi Salai, 4th Block, Mogappair West, Ambattur Industrial Estate, Chennai",
+      "branch": null,
+      "city": "Chennai",
+      "company_abbr": "BMPL",
+      "contact_phone": null,
+      "custom_latitude": null,
+      "custom_longitude": null,
+      "disabled": 0,
+      "google_maps_url": "https://maps.google.com/?q=13.088062,80.184605",
+      "is_buyback_enabled": 0,
+      "is_retail_enabled": 0,
+      "is_service_enabled": 0,
+      "latitude": 13.088062,
+      "longitude": 80.184605,
+      "opening_date": null,
+      "pincode": "600037",
+      "store_code": "GG-MOGAPPAIR",
+      "store_name": "Gogizmo - Mogappair",
+      "store_status": "Active",
+      "territory": "All Territories",
+      "warehouse_base": "GG-MOGAPPAIR-Sellable",
+      "zone": "Chennai West"
+    },
+    {
+      "address": "564, Thiruvottiyur High Rd, near Vaigai Mahal, Korukkupet, Washermanpet, Chennai",
+      "branch": null,
+      "city": "Chennai",
+      "company_abbr": "BMPL",
+      "contact_phone": null,
+      "custom_latitude": null,
+      "custom_longitude": null,
+      "disabled": 0,
+      "google_maps_url": "https://maps.google.com/?q=13.119425,80.278456",
+      "is_buyback_enabled": 0,
+      "is_retail_enabled": 0,
+      "is_service_enabled": 0,
+      "latitude": 13.119425,
+      "longitude": 80.278456,
+      "opening_date": null,
+      "pincode": "600021",
+      "store_code": "GG-OLDWASHERMANPET",
+      "store_name": "GoGizmo - Old Washermanpet",
+      "store_status": "Active",
+      "territory": "All Territories",
+      "warehouse_base": "GG-OLDWASHERMANPET-Sellable",
+      "zone": "Chennai North"
+    },
+    {
+      "address": "D4 156 East Coast Road, Beach Rd, Palavakkam, Chennai",
+      "branch": null,
+      "city": "Chennai",
+      "company_abbr": "BMPL",
+      "contact_phone": null,
+      "custom_latitude": null,
+      "custom_longitude": null,
+      "disabled": 0,
+      "google_maps_url": "https://maps.google.com/?q=12.95999,80.256027",
+      "is_buyback_enabled": 0,
+      "is_retail_enabled": 0,
+      "is_service_enabled": 0,
+      "latitude": 12.95999,
+      "longitude": 80.256027,
+      "opening_date": null,
+      "pincode": "600041",
+      "store_code": "GG-PALAVAKKAM",
+      "store_name": "Gogizmo - Palavakkam",
+      "store_status": "Active",
+      "territory": "All Territories",
+      "warehouse_base": "GG-PALAVAKKAM-Sellable",
+      "zone": "Chennai South"
+    },
+    {
+      "address": "21, Pillaiyar Koil St, Contonment, Pallavaram, Chennai",
+      "branch": null,
+      "city": "Chennai",
+      "company_abbr": "BMPL",
+      "contact_phone": null,
+      "custom_latitude": null,
+      "custom_longitude": null,
+      "disabled": 0,
+      "google_maps_url": "https://maps.google.com/?q=12.967574,80.15205",
+      "is_buyback_enabled": 0,
+      "is_retail_enabled": 0,
+      "is_service_enabled": 0,
+      "latitude": 12.967574,
+      "longitude": 80.15205,
+      "opening_date": null,
+      "pincode": "600043",
+      "store_code": "GG-PALLAVARAM",
+      "store_name": "Gogizmo - Pallavaram",
+      "store_status": "Active",
+      "territory": "All Territories",
+      "warehouse_base": "GG-PALLAVARAM-Sellable",
+      "zone": "Chennai South"
+    },
+    {
+      "address": "130, Paper Mills Road, Neelam Garden, Gopal Colony, Perambur, Chennai",
+      "branch": null,
+      "city": "Chennai",
+      "company_abbr": "BMPL",
+      "contact_phone": null,
+      "custom_latitude": null,
+      "custom_longitude": null,
+      "disabled": 0,
+      "google_maps_url": "https://maps.google.com/?q=13.112124,80.245022",
+      "is_buyback_enabled": 0,
+      "is_retail_enabled": 0,
+      "is_service_enabled": 0,
+      "latitude": 13.112124,
+      "longitude": 80.245022,
+      "opening_date": null,
+      "pincode": "600011",
+      "store_code": "GG-PAPERMILLS-PERAMBUR",
+      "store_name": "GoGizmo - Paper Mills Road, Perambur",
+      "store_status": "Active",
+      "territory": "All Territories",
+      "warehouse_base": "GG-PAPERMILLS-PERAMBUR-Sellable",
+      "zone": "Chennai North"
+    },
+    {
+      "address": "New no 89, KSP Complex, Ground Floor, Old, 69/2, Perambur High Rd, Perambur, Chennai",
+      "branch": null,
+      "city": "Chennai",
+      "company_abbr": "BMPL",
+      "contact_phone": null,
+      "custom_latitude": null,
+      "custom_longitude": null,
+      "disabled": 0,
+      "google_maps_url": "https://maps.google.com/?q=13.1155,80.2495",
+      "is_buyback_enabled": 0,
+      "is_retail_enabled": 0,
+      "is_service_enabled": 0,
+      "latitude": 13.1155,
+      "longitude": 80.2495,
+      "opening_date": null,
+      "pincode": "600011",
+      "store_code": "GG-PERAMBUR-HIGHRD",
+      "store_name": "Gogizmo - Perambur High Road",
+      "store_status": "Active",
+      "territory": "All Territories",
+      "warehouse_base": "GG-PERAMBUR-HIGHRD-Sellable",
+      "zone": "Chennai North"
+    },
+    {
+      "address": "Burma Colony, Thiruvalluvar Nagar, Perungudi, Chennai",
+      "branch": null,
+      "city": "Chennai",
+      "company_abbr": "BMPL",
+      "contact_phone": null,
+      "custom_latitude": null,
+      "custom_longitude": null,
+      "disabled": 0,
+      "google_maps_url": "https://maps.google.com/?q=12.959282,80.242603",
+      "is_buyback_enabled": 0,
+      "is_retail_enabled": 0,
+      "is_service_enabled": 0,
+      "latitude": 12.959282,
+      "longitude": 80.242603,
+      "opening_date": null,
+      "pincode": "600096",
+      "store_code": "GG-PERUNGUDI",
+      "store_name": "Gogizmo - Perungudi",
+      "store_status": "Active",
+      "territory": "All Territories",
+      "warehouse_base": "GG-PERUNGUDI-Sellable",
+      "zone": "Chennai South"
+    },
+    {
+      "address": "Door No.11, B.R.Annexe, 35, Ramakrishna Iyer Street, West Tambaram, Tambaram, Chennai",
+      "branch": null,
+      "city": "Chennai",
+      "company_abbr": "BMPL",
+      "contact_phone": null,
+      "custom_latitude": null,
+      "custom_longitude": null,
+      "disabled": 0,
+      "google_maps_url": "https://maps.google.com/?q=12.925655,80.10437",
+      "is_buyback_enabled": 0,
+      "is_retail_enabled": 0,
+      "is_service_enabled": 0,
+      "latitude": 12.925655,
+      "longitude": 80.10437,
+      "opening_date": null,
+      "pincode": "600045",
+      "store_code": "GG-TAMBARAM",
+      "store_name": "Gogizmo - Tambaram",
+      "store_status": "Active",
+      "territory": "All Territories",
+      "warehouse_base": "GG-TAMBARAM-Sellable",
+      "zone": "Chennai South"
+    },
+    {
+      "address": "Premises Of Tambaram, Municipal Corporation, No. 9 & 10, Shanmugam Rd, West Tambaram, Tambaram, Chennai",
+      "branch": null,
+      "city": "Chennai",
+      "company_abbr": "BMPL",
+      "contact_phone": null,
+      "custom_latitude": null,
+      "custom_longitude": null,
+      "disabled": 0,
+      "google_maps_url": "https://maps.google.com/?q=12.926,80.1195",
+      "is_buyback_enabled": 0,
+      "is_retail_enabled": 0,
+      "is_service_enabled": 0,
+      "latitude": 12.926,
+      "longitude": 80.1195,
+      "opening_date": null,
+      "pincode": "600045",
+      "store_code": "GG-TAMBARAM-SHANMUGAM",
+      "store_name": "Gogizmo - Tambaram Shanmugam Road",
+      "store_status": "Active",
+      "territory": "All Territories",
+      "warehouse_base": "GG-TAMBARAM-SHANMUGAM-Sellable",
+      "zone": "Chennai South"
+    },
+    {
+      "address": "194, Thiruvottiyur High Rd, Theradi, Rajakadai, Tiruvottiyur, Chennai",
+      "branch": null,
+      "city": "Chennai",
+      "company_abbr": "BMPL",
+      "contact_phone": null,
+      "custom_latitude": null,
+      "custom_longitude": null,
+      "disabled": 0,
+      "google_maps_url": "https://maps.google.com/?q=13.178732,80.307692",
+      "is_buyback_enabled": 0,
+      "is_retail_enabled": 0,
+      "is_service_enabled": 0,
+      "latitude": 13.178732,
+      "longitude": 80.307692,
+      "opening_date": null,
+      "pincode": "600019",
+      "store_code": "GG-THIRUVOTTIYUR",
+      "store_name": "Gogizmo - Thiruvottiyur",
+      "store_status": "Active",
+      "territory": "All Territories",
+      "warehouse_base": "GG-THIRUVOTTIYUR-Sellable",
+      "zone": "Chennai North"
+    },
+    {
+      "address": "Door No 41/348, First Segment, 1, Velachery Main Rd, Vijaya Nagar, Velachery, Chennai",
+      "branch": null,
+      "city": "Chennai",
+      "company_abbr": "BMPL",
+      "contact_phone": "8044566045",
+      "custom_latitude": "12.9801655",
+      "custom_longitude": "80.2228506",
+      "disabled": 0,
+      "google_maps_url": null,
+      "is_buyback_enabled": 0,
+      "is_retail_enabled": 1,
+      "is_service_enabled": 1,
+      "latitude": 12.980166,
+      "longitude": 80.222851,
+      "opening_date": null,
+      "pincode": "600042",
+      "store_code": "GG-VELACHERY",
+      "store_name": "Gogizmo - Velachery",
+      "store_status": "Active",
+      "territory": "All Territories",
+      "warehouse_base": "GG-VELACHERY-Sellable",
+      "zone": "Chennai South"
+    },
+    {
+      "address": "Door No.11, B.R.Annexe, 35, Ramakrishna Iyer Street, West Tambaram",
+      "branch": null,
+      "city": "Chennai",
+      "company_abbr": "BMPL",
+      "contact_phone": null,
+      "custom_latitude": null,
+      "custom_longitude": null,
+      "disabled": 0,
+      "google_maps_url": "https://maps.google.com/?q=12.9242,80.1183",
+      "is_buyback_enabled": 0,
+      "is_retail_enabled": 0,
+      "is_service_enabled": 0,
+      "latitude": 12.9242,
+      "longitude": 80.1183,
+      "opening_date": null,
+      "pincode": "600045",
+      "store_code": "GG-WEST-TAMBARAM",
+      "store_name": "GoGizmo - West Tambaram",
+      "store_status": "Active",
+      "territory": "All Territories",
+      "warehouse_base": "GG-WEST-TAMBARAM-Sellable",
+      "zone": "Chennai South"
+    },
+    {
+      "address": "No. 1A, K Sundaramoorthy Complex, First Floor",
+      "branch": null,
+      "city": "Chennai",
+      "company_abbr": "GSPL",
+      "contact_phone": "8069864889",
+      "custom_latitude": "13.047486",
+      "custom_longitude": "80.1836687",
+      "disabled": 0,
+      "google_maps_url": null,
+      "is_buyback_enabled": 0,
+      "is_retail_enabled": 1,
+      "is_service_enabled": 1,
+      "latitude": 13.047486,
+      "longitude": 80.183669,
+      "opening_date": null,
+      "pincode": "600087",
+      "store_code": "STO-GSPL-CHENNA-0001",
+      "store_name": "Alwarthirunagar",
+      "store_status": "Active",
+      "territory": "All Territories",
+      "warehouse_base": "STO-GSPL-CHENNA-0001-Sellable",
+      "zone": "GoFix Chennai West"
+    },
+    {
+      "address": "No.395, Plot No.42, M.T.H. Road, Ambattur",
+      "branch": null,
+      "city": "Chennai",
+      "company_abbr": "GSPL",
+      "contact_phone": "9150084639",
+      "custom_latitude": "13.1193746",
+      "custom_longitude": "80.1507648",
+      "disabled": 0,
+      "google_maps_url": null,
+      "is_buyback_enabled": 0,
+      "is_retail_enabled": 1,
+      "is_service_enabled": 1,
+      "latitude": 13.119375,
+      "longitude": 80.150765,
+      "opening_date": null,
+      "pincode": "600053",
+      "store_code": "STO-GSPL-CHENNA-0002",
+      "store_name": "Ambattur",
+      "store_status": "Active",
+      "territory": "All Territories",
+      "warehouse_base": "STO-GSPL-CHENNA-0002-Sellable",
+      "zone": "GoFix Chennai North"
+    },
+    {
+      "address": "A-45, 3rd Avenue, Anna Nagar",
+      "branch": null,
+      "city": "Chennai",
+      "company_abbr": "GSPL",
+      "contact_phone": "8069864884",
+      "custom_latitude": "13.0872004",
+      "custom_longitude": "80.2164421",
+      "disabled": 0,
+      "google_maps_url": null,
+      "is_buyback_enabled": 0,
+      "is_retail_enabled": 1,
+      "is_service_enabled": 1,
+      "latitude": 13.0872,
+      "longitude": 80.216442,
+      "opening_date": null,
+      "pincode": "600102",
+      "store_code": "STO-GSPL-CHENNA-0003",
+      "store_name": "Anna Nagar",
+      "store_status": "Active",
+      "territory": "All Territories",
+      "warehouse_base": "STO-GSPL-CHENNA-0003-Sellable",
+      "zone": "GoFix Chennai Central"
+    },
+    {
+      "address": "Door No: 31 & 32, Anjugam Nagar, 1st Street",
+      "branch": null,
+      "city": "Chennai",
+      "company_abbr": "GSPL",
+      "contact_phone": "8069864902",
+      "custom_latitude": "13.0400731",
+      "custom_longitude": "80.2159247",
+      "disabled": 0,
+      "google_maps_url": null,
+      "is_buyback_enabled": 0,
+      "is_retail_enabled": 1,
+      "is_service_enabled": 1,
+      "latitude": 13.040073,
+      "longitude": 80.215925,
+      "opening_date": null,
+      "pincode": "600083",
+      "store_code": "STO-GSPL-CHENNA-0004",
+      "store_name": "Ashok Nagar",
+      "store_status": "Active",
+      "territory": "All Territories",
+      "warehouse_base": "STO-GSPL-CHENNA-0004-Sellable",
+      "zone": "GoFix Chennai Central"
+    },
+    {
+      "address": "No 12, Hunters Road",
+      "branch": null,
+      "city": "Chennai",
+      "company_abbr": "GSPL",
+      "contact_phone": "8925935617",
+      "custom_latitude": "13.0873218",
+      "custom_longitude": "80.258079",
+      "disabled": 0,
+      "google_maps_url": null,
+      "is_buyback_enabled": 0,
+      "is_retail_enabled": 1,
+      "is_service_enabled": 1,
+      "latitude": 13.087322,
+      "longitude": 80.258079,
+      "opening_date": null,
+      "pincode": "600084",
+      "store_code": "STO-GSPL-CHENNA-0005",
+      "store_name": "Doveton",
+      "store_status": "Active",
+      "territory": "All Territories",
+      "warehouse_base": "STO-GSPL-CHENNA-0005-Sellable",
+      "zone": "GoFix Chennai Central"
+    },
+    {
+      "address": "New No. 138, Old No. 35/36, Greams Road",
+      "branch": null,
+      "city": "Chennai",
+      "company_abbr": "GSPL",
+      "contact_phone": "9150084644",
+      "custom_latitude": "13.0649569",
+      "custom_longitude": "80.2550393",
+      "disabled": 0,
+      "google_maps_url": null,
+      "is_buyback_enabled": 0,
+      "is_retail_enabled": 1,
+      "is_service_enabled": 1,
+      "latitude": 13.064957,
+      "longitude": 80.255039,
+      "opening_date": null,
+      "pincode": "600112",
+      "store_code": "STO-GSPL-CHENNA-0006",
+      "store_name": "Greams Road",
+      "store_status": "Active",
+      "territory": "All Territories",
+      "warehouse_base": "STO-GSPL-CHENNA-0006-Sellable",
+      "zone": "GoFix Chennai Central"
+    },
+    {
+      "address": "Shop No 2,Old Survey No. 3/2A3,New Survey No.1530/7",
+      "branch": null,
+      "city": "Chennai",
+      "company_abbr": "GSPL",
+      "contact_phone": "8925935618",
+      "custom_latitude": "12.7862487",
+      "custom_longitude": "80.221994",
+      "disabled": 0,
+      "google_maps_url": null,
+      "is_buyback_enabled": 0,
+      "is_retail_enabled": 1,
+      "is_service_enabled": 1,
+      "latitude": 12.786249,
+      "longitude": 80.221994,
+      "opening_date": null,
+      "pincode": null,
+      "store_code": "STO-GSPL-CHENNA-0007",
+      "store_name": "Kelambakkam",
+      "store_status": "Active",
+      "territory": "All Territories",
+      "warehouse_base": "STO-GSPL-CHENNA-0007-Sellable",
+      "zone": "GoFix Chennai South"
+    },
+    {
+      "address": "Old No.163 / New No.237, Barakka Road",
+      "branch": null,
+      "city": "Chennai",
+      "company_abbr": "GSPL",
+      "contact_phone": "8069864883",
+      "custom_latitude": "13.0828189",
+      "custom_longitude": "80.2433281",
+      "disabled": 0,
+      "google_maps_url": null,
+      "is_buyback_enabled": 0,
+      "is_retail_enabled": 1,
+      "is_service_enabled": 1,
+      "latitude": 13.082819,
+      "longitude": 80.243328,
+      "opening_date": null,
+      "pincode": "600010",
+      "store_code": "STO-GSPL-CHENNA-0008",
+      "store_name": "Kellys",
+      "store_status": "Active",
+      "territory": "All Territories",
+      "warehouse_base": "STO-GSPL-CHENNA-0008-Sellable",
+      "zone": "GoFix Chennai Central"
+    },
+    {
+      "address": "No. 41/71, NSK Salai, Kodambakkam",
+      "branch": null,
+      "city": "Chennai",
+      "company_abbr": "GSPL",
+      "contact_phone": "9384813513",
+      "custom_latitude": "13.049207",
+      "custom_longitude": "80.2242829",
+      "disabled": 0,
+      "google_maps_url": null,
+      "is_buyback_enabled": 0,
+      "is_retail_enabled": 1,
+      "is_service_enabled": 1,
+      "latitude": 13.049207,
+      "longitude": 80.224283,
+      "opening_date": null,
+      "pincode": "600024",
+      "store_code": "STO-GSPL-CHENNA-0009",
+      "store_name": "Kodambakkam",
+      "store_status": "Active",
+      "territory": "All Territories",
+      "warehouse_base": "STO-GSPL-CHENNA-0009-Sellable",
+      "zone": "GoFix Chennai Central"
+    },
+    {
+      "address": "144/1, Paper Mills Road, Kolathur",
+      "branch": null,
+      "city": "Chennai",
+      "company_abbr": "GSPL",
+      "contact_phone": "9150084645",
+      "custom_latitude": "13.1241127",
+      "custom_longitude": "80.2046276",
+      "disabled": 0,
+      "google_maps_url": null,
+      "is_buyback_enabled": 0,
+      "is_retail_enabled": 1,
+      "is_service_enabled": 1,
+      "latitude": 13.124113,
+      "longitude": 80.204628,
+      "opening_date": null,
+      "pincode": "600082",
+      "store_code": "STO-GSPL-CHENNA-0010",
+      "store_name": "Kolathur",
+      "store_status": "Active",
+      "territory": "All Territories",
+      "warehouse_base": "STO-GSPL-CHENNA-0010-Sellable",
+      "zone": "GoFix Chennai North"
+    },
+    {
+      "address": "No.27, Sabari Salai, Medavakkam Main Road",
+      "branch": null,
+      "city": "Chennai",
+      "company_abbr": "GSPL",
+      "contact_phone": "9150084636",
+      "custom_latitude": "12.9611348",
+      "custom_longitude": "80.2001292",
+      "disabled": 0,
+      "google_maps_url": null,
+      "is_buyback_enabled": 0,
+      "is_retail_enabled": 1,
+      "is_service_enabled": 1,
+      "latitude": 12.961135,
+      "longitude": 80.200129,
+      "opening_date": null,
+      "pincode": "600031",
+      "store_code": "STO-GSPL-CHENNA-0011",
+      "store_name": "Madipakkam",
+      "store_status": "Active",
+      "territory": "All Territories",
+      "warehouse_base": "STO-GSPL-CHENNA-0011-Sellable",
+      "zone": "GoFix Chennai South"
+    },
+    {
+      "address": "No: 404, T.H.Road, Minjur",
+      "branch": null,
+      "city": "Chennai",
+      "company_abbr": "GSPL",
+      "contact_phone": "8069864886",
+      "custom_latitude": "13.2878195",
+      "custom_longitude": "80.2558605",
+      "disabled": 0,
+      "google_maps_url": null,
+      "is_buyback_enabled": 0,
+      "is_retail_enabled": 1,
+      "is_service_enabled": 1,
+      "latitude": 13.28782,
+      "longitude": 80.255861,
+      "opening_date": null,
+      "pincode": "600120",
+      "store_code": "STO-GSPL-CHENNA-0012",
+      "store_name": "Minjur",
+      "store_status": "Active",
+      "territory": "All Territories",
+      "warehouse_base": "STO-GSPL-CHENNA-0012-Sellable",
+      "zone": "GoFix Chennai North"
+    },
+    {
+      "address": "Plot No.4/Pc-2, Ground Floor, G-2",
+      "branch": null,
+      "city": "Chennai",
+      "company_abbr": "GSPL",
+      "contact_phone": "9384813512",
+      "custom_latitude": "13.0835142",
+      "custom_longitude": "80.1840779",
+      "disabled": 0,
+      "google_maps_url": null,
+      "is_buyback_enabled": 0,
+      "is_retail_enabled": 1,
+      "is_service_enabled": 1,
+      "latitude": 13.083514,
+      "longitude": 80.184078,
+      "opening_date": null,
+      "pincode": "600037",
+      "store_code": "STO-GSPL-CHENNA-0013",
+      "store_name": "Mogappair",
+      "store_status": "Active",
+      "territory": "All Territories",
+      "warehouse_base": "STO-GSPL-CHENNA-0013-Sellable",
+      "zone": "GoFix Chennai West"
+    },
+    {
+      "address": "Shop 569, Thiruvottiyur High Road",
+      "branch": null,
+      "city": "Chennai",
+      "company_abbr": "GSPL",
+      "contact_phone": "8925876557",
+      "custom_latitude": "13.0836939",
+      "custom_longitude": "80.270186",
+      "disabled": 0,
+      "google_maps_url": null,
+      "is_buyback_enabled": 0,
+      "is_retail_enabled": 1,
+      "is_service_enabled": 1,
+      "latitude": 13.083694,
+      "longitude": 80.270186,
+      "opening_date": null,
+      "pincode": "600021",
+      "store_code": "STO-GSPL-CHENNA-0014",
+      "store_name": "Old Washermenpet",
+      "store_status": "Active",
+      "territory": "All Territories",
+      "warehouse_base": "STO-GSPL-CHENNA-0014-Sellable",
+      "zone": "GoFix Chennai North"
+    },
+    {
+      "address": "D4, 156, East Coast Road, Beach Road",
+      "branch": null,
+      "city": "Chennai",
+      "company_abbr": "GSPL",
+      "contact_phone": "8925935612",
+      "custom_latitude": "12.95999",
+      "custom_longitude": "80.2560268",
+      "disabled": 0,
+      "google_maps_url": null,
+      "is_buyback_enabled": 0,
+      "is_retail_enabled": 1,
+      "is_service_enabled": 1,
+      "latitude": 12.95999,
+      "longitude": 80.256027,
+      "opening_date": null,
+      "pincode": "600031",
+      "store_code": "STO-GSPL-CHENNA-0015",
+      "store_name": "Palavakkam",
+      "store_status": "Active",
+      "territory": "All Territories",
+      "warehouse_base": "STO-GSPL-CHENNA-0015-Sellable",
+      "zone": "GoFix Chennai South"
+    },
+    {
+      "address": "No.21, Pillayar Koil Street, Contonment",
+      "branch": null,
+      "city": "Chennai",
+      "company_abbr": "GSPL",
+      "contact_phone": "8925935611",
+      "custom_latitude": "12.9675742",
+      "custom_longitude": "80.1520504",
+      "disabled": 0,
+      "google_maps_url": null,
+      "is_buyback_enabled": 0,
+      "is_retail_enabled": 1,
+      "is_service_enabled": 1,
+      "latitude": 12.967574,
+      "longitude": 80.15205,
+      "opening_date": null,
+      "pincode": "600043",
+      "store_code": "STO-GSPL-CHENNA-0016",
+      "store_name": "Pallavaram",
+      "store_status": "Active",
+      "territory": "All Territories",
+      "warehouse_base": "STO-GSPL-CHENNA-0016-Sellable",
+      "zone": "GoFix Chennai South"
+    },
+    {
+      "address": "KSP Complex, Ground Floor, Old No 69/2, New No 89",
+      "branch": null,
+      "city": "Chennai",
+      "company_abbr": "GSPL",
+      "contact_phone": "8925935614",
+      "custom_latitude": "13.0836939",
+      "custom_longitude": "80.270186",
+      "disabled": 0,
+      "google_maps_url": null,
+      "is_buyback_enabled": 0,
+      "is_retail_enabled": 1,
+      "is_service_enabled": 1,
+      "latitude": 13.083694,
+      "longitude": 80.270186,
+      "opening_date": null,
+      "pincode": null,
+      "store_code": "STO-GSPL-CHENNA-0017",
+      "store_name": "Perambur - RS",
+      "store_status": "Active",
+      "territory": "All Territories",
+      "warehouse_base": "STO-GSPL-CHENNA-0017-Sellable",
+      "zone": "GoFix Chennai North"
+    },
+    {
+      "address": "No 130, Paper Mills Road, Neelam Garden",
+      "branch": null,
+      "city": "Chennai",
+      "company_abbr": "GSPL",
+      "contact_phone": "9150084648",
+      "custom_latitude": "13.0836939",
+      "custom_longitude": "80.270186",
+      "disabled": 0,
+      "google_maps_url": null,
+      "is_buyback_enabled": 0,
+      "is_retail_enabled": 1,
+      "is_service_enabled": 1,
+      "latitude": 13.083694,
+      "longitude": 80.270186,
+      "opening_date": null,
+      "pincode": null,
+      "store_code": "STO-GSPL-CHENNA-0018",
+      "store_name": "Perambur GS",
+      "store_status": "Active",
+      "territory": "All Territories",
+      "warehouse_base": "STO-GSPL-CHENNA-0018-Sellable",
+      "zone": "GoFix Chennai North"
+    },
+    {
+      "address": "F1 & F2, Rajiv Gandhi Salai",
+      "branch": null,
+      "city": "Chennai",
+      "company_abbr": "GSPL",
+      "contact_phone": "9150084647",
+      "custom_latitude": "12.9710239",
+      "custom_longitude": "80.2418051",
+      "disabled": 0,
+      "google_maps_url": null,
+      "is_buyback_enabled": 0,
+      "is_retail_enabled": 1,
+      "is_service_enabled": 1,
+      "latitude": 12.971024,
+      "longitude": 80.241805,
+      "opening_date": null,
+      "pincode": "600096",
+      "store_code": "STO-GSPL-CHENNA-0019",
+      "store_name": "Perungudi",
+      "store_status": "Active",
+      "territory": "All Territories",
+      "warehouse_base": "STO-GSPL-CHENNA-0019-Sellable",
+      "zone": "GoFix Chennai South"
+    },
+    {
+      "address": "B.R.Annexe, Door No.11/35, Ramakrishna Iyer Street",
+      "branch": null,
+      "city": "Chennai",
+      "company_abbr": "GSPL",
+      "contact_phone": "9150084649",
+      "custom_latitude": "12.920695",
+      "custom_longitude": "80.1968278",
+      "disabled": 0,
+      "google_maps_url": null,
+      "is_buyback_enabled": 0,
+      "is_retail_enabled": 1,
+      "is_service_enabled": 1,
+      "latitude": 12.920695,
+      "longitude": 80.196828,
+      "opening_date": null,
+      "pincode": "600059",
+      "store_code": "STO-GSPL-CHENNA-0020",
+      "store_name": "Tambaram",
+      "store_status": "Active",
+      "territory": "All Territories",
+      "warehouse_base": "STO-GSPL-CHENNA-0020-Sellable",
+      "zone": "GoFix Chennai South"
+    },
+    {
+      "address": "Shop No.9 & 10, Shanmugam Road, Tambaram",
+      "branch": null,
+      "city": "Chennai",
+      "company_abbr": "GSPL",
+      "contact_phone": "8925935613",
+      "custom_latitude": "12.920695",
+      "custom_longitude": "80.1968278",
+      "disabled": 0,
+      "google_maps_url": null,
+      "is_buyback_enabled": 0,
+      "is_retail_enabled": 1,
+      "is_service_enabled": 1,
+      "latitude": 12.920695,
+      "longitude": 80.196828,
+      "opening_date": null,
+      "pincode": "600059",
+      "store_code": "STO-GSPL-CHENNA-0021",
+      "store_name": "Tambaram 2",
+      "store_status": "Active",
+      "territory": "All Territories",
+      "warehouse_base": "STO-GSPL-CHENNA-0021-Sellable",
+      "zone": "GoFix Chennai South"
+    },
+    {
+      "address": "194, Thiruvottiyur High Road, Theradi",
+      "branch": null,
+      "city": "Chennai",
+      "company_abbr": "GSPL",
+      "contact_phone": "9150084643",
+      "custom_latitude": "13.1563873",
+      "custom_longitude": "80.3005279",
+      "disabled": 0,
+      "google_maps_url": null,
+      "is_buyback_enabled": 0,
+      "is_retail_enabled": 1,
+      "is_service_enabled": 1,
+      "latitude": 13.156387,
+      "longitude": 80.300528,
+      "opening_date": null,
+      "pincode": "600019",
+      "store_code": "STO-GSPL-CHENNA-0022",
+      "store_name": "Tiruvottiyur",
+      "store_status": "Active",
+      "territory": "All Territories",
+      "warehouse_base": "STO-GSPL-CHENNA-0022-Sellable",
+      "zone": "GoFix Chennai North"
+    },
+    {
+      "address": "Door No 41/348, First Segment, Velachery Road, Vijaya Nagar",
+      "branch": null,
+      "city": "Chennai",
+      "company_abbr": "GSPL",
+      "contact_phone": "9384813514",
+      "custom_latitude": "12.9801655",
+      "custom_longitude": "80.2228506",
+      "disabled": 0,
+      "google_maps_url": null,
+      "is_buyback_enabled": 0,
+      "is_retail_enabled": 1,
+      "is_service_enabled": 1,
+      "latitude": 12.980166,
+      "longitude": 80.222851,
+      "opening_date": null,
+      "pincode": "600042",
+      "store_code": "STO-GSPL-CHENNA-0023",
+      "store_name": "Velachery",
+      "store_status": "Active",
+      "territory": "All Territories",
+      "warehouse_base": "STO-GSPL-CHENNA-0023-Sellable",
+      "zone": "GoFix Chennai South"
+    },
+    {
+      "address": "Ground Floor,No.18, EVK Sampath Road, Vepery",
+      "branch": null,
+      "city": "Chennai",
+      "company_abbr": "GSPL",
+      "contact_phone": "9150084650",
+      "custom_latitude": "13.0842952",
+      "custom_longitude": "80.2622738",
+      "disabled": 0,
+      "google_maps_url": null,
+      "is_buyback_enabled": 0,
+      "is_retail_enabled": 1,
+      "is_service_enabled": 1,
+      "latitude": 13.084295,
+      "longitude": 80.262274,
+      "opening_date": null,
+      "pincode": "600007",
+      "store_code": "STO-GSPL-CHENNA-0024",
+      "store_name": "Vepery",
+      "store_status": "Active",
+      "territory": "All Territories",
+      "warehouse_base": "STO-GSPL-CHENNA-0024-Sellable",
+      "zone": "GoFix Chennai Central"
+    }
+  ],
+  "zones": [
+    {
+      "city": "Chennai",
+      "company_abbr": "BMPL",
+      "description": null,
+      "source_warehouse_base": "Chennai - Hub",
+      "zone_name": "Chennai Central"
+    },
+    {
+      "city": "Chennai",
+      "company_abbr": "BMPL",
+      "description": null,
+      "source_warehouse_base": "Chennai - Hub",
+      "zone_name": "Chennai North"
+    },
+    {
+      "city": "Chennai",
+      "company_abbr": "BMPL",
+      "description": null,
+      "source_warehouse_base": "Chennai - Hub",
+      "zone_name": "Chennai South"
+    },
+    {
+      "city": "Chennai",
+      "company_abbr": "BMPL",
+      "description": null,
+      "source_warehouse_base": "Chennai - Hub",
+      "zone_name": "Chennai West"
+    },
+    {
+      "city": "Madurai",
+      "company_abbr": "BMPL",
+      "description": null,
+      "source_warehouse_base": "Madurai - Hub",
+      "zone_name": "Madurai Central"
+    },
+    {
+      "city": "Chennai",
+      "company_abbr": "GSPL",
+      "description": "Default zone auto-created by gofix_store_import.",
+      "source_warehouse_base": "Vepery - Hub",
+      "zone_name": "GoFix Chennai Central"
+    },
+    {
+      "city": "Chennai",
+      "company_abbr": "GSPL",
+      "description": "Chennai Corporation zone auto-created by ch_erp15.utils.gofix_store_import.",
+      "source_warehouse_base": "Vepery - Hub",
+      "zone_name": "GoFix Chennai North"
+    },
+    {
+      "city": "Chennai",
+      "company_abbr": "GSPL",
+      "description": "Chennai Corporation zone auto-created by ch_erp15.utils.gofix_store_import.",
+      "source_warehouse_base": "Vepery - Hub",
+      "zone_name": "GoFix Chennai South"
+    },
+    {
+      "city": "Chennai",
+      "company_abbr": "GSPL",
+      "description": "Chennai Corporation zone auto-created by ch_erp15.utils.gofix_store_import.",
+      "source_warehouse_base": "Vepery - Hub",
+      "zone_name": "GoFix Chennai West"
+    }
+  ]
+}
