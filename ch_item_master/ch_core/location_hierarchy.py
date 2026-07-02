@@ -464,16 +464,56 @@ def ensure_city(company, city_name, state=None):
 	if not clean_city:
 		return None
 
-	existing = frappe.db.get_value("CH City", {"state": state, "city_name": clean_city}, "name") if state else None
+	# Order of lookups (cheapest first, all covered):
+	#   1. Composite by (state, city_name) — the intended natural key.
+	#   2. Fallback by city_name alone — handles legacy rows where state is
+	#      NULL/empty on the master (e.g. imported before v23 canonicalisation).
+	#   3. Compute the EXPECTED PK the way ``CHCity.autoname`` would
+	#      (``{city_name}-{state_code}`` when state has a code, else just
+	#      city_name) and probe by primary key. Sites that ran on the older
+	#      state-code-suffixed autoname still carry rows like ``Chennai-33``
+	#      whose ``city_name`` field may not exactly equal ``Chennai`` any
+	#      longer — that's the exact scenario that raised the pre-fix
+	#      DuplicateEntryError during after_migrate.
+	#   4. Insert with ignore_if_duplicate=True as a final safety net for
+	#      any legacy row shape we haven't anticipated; on collision, re-probe
+	#      by the expected PK and return that.
+	existing = None
+	if state:
+		existing = frappe.db.get_value(
+			"CH City",
+			{"state": state, "city_name": clean_city},
+			"name",
+		)
 	if not existing:
 		existing = frappe.db.get_value("CH City", {"city_name": clean_city}, "name")
+
+	if not existing:
+		state_token = None
+		if state:
+			state_code = (
+				frappe.db.get_value("CH State", state, "state_code") or ""
+			).strip().upper()
+			if state_code:
+				state_token = state_code
+			else:
+				state_token = "".join(ch for ch in state.upper() if ch.isalnum())
+		expected_pk = f"{clean_city}-{state_token}" if state_token else clean_city
+		if frappe.db.exists("CH City", expected_pk):
+			existing = expected_pk
+
 	if existing:
 		return existing
 
 	city = frappe.new_doc("CH City")
 	city.city_name = clean_city
 	city.state = state or None
-	city.insert(ignore_permissions=True)
+	try:
+		city.insert(ignore_permissions=True, ignore_if_duplicate=True)
+	except frappe.DuplicateEntryError:
+		# Autoname produced a PK that already exists — re-resolve by the
+		# expected PK (safe because CHCity.autoname is deterministic).
+		return city.name
 	return city.name
 
 
