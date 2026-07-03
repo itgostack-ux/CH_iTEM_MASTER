@@ -438,6 +438,92 @@ def _upsert_state(entry: dict, plan: dict) -> None:
         doc.insert(ignore_permissions=True)
 
 
+def _canonical_city_pk(city_name: str, state: str | None) -> str | None:
+    """Compute the deterministic PK ``CHCity.autoname`` would assign."""
+    from ch_item_master.ch_core.doctype.ch_city.ch_city import (
+        _resolve_state_token,
+        _strip_state_suffix,
+    )
+
+    city = (city_name or "").strip().title()
+    if not city:
+        return None
+    token = _resolve_state_token(state)
+    city = _strip_state_suffix(city, token)
+    return f"{city}-{token}" if token else city
+
+
+def _heal_existing_city(existing: str, entry: dict, plan: dict) -> str:
+    """Backfill missing state/country on a matched row and converge its PK.
+
+    Legacy sites carry city rows created before states were mandatory
+    (state = NULL). Those rows break the Location Hierarchy "Region"
+    roll-up (region == state, so stateless cities render under
+    "Unassigned Region") and keep a non-canonical PK. Healing:
+
+      1. backfill ``state`` / ``country`` from the seed when empty,
+      2. merge any stateless same-name twin into this row,
+      3. rename to the canonical ``{City}-{state_code}`` PK
+         (``frappe.rename_doc`` re-points every Link automatically).
+
+    Returns the row's final PK.
+    """
+    row = frappe.db.get_value(
+        "CH City", existing, ["name", "city_name", "state", "country"], as_dict=True
+    )
+    if not row:
+        return existing
+    actions = []
+
+    state = entry.get("state")
+    if state and not row.state:
+        actions.append(f"state -> {state}")
+        row.state = state
+        if not plan["dry_run"]:
+            frappe.db.set_value("CH City", existing, "state", state, update_modified=False)
+    if entry.get("country") and not row.country:
+        actions.append(f"country -> {entry['country']}")
+        if not plan["dry_run"]:
+            frappe.db.set_value(
+                "CH City", existing, "country", entry["country"], update_modified=False
+            )
+
+    # Merge a stateless twin with the same city_name (e.g. a bare
+    # ``Chennai`` created by an old import while ``Chennai-33`` exists).
+    # NEVER merge across different states — same-named districts in two
+    # states are distinct real entities.
+    twin = frappe.db.get_value(
+        "CH City",
+        {"city_name": row.city_name, "state": ("is", "not set"), "name": ("!=", existing)},
+        "name",
+    )
+    if twin:
+        actions.append(f"merge twin {twin}")
+        if not plan["dry_run"]:
+            try:
+                frappe.rename_doc("CH City", twin, existing, force=True, merge=True)
+            except Exception:
+                frappe.log_error(frappe.get_traceback(), f"seed CH City merge twin {twin} -> {existing}")
+
+    final = existing
+    canonical = _canonical_city_pk(row.city_name, row.state)
+    if canonical and existing != canonical:
+        actions.append(f"rename -> {canonical}")
+        if not plan["dry_run"]:
+            try:
+                merge = bool(frappe.db.exists("CH City", canonical))
+                frappe.rename_doc("CH City", existing, canonical, force=True, merge=merge)
+                final = canonical
+            except Exception:
+                frappe.log_error(
+                    frappe.get_traceback(), f"seed CH City canonicalise {existing} -> {canonical}"
+                )
+
+    if actions:
+        plan["updated"].append({"type": "CH City", "name": existing, "actions": actions})
+    return final
+
+
 def _upsert_city(entry: dict, plan: dict) -> None:
     city_name = entry.get("city_name")
     state = entry.get("state")
@@ -453,7 +539,14 @@ def _upsert_city(entry: dict, plan: dict) -> None:
     if state:
         filters["state"] = state
     existing = frappe.db.get_value("CH City", filters, "name")
+    if not existing and state:
+        # Legacy rows imported before states were mandatory carry
+        # state = NULL and would otherwise duplicate on import.
+        existing = frappe.db.get_value(
+            "CH City", {"city_name": city_name, "state": ("is", "not set")}, "name"
+        )
     if existing:
+        _heal_existing_city(existing, entry, plan)
         plan["skipped"].append({"type": "CH City", "name": existing, "reason": "already exists"})
         return
     plan["to_create"].append({"type": "CH City", "city_name": city_name, "values": {k: entry.get(k) for k in _CITY_FIELDS}})
@@ -711,6 +804,7 @@ def import_location_hierarchy(
         "target_site": frappe.local.site,
         "schema_version": version,
         "to_create": [],
+        "updated": [],
         "skipped": [],
         "manual_followups": [],
         "errors": [],
@@ -758,6 +852,7 @@ def import_location_hierarchy(
 
     plan["summary"] = {
         "to_create": len(plan["to_create"]),
+        "updated": len(plan["updated"]),
         "skipped": len(plan["skipped"]),
         "manual_followups": len(plan["manual_followups"]),
         "errors": len(plan["errors"]),
@@ -803,10 +898,13 @@ def seed_baseline_location_hierarchy() -> dict:
     print(
         "seed_baseline_location_hierarchy: "
         f"created={summary.get('to_create', 0)} "
+        f"updated={summary.get('updated', 0)} "
         f"skipped={summary.get('skipped', 0)} "
         f"manual_followups={summary.get('manual_followups', 0)} "
         f"errors={summary.get('errors', 0)}"
     )
+    for row in (result.get("updated") or [])[:15]:
+        print(f"  healed: {row}")
     # "already exists" skips are the idempotent steady state — anything else
     # (unresolvable company/city, errors) means rows were NOT seeded and must
     # be surfaced loudly, not buried in the Error Log.

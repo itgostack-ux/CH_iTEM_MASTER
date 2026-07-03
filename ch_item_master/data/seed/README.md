@@ -15,7 +15,7 @@ This directory ships **reference datasets** for the retail geography
 
 | File | Rows | Purpose |
 |------|-----:|---------|
-| `location_hierarchy_ch_baseline.json` | 890 (38 states, 794 cities, 9 zones, 49 stores) | Reference geography as of the initial GoFix production dump. |
+| `location_hierarchy_ch_baseline.json` | 892 (2 companies, 38 states, 794 cities, 9 zones, 49 stores) | Reference geography as of the initial GoFix production dump. Schema v2. |
 
 ## Usage
 
@@ -59,6 +59,10 @@ bench --site staging ch-locations-import \
 
 **Captured** (seed-level entities that operators define):
 
+* `Company` — MINIMAL identity only (name, abbr, country, currency);
+  auto-created on import when no Company with the same abbr exists.
+  ERPNext provisions the standard CoA on insert; GST registrations
+  and tax setup remain a per-site follow-up.
 * `CH State` — full state master (nationwide, cross-company)
 * `CH City` — full city master (nationwide, cross-company)
 * `CH Store Zone` — per-company zone with source hub warehouse ref
@@ -70,16 +74,34 @@ bench --site staging ch-locations-import \
   by `warehouse_geo.ensure_store_group` when a store is created
 * Bin leaves (Sellable / Damaged / Demo / Buyback) — auto-materialised
   by `ch_store.after_insert → ensure_store_bins`
-* `Company`, `Warehouse` (leaf) rows — must exist on the target site
-  BEFORE the import runs (import records them under `manual_followups`
-  when missing).
+* Default Hub Bins (`Sellable-01`) — auto-materialised per hub by
+  `location_hierarchy.backfill_default_hub_bins` (after_migrate);
+  operators add extra bins (Sellable-02, Quarantine, …) from the
+  Location Hierarchy page.
+* Zone hub warehouses — materialised by the importer itself when the
+  referenced hub is missing.
+
+## Cross-site identity contract (schema v2)
+
+Primary keys are DETERMINISTIC so every platform resolves to identical
+identities:
+
+* `Company` — matched by **abbr** (BMPL / GSPL); name follows the seed.
+* `CH City` — PK is `{City}-{state_code}` (`Chennai-33`); patch
+  `v28_canonicalise_city_pks` converges legacy sites, and the importer
+  re-resolves all city references by natural key (`city_name` +
+  `city_state`) so raw-PK drift can never break seeding again.
+* `CH Store Zone` — PK = `zone_name`; `CH Store` — PK = `store_code`.
+* Importer HEALS matched city rows: backfills missing `state`/`country`
+  (fixes the "Unassigned Region" roll-up), merges stateless twins, and
+  renames to the canonical PK.
 
 ## Idempotency contract
 
 Re-running the import over a fully-seeded site is a no-op:
 
 ```
-DRY-RUN: would create 0, skip 890, needs 0 manual follow-ups.
+DRY-RUN: would create 0, skip 892, needs 0 manual follow-ups.
 ```
 
 Rows that already exist match by natural key:

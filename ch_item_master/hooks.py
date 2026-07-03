@@ -52,6 +52,9 @@ after_migrate = [
 	"ch_item_master.print_setup.ensure_print_formats",
 	"ch_item_master.ch_core.setup.seed_geography_masters.execute",
 	"ch_item_master.ch_core.location_hierarchy_seed.seed_baseline_location_hierarchy",
+	# After the baseline seed so freshly seeded zones get their default bins
+	# on the very first migrate.
+	"ch_item_master.ch_core.location_hierarchy.backfill_default_hub_bins",
 ]
 before_uninstall = "ch_item_master.install.before_uninstall"
 

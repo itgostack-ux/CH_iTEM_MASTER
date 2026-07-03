@@ -685,6 +685,66 @@ def backfill_zone_hubs():
 			)
 
 
+# Default Hub Bin set every zone hub starts with. Operators add extra bins
+# (Sellable-02, Quarantine, Inbound-Dock-A, …) from the Location Hierarchy
+# page as the facility grows — migrate only guarantees the baseline.
+DEFAULT_HUB_BIN_LABELS = ("Sellable-01",)
+
+
+def backfill_default_hub_bins():
+	"""Ensure every zone hub carries the default Hub Bin set.
+
+	Runs after backfill_zone_hubs (which guarantees each zone has a hub), so
+	fresh seeds and legacy sites alike end up with at least one addressable
+	bin under every Distribution Hub. Idempotent — create_hub_bin is keyed
+	by (zone, label). Safe to run repeatedly from after_migrate.
+	"""
+	if not frappe.db.table_exists("CH Store Zone"):
+		return
+	if not frappe.db.exists("Custom Field", {"dt": "Warehouse", "fieldname": "ch_hub_bin_type"}):
+		return
+
+	# A hub can serve several zones (Chennai - Hub → Central/North/South/West),
+	# and bins belong to the physical hub, not the zone — so dedupe by hub.
+	# create_hub_bin's validation only accepts the zone the hub is tagged to
+	# (Warehouse.ch_zone), so prefer that zone when picking the anchor.
+	zones = frappe.get_all(
+		"CH Store Zone",
+		filters={"source_warehouse": ("is", "set")},
+		fields=["name", "source_warehouse"],
+		order_by="creation",
+	)
+	zones_by_hub: dict[str, list[str]] = {}
+	for zone in zones:
+		zones_by_hub.setdefault(zone.source_warehouse, []).append(zone.name)
+
+	created = 0
+	for hub, zone_names in zones_by_hub.items():
+		tagged_zone = _clean(frappe.db.get_value("Warehouse", hub, "ch_zone"))
+		anchor = tagged_zone if tagged_zone in zone_names else zone_names[0]
+		for label in DEFAULT_HUB_BIN_LABELS:
+			if frappe.db.exists(
+				"Warehouse",
+				{
+					"ch_location_type": "Hub Bin",
+					"ch_hub_bin_type": label,
+					"ch_zone": ("in", zone_names),
+				},
+			):
+				continue
+			try:
+				result = create_hub_bin(anchor, label)
+				if result.get("created"):
+					created += 1
+			except Exception:
+				frappe.log_error(
+					frappe.get_traceback(),
+					f"backfill_default_hub_bins: {hub}/{label}",
+				)
+	if created:
+		print(f"backfill_default_hub_bins: created {created} default hub bin(s)")
+
+
 def backfill_bin_zones():
 	"""Propagate ch_zone/ch_city from a store warehouse to its orphaned child bins.
 
