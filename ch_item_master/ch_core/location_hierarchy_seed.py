@@ -337,6 +337,66 @@ def _resolve_company(entry: dict, company_map: dict | None) -> str | None:
     return _company_from_abbr(src_abbr)
 
 
+def _ensure_dependent_masters(plan: dict) -> None:
+    """Ensure Link targets required by Company + CH Store inserts exist.
+
+    On a brand-new site the seeder can run before ERPNext's Setup Wizard
+    has provisioned the Territory root and the "Transit" Warehouse Type,
+    which then breaks:
+
+      * ``Company.create_default_warehouses`` (fires on first Company
+        insert) needs Warehouse Type ``Transit`` for the auto-created
+        "Goods In Transit - <abbr>" warehouse.
+      * ``CH Store._upsert_store`` writes ``territory = "All Territories"``
+        from the seed baseline, which needs the root Territory to exist.
+
+    Both are cheap, single-field inserts. Idempotent: if the master
+    already exists we no-op. Every miss is logged as a manual follow-up
+    (never an error) so seed output stays actionable.
+    """
+    # 1. Warehouse Type: Transit
+    try:
+        if not frappe.db.exists("Warehouse Type", "Transit"):
+            doc = frappe.new_doc("Warehouse Type")
+            doc.name = "Transit"
+            doc.flags.ignore_permissions = True
+            doc.flags.ignore_mandatory = True
+            doc.insert()
+            plan["to_create"].append(
+                {"type": "Warehouse Type", "name": "Transit", "reason": "fresh-site prerequisite"}
+            )
+    except Exception as e:  # noqa: BLE001
+        plan["manual_followups"].append(
+            {
+                "type": "Warehouse Type",
+                "name": "Transit",
+                "reason": f"could not auto-create ({e}); create manually before re-running seed",
+            }
+        )
+
+    # 2. Territory: All Territories (root group)
+    try:
+        if not frappe.db.exists("Territory", "All Territories"):
+            doc = frappe.new_doc("Territory")
+            doc.territory_name = "All Territories"
+            doc.is_group = 1
+            doc.parent_territory = None
+            doc.flags.ignore_permissions = True
+            doc.flags.ignore_mandatory = True
+            doc.insert()
+            plan["to_create"].append(
+                {"type": "Territory", "name": "All Territories", "reason": "fresh-site prerequisite"}
+            )
+    except Exception as e:  # noqa: BLE001
+        plan["manual_followups"].append(
+            {
+                "type": "Territory",
+                "name": "All Territories",
+                "reason": f"could not auto-create ({e}); create manually before re-running seed",
+            }
+        )
+
+
 def _upsert_company(entry: dict, plan: dict, company_map: dict | None) -> None:
     """Create a minimal Company when no company with the entry's abbr exists.
 
@@ -744,6 +804,32 @@ def _upsert_store(entry: dict, plan: dict, company_map: dict | None) -> None:
     values["zone"] = zone
     values["company"] = company
     values["warehouse"] = warehouse
+
+    # Fail-soft on missing Link targets that we do NOT seed ourselves.
+    # ``territory`` (Territory) and ``branch`` (Branch) are ordinarily
+    # provisioned by ERPNext / HR, but on a fresh site they may be absent.
+    # If the seed value points at a row that doesn't exist, drop the link
+    # (record a follow-up) so the store row still seeds — same pattern
+    # used for missing zones above.
+    if values.get("territory") and not frappe.db.exists("Territory", values["territory"]):
+        plan["manual_followups"].append(
+            {
+                "type": "CH Store",
+                "name": store_name,
+                "reason": f"territory {values['territory']!r} missing on target site — store seeded without territory",
+            }
+        )
+        values["territory"] = None
+    if values.get("branch") and not frappe.db.exists("Branch", values["branch"]):
+        plan["manual_followups"].append(
+            {
+                "type": "CH Store",
+                "name": store_name,
+                "reason": f"branch {values['branch']!r} missing on target site — store seeded without branch",
+            }
+        )
+        values["branch"] = None
+
     plan["to_create"].append(
         {
             "type": "CH Store",
@@ -809,6 +895,13 @@ def import_location_hierarchy(
         "manual_followups": [],
         "errors": [],
     }
+
+    # Fresh-site guard: several Link targets used downstream are ordinarily
+    # created by ERPNext's Setup Wizard or by first-Company insert. On a
+    # brand-new site the seeder runs BEFORE that, so we materialise the
+    # bare-minimum masters here — idempotent, no-op on established sites.
+    if not plan["dry_run"]:
+        _ensure_dependent_masters(plan)
 
     # Dependency order: Company → State → City → Zone → Store.
     # Each _upsert_* records to plan and (when not dry-run) writes.
