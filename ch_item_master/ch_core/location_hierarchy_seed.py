@@ -769,10 +769,53 @@ def _upsert_store(entry: dict, plan: dict, company_map: dict | None) -> None:
         "name",
     )
     if existing:
-        if not plan["dry_run"] and not frappe.db.get_value("CH Store", existing, "warehouse"):
-            from ch_item_master.ch_core.warehouse_geo import provision_store_warehouse
+        # HEAL missing zone / city links on stores that were seeded during an
+        # earlier broken migrate (e.g. the pre-fix v27 run where CH Store Zone
+        # inserts failed on ch_hub_bin_type, so stores were created with
+        # zone=NULL and then locked in as "already exists" on the retry).
+        # Only fills BLANK fields — never overrides an operator-set value.
+        if not plan["dry_run"]:
+            current = frappe.db.get_value(
+                "CH Store", existing,
+                ["zone", "city", "warehouse"],
+                as_dict=True,
+            ) or {}
+            healed_fields = {}
 
-            provision_store_warehouse(existing)
+            target_zone = entry.get("zone")
+            if (
+                not (current.get("zone") or "").strip()
+                and target_zone
+                and frappe.db.exists("CH Store Zone", target_zone)
+            ):
+                # Confirm the zone actually belongs to this company/city before
+                # linking, so we never bind a store to a foreign zone if the
+                # PK happens to collide (autoname is field:zone_name → PKs are
+                # globally unique, but the extra guard is cheap).
+                zone_row = frappe.db.get_value(
+                    "CH Store Zone", target_zone,
+                    ["company", "city"], as_dict=True,
+                ) or {}
+                if zone_row.get("company") == company:
+                    healed_fields["zone"] = target_zone
+
+            target_city = _resolve_city_ref(entry, plan, "CH Store", store_name)
+            if not (current.get("city") or "").strip() and target_city:
+                healed_fields["city"] = target_city
+
+            if healed_fields:
+                frappe.db.set_value(
+                    "CH Store", existing, healed_fields,
+                    update_modified=False,
+                )
+                plan["updated"].append(
+                    {"type": "CH Store", "name": existing, "healed": healed_fields}
+                )
+
+            if not (current.get("warehouse") or "").strip():
+                from ch_item_master.ch_core.warehouse_geo import provision_store_warehouse
+
+                provision_store_warehouse(existing)
         plan["skipped"].append({"type": "CH Store", "name": existing, "reason": "already exists"})
         return
 
