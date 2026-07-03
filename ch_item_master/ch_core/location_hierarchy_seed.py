@@ -25,11 +25,23 @@ Enables three concrete workflows:
 Design notes
 ------------
 
-* Companies are NOT exported (they carry chart-of-accounts, taxes,
-  and territory data that must be provisioned per site).  Instead
-  we record each entity's company as an *abbreviation* and require
-  the target site to already have a Company with the same abbr, OR
-  provide a ``company_map`` at import time.
+* Companies are exported as a MINIMAL identity record (company_name,
+  abbr, country, default_currency) and auto-created on import when no
+  Company with the same abbr exists.  Chart-of-accounts / taxes are
+  still per-site: creating the Company triggers ERPNext's standard
+  CoA provisioning for the country; GST registrations etc. remain a
+  site-local follow-up.  Zones / stores still resolve their company
+  by *abbreviation* (optionally overridden via ``company_map``), so
+  the same JSON keeps working against sites whose companies are
+  named differently.
+
+* City references are resolved by NATURAL KEY (city_name + state),
+  not by primary key.  ``CHCity.autoname`` derives the PK
+  deterministically as ``{City}-{state_code}`` (see patch
+  v28_canonicalise_city_pks which converges legacy sites to that
+  form), but the importer never trusts raw PKs from the source site:
+  each zone/store entry carries ``city_name`` + ``city_state`` and is
+  resolved through ``location_hierarchy.ensure_city``.
 
 * Warehouses are exported by their **base name** (the part before
   the ``" - <abbr>"`` suffix Frappe adds) plus the source-company
@@ -77,12 +89,16 @@ import frappe
 # Format version — bump when the schema of the JSON changes.  Import
 # refuses to load a file whose version is newer than what this module
 # knows about.
-SEED_SCHEMA_VERSION = 1
+#   v1 — states/cities/zones/stores, raw city PK references.
+#   v2 — adds ``companies`` section (auto-created when missing) and
+#        ``city_name``/``city_state`` natural keys on zones + stores.
+SEED_SCHEMA_VERSION = 2
 BASELINE_RELATIVE_PATH = os.path.join("data", "seed", "location_hierarchy_ch_baseline.json")
 
 # Fields captured per doctype.  We deliberately DON'T dump audit
 # columns (creation, modified, owner, _user_tags, _assign, _liked_by,
 # _comments, docstatus, idx, name) — those are site-local metadata.
+_COMPANY_FIELDS = ("company_name", "abbr", "country", "default_currency")
 _STATE_FIELDS = ("state_name", "state_code", "country", "disabled", "description")
 _CITY_FIELDS = ("city_name", "state", "country", "disabled", "description")
 _ZONE_FIELDS = ("zone_name", "city", "description")
@@ -156,6 +172,45 @@ def _warehouse_target_name(base_name: str, target_company: str) -> str:
 # ---------------------------------------------------------------------------
 
 
+def _city_natural_key(city_pk: str | None) -> dict:
+    """Return ``{city_name, city_state}`` for a CH City PK (empty when unknown)."""
+    if not city_pk:
+        return {"city_name": None, "city_state": None}
+    row = frappe.db.get_value("CH City", city_pk, ["city_name", "state"], as_dict=True)
+    if not row:
+        return {"city_name": None, "city_state": None}
+    return {"city_name": row.city_name, "city_state": row.state}
+
+
+def _export_companies(company_filter: Iterable[str] | None) -> list[dict]:
+    """Export the minimal identity of every company referenced by zones/stores."""
+    names: set[str] = set()
+    for doctype in ("CH Store Zone", "CH Store"):
+        filters: dict[str, Any] = {}
+        if company_filter:
+            filters["company"] = ["in", list(company_filter)]
+        names.update(
+            r.company
+            for r in frappe.get_all(doctype, filters=filters, fields=["company"])
+            if r.company
+        )
+    out = []
+    for name in sorted(names):
+        row = frappe.db.get_value(
+            "Company", name, ["name", "abbr", "country", "default_currency"], as_dict=True
+        )
+        if row:
+            out.append(
+                {
+                    "company_name": row.name,
+                    "abbr": row.abbr,
+                    "country": row.country,
+                    "default_currency": row.default_currency,
+                }
+            )
+    return out
+
+
 def _export_states() -> list[dict]:
     rows = frappe.get_all("CH State", fields=list(_STATE_FIELDS), order_by="state_name")
     return [dict(r) for r in rows]
@@ -184,6 +239,7 @@ def _export_zones(company_filter: Iterable[str] | None) -> list[dict]:
         out.append(
             {
                 **{k: r.get(k) for k in _ZONE_FIELDS},
+                **_city_natural_key(r.city),
                 "company_abbr": abbr,
                 "source_warehouse_base": _warehouse_base_name(
                     r.source_warehouse, abbr
@@ -209,6 +265,7 @@ def _export_stores(company_filter: Iterable[str] | None) -> list[dict]:
         out.append(
             {
                 **{k: r.get(k) for k in _STORE_FIELDS},
+                **_city_natural_key(r.city),
                 "company_abbr": abbr,
                 "warehouse_base": _warehouse_base_name(r.warehouse, abbr),
             }
@@ -232,12 +289,15 @@ def export_location_hierarchy(company: str | None = None) -> dict:
         "source_site": frappe.local.site,
         "exported_at": frappe.utils.now(),
         "filter_company": company,
+        "companies": _export_companies(company_filter),
         "states": _export_states(),
         "cities": _export_cities(),
         "zones": _export_zones(company_filter),
         "stores": _export_stores(company_filter),
     }
-    payload["counts"] = {k: len(payload[k]) for k in ("states", "cities", "zones", "stores")}
+    payload["counts"] = {
+        k: len(payload[k]) for k in ("companies", "states", "cities", "zones", "stores")
+    }
     return payload
 
 
@@ -275,6 +335,90 @@ def _resolve_company(entry: dict, company_map: dict | None) -> str | None:
     if company_map and src_abbr in company_map:
         return company_map[src_abbr]
     return _company_from_abbr(src_abbr)
+
+
+def _upsert_company(entry: dict, plan: dict, company_map: dict | None) -> None:
+    """Create a minimal Company when no company with the entry's abbr exists.
+
+    Only identity fields are seeded (name, abbr, country, currency) —
+    inserting the Company lets ERPNext provision its standard CoA / cost
+    centers for the country. If a Company already exists under the same
+    NAME but a different abbr, we do NOT touch it (changing an abbr
+    rewrites every account/warehouse suffix) — that conflict is recorded
+    as a manual follow-up instead.
+    """
+    abbr = (entry.get("abbr") or "").strip()
+    name = (entry.get("company_name") or "").strip()
+    if not (abbr and name):
+        plan["skipped"].append({"type": "Company", "reason": "missing company_name/abbr", "entry": entry})
+        return
+
+    # A company_map override means the operator already mapped this abbr
+    # to an existing target company — never auto-create in that case.
+    if company_map and abbr in company_map:
+        plan["skipped"].append(
+            {"type": "Company", "name": company_map[abbr], "reason": f"mapped via company_map[{abbr}]"}
+        )
+        return
+
+    existing = _company_from_abbr(abbr)
+    if existing:
+        plan["skipped"].append({"type": "Company", "name": existing, "reason": "already exists"})
+        return
+
+    if frappe.db.exists("Company", name):
+        plan["manual_followups"].append(
+            {
+                "type": "Company",
+                "name": name,
+                "reason": (
+                    f"company exists but its abbr != {abbr!r} — fix the abbr manually "
+                    "or pass a company_map override"
+                ),
+            }
+        )
+        return
+
+    values = {k: entry.get(k) for k in _COMPANY_FIELDS}
+    plan["to_create"].append({"type": "Company", "name": name, "values": values})
+    if not plan["dry_run"]:
+        doc = frappe.new_doc("Company")
+        doc.company_name = name
+        doc.abbr = abbr
+        doc.country = entry.get("country") or "India"
+        doc.default_currency = entry.get("default_currency") or "INR"
+        doc.insert(ignore_permissions=True)
+
+
+def _resolve_city_ref(entry: dict, plan: dict, parent_type: str, parent_label: str) -> str | None:
+    """Resolve an entry's city reference to a target-site CH City PK.
+
+    Never trusts the source-site PK alone: PKs differ across sites that
+    predate the state-aware autoname (``Chennai`` vs ``Chennai-33``).
+    Resolution ladder:
+      1. raw ``city`` value as PK (fast path — canonical sites match).
+      2. ``ensure_city`` with the exported natural key (city_name, state)
+         — resolves by natural key and creates the city if the states/
+         cities sections somehow missed it (deterministic autoname PK).
+      3. legacy files without natural keys: treat the raw PK as a
+         city_name (true for every pre-v28 site, where PK == city_name).
+    """
+    raw = entry.get("city")
+    if raw and frappe.db.exists("CH City", raw):
+        return raw
+
+    from ch_item_master.ch_core.location_hierarchy import ensure_city
+
+    resolved = ensure_city(None, entry.get("city_name") or raw, entry.get("city_state"))
+    if not resolved:
+        plan["manual_followups"].append(
+            {
+                "type": parent_type,
+                "name": parent_label,
+                "reason": f"could not resolve CH City for city={raw!r} city_name={entry.get('city_name')!r}",
+            }
+        )
+    return resolved
 
 
 def _upsert_state(entry: dict, plan: dict) -> None:
@@ -403,7 +547,7 @@ def _upsert_zone(entry: dict, plan: dict, company_map: dict | None) -> None:
         return
 
     zone_name = entry.get("zone_name")
-    city = entry.get("city")
+    city = _resolve_city_ref(entry, plan, "CH Store Zone", entry.get("zone_name") or "?")
     if not (zone_name and city):
         plan["skipped"].append({"type": "CH Store Zone", "reason": "missing zone_name/city", "entry": entry})
         return
@@ -436,6 +580,7 @@ def _upsert_zone(entry: dict, plan: dict, company_map: dict | None) -> None:
     )
 
     values = {k: entry.get(k) for k in _ZONE_FIELDS}
+    values["city"] = city
     values["company"] = company
     values["source_warehouse"] = source_wh
     plan["to_create"].append({"type": "CH Store Zone", "zone_name": zone_name, "values": values})
@@ -485,7 +630,25 @@ def _upsert_store(entry: dict, plan: dict, company_map: dict | None) -> None:
         if frappe.db.exists("Warehouse", target_warehouse):
             warehouse = target_warehouse
 
+    city = _resolve_city_ref(entry, plan, "CH Store", store_name)
+
+    # Zone PK is deterministic (autoname = field:zone_name) and zones are
+    # imported before stores, so a missing zone here is a real gap — drop
+    # the link so the store still seeds, and record the follow-up.
+    zone = entry.get("zone")
+    if zone and not frappe.db.exists("CH Store Zone", zone):
+        plan["manual_followups"].append(
+            {
+                "type": "CH Store",
+                "name": store_name,
+                "reason": f"zone {zone!r} does not exist on target site — store seeded without zone",
+            }
+        )
+        zone = None
+
     values = {k: entry.get(k) for k in _STORE_FIELDS}
+    values["city"] = city
+    values["zone"] = zone
     values["company"] = company
     values["warehouse"] = warehouse
     plan["to_create"].append(
@@ -553,8 +716,15 @@ def import_location_hierarchy(
         "errors": [],
     }
 
-    # Dependency order: State → City → Zone → Store.
+    # Dependency order: Company → State → City → Zone → Store.
     # Each _upsert_* records to plan and (when not dry-run) writes.
+    for entry in data.get("companies", []):
+        try:
+            _upsert_company(entry, plan, company_map)
+        except Exception as e:  # noqa: BLE001
+            plan["errors"].append({"type": "Company", "entry": entry, "error": str(e)})
+            frappe.log_error(frappe.get_traceback(), f"seed Company {entry.get('company_name')}")
+
     for entry in data.get("states", []):
         try:
             _upsert_state(entry, plan)
@@ -637,4 +807,14 @@ def seed_baseline_location_hierarchy() -> dict:
         f"manual_followups={summary.get('manual_followups', 0)} "
         f"errors={summary.get('errors', 0)}"
     )
+    # "already exists" skips are the idempotent steady state — anything else
+    # (unresolvable company/city, errors) means rows were NOT seeded and must
+    # be surfaced loudly, not buried in the Error Log.
+    noteworthy = [s for s in (result.get("skipped") or []) if s.get("reason") != "already exists"]
+    for row in noteworthy[:15]:
+        print(f"  WARNING skipped: {row}")
+    for row in (result.get("manual_followups") or [])[:15]:
+        print(f"  WARNING follow-up: {row}")
+    for row in (result.get("errors") or [])[:15]:
+        print(f"  ERROR: {row.get('type')} {row.get('entry', {}).get('store_name') or row.get('entry', {}).get('zone_name') or ''} — {row.get('error')}")
     return result
