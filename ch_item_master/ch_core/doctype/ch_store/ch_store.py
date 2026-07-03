@@ -149,6 +149,41 @@ def create_pos_profile_for_store(store):
     return ensure_store_pos_profile(doc, force=True)
 
 
+def backfill_store_pos_profiles():
+    """Ensure every enabled CH Store has its default (disabled) POS Profile.
+
+    ``ensure_store_pos_profile`` only fires on store insert / warehouse
+    change / the form button, so stores that predate it (or were seeded
+    while a prerequisite was missing) stay without a profile forever.
+    This after_migrate backfill heals them: every enabled store with a
+    sellable warehouse gets its ``POS - <store_code>`` skeleton so
+    retail-ops only has to add payment modes and untick ``disabled``.
+
+    Idempotent. Safe to run repeatedly from after_migrate.
+    """
+    if not frappe.db.table_exists("CH Store") or not frappe.db.table_exists("POS Profile"):
+        return
+
+    stores = frappe.get_all(
+        "CH Store",
+        filters={"disabled": 0, "warehouse": ("is", "set"), "pos_profile": ("is", "not set")},
+        pluck="name",
+    )
+    created = linked = 0
+    for name in stores:
+        try:
+            store = frappe.get_doc("CH Store", name)
+            result = ensure_store_pos_profile(store)
+            if result and result.get("created"):
+                created += 1
+            elif result and result.get("pos_profile"):
+                linked += 1
+        except Exception:
+            frappe.log_error(frappe.get_traceback(), f"backfill_store_pos_profiles: {name}")
+    if created or linked:
+        print(f"backfill_store_pos_profiles: created={created} relinked={linked}")
+
+
 def ensure_store_pos_profile(store, force=False):
     """Provision a minimal, DISABLED POS Profile for a CH Store.
 

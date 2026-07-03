@@ -55,6 +55,7 @@ after_migrate = [
 	# After the baseline seed so freshly seeded zones get their default bins
 	# on the very first migrate.
 	"ch_item_master.ch_core.location_hierarchy.backfill_default_hub_bins",
+	"ch_item_master.ch_core.doctype.ch_store.ch_store.backfill_store_pos_profiles",
 ]
 before_uninstall = "ch_item_master.install.before_uninstall"
 
