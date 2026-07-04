@@ -1799,6 +1799,56 @@ def _wh_search_txt(txt):
 
 @frappe.whitelist()
 @frappe.validate_and_sanitize_search_inputs
+def report_warehouse_query(doctype, txt, searchfield, start, page_len, filters):
+	"""Store-centric Warehouse picker for report filters.
+
+	Business users filter stock reports by STORE, not by the raw warehouse
+	tree — the default picker leaks every group node, store bin and transit
+	warehouse. This query lists only the two kinds of stock locations a
+	report reader cares about, searchable by the names they actually know:
+
+	  * each enabled store's SELLABLE warehouse (``CH Store.warehouse``) —
+	    searchable by store name / store code, shown with the store name
+	  * Distribution Hubs (``ch_location_type = 'Zone Warehouse'`` leaves)
+
+	The picked value is still a Warehouse PK, so every report's SQL keeps
+	working unchanged — the store→sellable-bin mapping happens here.
+	Wired to report filters globally by ``report_warehouse_picker.js``.
+	"""
+	filters = filters or {}
+	values = {"txt": _wh_search_txt(txt), "start": start, "page_len": page_len}
+	company_cond = ""
+	if filters.get("company"):
+		company_cond = "AND wh.company = %(company)s"
+		values["company"] = filters["company"]
+	return frappe.db.sql(
+		f"""
+		SELECT
+			wh.name,
+			COALESCE(st.store_name, wh.warehouse_name) AS display,
+			CASE WHEN st.name IS NULL THEN 'Distribution Hub' ELSE 'Store' END AS kind
+		FROM `tabWarehouse` wh
+		LEFT JOIN `tabCH Store` st
+			ON st.warehouse = wh.name AND st.disabled = 0
+		WHERE wh.disabled = 0
+		  AND wh.is_group = 0
+		  AND (st.name IS NOT NULL OR wh.ch_location_type = 'Zone Warehouse')
+		  {company_cond}
+		  AND (
+				wh.name LIKE %(txt)s
+			 OR wh.warehouse_name LIKE %(txt)s
+			 OR st.store_name LIKE %(txt)s
+			 OR st.name LIKE %(txt)s
+		  )
+		ORDER BY (st.name IS NULL), COALESCE(st.store_name, wh.warehouse_name)
+		LIMIT %(start)s, %(page_len)s
+		""",
+		values,
+	)
+
+
+@frappe.whitelist()
+@frappe.validate_and_sanitize_search_inputs
 def hub_warehouse_query(doctype, txt, searchfield, start, page_len, filters):
 	"""Query for the Zone Hub (Zone Warehouse) picker.
 

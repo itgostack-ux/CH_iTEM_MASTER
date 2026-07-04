@@ -21,7 +21,10 @@ add_to_apps_screen = [
 	}
 ]
 
-app_include_js = "/assets/ch_item_master/js/item_quick_entry.js"
+app_include_js = [
+	"/assets/ch_item_master/js/item_quick_entry.js",
+	"/assets/ch_item_master/js/report_warehouse_picker.js",
+]
 doctype_js = {
 	"Item": "public/js/item.js",
 	"Customer": "public/js/customer.js",
