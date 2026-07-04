@@ -126,6 +126,18 @@ _STORE_FIELDS = (
 )
 
 
+# Legacy → current abbr aliases. The baseline seed data was exported
+# when Company.abbr was 4 chars (BMPL / GSPL). The `gofix` rename patch
+# (``rename_company_abbrs_to_2char``) flipped them to the enforced
+# 2-char business rule (BM / GF). This alias table lets the seed
+# resolve baseline entries on both pre- and post-migration sites.
+# Add new entries only if a Company.abbr is renamed again in the future.
+_LEGACY_ABBR_ALIASES = {
+    "BMPL": "BM",
+    "GSPL": "GF",
+}
+
+
 def _company_abbr(company: str) -> str:
     if not company:
         return ""
@@ -135,7 +147,14 @@ def _company_abbr(company: str) -> str:
 def _company_from_abbr(abbr: str) -> str | None:
     if not abbr:
         return None
-    return frappe.db.get_value("Company", {"abbr": abbr}, "name")
+    name = frappe.db.get_value("Company", {"abbr": abbr}, "name")
+    if name:
+        return name
+    # Fall back to the current abbr if this is a known legacy alias.
+    aliased = _LEGACY_ABBR_ALIASES.get(abbr)
+    if aliased:
+        return frappe.db.get_value("Company", {"abbr": aliased}, "name")
+    return None
 
 
 def _warehouse_base_name(full_name: str, abbr: str) -> str:

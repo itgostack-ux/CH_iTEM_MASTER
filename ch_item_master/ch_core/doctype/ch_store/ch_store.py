@@ -6,14 +6,22 @@ from frappe.model.document import Document
 from ch_item_master.ch_item_master.utils import validate_indian_phone
 
 
-# Brand-prefix conventions. Gogizmo (BMPL retail) has always used ``GG-<SLUG>``
-# and downstream code (POS, WhatsApp, reports) treats that prefix as the
-# canonical store-locator handle. GoFix stores follow the same shape with a
-# ``GF-`` prefix so front-line staff and customers can instantly tell the two
-# brands apart. The prefix is applied automatically by ``autoname`` for stores
-# belonging to a Company with ``gofix_enabled=1`` — for any other company the
-# generator falls back to the deterministic ``STO-<ABBR>-<CITY>-####`` form.
+# Brand-prefix conventions. Gogizmo (BestBuy Mobiles retail) has always used
+# ``GG-<SLUG>`` and downstream code (POS, WhatsApp, reports) treats that
+# prefix as the canonical store-locator handle. GoFix stores follow the same
+# shape with a ``GF-`` prefix so front-line staff and customers can instantly
+# tell the two brands apart.
+#
+# Prefix source (priority order):
+#   1. ``Company.store_code_prefix`` — the generic 2-char brand tag any
+#      company can set (owned by the ``gofix`` app but usable by any brand).
+#   2. ``Company.gofix_enabled = 1`` — legacy fallback. Kept so a mid-migrate
+#      site that has the flag but not the new field still gets ``GF-``.
+#
+# Anything else falls back to the deterministic
+# ``STO-<ABBR>-<CITY>-####`` form.
 _GOFIX_STORE_PREFIX = "GF-"
+_LEGACY_GOFIX_PREFIX = "GF"
 
 
 def _slugify_store_name(store_name: str) -> str:
@@ -32,11 +40,11 @@ class CHStore(Document):
 
         Naming rules (in priority order):
           1. Manual override — respected as-is (upper-cased + trimmed).
-          2. GoFix companies (``Company.gofix_enabled = 1``) →
-             ``GF-<STORE_NAME_SLUG>`` mirroring the ``GG-`` convention that
-             Gogizmo stores use. Collisions get a numeric suffix
-             (``GF-DOVETON-2``, ``-3``…). Falls back to the STO-... form
-             when ``store_name`` is missing.
+          2. Company with a ``store_code_prefix`` set (or legacy
+             ``gofix_enabled=1``) → ``<PREFIX>-<STORE_NAME_SLUG>``
+             (e.g. ``GG-ANNANAGAR``, ``GF-DOVETON``). Collisions get a
+             numeric suffix (``GF-DOVETON-2``, ``-3``…). Falls back to the
+             STO-... form when ``store_name`` is missing.
           3. All other companies → ``STO-{COMPANY_ABBR}-{CITY_SHORT}-####``
              (deterministic, sortable, backward-compatible).
         """
@@ -45,33 +53,50 @@ class CHStore(Document):
             self.name = self.store_code
             return
 
-        if self._company_is_gofix_enabled() and self.store_name:
-            self.store_code = self._generate_gofix_store_code()
+        prefix = self._resolve_brand_prefix()
+        if prefix and self.store_name:
+            self.store_code = self._generate_prefixed_store_code(prefix)
         else:
             self.store_code = self._generate_store_code()
         self.name = self.store_code
 
-    def _company_is_gofix_enabled(self) -> bool:
+    def _resolve_brand_prefix(self) -> str | None:
+        """Return the 2-char brand prefix for this store's company, or None.
+
+        Reads ``Company.store_code_prefix`` first; falls back to the
+        historical ``gofix_enabled`` flag when the prefix field is empty so
+        an incomplete migration doesn't quietly revert to STO-... codes.
+        Both columns are custom fields owned by the ``gofix`` app — treat
+        their absence as "no brand prefix configured".
+        """
         if not self.company:
-            return False
-        # ``gofix_enabled`` is a Company custom field owned by the ``gofix``
-        # app. When ``gofix`` isn't installed on a site the column simply
-        # doesn't exist — treat that as "not a GoFix company".
+            return None
         try:
-            return bool(
-                frappe.db.get_value("Company", self.company, "gofix_enabled")
+            row = frappe.db.get_value(
+                "Company",
+                self.company,
+                ["store_code_prefix", "gofix_enabled"],
+                as_dict=True,
             )
         except Exception:
-            return False
+            return None
+        if not row:
+            return None
+        prefix = (row.get("store_code_prefix") or "").strip().upper()
+        if prefix:
+            return prefix
+        if row.get("gofix_enabled"):
+            return _LEGACY_GOFIX_PREFIX
+        return None
 
-    def _generate_gofix_store_code(self) -> str:
+    def _generate_prefixed_store_code(self, prefix: str) -> str:
         slug = _slugify_store_name(self.store_name)
         if not slug:
             # Shouldn't normally happen — autoname already gated on
             # ``store_name``. Guard defensively so a blank slug can't
-            # produce a bare "GF-" name.
+            # produce a bare "<PREFIX>-" name.
             return self._generate_store_code()
-        base = f"{_GOFIX_STORE_PREFIX}{slug}"
+        base = f"{prefix}-{slug}"
         if not frappe.db.exists("CH Store", base):
             return base
         # Collision — append a numeric suffix. Two stores in the same city
