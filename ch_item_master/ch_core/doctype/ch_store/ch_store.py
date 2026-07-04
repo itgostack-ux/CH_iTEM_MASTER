@@ -6,18 +6,80 @@ from frappe.model.document import Document
 from ch_item_master.ch_item_master.utils import validate_indian_phone
 
 
+# Brand-prefix conventions. Gogizmo (BMPL retail) has always used ``GG-<SLUG>``
+# and downstream code (POS, WhatsApp, reports) treats that prefix as the
+# canonical store-locator handle. GoFix stores follow the same shape with a
+# ``GF-`` prefix so front-line staff and customers can instantly tell the two
+# brands apart. The prefix is applied automatically by ``autoname`` for stores
+# belonging to a Company with ``gofix_enabled=1`` — for any other company the
+# generator falls back to the deterministic ``STO-<ABBR>-<CITY>-####`` form.
+_GOFIX_STORE_PREFIX = "GF-"
+
+
+def _slugify_store_name(store_name: str) -> str:
+    """Turn a human store name into the uppercase alphanumeric slug used by
+    the ``GG-`` / ``GF-`` prefix conventions.
+
+    "Anna Nagar" → "ANNANAGAR", "Perambur - RS" → "PERAMBURRS",
+    "Tambaram 2" → "TAMBARAM2".
+    """
+    return re.sub(r"[^A-Za-z0-9]", "", store_name or "").upper()
+
+
 class CHStore(Document):
     def autoname(self):
-        """Auto-generate store_code: STO-{COMPANY_ABBR}-{CITY_SHORT}-####.
+        """Auto-generate ``store_code``.
 
-        Manual override is allowed (if user sets store_code explicitly we
-        respect it). Otherwise we compose a deterministic, sortable code.
+        Naming rules (in priority order):
+          1. Manual override — respected as-is (upper-cased + trimmed).
+          2. GoFix companies (``Company.gofix_enabled = 1``) →
+             ``GF-<STORE_NAME_SLUG>`` mirroring the ``GG-`` convention that
+             Gogizmo stores use. Collisions get a numeric suffix
+             (``GF-DOVETON-2``, ``-3``…). Falls back to the STO-... form
+             when ``store_name`` is missing.
+          3. All other companies → ``STO-{COMPANY_ABBR}-{CITY_SHORT}-####``
+             (deterministic, sortable, backward-compatible).
         """
-        if not self.store_code:
-            self.store_code = self._generate_store_code()
-        else:
+        if self.store_code:
             self.store_code = self.store_code.strip().upper()
+            self.name = self.store_code
+            return
+
+        if self._company_is_gofix_enabled() and self.store_name:
+            self.store_code = self._generate_gofix_store_code()
+        else:
+            self.store_code = self._generate_store_code()
         self.name = self.store_code
+
+    def _company_is_gofix_enabled(self) -> bool:
+        if not self.company:
+            return False
+        # ``gofix_enabled`` is a Company custom field owned by the ``gofix``
+        # app. When ``gofix`` isn't installed on a site the column simply
+        # doesn't exist — treat that as "not a GoFix company".
+        try:
+            return bool(
+                frappe.db.get_value("Company", self.company, "gofix_enabled")
+            )
+        except Exception:
+            return False
+
+    def _generate_gofix_store_code(self) -> str:
+        slug = _slugify_store_name(self.store_name)
+        if not slug:
+            # Shouldn't normally happen — autoname already gated on
+            # ``store_name``. Guard defensively so a blank slug can't
+            # produce a bare "GF-" name.
+            return self._generate_store_code()
+        base = f"{_GOFIX_STORE_PREFIX}{slug}"
+        if not frappe.db.exists("CH Store", base):
+            return base
+        # Collision — append a numeric suffix. Two stores in the same city
+        # can legitimately share a name (e.g. two Tambaram outlets).
+        seq = 2
+        while frappe.db.exists("CH Store", f"{base}-{seq}"):
+            seq += 1
+        return f"{base}-{seq}"
 
     def _generate_store_code(self):
         company_abbr = (
