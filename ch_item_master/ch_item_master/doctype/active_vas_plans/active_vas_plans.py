@@ -389,9 +389,12 @@ class ActiveVASPlans(Document):
 		if not amount:
 			return
 
-		deferred_acct = frappe.db.get_value("Account", {
-			"account_name": ("like", "%Deferred Revenue%"), "company": company, "is_group": 0
-		}, "name")
+		deferred_acct = (
+			frappe.db.get_value("Company", company, "default_deferred_revenue_account")
+			or frappe.db.get_value("Account", {
+				"account_name": ("like", "%Deferred Revenue%"), "company": company, "is_group": 0
+			}, "name")
+		)
 
 		# Income account: use the SI line's income_account for precision;
 		# fall back to company default_income_account.
@@ -434,12 +437,13 @@ class ActiveVASPlans(Document):
 			income_acct = frappe.db.get_value("Company", company, "default_income_account")
 
 		if not deferred_acct or not income_acct:
-			frappe.log_error(
-				f"Active VAS Plans {self.name}: deferred_revenue_account or income_account not "
-				f"configured for {company}. Skipping deferred revenue GL.",
-				"VAS Deferred Revenue GL Skipped",
+			frappe.throw(
+				_(
+					"Deferred revenue accounting is not configured for {0}. "
+					"Set Default Deferred Revenue Account and Default Income Account before selling VAS plans."
+				).format(company),
+				title=_("VAS Accounting Setup Required"),
 			)
-			return
 
 		try:
 			je = frappe.new_doc("Journal Entry")
@@ -456,6 +460,7 @@ class ActiveVASPlans(Document):
 			self.db_set("custom_deferred_revenue_je", je.name)
 		except Exception:
 			frappe.log_error(frappe.get_traceback(), f"Deferred revenue GL failed for Active VAS Plans {self.name}")
+			raise
 
 	# ── Public methods ───────────────────────────────────────────────────────
 

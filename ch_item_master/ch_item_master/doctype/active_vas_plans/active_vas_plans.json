@@ -276,6 +276,16 @@
    "description": "Actual price charged to the customer for this plan."
   },
   {
+   "fieldname": "custom_deferred_revenue_je",
+   "fieldtype": "Link",
+   "label": "Deferred Revenue Journal Entry",
+   "options": "Journal Entry",
+   "read_only": 1,
+   "no_copy": 1,
+   "hidden": 1,
+   "description": "System-created journal entry that moved VAS revenue to deferred revenue."
+  },
+  {
    "fieldname": "section_snapshot",
    "fieldtype": "Section Break",
    "label": "Active Plan Snapshot",
