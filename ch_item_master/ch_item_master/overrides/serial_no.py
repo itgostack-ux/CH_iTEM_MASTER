@@ -73,7 +73,60 @@ def on_update(doc, method=None):
 
 	Authoritative source = ERPNext Serial No. Everything else is a
 	derived projection that must agree with it.
+
+	NOTE (v15+): this doc event only fires when a Serial No document is
+	saved through the ORM — creation, rename, manual edits. Stock
+	movements (Stock Entry / Delivery Note / Stock Reconciliation, and
+	the CH transit flow) update Serial No.warehouse/status via raw SQL
+	inside ``SerialBatchBundle.set_warehouse_and_status_in_serial_nos``
+	(or ``_update_serial_warehouse`` in ch_erp15), which bypasses doc
+	events entirely. Those paths must call
+	``sync_serials_to_lifecycle`` explicitly — see movement_logger.
 	"""
+	_sync_snapshot(frappe._dict(
+		name=doc.name,
+		warehouse=doc.warehouse or None,
+		status=(doc.status or "").strip(),
+		item_code=doc.item_code,
+		ch_serial_kind=getattr(doc, "ch_serial_kind", None),
+	))
+
+
+def sync_serials_to_lifecycle(serial_nos):
+	"""Re-mirror CH Serial Lifecycle + CH Stock Bin from the current DB
+	state of the given serials.
+
+	Needed because ERPNext v15+ updates Serial No.warehouse/status with
+	query-builder SQL on every stock movement, so ``Serial No.on_update``
+	never fires for transfers — including Stock Entries submitted via
+	Data Import. Safe to call repeatedly: it converges each serial to the
+	state implied by its Serial No row.
+	"""
+	if not serial_nos:
+		return
+
+	fields = ["name", "status", "warehouse", "item_code"]
+	if frappe.db.has_column("Serial No", "ch_serial_kind"):
+		fields.append("ch_serial_kind")
+
+	for name in dict.fromkeys(s for s in serial_nos if s):
+		sn = frappe.db.get_value("Serial No", name, fields, as_dict=True)
+		if not sn:
+			continue
+		sn.warehouse = sn.warehouse or None
+		sn.status = (sn.status or "").strip()
+		try:
+			_sync_snapshot(sn)
+		except Exception:
+			frappe.log_error(
+				frappe.get_traceback(),
+				f"CH Serial Lifecycle sync failed for {name}",
+			)
+
+
+def _sync_snapshot(doc):
+	"""Apply the Serial No → lifecycle/bin mirror for one serial snapshot
+	(a dict-like with name, warehouse, status, item_code, ch_serial_kind)."""
 	serial_no = doc.name
 	sn_warehouse = doc.warehouse or None
 	sn_status = (doc.status or "").strip()

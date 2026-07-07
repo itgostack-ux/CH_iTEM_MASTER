@@ -458,12 +458,20 @@ def _upsert_company(entry: dict, plan: dict, company_map: dict | None) -> None:
         )
         return
 
+    # Never create a company under a legacy 4-char abbr: seed files
+    # exported before the 2-char rename (BMPL/GSPL) would otherwise
+    # bootstrap a fresh site straight into the old naming, splitting the
+    # warehouse tree ("X - BMPL" vs "X - BM") the moment any post-rename
+    # backfill runs. Auto-created companies always use the current abbr.
+    create_abbr = _LEGACY_ABBR_ALIASES.get(abbr, abbr)
+
     values = {k: entry.get(k) for k in _COMPANY_FIELDS}
+    values["abbr"] = create_abbr
     plan["to_create"].append({"type": "Company", "name": name, "values": values})
     if not plan["dry_run"]:
         doc = frappe.new_doc("Company")
         doc.company_name = name
-        doc.abbr = abbr
+        doc.abbr = create_abbr
         doc.country = entry.get("country") or "India"
         doc.default_currency = entry.get("default_currency") or "INR"
         doc.insert(ignore_permissions=True)

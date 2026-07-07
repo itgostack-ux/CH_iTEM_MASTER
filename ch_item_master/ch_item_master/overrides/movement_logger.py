@@ -38,6 +38,30 @@ from ch_item_master.ch_item_master.serial_utils import get_serial_nos_from_item
 # ── Core helper ────────────────────────────────────────────────────────────
 
 
+def _sync_lifecycle_after_movement(doc) -> None:
+    """Re-mirror CH Serial Lifecycle.current_warehouse (+ status/bin) for every
+    serial on a just-submitted/cancelled stock voucher.
+
+    ERPNext v15+ moves Serial No.warehouse with raw SQL (no doc event), so the
+    ``Serial No.on_update`` mirror never fires for transfers — Data Import
+    submits included. Never raises: a sync failure must not block the voucher.
+    """
+    try:
+        from ch_item_master.ch_item_master.overrides.serial_no import (
+            sync_serials_to_lifecycle,
+        )
+
+        serials = []
+        for row in doc.get("items") or []:
+            serials.extend(get_serial_nos_from_item(row, parent_doc=doc) or [])
+        sync_serials_to_lifecycle(serials)
+    except Exception:
+        frappe.log_error(
+            title="Serial lifecycle post-movement sync failed",
+            message=frappe.get_traceback(),
+        )
+
+
 def _append_log(
     serial_no: str,
     event: str,
@@ -130,6 +154,7 @@ def on_stock_entry_submit(doc, method=None) -> None:
                 ref_dn=doc.name,
                 company=getattr(doc, "company", None),
             )
+    _sync_lifecycle_after_movement(doc)
 
 
 def on_stock_entry_cancel(doc, method=None) -> None:
@@ -167,6 +192,8 @@ def on_stock_entry_cancel(doc, method=None) -> None:
                 except Exception:
                     frappe.log_error(frappe.get_traceback(), f"Bin revert failed for {_sno} on SE {doc.name} cancel")
 
+    _sync_lifecycle_after_movement(doc)
+
 
 # ── Delivery Note ──────────────────────────────────────────────────────────
 
@@ -188,6 +215,7 @@ def on_delivery_note_submit(doc, method=None) -> None:
                 company=getattr(doc, "company", None),
                 remarks_extra=f"to {doc.customer_name or doc.customer}" if doc.get("customer") else None,
             )
+    _sync_lifecycle_after_movement(doc)
 
 
 def on_delivery_note_cancel(doc, method=None) -> None:
@@ -206,6 +234,7 @@ def on_delivery_note_cancel(doc, method=None) -> None:
                 ref_dn=doc.name,
                 company=getattr(doc, "company", None),
             )
+    _sync_lifecycle_after_movement(doc)
 
 
 # ── Stock Reconciliation ───────────────────────────────────────────────────
@@ -227,6 +256,7 @@ def on_stock_reconciliation_submit(doc, method=None) -> None:
                 ref_dn=doc.name,
                 company=getattr(doc, "company", None),
             )
+    _sync_lifecycle_after_movement(doc)
 
 
 # ── CH Transfer Manifest ───────────────────────────────────────────────────
