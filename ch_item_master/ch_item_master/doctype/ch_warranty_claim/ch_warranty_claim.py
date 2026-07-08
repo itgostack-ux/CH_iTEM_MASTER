@@ -218,11 +218,33 @@ class CHWarrantyClaim(Document):
 		# Auto-calculate and send processing fee based on claim channel:
 		#   Online/Bot → fee sent BEFORE pickup is arranged (payment gateway link)
 		#   Walk-in / Store → fee collected at counter (after device received)
+		#
+		# The real helper is `_calculate_processing_fee()` (returns the amount).
+		# The previous call — `_calculate_processing_fee_amount()` — did not exist,
+		# so the try/except swallowed an AttributeError every single time and
+		# operators had to raise the fee manually. Now we call the correct helper
+		# and persist the amount + status on the claim so the standard
+		# fee-payment flow (send link, mark paid, etc.) picks it up automatically.
 		try:
 			self.reload()
-			self._calculate_processing_fee_amount()
+			fee_amount = flt(self._calculate_processing_fee())
+			fee_updates = {
+				"processing_fee_amount": fee_amount,
+				"processing_fee_status": (
+					"Pending" if fee_amount > 0 else "Not Required"
+				),
+			}
+			self.db_set(fee_updates)
+			self.processing_fee_amount = fee_amount
+			self.processing_fee_status = fee_updates["processing_fee_status"]
 		except Exception:
-			pass  # non-critical; VAS manager can generate manually
+			# Still non-fatal — operator can generate manually from the claim form
+			# via `generate_processing_fee()` — but capture it for audit so we
+			# notice regressions instead of silently masking them again.
+			frappe.log_error(
+				frappe.get_traceback(),
+				f"CH Warranty Claim: processing fee pre-calc failed for {self.name}",
+			)
 
 		if self.pickup_required or (self.claim_channel or "") in ("Online/Bot", "Phone"):
 			# For online claims: collect fee before arranging pickup
@@ -482,7 +504,12 @@ class CHWarrantyClaim(Document):
 		self.db_set(updates)
 		self._log("Picked Up", old, "Picked Up", remarks or _("Device picked up from customer"))
 
-		if self.coverage_type == "Manufacturer Warranty":
+		# Coverage-type values are the lowercase snake_case tokens defined in the
+		# DocType Select options (see ch_warranty_claim.json). Comparing against
+		# the title-cased label — as the original code did — never matched, which
+		# left OEM claims stuck at "Picked Up" instead of being auto-routed to
+		# the manufacturer branch.
+		if self.coverage_type == "manufacturer_warranty":
 			self.reload()
 			if self.claim_status != "Sent to Manufacturer":
 				self._send_to_manufacturer()
@@ -1852,13 +1879,21 @@ class CHWarrantyClaim(Document):
 		# ── Full gate control (backend enforcement) ──────────────────────
 		self.reload()  # Ensure latest field values
 
+		# Walk-in claims: VAS manager approval at the counter suffices — intake
+		# QC is not mandatory because the cashier physically inspected the device
+		# during hand-over. Online / phone / courier claims must still clear QC
+		# (device arrived unseen via logistics and needs formal inspection).
+		# This mirrors the walk-in exception in `create_repair_ticket()` above —
+		# without it, walk-in claims threaded the public API but crashed here.
+		is_walkin = (self.mode_of_service or "") == "Walk-in"
+
 		gate_errors = []
 		if self.approval_status not in ("Approved", "") or self.claim_status in (
 				"Draft", "Pending Approval", "Rejected", "Cancelled"):
 			gate_errors.append(_("Claim not approved"))
 		if not self.device_received_at:
 			gate_errors.append(_("Device not received at store"))
-		if self.intake_qc_status != "Passed":
+		if not is_walkin and self.intake_qc_status != "Passed":
 			gate_errors.append(_("Intake QC not passed (status: {0})").format(
 				self.intake_qc_status or "Not Done"))
 		if (self.processing_fee_status not in ("Paid", "Waived", "Not Required")

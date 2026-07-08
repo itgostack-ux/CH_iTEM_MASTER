@@ -850,7 +850,7 @@
    "fieldname": "section_manufacturer",
    "fieldtype": "Section Break",
    "label": "Manufacturer Service",
-   "depends_on": "eval:doc.coverage_type=='Manufacturer Warranty'",
+   "depends_on": "eval:doc.coverage_type=='manufacturer_warranty'",
    "description": "Tracking details when device is sent to brand/OEM service center"
   },
   {
@@ -889,7 +889,7 @@
    "fieldname": "section_manufacturer_dates",
    "fieldtype": "Section Break",
    "label": "Handover & Return",
-   "depends_on": "eval:doc.coverage_type=='Manufacturer Warranty'"
+   "depends_on": "eval:doc.coverage_type=='manufacturer_warranty'"
   },
   {
    "fieldname": "handover_date",
@@ -920,7 +920,7 @@
    "fieldname": "section_manufacturer_details",
    "fieldtype": "Section Break",
    "label": "Device Condition & Accessories",
-   "depends_on": "eval:doc.coverage_type=='Manufacturer Warranty'",
+   "depends_on": "eval:doc.coverage_type=='manufacturer_warranty'",
    "collapsible": 1
   },
   {
