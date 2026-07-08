@@ -686,36 +686,24 @@ class CHWarrantyClaim(Document):
 		if self.coverage_type in ("vas_plan", "anniversary_warranty", "paid_repair"):
 			self._create_post_repair_warranty()
 
-		# Increment claims_used on the active VAS plan
+		# Increment claims_used on the active VAS plan.
+		# record_claim now carries idempotency (via CH VAS Ledger reference lookup)
+		# and writes the "Claim Used" ledger row itself \u2014 do NOT call
+		# log_vas_event separately here or the ledger will show two rows for
+		# the same consumption event.
 		if self.sold_plan:
 			try:
 				sp = frappe.get_doc("Active VAS Plans", self.sold_plan)
 				sp.record_claim(
 					service_reference=self.name,
 					claim_cost=flt(self.total_claim_cost),
+					reference_doctype="CH Warranty Claim",
+					reference_name=self.name,
 				)
 			except Exception:
 				frappe.log_error(
 					frappe.get_traceback(),
 					f"Active VAS Plan claim increment failed for {self.name}",
-				)
-
-		# Log to VAS ledger
-		if self.sold_plan:
-			try:
-				from ch_item_master.ch_item_master.doctype.ch_vas_ledger.ch_vas_ledger import log_vas_event
-				log_vas_event(
-					sold_plan=self.sold_plan,
-					event_type="Claim Used",
-					claim_amount=flt(self.total_claim_cost),
-					reference_doctype="CH Warranty Claim",
-					reference_name=self.name,
-					remarks=f"Claim closed — {final_outcome} — {self.issue_description or ''}",
-				)
-			except Exception:
-				frappe.log_error(
-					frappe.get_traceback(),
-					f"VAS Ledger log failed for claim {self.name}",
 				)
 
 	def _determine_final_outcome(self, closing_from_status):

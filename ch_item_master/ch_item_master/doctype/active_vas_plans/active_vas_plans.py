@@ -66,6 +66,17 @@ class ActiveVASPlans(Document):
 		self.status = "Cancelled"
 		self.db_set("status", "Cancelled")
 		self._clear_serial_lifecycle()
+		# ASC 606 cancellation: reverse any unamortised deferred balance back
+		# to the income account so the P&L reflects the closed obligation.
+		# Refund cash-flow (if any) is a separate Sales Return / Payment Entry
+		# raised by ops — accounting side is authoritative for revenue.
+		try:
+			self._reverse_deferred_revenue_on_cancel()
+		except Exception:
+			frappe.log_error(
+				frappe.get_traceback(),
+				f"VAS deferred revenue reversal failed for {self.name}",
+			)
 		self._log_vas_event("Plan Cancelled")
 
 	def _validate_dates(self):
@@ -389,17 +400,29 @@ class ActiveVASPlans(Document):
 		if not amount:
 			return
 
+		# Precedence for the deferred-liability account:
+		#   1. Override on the linked CH Warranty Plan (per-plan finance config)
+		#   2. Company.default_deferred_revenue_account
+		#   3. Fuzzy account-name search on the company chart of accounts
 		deferred_acct = (
-			frappe.db.get_value("Company", company, "default_deferred_revenue_account")
+			frappe.db.get_value("CH Warranty Plan", self.warranty_plan, "deferred_revenue_account")
+			or frappe.db.get_value("Company", company, "default_deferred_revenue_account")
 			or frappe.db.get_value("Account", {
 				"account_name": ("like", "%Deferred Revenue%"), "company": company, "is_group": 0
 			}, "name")
 		)
 
-		# Income account: use the SI line's income_account for precision;
-		# fall back to company default_income_account.
-		income_acct = None
-		if self.sales_invoice and self.item_code:
+		# Income account precedence:
+		#   1. Override on the linked CH Warranty Plan
+		#   2. Sales Invoice line income_account (existing logic below)
+		#   3. Company.default_income_account
+		income_acct = frappe.db.get_value(
+			"CH Warranty Plan", self.warranty_plan, "revenue_account"
+		) or None
+		# Skip the SI-line inference when the plan already specifies its own
+		# revenue_account \u2014 finance's per-plan override wins over invoice-line
+		# defaults (mirrors SAP CS "Contract-level revenue posting rule").
+		if not income_acct and self.sales_invoice and self.item_code:
 			si_rows = frappe.get_all(
 				"Sales Invoice Item",
 				filters={"parent": self.sales_invoice, "item_code": self.item_code},
@@ -464,18 +487,214 @@ class ActiveVASPlans(Document):
 
 	# ── Public methods ───────────────────────────────────────────────────────
 
-	def record_claim(self, service_reference=None, claim_cost=0):
+	def recognize_revenue_up_to(self, as_of_date=None):
+		"""Post straight-line revenue recognition JEs up to as_of_date.
+
+		ASC 606 / IFRS 15 pattern used by SAP RA, Oracle Revenue Management,
+		Dynamics 365 Revenue Recognition, and OnsiteGo/Assurant back-office:
+		    - Plan sale posts DR Income / CR Deferred (see _post_deferred_revenue_gl)
+		    - Each month between start_date and end_date, the earned portion of
+		      the deferred balance is moved back to income:
+		          DR Deferred Revenue
+		          CR Revenue Recognition Account
+		    - The scheduler ``recognize_vas_revenue_monthly`` calls this on
+		      every Active plan on the 1st of each month.
+
+		Idempotent: uses ``revenue_recognized_amount`` on the plan to compute
+		the delta, so repeated calls in the same month are safe.
+
+		Args:
+		    as_of_date: Recognise revenue earned up to this date. Defaults to today.
+
+		Returns:
+		    dict: {"delta": <amount posted>, "je": <JE name or None>,
+		           "recognized_total": <cumulative>}
+		"""
+		as_of = getdate(as_of_date or nowdate())
+		start = getdate(self.start_date) if self.start_date else None
+		end = getdate(self.end_date) if self.end_date else None
+		total = flt(self.plan_price)
+
+		if not start or not end or total <= 0:
+			return {"delta": 0, "je": None, "recognized_total": flt(self.revenue_recognized_amount)}
+
+		# Duration must be positive; ill-configured 0-month plans get 100% at start.
+		total_days = max((end - start).days, 1)
+		elapsed_days = max(0, min((as_of - start).days, total_days))
+		earned_to_date = round(total * elapsed_days / total_days, 2)
+
+		already_recognized = flt(self.revenue_recognized_amount)
+		delta = round(earned_to_date - already_recognized, 2)
+
+		if delta <= 0:
+			return {"delta": 0, "je": None, "recognized_total": already_recognized}
+
+		# Only accrue for plans still Active (not Cancelled / Void). Expired /
+		# Claimed still amortise until end_date \u2014 the customer paid for the
+		# term, GoGizmo earned it.
+		if (self.status or "") in ("Cancelled", "Void"):
+			return {"delta": 0, "je": None, "recognized_total": already_recognized}
+
+		deferred_acct, revenue_acct = self._resolve_recognition_accounts()
+		if not deferred_acct or not revenue_acct:
+			frappe.log_error(
+				f"Active VAS Plans {self.name}: cannot recognise revenue \u2014 "
+				f"deferred account {deferred_acct!r} / revenue account {revenue_acct!r} "
+				f"unresolved. Check plan overrides and Company defaults.",
+				"VAS Revenue Recognition Misconfigured",
+			)
+			return {"delta": 0, "je": None, "recognized_total": already_recognized}
+
+		try:
+			je = frappe.new_doc("Journal Entry")
+			je.posting_date = as_of
+			je.company = self.company
+			je.user_remark = (
+				f"VAS Revenue Recognition \u2014 {self.name} \u2014 "
+				f"earned {earned_to_date}/{total} through {as_of}"
+			)
+			je.flags.ch_system_generated_je = True
+			je.append("accounts", {
+				"account": deferred_acct,
+				"debit_in_account_currency": delta,
+			})
+			je.append("accounts", {
+				"account": revenue_acct,
+				"credit_in_account_currency": delta,
+			})
+			je.flags.ignore_permissions = True
+			je.insert()
+			je.submit()
+		except Exception:
+			frappe.log_error(
+				frappe.get_traceback(),
+				f"VAS Revenue Recognition JE failed for {self.name}",
+			)
+			return {"delta": 0, "je": None, "recognized_total": already_recognized}
+
+		new_total = already_recognized + delta
+		self.db_set("revenue_recognized_amount", new_total)
+		self.db_set("revenue_last_recognized_on", as_of)
+		return {"delta": delta, "je": je.name, "recognized_total": new_total}
+
+	def _reverse_deferred_revenue_on_cancel(self):
+		"""On plan cancellation, flush any unamortised deferred balance back to income.
+
+		Follows SAP CS "Contract Cancellation \u2013 No Refund" pattern:
+		    DR Deferred Revenue (unamortised portion)
+		    CR Revenue Recognition Account
+
+		The customer's cash refund (if any) is booked separately as a Sales
+		Return / Payment Entry by ops \u2014 this method only closes the P&L side
+		of the service obligation. If the plan was already 100% amortised
+		(cancelled after end_date) this is a no-op.
+		"""
+		total = flt(self.plan_price)
+		if total <= 0:
+			return
+
+		# Cancellation-time recognition catches up ledger through today.
+		already_recognized = flt(self.revenue_recognized_amount)
+		unamortised = round(total - already_recognized, 2)
+		if unamortised <= 0:
+			return
+
+		deferred_acct, revenue_acct = self._resolve_recognition_accounts()
+		if not deferred_acct or not revenue_acct:
+			frappe.log_error(
+				f"Active VAS Plans {self.name}: cancellation reversal skipped \u2014 "
+				f"account resolution failed.",
+				"VAS Cancellation Reversal Misconfigured",
+			)
+			return
+
+		je = frappe.new_doc("Journal Entry")
+		je.posting_date = nowdate()
+		je.company = self.company
+		je.user_remark = (
+			f"VAS Plan Cancellation \u2014 {self.name} \u2014 "
+			f"flushing unamortised deferred balance {unamortised} to income"
+		)
+		je.flags.ch_system_generated_je = True
+		je.append("accounts", {
+			"account": deferred_acct,
+			"debit_in_account_currency": unamortised,
+		})
+		je.append("accounts", {
+			"account": revenue_acct,
+			"credit_in_account_currency": unamortised,
+		})
+		je.flags.ignore_permissions = True
+		je.insert()
+		je.submit()
+		self.db_set("revenue_recognized_amount", already_recognized + unamortised)
+
+	def _resolve_recognition_accounts(self):
+		"""Return (deferred_revenue_account, revenue_account) using the SAP-style
+		precedence: per-plan override \u2192 Sales Invoice line income_account \u2192
+		Company defaults. Falls through to (None, None) when finance hasn't set
+		anything up so the caller can log + skip cleanly.
+		"""
+		company = self.get("company") or frappe.defaults.get_user_default("Company")
+
+		deferred_acct = (
+			frappe.db.get_value("CH Warranty Plan", self.warranty_plan, "deferred_revenue_account")
+			or frappe.db.get_value("Company", company, "default_deferred_revenue_account")
+		)
+
+		revenue_acct = frappe.db.get_value(
+			"CH Warranty Plan", self.warranty_plan, "revenue_account"
+		)
+		if not revenue_acct and self.sales_invoice and self.item_code:
+			revenue_acct = frappe.db.get_value(
+				"Sales Invoice Item",
+				{"parent": self.sales_invoice, "item_code": self.item_code},
+				"income_account",
+			)
+		if not revenue_acct:
+			revenue_acct = frappe.db.get_value(
+				"Company", company, "default_income_account"
+			)
+
+		return deferred_acct, revenue_acct
+
+	def record_claim(self, service_reference=None, claim_cost=0,
+	                 reference_doctype=None, reference_name=None):
 		"""Increment claims_used. Called by GoFix when a service order is created under warranty.
 
 		Args:
 			service_reference: Optional reference to the service document.
 			claim_cost: Cost of this claim (for value-cap tracking).
+			reference_doctype / reference_name: The source document consuming this
+				claim (CH Warranty Claim / Service Request). Used as the idempotency
+				key — if a "Claim Used" ledger row already exists for the same
+				reference the counter is NOT bumped again. This guards against
+				double-counting when a CH Warranty Claim spawns a Service Request
+				and both call record_claim.
 
 		Raises:
 			WarrantyExpiredError: If plan has expired.
 			MaxClaimsReachedError: If max_claims limit reached or per-year limit exceeded.
 		"""
 		today = getdate(nowdate())
+
+		# ── Idempotency guard ────────────────────────────────────────────
+		# Market-standard consumption ledger dedup (SAP CS "Warranty Claim
+		# Reference", Oracle Service "Coverage Consumption" record).
+		ref_dt = reference_doctype or ("Service Request" if service_reference else None)
+		ref_nm = reference_name or service_reference
+		if ref_dt and ref_nm:
+			already = frappe.db.exists(
+				"CH VAS Ledger",
+				{
+					"sold_plan": self.name,
+					"event_type": "Claim Used",
+					"reference_doctype": ref_dt,
+					"reference_name": ref_nm,
+				},
+			)
+			if already:
+				return  # Already counted — nothing to do.
 
 		if self.end_date and today > getdate(self.end_date):
 			self.db_set("status", "Expired")
@@ -541,6 +760,15 @@ class ActiveVASPlans(Document):
 		# Check if claims now exhausted
 		if self.max_claims and self.max_claims > 0 and self.claims_used >= self.max_claims:
 			self.db_set("status", "Claimed")
+
+		# Ledger row is our audit + idempotency record. Written here (not by the
+		# caller) so record_claim always leaves the ledger in a consistent state.
+		self._log_vas_event(
+			"Claim Used",
+			claim_amount=flt(claim_cost),
+			reference_doctype=ref_dt,
+			reference_name=ref_nm,
+		)
 
 		frappe.msgprint(
 			_("Warranty claim recorded. Claims used: {0}/{1}").format(
@@ -678,3 +906,64 @@ def check_warranty_status(serial_no, company=None) -> dict:
 		"covering_plan": valid_plans[0],
 		"all_plans": plans,
 	}
+
+
+# ── Scheduled jobs ─────────────────────────────────────────────────────────
+
+def recognize_vas_revenue_monthly(as_of_date=None):
+	"""Scheduled monthly job — post straight-line revenue recognition JEs.
+
+	Runs on the 1st of every month (see ch_erp15 hooks). For each currently
+	Active plan, moves the earned portion of the deferred balance from the
+	Deferred Revenue liability account into the Revenue Recognition income
+	account. Idempotent — safe to re-run any time.
+
+	This is the ASC 606 / IFRS 15 counterpart to
+	:meth:`ActiveVASPlans._post_deferred_revenue_gl` which parks the full
+	plan price on activation. Together they implement the same revenue
+	profile SAP RA, Oracle Revenue Management and Dynamics 365 Revenue
+	Recognition use for service contracts and extended warranties.
+	"""
+	as_of = getdate(as_of_date or nowdate())
+
+	plans = frappe.get_all(
+		"Active VAS Plans",
+		filters={
+			"docstatus": 1,
+			"status": ("in", ["Active", "Claimed", "Expired"]),
+			"start_date": ("<=", as_of),
+			"plan_price": (">", 0),
+		},
+		pluck="name",
+	)
+
+	summary = {"processed": 0, "posted": 0, "skipped": 0, "total_recognized": 0.0}
+	for plan_name in plans:
+		try:
+			plan = frappe.get_doc("Active VAS Plans", plan_name)
+			result = plan.recognize_revenue_up_to(as_of)
+			summary["processed"] += 1
+			if result.get("delta", 0) > 0:
+				summary["posted"] += 1
+				summary["total_recognized"] += flt(result["delta"])
+			else:
+				summary["skipped"] += 1
+		except Exception:
+			frappe.log_error(
+				frappe.get_traceback(),
+				f"VAS monthly revenue recognition failed for {plan_name}",
+			)
+
+	frappe.logger("vas_revenue").info(
+		f"recognize_vas_revenue_monthly: {summary}"
+	)
+	return summary
+
+
+@frappe.whitelist()
+def recognize_revenue_now(sold_plan):
+	"""Manual trigger for finance to recognise revenue on a single plan
+	up to today (useful for period-end catch-up).
+	"""
+	doc = frappe.get_doc("Active VAS Plans", sold_plan)
+	return doc.recognize_revenue_up_to(nowdate())

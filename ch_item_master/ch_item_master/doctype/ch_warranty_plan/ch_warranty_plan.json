@@ -217,6 +217,27 @@
    "description": "What this plan costs GoFix (underwriting, third-party premium, etc.)"
   },
   {
+   "fieldname": "deferred_revenue_account",
+   "fieldtype": "Link",
+   "label": "Deferred Revenue Account",
+   "options": "Account",
+   "description": "ASC 606: liability account that parks the plan sale until earned over time. Blank → falls back to Company.default_deferred_revenue_account."
+  },
+  {
+   "fieldname": "revenue_account",
+   "fieldtype": "Link",
+   "label": "Revenue Recognition Account",
+   "options": "Account",
+   "description": "Income account that receives recognised revenue each period. Blank → falls back to the Sales Invoice line's income_account, then Company.default_income_account."
+  },
+  {
+   "fieldname": "warranty_expense_account",
+   "fieldtype": "Link",
+   "label": "Warranty Expense Account",
+   "options": "Account",
+   "description": "Expense account for warranty repair / spare / labour costs when a claim is consumed. Blank → falls back to Company.default_expense_account."
+  },
+  {
    "fieldname": "section_applicability",
    "fieldtype": "Section Break",
    "label": "Applicability"

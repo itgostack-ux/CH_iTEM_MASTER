@@ -286,6 +286,24 @@
    "description": "System-created journal entry that moved VAS revenue to deferred revenue."
   },
   {
+   "fieldname": "revenue_recognized_amount",
+   "fieldtype": "Currency",
+   "label": "Revenue Recognized (Cumulative)",
+   "default": "0",
+   "read_only": 1,
+   "no_copy": 1,
+   "description": "ASC 606 straight-line: running total of revenue recognised from the deferred balance. Updated by the monthly recognition scheduler."
+  },
+  {
+   "fieldname": "revenue_last_recognized_on",
+   "fieldtype": "Date",
+   "label": "Last Recognition Posting",
+   "read_only": 1,
+   "no_copy": 1,
+   "hidden": 1,
+   "description": "Period-end date of the most recent recognition JE posted for this plan."
+  },
+  {
    "fieldname": "section_snapshot",
    "fieldtype": "Section Break",
    "label": "Active Plan Snapshot",
