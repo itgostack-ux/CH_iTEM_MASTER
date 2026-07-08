@@ -209,23 +209,6 @@ STATUS_REGISTRY = {
 			"Expired",
 		],
 	},
-	"CH Store Material Request": {
-		"status": [
-			"Draft",
-			"Pending Approval",
-			"Approved",
-			"Rejected",
-			"Under Review",
-			"Allocation Planned",
-			"Partially Allocated",
-			"Procurement Initiated",
-			"In Transit",
-			"Partially Received",
-			"Fulfilled",
-			"Closed With Reason",
-			"Cancelled",
-		],
-	},
 	"CH Transfer Manifest": {
 		"status": [
 			"Draft",
