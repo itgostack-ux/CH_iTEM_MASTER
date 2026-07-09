@@ -128,18 +128,22 @@ def ensure_item_tax_template(
 
 	abbr = frappe.db.get_value("Company", company, "abbr") or company
 	# Compact title: humans see this in dropdowns. Fixed pattern so future runs
-	# can recognise (and reuse) what we created.
+	# can recognise (and reuse) what we created. NO company abbr here —
+	# ItemTaxTemplate.autoname already appends " - {abbr}", so putting it in
+	# the title would double it in the document name ("GST 3% - GF - GF").
 	title_rate = int(gst_rate) if float(gst_rate).is_integer() else gst_rate
 	if gst_treatment == "Taxable":
-		title = f"GST {title_rate}% - {abbr}"
+		title = f"GST {title_rate}%"
 	else:
-		title = f"GST {gst_treatment} - {abbr}"
+		title = f"GST {gst_treatment}"
 
-	# Disambiguate if a stale-but-disabled template with the same title exists.
-	if frappe.db.exists("Item Tax Template", title):
+	# Disambiguate if a stale-but-disabled template already occupies the name
+	# autoname would produce ("{title} - {abbr}").
+	autoname_target = f"{title} - {abbr}"
+	if frappe.db.exists("Item Tax Template", autoname_target):
 		# Caller asked for a clean lookup — return whatever exists at that
 		# exact name so we never insert two with conflicting titles.
-		return title
+		return autoname_target
 
 	doc = frappe.new_doc("Item Tax Template")
 	doc.update(

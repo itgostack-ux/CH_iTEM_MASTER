@@ -127,7 +127,9 @@ def _cleanup_templates_for_hsn():
 	titles = frappe.get_all(
 		"Item Tax Template",
 		filters=[
-			["title", "like", "GST 18% - %"],
+			# New shape: title is exactly "GST 18%" (abbr lives only in the
+			# name via autoname). Legacy shape: "GST 18% - {abbr}".
+			["title", "like", "GST 18%%"],
 		],
 		pluck="name",
 	)
