@@ -34,6 +34,7 @@
   "is_service_enabled",
   "column_break_cap",
   "is_retail_enabled",
+  "is_hub",
   "users_section",
   "store_users"
  ],
@@ -220,6 +221,15 @@
    "fieldname": "is_retail_enabled",
    "fieldtype": "Check",
    "label": "Retail Enabled"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_hub",
+   "fieldtype": "Check",
+   "label": "Is Hub / Distribution Center",
+   "description": "Mark this store as a hub / DC. Hubs receive supplier POs and distribute stock to retail stores mapped via CH Route.",
+   "in_standard_filter": 1,
+   "in_list_view": 1
   },
   {
    "fieldname": "users_section",
