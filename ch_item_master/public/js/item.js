@@ -115,13 +115,24 @@ frappe.ui.form.on('Item', {
         // Applies to ALL items, not just CH-managed ones, because the
         // Purchase Receipt / POS / IMEI Tracker pipeline reads this for any
         // serialised item. Prompts the user instead of just rejecting.
+        //
+        // Tri-state contract:
+        //   IMEI / Barcode → has_serial_no = 1 (per-unit tracking)
+        //   UOM            → has_serial_no = 0 (quantity only)
+        if (frm.doc.ch_serial_kind === 'UOM' && cint(frm.doc.has_serial_no)) {
+            // Force off — UOM means quantity only, no per-unit serial.
+            frm.doc.has_serial_no = 0;
+        }
         if (cint(frm.doc.has_serial_no) && !frm.doc.ch_serial_kind) {
             frappe.validated = false;
             _prompt_serial_kind(frm);
             return;
         }
-        if (!cint(frm.doc.has_serial_no) && frm.doc.ch_serial_kind) {
-            // Toggled OFF — clear stale classification so it doesn't drift.
+        if (!cint(frm.doc.has_serial_no)
+            && frm.doc.ch_serial_kind
+            && frm.doc.ch_serial_kind !== 'UOM') {
+            // Toggled OFF from IMEI/Barcode — clear stale classification.
+            // UOM is preserved because UOM implicitly means has_serial_no=0.
             frm.doc.ch_serial_kind = null;
         }
 
@@ -182,9 +193,17 @@ frappe.ui.form.on('Item', {
     // modal forcing them to pick IMEI vs Barcode at the right moment (item
     // master), by the right person (item creator), not at transaction time.
     has_serial_no(frm) {
+        if (cint(frm.doc.has_serial_no) && frm.doc.ch_serial_kind === 'UOM') {
+            // Can't be both — UOM means quantity only. Flip back off.
+            frm.set_value('has_serial_no', 0);
+            return;
+        }
         if (cint(frm.doc.has_serial_no) && !frm.doc.ch_serial_kind) {
             _prompt_serial_kind(frm);
-        } else if (!cint(frm.doc.has_serial_no) && frm.doc.ch_serial_kind) {
+        } else if (!cint(frm.doc.has_serial_no)
+                   && frm.doc.ch_serial_kind
+                   && frm.doc.ch_serial_kind !== 'UOM') {
+            // Preserve UOM: turning off has_serial_no is expected for UOM.
             frm.set_value('ch_serial_kind', null);
         }
     },
@@ -390,14 +409,14 @@ function _prompt_serial_kind(frm) {
                 fieldtype: 'HTML',
                 options: `
                     <div class="alert alert-warning" style="margin-bottom:15px">
-                        <strong>${__('This item is serial-tracked.')}</strong><br>
-                        ${__('How are serial numbers sourced for this item?')}
+                        <strong>${__('Serial tracking classification required.')}</strong><br>
+                        ${__('How should this item be tracked?')}
                         ${__('This is a one-time master-data classification — it cannot be inferred at transaction time.')}
                     </div>
                     <ul style="font-size:13px;line-height:1.6">
-                        <li><b>IMEI</b> &mdash; ${__('Real 15-digit manufacturer IMEIs scanned/entered at GRN (mobile phones, cellular watches).')}</li>
-                        <li><b>Barcode</b> &mdash; ${__('System-generated barcode serials (accessories, non-cellular devices, peripherals).')}</li>
-                        <li><b>Others</b> &mdash; ${__('Externally supplied serials that are neither real IMEIs nor system-generated barcodes (vendor part serials, refurbished pool, special-handling SKUs).')}</li>
+                        <li><b>IMEI</b> &mdash; ${__('Real 15-digit manufacturer IMEIs scanned/entered at GRN (mobile phones, cellular watches). Enables per-unit serial tracking.')}</li>
+                        <li><b>Barcode</b> &mdash; ${__('System-generated barcode serials (non-cellular devices, peripherals). Enables per-unit serial tracking.')}</li>
+                        <li><b>UOM</b> &mdash; ${__('Quantity only, no per-unit serial (fungible commodities: gifts, small accessories, spare parts). Picking UOM will turn OFF Has Serial No.')}</li>
                     </ul>
                 `,
             },
@@ -418,7 +437,12 @@ function _prompt_serial_kind(frm) {
             }
             frm.__serial_kind_dialog_open = false;
             d.hide();
-            frm.set_value('ch_serial_kind', values.ch_serial_kind).then(() => {
+            // UOM implies has_serial_no=0 (quantity only, no per-unit trace).
+            // Set both fields atomically so the subsequent save is consistent.
+            const to_apply = values.ch_serial_kind === 'UOM'
+                ? { has_serial_no: 0, ch_serial_kind: 'UOM' }
+                : { ch_serial_kind: values.ch_serial_kind };
+            frm.set_value(to_apply).then(() => {
                 frm.save();
             });
         },

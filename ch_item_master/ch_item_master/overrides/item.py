@@ -838,19 +838,33 @@ def _populate_master_ids(doc):
 # SAP/Oracle parity guard — Serial Number Profile classification
 # ─────────────────────────────────────────────────────────────────────────────
 def validate_serial_kind(doc, method=None):
-    """Enforce: if Item.has_serial_no = 1, Item.ch_serial_kind MUST be set.
+    """Enforce the Item.ch_serial_kind ↔ Item.has_serial_no contract.
 
-    Mirrors the SAP MARC-SERNP (Serial Number Profile) / Oracle
-    mtl_system_items.serial_number_control_code contract: an item that is
-    declared as serial-tracked at the master level MUST also declare HOW
-    serials are sourced (IMEI vs Barcode). Without this, downstream
-    consumers (Purchase Receipt → Serial No.ch_is_imei stamping, POS
-    picker label selection, IMEI Tracker filters) have no way to render
-    the correct workflow.
+    Three-way classification (SAP MARC-SERNP / Oracle
+    mtl_system_items.serial_number_control_code parity):
+
+      • ``IMEI``     ⇒ ``has_serial_no = 1``. Real manufacturer IMEIs
+                     scanned at GRN.
+      • ``Barcode``  ⇒ ``has_serial_no = 1``. System-generated barcode
+                     serials, one per unit.
+      • ``UOM``      ⇒ ``has_serial_no = 0``. **Quantity only**, no
+                     per-unit serial tracking. UOM here means the unit
+                     of issue *is* the tracking granularity — the item
+                     is a fungible commodity (accessories, gifts, small
+                     parts). ERPNext core would otherwise demand a
+                     Serial and Batch Bundle for any ``has_serial_no=1``
+                     row at PR / Stock Entry / POS submit, so UOM items
+                     MUST have serial tracking disabled at the master.
+
+    Consequences:
+      • Setting kind = UOM auto-clears ``has_serial_no``.
+      • ``has_serial_no = 1`` with blank kind → prompt for IMEI/Barcode
+        (throw at server tier, modal at UI tier).
+      • ``has_serial_no = 0`` with stale kind IMEI/Barcode → auto-cleared.
 
     Skipped when:
-      • has_serial_no = 0  (non-serialised — no classification needed)
       • flags.ignore_validate is set  (patches, migrations, bulk imports)
+      • Canonical ERPNext test fixtures (``_Test ...``, ``Stock-Reco-...``)
     """
     if getattr(doc.flags, "ignore_validate", False):
         return
@@ -862,14 +876,26 @@ def validate_serial_kind(doc, method=None):
     if item_ref.startswith(("_Test ", "Stock-Reco-")):
         return
 
+    kind = (doc.get("ch_serial_kind") or "").strip()
+
+    # ── UOM = quantity-only classification ─────────────────────────────
+    # Force has_serial_no off so ERPNext core does not demand a Serial
+    # and Batch Bundle at transaction submit.
+    if kind == "UOM":
+        if cint(doc.has_serial_no):
+            doc.has_serial_no = 0
+        return
+
     if not cint(doc.has_serial_no):
-        # Non-serialised items: enforce ch_serial_kind is empty to prevent
-        # stale classification confusing downstream consumers.
-        if doc.get("ch_serial_kind"):
+        # Non-serialised items: enforce ch_serial_kind is empty (or UOM,
+        # handled above) to prevent stale IMEI/Barcode classification
+        # confusing downstream consumers.
+        if kind in ("IMEI", "Barcode"):
             doc.ch_serial_kind = None
         return
 
-    if doc.get("ch_serial_kind") in ("IMEI", "Barcode", "UOM"):
+    # ── has_serial_no = 1 ──────────────────────────────────────────────
+    if kind in ("IMEI", "Barcode"):
         return
 
     # Variants inherit the Serial Number Profile from their template — SAP
@@ -878,8 +904,13 @@ def validate_serial_kind(doc, method=None):
     # before our before_save copy hook runs, so we self-heal here.
     if doc.get("variant_of"):
         tpl_kind = frappe.db.get_value("Item", doc.variant_of, "ch_serial_kind")
-        if tpl_kind in ("IMEI", "Barcode", "UOM"):
+        if tpl_kind in ("IMEI", "Barcode"):
             doc.ch_serial_kind = tpl_kind
+            return
+        if tpl_kind == "UOM":
+            # Template is quantity-only — variant follows the same rule.
+            doc.ch_serial_kind = "UOM"
+            doc.has_serial_no = 0
             return
         # Template itself is misclassified — fall through to throw so the
         # operator fixes the template, not the variant.
@@ -909,9 +940,9 @@ def validate_serial_kind(doc, method=None):
             "(mobile phones, smart watches with cellular).<br>"
             "• <b>Barcode</b> — system-generated barcode serials "
             "(accessories, non-cellular devices).<br>"
-            "• <b>Others</b> — externally supplied serials that are neither "
-            "real IMEIs nor system-generated barcodes (vendor part serials, "
-            "refurbished pool serials, special-handling SKUs).<br><br>"
+            "• <b>UOM</b> — quantity only, no per-unit serial tracking "
+            "(fungible commodities: gifts, small accessories, spare parts). "
+            "Choosing UOM will also turn off <b>Has Serial No</b>.<br><br>"
             "This is a master-data decision and cannot be inferred at "
             "transaction time."
         ).format(doc.item_code or doc.name or _("(new)")),
