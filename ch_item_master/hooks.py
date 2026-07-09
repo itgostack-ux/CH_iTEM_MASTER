@@ -120,6 +120,8 @@ doc_events = {
 		"validate": [
 			# SAP/Oracle parity: has_serial_no=1 requires ch_serial_kind set.
 			"ch_item_master.ch_item_master.overrides.item.validate_serial_kind",
+			# Mandatory on all items (IMEI/Barcode/UOM) — prevent NULL tracking
+			"ch_item_master.ch_item_master.governance.validate_serial_kind_mandatory",
 			# MRP mandatory for stock items; must be > 0 before save.
 			"ch_item_master.ch_item_master.item_mrp.validate_item_mrp",
 		],

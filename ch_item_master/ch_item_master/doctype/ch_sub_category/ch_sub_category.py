@@ -170,12 +170,18 @@ class CHSubCategory(Document):
 					("Simple Custom-Named", "Simple Auto-Named"),
 				}
 				if (old_nature, nature) not in safe_transitions:
-					raise ItemNatureLockedError(
+					# Use frappe.throw (not bare raise) so the desk client
+					# receives a rendered dialog — a bare raise on a
+					# ValidationError subclass returns HTTP 417 with empty
+					# _server_messages and the save fails silently.
+					frappe.throw(
 						_(
 							"Cannot change Item Nature from '{0}' to '{1}' on Sub"
 							" Category {2}: items already exist. Allowed transitions:"
 							" Simple Auto-Named <-> Simple Custom-Named."
-						).format(old_nature, nature, self.name)
+						).format(old_nature, nature, self.name),
+						exc=ItemNatureLockedError,
+						title=_("Item Nature Locked"),
 					)
 
 	def _has_existing_items(self):

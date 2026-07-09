@@ -183,7 +183,13 @@ _TRANSACTION_ITEM_FIELD = "item_code"
 def assert_item_transactable(item_code: str, doctype: str = "") -> None:
 	"""Raise ItemNotActiveError if the Item is not in 'Active' lifecycle state.
 
-	Cheap single-field DB lookup; no doc load.
+	Cheap single-field DB lookup; no doc load. Uses ``frappe.throw`` (not a
+	bare ``raise``) so the error is appended to ``_server_messages`` and the
+	desk client actually renders a red alert dialog — a bare ``raise`` on a
+	``ValidationError`` subclass returns HTTP 417 with an empty
+	``_server_messages`` list, which the ``frappe.request`` layer swallows
+	silently. The ``exc=`` kwarg preserves the ``ItemNotActiveError`` class
+	so ``assertRaises(ItemNotActiveError)`` tests still pass.
 	"""
 	if not item_code:
 		return
@@ -191,10 +197,12 @@ def assert_item_transactable(item_code: str, doctype: str = "") -> None:
 	# Backward-compat: items that pre-date the field show as None — treat as
 	# Active so existing data keeps working until the backfill patch runs.
 	if status and status != ACTIVE_STATE:
-		raise ItemNotActiveError(
+		frappe.throw(
 			_("Item {0} is in lifecycle status '{1}' and cannot be used in {2}. Activate the item first.").format(
 				frappe.bold(item_code), status, doctype or _("transactions")
-			)
+			),
+			exc=ItemNotActiveError,
+			title=_("Item Not Active"),
 		)
 
 
@@ -493,3 +501,30 @@ def _ensure_workflow(name: str, document_type: str, state_field: str) -> None:
 	wf.flags.ignore_permissions = True
 	wf.flags.ignore_links = True
 	wf.save(ignore_permissions=True)
+
+
+def validate_serial_kind_mandatory(doc) -> None:
+	"""Enforce ch_serial_kind is mandatory and not empty on Item save.
+	
+	Prevents production issues from items with no tracking classification
+	(NULL ch_serial_kind defaults to no tracking, which can silently cause
+	issues during purchase receipt and stock movement).
+	
+	Valid values: 'IMEI', 'Barcode', 'UOM'.
+	Items with no tracking still need UOM classification to be explicit.
+	"""
+	if doc.is_new() or not doc.has_value_changed("ch_serial_kind"):
+		return
+	
+	serial_kind = (doc.get("ch_serial_kind") or "").strip()
+	if not serial_kind:
+		frappe.throw(
+			_("Serial Number Kind is mandatory. Please select one of: IMEI, Barcode, or UOM."),
+			title=_("Serial Kind Required"),
+		)
+	
+	if serial_kind not in ("IMEI", "Barcode", "UOM"):
+		frappe.throw(
+			_("Invalid Serial Number Kind '{0}'. Valid values: IMEI, Barcode, UOM.").format(serial_kind),
+			title=_("Invalid Serial Kind"),
+		)
