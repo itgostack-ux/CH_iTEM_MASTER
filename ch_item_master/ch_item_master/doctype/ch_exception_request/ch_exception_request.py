@@ -45,6 +45,31 @@ class CHExceptionRequest(Document):
 			self.customer_phone = validate_indian_phone(self.customer_phone, "Customer Phone")
 		self._validate_exception_type()
 		self._check_daily_limit()
+		self._validate_customer_for_pos()
+
+	def _validate_customer_for_pos(self):
+		"""POS-raised exceptions must carry a real customer identity.
+
+		Doctrine (Oracle Xstore / SAP CAR-POS / Dynamics 365 Commerce):
+		manager approvals are customer-scoped grants — they cannot be
+		floating credits reusable across bills. Defense-in-depth for the
+		exception_api.raise_exception guard.
+		"""
+		if not self.pos_profile:
+			return
+		if not self.customer:
+			frappe.throw(
+				_("Customer is mandatory for POS exception requests. "
+				  "Select a customer on the cart before raising an exception."),
+				title=_("Customer Required"),
+			)
+		walk_in = frappe.db.get_value("POS Profile", self.pos_profile, "customer")
+		if walk_in and self.customer == walk_in:
+			frappe.throw(
+				_("Cannot raise an exception for the walk-in customer. "
+				  "Register the customer first, then raise the exception."),
+				title=_("Real Customer Required"),
+			)
 
 	def _validate_approver(self, approver):
 		approver = approver or frappe.session.user
@@ -240,6 +265,16 @@ class CHExceptionRequest(Document):
 			return False
 		if self.approval_expiry and now_datetime() > self.approval_expiry:
 			return False
+		# Same-day rule (Oracle Xstore / SAP CAR-POS parity): an approval
+		# consumed on a later day is a governance leak — the store manager
+		# who approved a discount on Monday did NOT approve it for
+		# Wednesday's bill. Reject the exception once its raise date has
+		# rolled over, regardless of approval_expiry (some etypes carry
+		# multi-day validity_minutes which is safe for back-office
+		# workflows but not for POS bill consumption).
+		if self.pos_profile and self.raised_at:
+			if getdate(self.raised_at) != getdate():
+				return False
 		return True
 
 	# ═══════════════════════════════════════════════════════════════════════

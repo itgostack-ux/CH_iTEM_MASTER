@@ -27,6 +27,33 @@ def raise_exception(exception_type, company, reason, requested_value=0,
 
 	frappe.has_permission("CH Exception Request", "create", throw=True)
 
+	# ── Customer identity is mandatory for POS-raised exceptions ──────────
+	# Doctrine (Oracle Xstore / SAP CAR-POS / Dynamics 365 Commerce): a
+	# discount / price override / return-beyond-policy approval is a
+	# CUSTOMER-scoped grant, not a store-scoped bearer token. Without a
+	# customer identity, the approved exception becomes a floating
+	# credit that can be reused across bills / walk-ins — that is exactly
+	# what happened in prod (CHEXC raised on bill A, silently consumed on
+	# bill B for a different customer).
+	#
+	# Enforce here (server = source of truth) so no client bypass is
+	# possible. The walk-in customer configured on the POS Profile is
+	# treated as "no customer" because it's an anonymous placeholder, not
+	# an identity.
+	customer = (customer or "").strip() or None
+	walk_in_customer = None
+	if pos_profile:
+		walk_in_customer = (
+			frappe.db.get_value("POS Profile", pos_profile, "customer") or None
+		)
+	if pos_profile and (not customer or (walk_in_customer and customer == walk_in_customer)):
+		frappe.throw(
+			_("Select a real customer before raising an exception. "
+			  "The default walk-in customer cannot own an approval — "
+			  "approvals are customer-scoped and cannot be reused across bills."),
+			title=_("Customer Required"),
+		)
+
 	# IM-12 fix: Prevent duplicate open exception requests for same IMEI+store+type.
 	# Fallback to item-level only when IMEI is not available.
 	if store_warehouse and (serial_no or item_code):
@@ -495,11 +522,27 @@ def check_exception_valid(exception_name) -> dict:
 	"""
 	exc = frappe.get_doc("CH Exception Request", exception_name)
 	valid = exc.is_valid()
+	# Diagnose WHY the exception is not valid so the client can surface an
+	# actionable message instead of a bare "no longer valid". Kept in sync
+	# with CHExceptionRequest.is_valid so any new guard there flows through.
+	invalid_reason = None
+	if not valid:
+		if exc.status not in ("Approved", "Auto-Approved") or exc.docstatus != 1:
+			invalid_reason = "not_approved"
+		elif exc.approval_expiry and now_datetime() > exc.approval_expiry:
+			invalid_reason = "expired"
+		elif exc.pos_profile and exc.raised_at and getdate(exc.raised_at) != getdate():
+			invalid_reason = "different_day"
+		else:
+			invalid_reason = "unknown"
 	return {
 		"name": exc.name,
 		"valid": valid,
+		"invalid_reason": invalid_reason,
 		"status": exc.status,
 		"approval_expiry": str(exc.approval_expiry) if exc.approval_expiry else None,
+		"raised_at": str(exc.raised_at) if exc.raised_at else None,
+		"pos_profile": exc.pos_profile,
 		"item_code": exc.item_code,
 		"serial_no": exc.serial_no,
 		"customer": exc.customer,

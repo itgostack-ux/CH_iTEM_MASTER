@@ -41,4 +41,12 @@ def run_all():
     passed = len([r for r in results if r[0] == "PASS"])
     failed = len([r for r in results if r[0] == "FAIL"])
     print(f"\nSummary: PASS={passed} FAIL={failed}")
+    # Hard-fail so CI actually blocks the release on a regression — returning a
+    # failed count is not enough; the runner must see a non-zero exit / raised
+    # exception.
+    if failed:
+        failures = [r for r in results if r[0] == "FAIL"]
+        raise AssertionError(
+            f"Supplier price gap smoke tests FAILED: {failed} failure(s) — {failures}"
+        )
     return {"passed": passed, "failed": failed, "results": results}
