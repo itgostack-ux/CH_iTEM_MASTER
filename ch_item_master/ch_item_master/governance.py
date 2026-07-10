@@ -512,8 +512,12 @@ def _ensure_workflow(name: str, document_type: str, state_field: str) -> None:
 	wf.save(ignore_permissions=True)
 
 
-def validate_serial_kind_mandatory(doc) -> None:
+def validate_serial_kind_mandatory(doc, method=None) -> None:
 	"""Enforce ch_serial_kind is mandatory and not empty on Item save.
+
+	Registered as an Item ``validate`` hook — Frappe invokes doc-event
+	hooks with ``(doc, method)`` so the second parameter must be
+	accepted even though we don't use it.
 	
 	Prevents production issues from items with no tracking classification
 	(NULL ch_serial_kind defaults to no tracking, which can silently cause
