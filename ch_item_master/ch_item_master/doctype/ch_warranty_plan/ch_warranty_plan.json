@@ -276,6 +276,50 @@
    "description": "Channels where this plan is available. Leave blank = all channels."
   },
   {
+   "fieldname": "sellable_section",
+   "fieldtype": "Section Break",
+   "label": "Sellable Catalog",
+   "collapsible": 1,
+   "description": "Controls visibility of this plan in the POS 'Add VAS' / walk-up catalog. Governance-only plans (e.g. Own Warranty bundled with a device sale) should leave 'Is Sellable' unchecked."
+  },
+  {
+   "fieldname": "is_sellable",
+   "fieldtype": "Check",
+   "label": "Is Sellable",
+   "default": "0",
+   "description": "If enabled, this plan appears in POS get_vas_plans_with_rules and in the walk-up catalog. Absorbed from the deprecated VAS Plan wrapper."
+  },
+  {
+   "fieldname": "partner",
+   "fieldtype": "Link",
+   "label": "Partner",
+   "options": "VAS Partner",
+   "description": "Underwriting / fulfilment partner for this plan (e.g. GoGizmo, third-party insurer). Optional."
+  },
+  {
+   "fieldname": "auto_attach",
+   "fieldtype": "Check",
+   "label": "Auto-Attach",
+   "default": "0",
+   "description": "When set, POS auto-suggests this plan for qualifying items. Applied via CH Attach Rule."
+  },
+  {
+   "fieldname": "column_break_sellable",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "min_device_price",
+   "fieldtype": "Currency",
+   "label": "Minimum Device Price",
+   "description": "Below this device price the plan is hidden. 0 = no lower bound."
+  },
+  {
+   "fieldname": "max_device_price",
+   "fieldtype": "Currency",
+   "label": "Maximum Device Price",
+   "description": "Above this device price the plan is hidden. 0 = no upper bound."
+  },
+  {
    "fieldname": "external_device_section",
    "fieldtype": "Section Break",
    "label": "External Customer Device",

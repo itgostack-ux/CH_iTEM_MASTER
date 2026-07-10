@@ -20,7 +20,10 @@ ch_item_master.patches.v11_ch_state_master
 ch_item_master.patches.v12_collapse_sellable_bin
 ch_item_master.patches.v13_sync_serial_lifecycle_warehouse
 ch_item_master.patches.v14_backfill_current_store
-ch_item_master.patches.v15_phase3_vas_first_class
+# v15_phase3_vas_first_class was the original VAS Plan/Product/Claim
+# backfill. It is superseded by v28 (merge back into CH Warranty Plan)
+# and the DocTypes it created no longer exist. Kept as a no-op so
+# servers that already ran it stay idempotent.
 ch_item_master.patches.v16_add_demo_bin
 ch_item_master.patches.v17_drop_subcategory_itemlevel_flags
 ch_item_master.patches.v18_manufacturer_read_perms
@@ -41,3 +44,4 @@ ch_item_master.patches.v27_seed_location_hierarchy_baseline
 ch_item_master.patches.v28_canonicalise_city_pks
 ch_item_master.patches.v29_strip_duplicate_state_suffix_from_city
 ch_item_master.patches.v30_dedupe_item_tax_template_company_abbr
+ch_item_master.patches.v31_merge_vas_plan_into_ch_warranty_plan

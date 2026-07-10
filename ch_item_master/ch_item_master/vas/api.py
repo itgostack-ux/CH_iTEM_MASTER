@@ -1,3 +1,21 @@
+"""VAS catalog APIs — thin redirects to CH Warranty Plan.
+
+Historical context: this module used to query the deprecated ``VAS
+Product`` / ``VAS Plan`` / ``VAS Attach Rule`` / ``VAS Claim``
+doctypes, which mirrored ``CH Warranty Plan`` / ``CH Attach Rule`` /
+``CH Warranty Claim``. Those wrappers have been merged back into
+their source doctypes (see
+``ch_item_master.patches.v31_merge_vas_plan_into_ch_warranty_plan``).
+
+These whitelisted endpoints are kept so any front-end still calling
+``ch_item_master.ch_item_master.vas.api.*`` continues to work — they
+now query the CH Warranty Plan / CH Warranty Claim / CH Attach Rule
+surfaces directly.
+
+``VAS Commission`` and ``VAS Partner`` are separate doctypes that
+were NOT merged and continue to work as-is.
+"""
+
 import frappe
 from frappe.utils import flt
 
@@ -13,13 +31,24 @@ def _item_price_for_pos(item_code: str) -> float:
 
 @frappe.whitelist()
 def get_vas_product_catalog(limit=50):
+	"""Return sellable CH Warranty Plans as a product-style catalog.
+
+	VAS Product used to mirror the plan's service_item as a
+	separate SKU. Post-merge the plan owns the service_item link
+	directly, so this endpoint just filters CH Warranty Plans that
+	are marked ``is_sellable=1``.
+	"""
 	limit = min(int(limit or 50), 200)
-	if not frappe.db.exists("DocType", "VAS Product"):
-		return []
 	return frappe.get_all(
-		"VAS Product",
-		filters={"is_active": 1},
-		fields=["name", "product_name", "service_item", "product_type", "brand", "category"],
+		"CH Warranty Plan",
+		filters={"status": "Active", "is_sellable": 1},
+		fields=[
+			"name AS name",
+			"plan_name AS product_name",
+			"service_item",
+			"plan_type AS product_type",
+			"brand",
+		],
 		order_by="modified desc",
 		limit=limit,
 	)
@@ -27,27 +56,16 @@ def get_vas_product_catalog(limit=50):
 
 @frappe.whitelist()
 def get_vas_plan_catalog(limit=100):
-	"""Phase-3 catalog API while still reusing CH Warranty Plan as source of truth."""
+	"""Return sellable CH Warranty Plans."""
 	limit = min(int(limit or 100), 300)
-	if frappe.db.exists("DocType", "VAS Plan"):
-		plans = frappe.get_all(
-			"VAS Plan",
-			filters={"status": "Active"},
-			fields=["name", "plan_name", "vas_product", "source_warranty_plan", "list_price", "duration_months", "partner"],
-			order_by="modified desc",
-			limit=limit,
-		)
-		for plan in plans:
-			if plan.get("source_warranty_plan"):
-				plan["fulfillment_type"] = frappe.db.get_value(
-					"CH Warranty Plan", plan.source_warranty_plan, "fulfillment_type"
-				)
-		return plans
-
 	return frappe.get_all(
 		"CH Warranty Plan",
-		filters={"status": "Active"},
-		fields=["name", "plan_name", "service_item", "price", "duration_months", "plan_type", "fulfillment_type"],
+		filters={"status": "Active", "is_sellable": 1},
+		fields=[
+			"name", "plan_name", "service_item", "price",
+			"duration_months", "plan_type", "fulfillment_type",
+			"partner", "min_device_price", "max_device_price",
+		],
 		order_by="modified desc",
 		limit=limit,
 	)
@@ -55,18 +73,14 @@ def get_vas_plan_catalog(limit=100):
 
 @frappe.whitelist()
 def get_vas_claims(limit=100):
+	"""Return CH Warranty Claims (the single claim surface post-merge)."""
 	limit = min(int(limit or 100), 300)
-	if frappe.db.exists("DocType", "VAS Claim"):
-		return frappe.get_all(
-			"VAS Claim",
-			fields=["name", "claim_date", "customer", "vas_plan", "claim_status", "approved_amount", "source_warranty_claim"],
-			order_by="modified desc",
-			limit=limit,
-		)
-
 	return frappe.get_all(
 		"CH Warranty Claim",
-		fields=["name", "claim_date", "customer", "sold_plan", "claim_status", "approved_amount"],
+		fields=[
+			"name", "claim_date", "customer", "sold_plan",
+			"claim_status", "approved_amount",
+		],
 		order_by="modified desc",
 		limit=limit,
 	)
@@ -74,86 +88,21 @@ def get_vas_claims(limit=100):
 
 @frappe.whitelist()
 def get_vas_attach_offers(item_code: str, selling_price=None, company=None):
-	"""Auto-attach rules by item/category/brand + price band for POS use."""
+	"""Delegate to the single CH Attach Rule surface.
+
+	The mirror ``VAS Attach Rule`` doctype has been deleted.
+	``ch_pos.pos_core.doctype.ch_attach_rule.ch_attach_rule.get_attach_rules_for_item``
+	is the single source of truth for attach offers.
+	"""
 	if not item_code:
 		return []
-	if not frappe.db.exists("DocType", "VAS Attach Rule"):
+	try:
+		from ch_pos.pos_core.doctype.ch_attach_rule.ch_attach_rule import (
+			get_attach_rules_for_item,
+		)
+	except ImportError:
 		return []
-
-	item = frappe.get_cached_doc("Item", item_code)
-	price = flt(selling_price) if selling_price is not None else _item_price_for_pos(item_code)
-
-	rules = frappe.get_all(
-		"VAS Attach Rule",
-		filters={"is_active": 1},
-		fields=[
-			"name", "rule_name", "company", "vas_plan", "item_code", "brand", "category", "sub_category",
-			"min_price", "max_price", "auto_add", "mandatory_offer", "priority",
-		],
-		order_by="priority desc, modified desc",
-	)
-
-	out = []
-	for rule in rules:
-		if company and rule.company and rule.company != company:
-			continue
-		if rule.item_code and rule.item_code != item_code:
-			continue
-		if rule.brand and rule.brand != getattr(item, "brand", None):
-			continue
-		if rule.category and rule.category != getattr(item, "ch_category", None):
-			continue
-		if rule.sub_category and rule.sub_category != getattr(item, "ch_sub_category", None):
-			continue
-		if rule.min_price and price < flt(rule.min_price):
-			continue
-		if rule.max_price and price > flt(rule.max_price):
-			continue
-
-		plan = frappe.db.get_value(
-			"VAS Plan",
-			rule.vas_plan,
-			["plan_name", "source_warranty_plan", "list_price", "vas_product"],
-			as_dict=True,
-		)
-		service_item = None
-		fulfillment_type = None
-		if plan and plan.get("vas_product"):
-			service_item = frappe.db.get_value("VAS Product", plan["vas_product"], "service_item")
-		if not service_item and plan and plan.get("source_warranty_plan"):
-			source_plan = frappe.db.get_value(
-				"CH Warranty Plan",
-				plan["source_warranty_plan"],
-				["service_item", "fulfillment_type"],
-				as_dict=True,
-			)
-			if source_plan:
-				service_item = source_plan.service_item
-				fulfillment_type = source_plan.fulfillment_type
-
-		out.append(
-			{
-				"name": rule.name,
-				"rule_name": rule.rule_name,
-				"attach_type": "VAS",
-				"mandatory_offer": rule.mandatory_offer,
-				"auto_add": rule.auto_add,
-				"priority": rule.priority,
-				"vas_plan": rule.vas_plan,
-				"plan_name": plan.get("plan_name") if plan else None,
-				"source_warranty_plan": plan.get("source_warranty_plan") if plan else None,
-				"fulfillment_type": fulfillment_type,
-				"attach_items": [
-					{
-						"item_code": service_item,
-						"item_name": frappe.db.get_value("Item", service_item, "item_name") if service_item else None,
-						"is_mandatory_offer": 1 if rule.mandatory_offer else 0,
-					}
-				],
-			}
-		)
-
-	return out
+	return get_attach_rules_for_item(item_code)
 
 
 @frappe.whitelist()
