@@ -60,7 +60,12 @@
   "reward_item",
   "reward_item_name",
   "reward_price",
-  "reward_qty"
+  "reward_qty",
+  "gamification_section",
+  "is_gamified",
+  "wheel_style",
+  "column_break_gamify",
+  "redemption_ttl_hours"
  ],
  "fields": [
   {
@@ -441,10 +446,44 @@
    "fieldtype": "Int",
    "label": "Reward Qty",
    "depends_on": "eval:in_list(['Attachment','Freebie'], doc.offer_type)"
+  },
+  {
+   "fieldname": "gamification_section",
+   "fieldtype": "Section Break",
+   "label": "Gamification (Spin Wheel)",
+   "depends_on": "eval:doc.offer_type=='Freebie'",
+   "description": "When enabled, the freebie is not disclosed at checkout. Instead, a one-time spin-wheel link is sent to the customer via email/WhatsApp. Redeemable at any store within the TTL against the original invoice."
+  },
+  {
+   "default": "0",
+   "fieldname": "is_gamified",
+   "fieldtype": "Check",
+   "label": "Gamified (Spin Wheel)",
+   "depends_on": "eval:doc.offer_type=='Freebie'"
+  },
+  {
+   "default": "Prize Wheel",
+   "fieldname": "wheel_style",
+   "fieldtype": "Select",
+   "label": "Wheel Style",
+   "options": "Simple\nPrize Wheel\nConfetti",
+   "depends_on": "eval:doc.is_gamified"
+  },
+  {
+   "fieldname": "column_break_gamify",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "168",
+   "fieldname": "redemption_ttl_hours",
+   "fieldtype": "Int",
+   "label": "Redemption Validity (hours)",
+   "depends_on": "eval:doc.is_gamified",
+   "description": "How long the redemption code is valid (default 168 = 7 days)."
   }
  ],
  "links": [],
- "modified": "2026-03-12 00:00:00.000000",
+ "modified": "2026-07-11 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Ch Item Master",
  "name": "CH Item Offer",
