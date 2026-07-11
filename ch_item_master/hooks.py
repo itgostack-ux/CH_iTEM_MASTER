@@ -235,8 +235,13 @@ doc_events = {
 	"Purchase Receipt": {
 		"on_submit": "ch_item_master.ch_item_master.overrides.purchase_receipt.on_submit",
 		"on_cancel": "ch_item_master.ch_item_master.overrides.purchase_receipt.on_cancel",
-		# Warn when purchase rate exceeds Item MRP ceiling.
-		"validate": "ch_item_master.ch_item_master.item_mrp.validate_purchase_mrp_ceiling",
+		"validate": [
+			# Block receiving NEW stock of Obsolete/non-Active items (direct GRN
+			# path — PO/PI already gated). Obsolete may be sold, not purchased.
+			"ch_item_master.ch_item_master.governance.validate_transaction_items",
+			# Warn when purchase rate exceeds Item MRP ceiling.
+			"ch_item_master.ch_item_master.item_mrp.validate_purchase_mrp_ceiling",
+		],
 	},
 	# Mirror Serial No.warehouse → CH Serial Lifecycle.current_warehouse on
 	# every stock movement (Stock Entry, Delivery Note, Sales Invoice,

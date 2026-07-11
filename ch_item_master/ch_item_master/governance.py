@@ -39,7 +39,13 @@ from ch_item_master.ch_item_master.exceptions import (
 
 LIFECYCLE_STATES = ("Draft", "Pending Review", "Active", "Obsolete", "Blocked")
 ACTIVE_STATE = "Active"
+OBSOLETE_STATE = "Obsolete"
 NON_TRANSACTABLE_STATES = ("Draft", "Pending Review", "Obsolete", "Blocked")
+# Inbound / procurement documents. An Obsolete Item may still be SOLD to run
+# down existing stock, but it must NOT be purchased or received new — the
+# lifecycle guard rejects Obsolete items only on these doctypes. (Draft /
+# Pending Review / Blocked items remain rejected everywhere.)
+PURCHASE_DOCTYPES = frozenset({"Purchase Order", "Purchase Invoice", "Purchase Receipt"})
 
 # Allowed forward transitions; any other movement requires CH Master Approver
 # role OR System Manager. "Anyone" = creator/editor; "Approver" = approver-only.
@@ -196,14 +202,76 @@ def assert_item_transactable(item_code: str, doctype: str = "") -> None:
 	status = frappe.db.get_value("Item", item_code, "ch_lifecycle_status")
 	# Backward-compat: items that pre-date the field show as None — treat as
 	# Active so existing data keeps working until the backfill patch runs.
-	if status and status != ACTIVE_STATE:
+	if not status or status == ACTIVE_STATE:
+		return
+	# Obsolete: existing stock may still be SOLD (sell-down) — quantity is
+	# enforced separately by stock availability — but the item may NOT be
+	# purchased or received new. Reject only on procurement documents.
+	if status == OBSOLETE_STATE:
+		if doctype not in PURCHASE_DOCTYPES:
+			return
 		frappe.throw(
-			_("Item {0} is in lifecycle status '{1}' and cannot be used in {2}. Activate the item first.").format(
-				frappe.bold(item_code), status, doctype or _("transactions")
+			_("Item {0} is Obsolete and cannot be purchased on {1}. Existing stock may still be sold.").format(
+				frappe.bold(item_code), doctype or _("purchase documents")
 			),
 			exc=ItemNotActiveError,
-			title=_("Item Not Active"),
+			title=_("Item Obsolete"),
 		)
+	# Draft / Pending Review / Blocked → not usable in any transaction.
+	frappe.throw(
+		_("Item {0} is in lifecycle status '{1}' and cannot be used in {2}. Activate the item first.").format(
+			frappe.bold(item_code), status, doctype or _("transactions")
+		),
+		exc=ItemNotActiveError,
+		title=_("Item Not Active"),
+	)
+
+
+def filter_sellable_items(item_codes, warehouse=None) -> set:
+	"""Return the subset of ``item_codes`` that may be OFFERED FOR SALE in POS.
+
+	Mirrors the sell-side of :func:`assert_item_transactable`, including the
+	"sell-down" rule: an item is offerable when its ``ch_lifecycle_status`` is
+	'Active' (or unset/NULL, pre-field backward-compat), OR it is 'Obsolete' *and
+	still has stock on hand* — so cashiers can run down old inventory. A retired
+	non-stock service item (e.g. a warranty/VAS SKU) carries no Bin quantity and
+	is therefore excluded. Draft / Pending Review / Blocked are never offerable.
+
+	Batched: one status query, plus one Bin query for the Obsolete subset only.
+	Pass ``warehouse`` to scope the stock check to a single store; omit it to
+	treat stock anywhere in the company as sell-down eligible (this matches the
+	lifecycle gate in ``ch_pos.api.search.pos_item_search``). Non-existent codes
+	are dropped. Callers use this so POS never offers an Item that the Sales
+	Invoice guard would then reject.
+	"""
+	codes = {c for c in (item_codes or []) if c}
+	if not codes:
+		return set()
+	# Field not deployed on this site yet → nothing is gated (mirrors the
+	# backward-compat branch in assert_item_transactable that treats None as Active).
+	if not frappe.db.has_column("Item", "ch_lifecycle_status"):
+		return set(codes)
+	rows = frappe.get_all(
+		"Item",
+		filters={"name": ["in", list(codes)]},
+		fields=["name", "ch_lifecycle_status"],
+	)
+	sellable = set()
+	obsolete = set()
+	for r in rows:
+		status = (r.ch_lifecycle_status or "").strip()
+		if not status or status == ACTIVE_STATE:
+			sellable.add(r.name)
+		elif status == OBSOLETE_STATE:
+			obsolete.add(r.name)
+		# Draft / Pending Review / Blocked → never offerable.
+	if obsolete:
+		bin_filters = {"item_code": ["in", list(obsolete)], "actual_qty": [">", 0]}
+		if warehouse:
+			bin_filters["warehouse"] = warehouse
+		with_stock = frappe.get_all("Bin", filters=bin_filters, fields=["item_code"], distinct=True)
+		sellable |= {b.item_code for b in with_stock}
+	return sellable
 
 
 def validate_transaction_items(doc, method=None) -> None:
