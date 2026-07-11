@@ -211,8 +211,28 @@ def ensure_congruence_loyalty_program():
 	for customer in dangling:
 		frappe.db.set_value("Customer", customer, "loyalty_program", name, update_modified=False)
 
+	# Enrol any real customer that still has no loyalty program.
+	# Test / regression fixtures (customer_group starts with '_Test') are
+	# left untouched so unit tests keep their isolated setups.
+	unenrolled = frappe.db.sql_list(
+		"""
+		SELECT name
+		FROM `tabCustomer`
+		WHERE disabled = 0
+		  AND (loyalty_program IS NULL OR loyalty_program = '')
+		  AND (customer_group IS NULL OR customer_group NOT LIKE '\\_Test%%')
+		  AND (customer_name IS NULL OR customer_name NOT LIKE '\\_Test%%')
+		"""
+	)
+	for customer in unenrolled:
+		frappe.db.set_value("Customer", customer, "loyalty_program", name, update_modified=False)
+
 	frappe.db.commit()
-	return {"program": name, "healed_dangling_customers": len(dangling)}
+	return {
+		"program": name,
+		"healed_dangling_customers": len(dangling),
+		"backfilled_unenrolled_customers": len(unenrolled),
+	}
 
 
 # ── Cross-company loyalty (market-standard) ──────────────────────────────────
