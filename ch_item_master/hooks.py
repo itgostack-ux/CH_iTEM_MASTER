@@ -47,6 +47,7 @@ after_migrate = [
 	"ch_item_master.ch_core.location_hierarchy.backfill_bin_zones",
 	"ch_item_master.ch_core.location_hierarchy.repair_retail_location_integrity",
 	"ch_item_master.ch_core.bin_transfer.seed_default_reasons",
+	"ch_item_master.ch_customer_master.loyalty.ensure_congruence_loyalty_program",
 	"ch_item_master.ch_item_master.backfill_ids.backfill_ids_after_migrate",
 	"ch_item_master.seed_status_registry.validate_status_registry",
 	"ch_item_master.ch_item_master.page.imei_tracker.imei_tracker_api.backfill_is_imei_flag",

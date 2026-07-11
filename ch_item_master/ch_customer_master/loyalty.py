@@ -151,6 +151,70 @@ def ensure_loyalty_baseline(
 	}
 
 
+CONGRUENCE_LOYALTY_PROGRAM = "Congruence Loyalty"
+
+
+def ensure_congruence_loyalty_program():
+	"""Seed the brand-wide default loyalty program ``Congruence Loyalty``.
+
+	Idempotent; runs on every ``after_migrate`` so it is always present in every
+	environment. The program's ``company`` is deliberately left BLANK so it
+	applies to ALL companies — ``get_applicable_loyalty_programs`` treats a
+	company-less program as universal (see its company filter) — making it the
+	fallback used whenever a customer/company has no company-specific program.
+
+	Also self-heals customers that point at a *deleted* loyalty program
+	(dangling link), which would otherwise fail Sales Invoice insert with
+	"Could not find Loyalty Program ...".
+	"""
+	name = CONGRUENCE_LOYALTY_PROGRAM
+
+	if not frappe.db.exists("Loyalty Program", name):
+		doc = frappe.get_doc({
+			"doctype": "Loyalty Program",
+			"loyalty_program_name": name,
+			"loyalty_program_type": "Single Tier Program",
+			"from_date": "2020-01-01",
+			"auto_opt_in": 1,
+			"conversion_factor": 1,
+			"expiry_duration": 365,
+			"collection_rules": [
+				{"tier_name": "Member", "collection_factor": 100, "min_spent": 0}
+			],
+		})
+		doc.flags.ignore_permissions = True
+		doc.insert()
+
+	# ERPNext auto-fills company with the site default company on insert; force
+	# it blank so the program is universal, and keep it auto-opt-in.
+	current = frappe.db.get_value(
+		"Loyalty Program", name, ["company", "auto_opt_in"], as_dict=True
+	)
+	updates = {}
+	if current.company:
+		updates["company"] = None
+	if not current.auto_opt_in:
+		updates["auto_opt_in"] = 1
+	if updates:
+		frappe.db.set_value("Loyalty Program", name, updates)
+
+	# Heal customers pointing at a now-deleted program → the common default.
+	dangling = frappe.db.sql_list(
+		"""
+		SELECT c.name
+		FROM `tabCustomer` c
+		LEFT JOIN `tabLoyalty Program` lp ON lp.name = c.loyalty_program
+		WHERE c.loyalty_program IS NOT NULL AND c.loyalty_program != ''
+		  AND lp.name IS NULL
+		"""
+	)
+	for customer in dangling:
+		frappe.db.set_value("Customer", customer, "loyalty_program", name, update_modified=False)
+
+	frappe.db.commit()
+	return {"program": name, "healed_dangling_customers": len(dangling)}
+
+
 # ── Cross-company loyalty (market-standard) ──────────────────────────────────
 
 

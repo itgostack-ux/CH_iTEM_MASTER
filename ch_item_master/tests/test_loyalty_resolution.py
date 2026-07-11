@@ -70,3 +70,43 @@ def run_enrollment_smoke():
 		)
 
 	return {"customer": customer.name, "loyalty_program": enrolled_program}
+
+
+def run_congruence_default_check():
+	"""The seeded, brand-wide 'Congruence Loyalty' default must exist with a
+	BLANK company (so it applies to every company) and leave no customer with a
+	dangling loyalty_program reference."""
+	from ch_item_master.ch_customer_master.loyalty import (
+		CONGRUENCE_LOYALTY_PROGRAM,
+		ensure_congruence_loyalty_program,
+		get_applicable_loyalty_programs,
+	)
+
+	result = ensure_congruence_loyalty_program()
+	name = CONGRUENCE_LOYALTY_PROGRAM
+
+	if not frappe.db.exists("Loyalty Program", name):
+		raise AssertionError(f"{name} program was not created")
+	if frappe.db.get_value("Loyalty Program", name, "company"):
+		raise AssertionError(f"{name} must have a BLANK company to be cross-company")
+
+	# Universal: applies to every real (non-test) company.
+	for company in frappe.get_all("Company", filters={"is_group": 0}, pluck="name"):
+		if company.startswith("_Test"):
+			continue
+		ctx = frappe._dict(company=company, customer_group=None, territory=None, flags=frappe._dict())
+		progs = get_applicable_loyalty_programs(ctx, company=company)
+		if name not in progs:
+			raise AssertionError(f"{name} not applicable for {company}: {progs}")
+
+	# No dangling customer references remain.
+	dangling = frappe.db.sql_list(
+		"""SELECT c.name FROM `tabCustomer` c
+		   LEFT JOIN `tabLoyalty Program` lp ON lp.name = c.loyalty_program
+		   WHERE c.loyalty_program IS NOT NULL AND c.loyalty_program != '' AND lp.name IS NULL"""
+	)
+	if dangling:
+		raise AssertionError(f"{len(dangling)} customers still have a dangling loyalty_program")
+
+	print({"program": name, "healed": result.get("healed_dangling_customers"), "ok": True})
+	return {"program": name, "ok": True}
