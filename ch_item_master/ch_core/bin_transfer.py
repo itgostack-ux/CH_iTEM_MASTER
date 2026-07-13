@@ -232,6 +232,11 @@ def transfer_between_bins(
 		row.batch_no = batch_no
 
 	se.flags.ignore_permissions = True
+	# Intra-store bin reclassification (both warehouses belong to the same
+	# CH Store). This is NOT an inter-store transfer, so it must not go
+	# through the in-transit logistics flow. Set the flag that the
+	# ch_erp15 procurement guardrail reads before blocking direct MT submit.
+	se.flags.ignore_procurement_guardrails = True
 	se.insert()
 
 	# In v16 with Stock Settings.use_serial_batch_fields = 1, old-style
