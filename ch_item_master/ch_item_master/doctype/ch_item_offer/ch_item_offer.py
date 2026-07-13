@@ -4,7 +4,7 @@
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import get_datetime, now_datetime, flt
+from frappe.utils import cint, get_datetime, now_datetime, flt
 
 from ch_item_master.ch_item_master.exceptions import (
 	InvalidOfferError,
@@ -14,6 +14,7 @@ from ch_item_master.ch_item_master.exceptions import (
 
 class CHItemOffer(Document):
 	def validate(self):
+		self._sync_gift_delivery()
 		self._validate_dates()
 		self._validate_value()
 		self._validate_targets()
@@ -22,6 +23,59 @@ class CHItemOffer(Document):
 		self._validate_combo()
 		self._validate_attachment()
 		self._auto_set_status()
+
+	def on_update(self):
+		# Keep the instant-gift Pricing Rule in step with Gift Delivery even
+		# when the mode is toggled after approval — a Spin Wheel freebie must
+		# never have a live Product-discount rule (double giveaway).
+		if self.offer_type != "Freebie" or self.approval_status != "Approved":
+			return
+		if self._is_spin_wheel_freebie():
+			self._disable_linked_pricing_rules()
+		else:
+			self._sync_to_erp_pricing_rule()
+			self._sync_additional_companies()
+
+	def _sync_gift_delivery(self):
+		"""Freebies must declare how the gift reaches the customer:
+
+		- "Direct (In Cart)": auto-added free at billing via Pricing Rule.
+		- "Spin Wheel": issued post-sale as a CH Gift Redemption; NO Pricing
+		  Rule, otherwise the customer would receive the gift twice.
+
+		`is_gamified` is kept as the derived storage flag because the gift
+		redemption engine and existing reports filter on it.
+		"""
+		if self.offer_type != "Freebie":
+			self.gift_delivery = ""
+			self.is_gamified = 0
+			return
+		if not self.gift_delivery:
+			# Pre-migration rows only carry is_gamified.
+			self.gift_delivery = "Spin Wheel" if cint(self.is_gamified) else "Direct (In Cart)"
+		self.is_gamified = 1 if self.gift_delivery == "Spin Wheel" else 0
+
+	def _is_spin_wheel_freebie(self) -> bool:
+		return self.offer_type == "Freebie" and cint(self.is_gamified) == 1
+
+	def _disable_linked_pricing_rules(self):
+		"""Disable the offer's Pricing Rule(s), incl. cross-company copies."""
+		# " |" anchors the exact offer name — a bare prefix match could catch
+		# a different offer whose name merely starts the same.
+		names = set(
+			frappe.get_all(
+				"Pricing Rule",
+				filters={
+					"rule_description": ["like", f"CH Offer: {self.offer_name} |%"],
+					"disable": 0,
+				},
+				pluck="name",
+			)
+		)
+		if self.get("erp_pricing_rule") and frappe.db.exists("Pricing Rule", self.erp_pricing_rule):
+			names.add(self.erp_pricing_rule)
+		for name in names:
+			frappe.db.set_value("Pricing Rule", name, "disable", 1)
 
 	def _validate_channel_active(self):
 		"""Warn if the offer's channel is inactive."""
@@ -118,6 +172,12 @@ class CHItemOffer(Document):
 		if self.approval_status == "Rejected" or self.status in ("Cancelled", "Expired"):
 			return
 
+		# Trigger-based offers use trigger_item, not item_code — and a Direct
+		# freebie + a Spin Wheel freebie on the same item must be allowed to
+		# run in parallel (different delivery flows).
+		if self.offer_type in ("Combo", "Attachment", "Freebie"):
+			return
+
 		offer_level = self.get("offer_level") or "Item"
 		if offer_level != "Item" or (self.get("apply_on") or "Item Code") != "Item Code":
 			return
@@ -208,10 +268,17 @@ class CHItemOffer(Document):
 		self._sync_to_erp_pricing_rule()
 		self._sync_additional_companies()
 		self._create_tpd_scheme()
-		frappe.msgprint(
-			_("{0} approved — Pricing Rule created/updated in ERPNext").format(self.name),
-			indicator="green",
-		)
+		if self._is_spin_wheel_freebie():
+			frappe.msgprint(
+				_("{0} approved — customers buying the trigger item will receive a "
+				  "spin-wheel link after billing (no instant-gift Pricing Rule)").format(self.name),
+				indicator="green",
+			)
+		else:
+			frappe.msgprint(
+				_("{0} approved — Pricing Rule created/updated in ERPNext").format(self.name),
+				indicator="green",
+			)
 
 	@frappe.whitelist()
 	def reject(self) -> None:
@@ -241,6 +308,14 @@ class CHItemOffer(Document):
 		if self.offer_type == "Combo":
 			return
 
+		# Spin Wheel freebies are delivered post-sale via CH Gift Redemption.
+		# An instant-gift Pricing Rule would hand the reward out a second time
+		# in the original cart, so none is created (and any stale one from a
+		# Direct→Spin Wheel toggle is disabled).
+		if self._is_spin_wheel_freebie():
+			self._disable_linked_pricing_rules()
+			return
+
 		erp_pr = self.get("erp_pricing_rule")
 		if erp_pr and frappe.db.exists("Pricing Rule", erp_pr):
 			pr = frappe.get_doc("Pricing Rule", erp_pr)
@@ -260,10 +335,18 @@ class CHItemOffer(Document):
 		frappe.db.set_value(
 			"CH Item Offer", self.name, "erp_pricing_rule", pr.name, update_modified=False
 		)
+		# Keep the in-memory doc in step — approve() re-syncs right after the
+		# on_update sync, and a stale None here would create a duplicate rule
+		# with identical criteria (MultiplePricingRuleConflict at billing).
+		self.erp_pricing_rule = pr.name
 
 	def _sync_additional_companies(self):
 		"""Create a Pricing Rule in each additional company for cross-company offers."""
 		if not self.get("additional_companies"):
+			return
+
+		# No instant-gift rules for Spin Wheel freebies (see _sync_to_erp_pricing_rule).
+		if self._is_spin_wheel_freebie():
 			return
 
 		for row in self.additional_companies:
@@ -336,7 +419,7 @@ class CHItemOffer(Document):
 		pr.disable           = 0
 		pr.valid_from        = self.start_date
 		pr.valid_upto        = self.end_date
-		pr.priority          = int(self.priority or 1)
+		pr.priority          = self._pricing_rule_priority()
 		pr.for_price_list    = price_list
 		pr.min_amt           = self.min_bill_amount or 0
 		pr.rule_description  = (
@@ -354,6 +437,26 @@ class CHItemOffer(Document):
 				pr.discount_amount = self.value
 			else:
 				pr.rate = self.value
+
+	def _pricing_rule_priority(self) -> int:
+		"""SAP-style specificity for template vs variant targeting.
+
+		ERPNext natively matches a Pricing Rule holding a *template* item
+		against every variant, but resolves overlapping rules purely by
+		priority — equal priorities throw MultiplePricingRuleConflict at
+		billing. Bumping variant-targeted rules +10 makes "variant offer
+		overrides template offer" the default while leaving the user's
+		relative priorities intact within each level.
+		"""
+		base = cint(self.priority) or 1
+		target = (
+			self.trigger_item
+			if self.offer_type in ("Attachment", "Freebie")
+			else self.item_code
+		)
+		if target and frappe.get_cached_value("Item", target, "variant_of"):
+			base += 10
+		return min(base, 20)
 
 	def _validate_combo(self):
 		"""Validate combo offer has required items."""

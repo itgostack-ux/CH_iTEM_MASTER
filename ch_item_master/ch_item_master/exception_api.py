@@ -610,11 +610,13 @@ def get_pending_exceptions(
 	- ``"all"`` – no scope filter (admin / legacy callers).
 	"""
 	user = frappe.session.user
+	scope = (scope or "bill").strip().lower()
 	filters = {
 		"requested_by": user,
 		"status": ("in", ["Pending", "Escalated", "Awaiting Approval", "Approved", "Auto-Approved"]),
 		"docstatus": ("!=", 2),
 	}
+	or_filters = []
 	if company:
 		filters["company"] = company
 	if store_warehouse:
@@ -625,20 +627,31 @@ def get_pending_exceptions(
 		filters["exception_type"] = ("in", list(_CYCLE_COUNT_EXCEPTION_TYPES))
 	elif scope == "bill":
 		filters["exception_type"] = ("not in", list(_CYCLE_COUNT_EXCEPTION_TYPES))
+
+	if scope == "bill":
+		filters["raised_at"] = (">=", add_to_date(now_datetime(), hours=-24))
+		or_filters = [
+			["pos_invoice", "is", "not set"],
+			["pos_invoice", "=", ""],
+		]
 	# scope == "all" → no exception_type clause
 
-	return frappe.get_all("CH Exception Request",
-		filters=filters,
-		fields=[
+	query_args = {
+		"filters": filters,
+		"fields": [
 			"name", "exception_type", "company", "store_warehouse",
 			"requested_by", "requested_by_name", "requested_reason",
 			"requested_value", "original_value", "resolution_value",
 			"reference_doctype", "reference_name",
 			"item_code", "serial_no", "raised_at", "status", "pos_invoice",
 		],
-		order_by="raised_at desc",
-		limit_page_length=50,
-	)
+		"order_by": "raised_at desc",
+		"limit_page_length": 50,
+	}
+	if or_filters:
+		query_args["or_filters"] = or_filters
+
+	return frappe.get_all("CH Exception Request", **query_args)
 
 
 @frappe.whitelist()

@@ -62,6 +62,7 @@
   "reward_price",
   "reward_qty",
   "gamification_section",
+  "gift_delivery",
   "is_gamified",
   "wheel_style",
   "column_break_gamify",
@@ -405,7 +406,8 @@
    "label": "Trigger Item",
    "options": "Item",
    "depends_on": "eval:in_list(['Attachment','Freebie'], doc.offer_type)",
-   "mandatory_depends_on": "eval:in_list(['Attachment','Freebie'], doc.offer_type)"
+   "mandatory_depends_on": "eval:in_list(['Attachment','Freebie'], doc.offer_type)",
+   "description": "A specific item/variant, or a variant TEMPLATE (applies to all its variants). A variant-level offer overrides a template-level offer for that variant — e.g. template iPhone → headphones, but iPhone-Blue → earbuds."
   },
   {
    "fetch_from": "trigger_item.item_name",
@@ -450,16 +452,27 @@
   {
    "fieldname": "gamification_section",
    "fieldtype": "Section Break",
-   "label": "Gamification (Spin Wheel)",
+   "label": "Gift Delivery",
    "depends_on": "eval:doc.offer_type=='Freebie'",
-   "description": "When enabled, the freebie is not disclosed at checkout. Instead, a one-time spin-wheel link is sent to the customer via email/WhatsApp. Redeemable at any store within the TTL against the original invoice."
+   "description": "Direct: the gift is auto-added free in the cart when the trigger item is billed. Spin Wheel: nothing is added at checkout; the customer gets a one-time spin link via email/WhatsApp after the sale and redeems the revealed code at any store within the validity period. An item can carry both — create one Direct offer and one Spin Wheel offer."
+  },
+  {
+   "default": "Direct (In Cart)",
+   "fieldname": "gift_delivery",
+   "fieldtype": "Select",
+   "label": "Gift Delivery",
+   "options": "Direct (In Cart)\nSpin Wheel",
+   "depends_on": "eval:doc.offer_type=='Freebie'",
+   "mandatory_depends_on": "eval:doc.offer_type=='Freebie'"
   },
   {
    "default": "0",
    "fieldname": "is_gamified",
    "fieldtype": "Check",
    "label": "Gamified (Spin Wheel)",
-   "depends_on": "eval:doc.offer_type=='Freebie'"
+   "hidden": 1,
+   "read_only": 1,
+   "description": "Derived from Gift Delivery — kept for API/report compatibility."
   },
   {
    "default": "Prize Wheel",
@@ -467,7 +480,7 @@
    "fieldtype": "Select",
    "label": "Wheel Style",
    "options": "Simple\nPrize Wheel\nConfetti",
-   "depends_on": "eval:doc.is_gamified"
+   "depends_on": "eval:doc.gift_delivery=='Spin Wheel'"
   },
   {
    "fieldname": "column_break_gamify",
@@ -478,12 +491,12 @@
    "fieldname": "redemption_ttl_hours",
    "fieldtype": "Int",
    "label": "Redemption Validity (hours)",
-   "depends_on": "eval:doc.is_gamified",
+   "depends_on": "eval:doc.gift_delivery=='Spin Wheel'",
    "description": "How long the redemption code is valid (default 168 = 7 days)."
   }
  ],
  "links": [],
- "modified": "2026-07-11 12:00:00.000000",
+ "modified": "2026-07-13 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Ch Item Master",
  "name": "CH Item Offer",

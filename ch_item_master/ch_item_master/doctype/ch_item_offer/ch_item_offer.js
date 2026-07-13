@@ -34,8 +34,13 @@ frappe.ui.form.on('CH Item Offer', {
 		// Approval buttons
 		if (!frm.is_new() && frm.doc.approval_status === 'Pending Approval') {
 			frm.add_custom_button(__('Approve'), () => {
+				const is_spin_wheel = frm.doc.offer_type === 'Freebie'
+					&& frm.doc.gift_delivery === 'Spin Wheel';
+				const msg = is_spin_wheel
+					? __('Approve this offer? Customers buying the trigger item will get a spin-wheel link after billing. No instant-gift Pricing Rule will be created.')
+					: __('Approve this offer? A Pricing Rule will be created in ERPNext.');
 				frappe.confirm(
-					__('Approve this offer? A Pricing Rule will be created in ERPNext.'),
+					msg,
 					() => frm.call('approve').then(() => frm.reload_doc())
 				);
 			}, __('Actions'));
