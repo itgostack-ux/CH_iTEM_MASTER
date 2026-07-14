@@ -202,7 +202,9 @@ def validate_vas_category(serial_no, warranty_plan) -> dict:
 @frappe.whitelist()
 def issue_warranty_plan(warranty_plan, customer, item_code, serial_no=None,
                         start_date=None, company=None, sales_invoice=None,
-                        sales_order=None, plan_price=None) -> dict:
+                        sales_order=None, plan_price=None,
+                        external_device_source=None,
+                        is_external_device=None) -> dict:
 	"""Issue (create + submit) a Active VAS Plan for a customer/device.
 
 	Called by GoFix or retail sales flow when a warranty/VAS plan is sold.
@@ -217,6 +219,12 @@ def issue_warranty_plan(warranty_plan, customer, item_code, serial_no=None,
 		sales_invoice: Linked Sales Invoice
 		sales_order: Linked Sales Order
 		plan_price: Actual price charged
+		external_device_source: Free-text source label when the device is a
+			customer-provided IMEI outside GoGizmo inventory (e.g.
+			"POS Customer-Provided IMEI"). Sets is_external_device=1
+			implicitly.
+		is_external_device: Explicit override for the is_external_device
+			flag. Defaults to truthy when external_device_source is set.
 
 	Returns:
 		dict with: active_plan name, status
@@ -236,6 +244,10 @@ def issue_warranty_plan(warranty_plan, customer, item_code, serial_no=None,
 	if plan.duration_months:
 		end_date = add_months(start_date, plan.duration_months)
 
+	# Auto-flag external device when a source label is supplied.
+	if external_device_source and is_external_device is None:
+		is_external_device = 1
+
 	doc = frappe.new_doc("Active VAS Plans")
 	doc.update({
 		"company": company,
@@ -247,6 +259,8 @@ def issue_warranty_plan(warranty_plan, customer, item_code, serial_no=None,
 		"end_date": end_date,
 		"sales_invoice": sales_invoice,
 		"sales_order": sales_order,
+		"external_device_source": external_device_source,
+		"is_external_device": 1 if is_external_device else 0,
 		"plan_price": plan_price or plan.price,
 		"max_claims": plan.max_claims or 0,
 		"deductible_amount": plan.deductible_amount or 0,

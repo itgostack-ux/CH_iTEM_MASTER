@@ -120,6 +120,7 @@ def run() -> dict:
 			start_date=nowdate(),
 			company=company,
 			plan_price=799,
+			external_device_source="E2E VAS Snapshot Test",
 		)
 		_assert(issued.get("fulfillment_type") == "Digital Activation", "Issue API did not return fulfillment type")
 
