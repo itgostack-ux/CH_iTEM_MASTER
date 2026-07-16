@@ -462,7 +462,12 @@ def _normalise_rows(raw_rows: list[dict], company_override: str | None) -> tuple
 				row_errors.append(f"duplicate serial_no {serial} also appears on CSV row {seen_serials[serial]}")
 			else:
 				seen_serials[serial] = row_no
-			if item_code and frappe.db.exists("Serial No", serial):
+
+			if item_code and not frappe.db.exists("Serial No", serial):
+				row_errors.append(
+					f"serial {serial} is not present in Serial No master for item {item_code} at warehouse {warehouse}"
+				)
+			elif item_code and frappe.db.exists("Serial No", serial):
 				sn = frappe.db.get_value(
 					"Serial No",
 					serial,
@@ -471,7 +476,11 @@ def _normalise_rows(raw_rows: list[dict], company_override: str | None) -> tuple
 				)
 				if sn.item_code and sn.item_code != item_code:
 					row_errors.append(f"serial {serial} already exists for item {sn.item_code}")
-				if sn.warehouse:
+				if sn.warehouse and sn.warehouse != warehouse:
+					row_errors.append(
+						f"serial {serial} belongs to warehouse {sn.warehouse}, expected {warehouse}"
+					)
+				if sn.warehouse and sn.warehouse == warehouse:
 					row_errors.append(f"serial {serial} already has warehouse {sn.warehouse}")
 
 		if row_errors:
