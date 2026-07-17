@@ -49,6 +49,7 @@ after_migrate = [
 	"ch_item_master.ch_core.bin_transfer.seed_default_reasons",
 	"ch_item_master.ch_customer_master.loyalty.ensure_congruence_loyalty_program",
 	"ch_item_master.ch_item_master.backfill_ids.backfill_ids_after_migrate",
+	"ch_item_master.ch_customer_master.bulk_reconciliation.install_customer_activity_indexes",
 	"ch_item_master.seed_status_registry.validate_status_registry",
 	"ch_item_master.ch_item_master.page.imei_tracker.imei_tracker_api.backfill_is_imei_flag",
 	"ch_item_master.ch_item_master.governance.install_workflows",
@@ -60,6 +61,9 @@ after_migrate = [
 	# on the very first migrate.
 	"ch_item_master.ch_core.location_hierarchy.backfill_default_hub_bins",
 	"ch_item_master.ch_core.doctype.ch_store.ch_store.backfill_store_pos_profiles",
+]
+after_job = [
+	"ch_item_master.ch_customer_master.bulk_reconciliation.after_background_job",
 ]
 before_uninstall = "ch_item_master.install.before_uninstall"
 
@@ -182,7 +186,10 @@ doc_events = {
 			"ch_item_master.async_dispatch.scheme_receivable_after_submit",
 			"ch_item_master.async_dispatch.supplier_scheme_after_submit",
 		],
-		"on_cancel": "ch_item_master.supplier_scheme.engine.reverse_invoice_items",
+		"on_cancel": [
+			"ch_item_master.supplier_scheme.engine.reverse_invoice_items",
+			"ch_item_master.async_dispatch.customer_activity_after_cancel",
+		],
 	},
 	"POS Invoice": {
 		"validate": [
@@ -292,5 +299,6 @@ doc_events = {
 	# ── After Data Import: cascade denormalized IDs ────────────────────────
 	"Data Import": {
 		"on_update_after_submit": "ch_item_master.ch_item_master.backfill_ids.on_data_import_complete",
+		"on_change": "ch_item_master.ch_customer_master.bulk_reconciliation.on_data_import_change",
 	},
 }

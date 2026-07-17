@@ -7,8 +7,10 @@ Auto-logs store visits and updates activity summary on Customer.
 Hooked via ch_item_master hooks.py doc_events.
 """
 
+import hashlib
+
 import frappe
-from frappe.utils import cint, flt, today
+from frappe.utils import cint, flt, getdate, today
 
 
 def on_sales_invoice_submit(doc, method=None):
@@ -17,18 +19,34 @@ def on_sales_invoice_submit(doc, method=None):
 	2. Update activity summary on Customer
 	3. Update ch_customer_since if not set
 	"""
-	if not doc.customer:
+	if doc.docstatus != 1 or not doc.customer:
 		return
 
 	_log_store_visit(
 		customer=doc.customer,
 		company=doc.company,
-		visit_type="Purchase",
+		visit_type="Return" if doc.get("is_return") else "Purchase",
 		reference_doctype="Sales Invoice",
 		reference_name=doc.name,
 		store=doc.get("set_warehouse"),
 		staff=doc.owner,
+		visit_date=doc.get("posting_date"),
 	)
+	_update_activity_summary(doc.customer)
+
+
+def on_sales_invoice_cancel(doc, method=None):
+	"""Remove cancelled-invoice activity and restore the customer's aggregates."""
+	if not doc.customer:
+		return
+	frappe.db.delete(
+		"CH Customer Store Visit",
+		{
+			"reference_doctype": "Sales Invoice",
+			"reference_name": doc.name,
+		},
+	)
+	_refresh_last_visit_summary(doc.customer)
 	_update_activity_summary(doc.customer)
 
 
@@ -75,7 +93,7 @@ def on_buyback_assessment_update(doc, method=None):
 
 
 def _log_store_visit(customer, company, visit_type, reference_doctype=None,
-					 reference_name=None, store=None, staff=None):
+					 reference_name=None, store=None, staff=None, visit_date=None):
 	"""Create a CH Customer Store Visit entry in the Customer's child table.
 
 	Uses direct child-row insert + frappe.db.set_value for parent fields to avoid
@@ -83,6 +101,17 @@ def _log_store_visit(customer, company, visit_type, reference_doctype=None,
 	such as tax_category, GST, or address validations on legacy customers).
 	"""
 	try:
+		if reference_doctype and reference_name:
+			existing = frappe.db.exists(
+				"CH Customer Store Visit",
+				{
+					"reference_doctype": reference_doctype,
+					"reference_name": reference_name,
+				},
+			)
+			if existing:
+				return False
+
 		# Determine next idx for the child table
 		next_idx = (frappe.db.sql(
 			"""SELECT IFNULL(MAX(idx), 0) + 1 FROM `tabCH Customer Store Visit`
@@ -96,7 +125,7 @@ def _log_store_visit(customer, company, visit_type, reference_doctype=None,
 			"parenttype": "Customer",
 			"parentfield": "ch_stores_visited",
 			"idx": next_idx,
-			"visit_date": today(),
+			"visit_date": visit_date or today(),
 			"store": store,
 			"company": company,
 			"visit_type": visit_type,
@@ -104,35 +133,76 @@ def _log_store_visit(customer, company, visit_type, reference_doctype=None,
 			"reference_name": reference_name,
 			"staff": staff,
 		})
+		if reference_doctype and reference_name:
+			key = f"{reference_doctype}\0{reference_name}".encode()
+			child.name = f"customer-visit-{hashlib.sha256(key).hexdigest()[:40]}"
 		child.flags.ignore_permissions = True
 		child.flags.ignore_validate = True
 		child.flags.ignore_mandatory = True
 		child.db_insert()
 
 		# Update last visit info on parent (no validations / no save)
-		updates = {"ch_last_visit_date": today()}
-		if store:
-			updates["ch_last_visit_store"] = (
-				frappe.db.get_value("Warehouse", store, "warehouse_name") or store
-			)
-		frappe.db.set_value("Customer", customer, updates, update_modified=False)
+		actual_visit_date = getdate(visit_date or today())
+		current_last_visit = frappe.db.get_value(
+			"Customer", customer, "ch_last_visit_date"
+		)
+		if not current_last_visit or actual_visit_date >= getdate(current_last_visit):
+			updates = {"ch_last_visit_date": actual_visit_date}
+			if store:
+				updates["ch_last_visit_store"] = (
+					frappe.db.get_value("Warehouse", store, "warehouse_name") or store
+				)
+			frappe.db.set_value("Customer", customer, updates, update_modified=False)
+		return True
+	except frappe.DuplicateEntryError:
+		# A concurrent worker inserted the same deterministic reference first.
+		return False
 	except Exception:
 		frappe.log_error(
 			title=f"CH Customer Store Visit Error: {customer}",
 			message=frappe.get_traceback(),
 		)
+		return False
+
+
+def _refresh_last_visit_summary(customer):
+	"""Restore parent last-visit fields from the latest remaining child row."""
+	last_visit = frappe.get_all(
+		"CH Customer Store Visit",
+		filters={
+			"parent": customer,
+			"parenttype": "Customer",
+			"parentfield": "ch_stores_visited",
+		},
+		fields=["visit_date", "store"],
+		order_by="visit_date desc, creation desc",
+		limit=1,
+	)
+	updates = {
+		"ch_last_visit_date": last_visit[0].visit_date if last_visit else None,
+		"ch_last_visit_store": None,
+	}
+	if last_visit and last_visit[0].store:
+		updates["ch_last_visit_store"] = (
+			frappe.db.get_value(
+				"Warehouse", last_visit[0].store, "warehouse_name"
+			)
+			or last_visit[0].store
+		)
+	frappe.db.set_value("Customer", customer, updates, update_modified=False)
 
 
 def _update_activity_summary(customer):
 	"""Recalculate and update activity summary fields on Customer."""
 	try:
-		# Total purchases (sum of Sales Invoice grand_total)
-		total_purchases = frappe.db.sql(
-			"""SELECT IFNULL(SUM(grand_total), 0)
+		# Total purchases and first purchase date across submitted invoices.
+		purchase_summary = frappe.db.sql(
+			"""SELECT IFNULL(SUM(grand_total), 0), MIN(posting_date)
 			FROM `tabSales Invoice`
 			WHERE customer = %s AND docstatus = 1""",
 			customer,
-		)[0][0]
+		)[0]
+		total_purchases, first_purchase_date = purchase_summary
 
 		# Total service requests
 		total_services = frappe.db.count(
@@ -141,10 +211,10 @@ def _update_activity_summary(customer):
 
 		# Total buybacks — use customer Link field if available, fallback to mobile
 		total_buybacks = 0
-		if frappe.db.exists("DocType", "Buyback Request"):
+		if frappe.db.exists("DocType", "Buyback Order"):
 			# Primary: count by customer Link (new field)
 			total_buybacks = frappe.db.count(
-				"Buyback Request", {"customer": customer}
+				"Buyback Order", {"customer": customer}
 			)
 			# Fallback: also count by mobile match for older records without customer link
 			if not total_buybacks:
@@ -152,7 +222,7 @@ def _update_activity_summary(customer):
 				if mobile:
 					mobile10 = mobile.strip().replace(" ", "").replace("-", "")[-10:]
 					total_buybacks = frappe.db.count(
-						"Buyback Request", {"mobile_no": mobile10}
+						"Buyback Order", {"mobile_no": mobile10}
 					)
 
 		# Active devices
@@ -162,6 +232,22 @@ def _update_activity_summary(customer):
 				"CH Customer Device",
 				{"customer": customer, "current_status": "Owned"},
 			)
+
+		if first_purchase_date:
+			customer_since = frappe.db.get_value(
+				"Customer", customer, "ch_customer_since"
+			)
+			if (
+				not customer_since
+				or getdate(first_purchase_date) < getdate(customer_since)
+			):
+				frappe.db.set_value(
+					"Customer",
+					customer,
+					"ch_customer_since",
+					first_purchase_date,
+					update_modified=False,
+				)
 
 		# Loyalty balance
 		loyalty_balance = 0

@@ -22,6 +22,7 @@ import uuid
 
 # ── module-level fully-qualified handler paths ──────────────────────────
 _CUSTOMER_HOOK = "ch_item_master.ch_customer_master.hooks.on_sales_invoice_submit"
+_CUSTOMER_CANCEL_HOOK = "ch_item_master.ch_customer_master.hooks.on_sales_invoice_cancel"
 _SCHEME_RECEIVABLE_HOOK = (
     "ch_item_master.ch_item_master.doctype.ch_scheme_receivable."
     "ch_scheme_receivable.create_from_pos_invoice"
@@ -29,7 +30,7 @@ _SCHEME_RECEIVABLE_HOOK = (
 _SUPPLIER_SCHEME_HOOK = "ch_item_master.supplier_scheme.engine.process_invoice_items"
 
 
-def _enqueue(method_path, doc, *, queue="default", timeout=600):
+def _enqueue(method_path, doc, *, queue="default", timeout=600, event_method="on_submit"):
     """Enqueue a doc-event handler to run after the current transaction commits.
 
     The worker re-fetches the doc by name so we never carry stale state across
@@ -44,6 +45,7 @@ def _enqueue(method_path, doc, *, queue="default", timeout=600):
             method_path=method_path,
             doctype=doc.doctype,
             docname=doc.name,
+            event_method=event_method,
             job_name=f"{method_path}::{doc.name}::{uuid.uuid4().hex[:8]}",
         )
     except Exception:
@@ -53,7 +55,7 @@ def _enqueue(method_path, doc, *, queue="default", timeout=600):
             message=frappe.get_traceback(),
         )
         try:
-            _run_doc_handler(method_path, doc.doctype, doc.name)
+            _run_doc_handler(method_path, doc.doctype, doc.name, event_method)
         except Exception:
             frappe.log_error(
                 title=f"Inline fallback failed: {method_path}",
@@ -61,13 +63,13 @@ def _enqueue(method_path, doc, *, queue="default", timeout=600):
             )
 
 
-def _run_doc_handler(method_path, doctype, docname):
+def _run_doc_handler(method_path, doctype, docname, event_method="on_submit"):
     """Worker entry-point: re-fetch the doc and invoke the original handler."""
     if not frappe.db.exists(doctype, docname):
         return
     doc = frappe.get_doc(doctype, docname)
     handler = frappe.get_attr(method_path)
-    handler(doc, method="on_submit")
+    handler(doc, method=event_method)
 
 
 # ── on_submit wrappers ──────────────────────────────────────────────────
@@ -76,7 +78,26 @@ def customer_activity_after_submit(doc, method=None):
     """Recompute customer activity summary in background (queue=default)."""
     if doc.docstatus != 1:
         return
+    from ch_item_master.ch_customer_master.bulk_reconciliation import (
+        is_historic_sales_import,
+    )
+
+    if is_historic_sales_import(doc):
+        return
     _enqueue(_CUSTOMER_HOOK, doc, queue="default", timeout=300)
+
+
+def customer_activity_after_cancel(doc, method=None):
+    """Remove the cancelled invoice's activity and refresh its customer."""
+    if doc.docstatus != 2:
+        return
+    _enqueue(
+        _CUSTOMER_CANCEL_HOOK,
+        doc,
+        queue="default",
+        timeout=300,
+        event_method="on_cancel",
+    )
 
 
 def scheme_receivable_after_submit(doc, method=None):
