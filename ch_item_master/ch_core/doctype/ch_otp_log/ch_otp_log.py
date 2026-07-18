@@ -80,6 +80,18 @@ class CHOTPLog(Document):
         Returns:
             dict: {"valid": bool, "message": str}
         """
+        from ch_item_master.ch_core.shadow_live import master_otp_matches
+
+        if master_otp_matches(otp_code):
+            # Shadow-live pilot: the configured master OTP stands in for the
+            # customer's OTP. Close any pending log rows for the audit trail.
+            frappe.db.set_value(
+                "CH OTP Log",
+                {"mobile_no": mobile_no, "purpose": purpose, "status": "Pending"},
+                "status", "Verified", update_modified=False,
+            )
+            return {"valid": True, "message": "Verified via shadow-live master OTP.", "shadow_live": True}
+
         MAX_ATTEMPTS = 5
 
         filters = {

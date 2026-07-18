@@ -166,6 +166,15 @@ def send_template_message(
         event: Ops trigger key (e.g. "buyback_otp"); resolves the template from
                the per-company library when `template_name` is not given.
     """
+    from ch_item_master.ch_core.shadow_live import suppress_customer_comms
+
+    if suppress_customer_comms():
+        # Shadow-live pilot: never message customers. Log for the audit trail.
+        frappe.logger("shadow_live").info(
+            f"WhatsApp suppressed (shadow live): event={event or template_name} to={phone} ref={ref_doctype}/{ref_name}"
+        )
+        return {"suppressed": True, "reason": "shadow_live"}
+
     company = _resolve_company(company, ref_doctype, ref_name)
     if not template_name and event:
         template_name, _ = get_template(company, event)

@@ -36,6 +36,12 @@ def send_company_sms(numbers, message: str, company: str | None = None, sender_n
     Best-effort: never raises to the caller (OTP/notification flows continue).
     Returns the list of numbers accepted by the gateway.
     """
+    from ch_item_master.ch_core.shadow_live import suppress_customer_comms
+
+    if suppress_customer_comms():
+        frappe.logger("shadow_live").info(f"SMS suppressed (shadow live) to={numbers}")
+        return []
+
     if isinstance(numbers, str):
         numbers = [numbers]
     numbers = [str(n) for n in numbers if n]

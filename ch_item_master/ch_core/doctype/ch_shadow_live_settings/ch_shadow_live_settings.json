@@ -1,0 +1,92 @@
+{
+ "actions": [],
+ "creation": "2026-07-18 18:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "enabled",
+  "active_until",
+  "column_break_1",
+  "master_otp",
+  "section_break_flags",
+  "suppress_customer_messages",
+  "manual_card_entry",
+  "section_break_help",
+  "help_html"
+ ],
+ "fields": [
+  {
+   "default": "0",
+   "description": "Shadow-live pilot mode: customer-facing OTP/WhatsApp/SMS/emails are suppressed and a master OTP unlocks OTP gates. Turns itself OFF after 'Active Until'.",
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "label": "Shadow Live Mode Enabled"
+  },
+  {
+   "description": "Hard expiry — mode auto-disarms after this date even if left enabled.",
+   "fieldname": "active_until",
+   "fieldtype": "Date",
+   "label": "Active Until"
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Staff enter this in place of the customer's OTP (invoice consent, buyback approval).",
+   "fieldname": "master_otp",
+   "fieldtype": "Data",
+   "label": "Master OTP"
+  },
+  {
+   "fieldname": "section_break_flags",
+   "fieldtype": "Section Break",
+   "label": "What Shadow Live Changes"
+  },
+  {
+   "default": "1",
+   "description": "No WhatsApp / SMS / OTP emails go to customers while enabled.",
+   "fieldname": "suppress_customer_messages",
+   "fieldtype": "Check",
+   "label": "Suppress Customer Messages"
+  },
+  {
+   "default": "1",
+   "description": "POS hides Paytm / Pine Labs terminals — staff key in card RRN / UPI reference manually and billing closes normally.",
+   "fieldname": "manual_card_entry",
+   "fieldtype": "Check",
+   "label": "Manual Card / UPI Entry (bypass payment machines)"
+  },
+  {
+   "fieldname": "section_break_help",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "help_html",
+   "fieldtype": "HTML",
+   "label": "Help",
+   "options": "<div class=\"text-muted\">Turn OFF (or let 'Active Until' lapse) at go-live. Nothing else to deploy — real OTPs, customer messages and payment terminals resume immediately.</div>"
+  }
+ ],
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-07-18 18:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "CH Core",
+ "name": "CH Shadow Live Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
