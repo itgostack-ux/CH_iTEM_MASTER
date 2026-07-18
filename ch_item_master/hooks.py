@@ -11,6 +11,9 @@ from ch_item_master import monkey_patches as _ch_monkey_patches  # noqa: E402, F
 boot_session = "ch_item_master.boot.boot_session"
 required_apps = ["frappe/erpnext"]
 
+# Old apps-screen route lives on in bookmarks/history — redirect it.
+website_redirects = [{"source": "/CH Item Master", "target": "/desk/ch-item-master"}]
+
 add_to_apps_screen = [
 	{
 		"name": "ch_item_master",
