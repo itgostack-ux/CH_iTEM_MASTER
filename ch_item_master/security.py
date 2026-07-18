@@ -14,16 +14,43 @@ def _is_unrestricted_user(user=None):
         return False
 
 
+def _get_scope_mapped_companies(user):
+    """Companies resolved from the user's CH User Scope (hub RBAC, ch_erp15).
+
+    The scope resolver derives companies from explicit company rows as well as
+    city/zone/store rows, so a Store Executive scoped to one store maps to that
+    store's company. Imported lazily: ch_item_master installs before ch_erp15,
+    and ch_erp15.company_lock already imports this module.
+    """
+    try:
+        if not frappe.db.exists("DocType", "CH User Scope"):
+            return set()
+        from ch_erp15.ch_erp15.scope import get_user_scope
+
+        scope = get_user_scope(user)
+    except Exception:
+        return set()
+
+    if not scope or scope.get("bypass"):
+        return set()
+    return {c for c in (scope.get("companies") or set()) if c}
+
+
 def get_user_mapped_companies(user=None):
     """Resolve explicit company mappings without using defaults as access grants.
 
     ``None`` means the user is intentionally unrestricted. A list (including an
     empty list) is an explicit scope. POS mappings take precedence for POS-facing
     users, followed by Company User Permissions, then active Employee mappings.
+    Companies granted through CH User Scope are unioned into every tier — the
+    scope doctype is an explicit admin grant of the same standing, and hubs,
+    notifications and the Desk company switcher must agree on membership.
     """
     user = user or frappe.session.user
     if _is_unrestricted_user(user):
         return None
+
+    scope_companies = _get_scope_mapped_companies(user)
 
     pos_companies = set()
     if frappe.db.exists("DocType", "POS Executive"):
@@ -46,9 +73,10 @@ def get_user_mapped_companies(user=None):
         except Exception:
             pass
 
-    # POS allocation is the source of truth for a POS-facing user.
+    # POS allocation is the source of truth for a POS-facing user; CH User
+    # Scope grants of equal standing are added, never overridden.
     if pos_companies:
-        return sorted(pos_companies)
+        return sorted(pos_companies | scope_companies)
 
     companies = set()
     try:
@@ -62,7 +90,7 @@ def get_user_mapped_companies(user=None):
 
     # Explicit Company User Permissions override the Employee fallback.
     if companies:
-        return sorted(companies)
+        return sorted(companies | scope_companies)
 
     if frappe.db.exists("DocType", "Employee"):
         try:
@@ -74,7 +102,7 @@ def get_user_mapped_companies(user=None):
         except Exception:
             pass
 
-    return sorted(companies)
+    return sorted(companies | scope_companies)
 
 
 def get_user_allowed_companies(user=None):

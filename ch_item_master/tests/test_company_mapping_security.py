@@ -13,6 +13,7 @@ class TestCompanyMappingSecurity(TestCase):
 
 		with (
 			patch.object(security, "_is_unrestricted_user", return_value=False),
+			patch.object(security, "_get_scope_mapped_companies", return_value=set()),
 			patch.object(security.frappe.db, "exists", return_value=True),
 			patch.object(security.frappe, "get_all", side_effect=get_all),
 			patch.object(
@@ -30,6 +31,7 @@ class TestCompanyMappingSecurity(TestCase):
 	def test_company_user_permission_precedes_employee_mapping(self):
 		with (
 			patch.object(security, "_is_unrestricted_user", return_value=False),
+			patch.object(security, "_get_scope_mapped_companies", return_value=set()),
 			patch.object(security.frappe.db, "exists", return_value=True),
 			patch.object(security.frappe, "get_all", return_value=[]),
 			patch.object(
@@ -49,6 +51,7 @@ class TestCompanyMappingSecurity(TestCase):
 	def test_unmapped_user_has_empty_explicit_scope(self):
 		with (
 			patch.object(security, "_is_unrestricted_user", return_value=False),
+			patch.object(security, "_get_scope_mapped_companies", return_value=set()),
 			patch.object(security.frappe.db, "exists", return_value=True),
 			patch.object(security.frappe, "get_all", return_value=[]),
 			patch.object(
@@ -62,3 +65,62 @@ class TestCompanyMappingSecurity(TestCase):
 			)
 
 		self.assertEqual(companies, [])
+
+	def test_scope_only_user_maps_to_scope_companies(self):
+		"""A user whose only grant is CH User Scope must not be locked out
+		of the Desk company switcher (the "No Company Access" bug)."""
+		with (
+			patch.object(security, "_is_unrestricted_user", return_value=False),
+			patch.object(
+				security,
+				"_get_scope_mapped_companies",
+				return_value={"Bestbuy Mobiles Private Limited"},
+			),
+			patch.object(security.frappe.db, "exists", return_value=True),
+			patch.object(security.frappe, "get_all", return_value=[]),
+			patch.object(
+				security.frappe.permissions,
+				"get_user_permissions",
+				return_value={},
+			),
+		):
+			companies = security.get_user_mapped_companies(
+				"storeexec@example.com"
+			)
+
+		self.assertEqual(companies, ["Bestbuy Mobiles Private Limited"])
+
+	def test_scope_companies_union_into_pos_tier(self):
+		"""POS allocation stays authoritative but scope grants are added,
+		never dropped — union of explicit grants, SAP-style."""
+		def get_all(doctype, **kwargs):
+			if doctype == "POS Executive":
+				return ["Bestbuy Mobiles Private Limited"]
+			return []
+
+		with (
+			patch.object(security, "_is_unrestricted_user", return_value=False),
+			patch.object(
+				security,
+				"_get_scope_mapped_companies",
+				return_value={"GOFIX SOLUTIONS PRIVATE LIMITED"},
+			),
+			patch.object(security.frappe.db, "exists", return_value=True),
+			patch.object(security.frappe, "get_all", side_effect=get_all),
+			patch.object(
+				security.frappe.permissions,
+				"get_user_permissions",
+				return_value={},
+			),
+		):
+			companies = security.get_user_mapped_companies(
+				"posexec@example.com"
+			)
+
+		self.assertEqual(
+			companies,
+			[
+				"Bestbuy Mobiles Private Limited",
+				"GOFIX SOLUTIONS PRIVATE LIMITED",
+			],
+		)
