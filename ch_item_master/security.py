@@ -14,16 +14,21 @@ def _is_unrestricted_user(user=None):
         return False
 
 
-def get_user_allowed_companies(user=None):
-    """Resolve company scope for a user from explicit mappings and defaults."""
+def get_user_mapped_companies(user=None):
+    """Resolve explicit company mappings without using defaults as access grants.
+
+    ``None`` means the user is intentionally unrestricted. A list (including an
+    empty list) is an explicit scope. POS mappings take precedence for POS-facing
+    users, followed by Company User Permissions, then active Employee mappings.
+    """
     user = user or frappe.session.user
     if _is_unrestricted_user(user):
         return None
 
-    pos_exec_companies = set()
+    pos_companies = set()
     if frappe.db.exists("DocType", "POS Executive"):
         try:
-            pos_exec_companies.update(filter(None, frappe.get_all(
+            pos_companies.update(filter(None, frappe.get_all(
                 "POS Executive",
                 filters={"user": user, "is_active": 1},
                 pluck="company",
@@ -31,12 +36,21 @@ def get_user_allowed_companies(user=None):
         except Exception:
             pass
 
-    # For POS-facing users, explicit executive mappings are the source of truth.
-    if pos_exec_companies:
-        return sorted(pos_exec_companies)
+    if frappe.db.exists("DocType", "CH POS User Allocation"):
+        try:
+            pos_companies.update(filter(None, frappe.get_all(
+                "CH POS User Allocation",
+                filters={"user": user, "is_active": 1},
+                pluck="company",
+            )))
+        except Exception:
+            pass
+
+    # POS allocation is the source of truth for a POS-facing user.
+    if pos_companies:
+        return sorted(pos_companies)
 
     companies = set()
-
     try:
         user_permissions = frappe.permissions.get_user_permissions(user) or {}
         for perm in user_permissions.get("Company", []):
@@ -45,6 +59,10 @@ def get_user_allowed_companies(user=None):
                 companies.add(company)
     except Exception:
         pass
+
+    # Explicit Company User Permissions override the Employee fallback.
+    if companies:
+        return sorted(companies)
 
     if frappe.db.exists("DocType", "Employee"):
         try:
@@ -56,6 +74,19 @@ def get_user_allowed_companies(user=None):
         except Exception:
             pass
 
+    return sorted(companies)
+
+
+def get_user_allowed_companies(user=None):
+    """Resolve company scope for a user from explicit mappings and defaults."""
+    user = user or frappe.session.user
+    companies = get_user_mapped_companies(user)
+    if companies is None or companies:
+        return companies
+
+    # Backward-compatible fallback for existing report/API scopes. Security
+    # boundaries such as the global company switcher must use
+    # ``get_user_mapped_companies`` so an inherited default cannot grant access.
     try:
         default_company = frappe.defaults.get_user_default("Company", user=user)
     except TypeError:
