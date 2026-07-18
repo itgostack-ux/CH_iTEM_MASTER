@@ -10,6 +10,7 @@
  "hide_custom": 0,
  "icon": "build",
  "idx": 0,
+ "indicator_color": "grey",
  "is_hidden": 0,
  "label": "CH Core",
  "links": [
@@ -38,6 +39,16 @@
    "label": "CH Payment Method",
    "link_count": 0,
    "link_to": "CH Payment Method",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "CH Bin Transfer Reason",
+   "link_count": 0,
+   "link_to": "CH Bin Transfer Reason",
    "link_type": "DocType",
    "onboard": 0,
    "type": "Link"
@@ -143,6 +154,16 @@
   {
    "hidden": 0,
    "is_query_report": 0,
+   "label": "CH OTP Log",
+   "link_count": 0,
+   "link_to": "CH OTP Log",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
    "label": "Finance Reports",
    "link_count": 0,
    "link_type": "DocType",
@@ -201,6 +222,26 @@
   {
    "hidden": 0,
    "is_query_report": 0,
+   "label": "CH Pincode",
+   "link_count": 0,
+   "link_to": "CH Pincode",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "CH State",
+   "link_count": 0,
+   "link_to": "CH State",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
    "label": "Location Hierarchy",
    "link_count": 0,
    "link_to": "location-hierarchy",
@@ -227,9 +268,28 @@
    "link_type": "DocType",
    "onboard": 0,
    "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Go-Live Controls",
+   "link_count": 0,
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Shadow Live Settings",
+   "link_count": 0,
+   "link_to": "CH Shadow Live Settings",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
   }
  ],
- "modified": "2026-05-11 12:06:10.575713",
+ "modified": "2026-07-18 20:53:13.017991",
  "modified_by": "Administrator",
  "module": "CH Core",
  "name": "CH Core",
@@ -291,9 +351,15 @@
    "label": "Business Audit Log",
    "link_to": "CH Business Audit Log",
    "type": "DocType"
+  },
+  {
+   "color": "Orange",
+   "doc_view": "",
+   "label": "Shadow Live Settings",
+   "link_to": "CH Shadow Live Settings",
+   "type": "DocType"
   }
  ],
  "title": "CH Core",
- "type": "Workspace",
- "indicator_color": "grey"
+ "type": "Workspace"
 }
