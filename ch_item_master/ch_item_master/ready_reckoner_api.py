@@ -923,19 +923,9 @@ def export_ready_reckoner(
         "Category", "Sub Category", "Model",
     ]
     price_headers = []
-    # Grade×warranty label map for human-readable headers
-    _GRADE_LABELS = [
-    (
-        ("a_grade_iw_0_3", "A IW 0-3"), ("b_grade_iw_0_3", "B IW 0-3"), ("c_grade_iw_0_3", "C IW 0-3"),
-        ("scrap_iw_0_3", "Scrap IW 0-3"), ("phone_dead_iw_0_3", "Phone Dead IW 0-3"),
-        ("a_grade_iw_0_6", "A IW 4-6"), ("b_grade_iw_0_6", "B IW 4-6"), ("c_grade_iw_0_6", "C IW 4-6"), ("d_grade_iw_0_6", "D IW 4-6"),
-        ("scrap_iw_0_6", "Scrap IW 4-6"), ("phone_dead_iw_0_6", "Phone Dead IW 4-6"),
-        ("a_grade_iw_6_11", "A IW 6-11"), ("b_grade_iw_6_11", "B IW 6-11"), ("c_grade_iw_6_11", "C IW 6-11"), ("d_grade_iw_6_11", "D IW 6-11"),
-        ("scrap_iw_6_11", "Scrap IW 6-11"), ("phone_dead_iw_6_11", "Phone Dead IW 6-11"),
-        ("a_grade_oow_11", "A OOW 11+"), ("b_grade_oow_11", "B OOW 11+"), ("c_grade_oow_11", "C OOW 11+"), ("d_grade_oow_11", "D OOW 11+"),
-        ("scrap_oow_11", "Scrap OOW 11+"), ("phone_dead_oow_11", "Phone Dead OOW 11+"),
-    )
-    ]
+    # Grade×warranty label map for human-readable headers, in the same order
+    # the grade columns are fetched above.
+    _GRADE_LABELS = [(f, _BUYBACK_FIELD_LABELS[f]) for f in BUYBACK_GRADE_FIELDS]
     for ch in channels:
         if ch in buying_channels:
             price_headers += [f"{ch} Market Price", f"{ch} Vendor Price"]
