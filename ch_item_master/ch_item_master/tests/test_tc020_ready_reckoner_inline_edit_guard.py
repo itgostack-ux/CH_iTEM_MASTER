@@ -43,7 +43,11 @@ def tc020_ready_reckoner_inline_edit() -> None:
 
     required_markers = {
         "inline_editor_fn": "function _activate_inline_price_editor($cell, state, $wrap) {",
-        "inline_click_binding": "$t.find('.price-cell[data-field=\"mrp\"], .price-cell[data-field=\"mop\"], .price-cell[data-field=\"selling_price\"]').on('click'",
+        # MRP is no longer part of this binding: the Ready Reckoner MRP column
+        # writes Item.ch_item_mrp directly via update_item_mrp (item master
+        # data, deliberately outside maker-checker), so only MOP and Selling
+        # Price open the inline batch editor.
+        "inline_click_binding": "$t.find('.price-cell[data-field=\"mop\"], .price-cell[data-field=\"selling_price\"]').on('click'",
         "inline_prompt_reason": "Reason for Change",
         "inline_batch_method": "create_price_change_batch",
         "no_add_price_button": "chpb-add-price-btn",

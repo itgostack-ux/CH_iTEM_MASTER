@@ -13,12 +13,14 @@ frappe.ui.form.on("CH Price Upload Batch", {
 		const indicator_map = {
 			'Draft':              'orange',
 			'Pending Approval':   'blue',
+			'Partially Approved': 'blue',
 			'Approved':           'green',
 			'Applying':           'yellow',
 			'Applied':            'green',
 			'Partially Applied':  'orange',
 			'Rejected':           'red',
 			'Cancelled':          'grey',
+			'Legacy Import':      'grey',
 		};
 		frm.page.set_indicator(frm.doc.status, indicator_map[frm.doc.status] || 'grey');
 
@@ -34,28 +36,55 @@ frappe.ui.form.on("CH Price Upload Batch", {
 			}, null).addClass('btn-primary');
 		}
 
-		if (frm.doc.status === 'Pending Approval') {
-			if (frappe.user_roles.includes('System Manager') || frappe.user_roles.includes('CH Master Manager')) {
-				frm.add_custom_button(__('Approve & Apply'), () => {
-					frappe.confirm(
-						__('Approve this batch? All {0} changes will be applied immediately.', [frm.doc.total_changes]),
-						() => {
-							frm.call('approve_and_apply').then(() => frm.reload_doc());
-						}
-					);
-				}, null).addClass('btn-primary');
+		if (['Pending Approval', 'Partially Approved'].includes(frm.doc.status)) {
+			_render_category_approvals(frm);
 
-				frm.add_custom_button(__('Reject'), () => {
+			const is_override = frappe.user_roles.includes('System Manager')
+				|| frappe.user_roles.includes('CH Master Manager');
+
+			// My categories — the normal path. Each approver decides only the
+			// categories routed to them; the server enforces this regardless.
+			const mine = (frm.doc.category_approvals || []).filter(
+				(r) => r.status === 'Pending' && r.approver === frappe.session.user
+			);
+
+			mine.forEach((row) => {
+				frm.add_custom_button(__('Approve {0}', [row.category || '-']), () => {
+					frappe.confirm(
+						__('Approve the {0} price changes ({1} row(s))? They will apply immediately.',
+							[row.category || '-', row.row_count || 0]),
+						() => _decide(frm, row.category, 'Approve')
+					);
+				}, __('Approve')).addClass('btn-primary');
+
+				frm.add_custom_button(__('Reject {0}', [row.category || '-']), () => {
+					_reject_dialog(frm, row.category);
+				}, __('Reject'));
+			});
+
+			if (!mine.length && !is_override) {
+				frm.dashboard.set_headline(
+					__('Waiting on other category approvers. Nothing is routed to you on this batch.')
+				);
+			}
+
+			if (is_override) {
+				frm.add_custom_button(__('Approve All Remaining'), () => {
+					frappe.confirm(
+						__('Approve every category still pending? This is an override action and is audited.'),
+						() => frm.call('approve_and_apply').then(() => frm.reload_doc())
+					);
+				}, __('Override')).addClass('btn-danger');
+
+				frm.add_custom_button(__('Reject All Remaining'), () => {
 					const d = new frappe.ui.Dialog({
 						title: __('Reject Price Upload'),
-						fields: [
-							{
-								fieldtype: 'Small Text',
-								fieldname: 'reason',
-								label: __('Rejection Reason'),
-								reqd: 1,
-							}
-						],
+						fields: [{
+							fieldtype: 'Small Text',
+							fieldname: 'reason',
+							label: __('Rejection Reason'),
+							reqd: 1,
+						}],
 						primary_action_label: __('Reject'),
 						primary_action(values) {
 							d.hide();
@@ -63,8 +92,14 @@ frappe.ui.form.on("CH Price Upload Batch", {
 						},
 					});
 					d.show();
-				}).addClass('btn-danger');
+				}, __('Override')).addClass('btn-danger');
 			}
+		}
+
+		if (frm.doc.status === 'Legacy Import') {
+			frm.dashboard.set_headline(
+				__('Imported outside the approval workflow on 2026-07-07. These prices are already live; this batch is retained for audit only and cannot be applied again.')
+			);
 		}
 
 		// ── Show rejection reason on Rejected batches ───────────────────
@@ -75,7 +110,7 @@ frappe.ui.form.on("CH Price Upload Batch", {
 		}
 
 		// ── Revise: let maker fix and resubmit rejected/partial batches ──
-		if (['Rejected', 'Partially Applied'].includes(frm.doc.status)) {
+		if (['Rejected', 'Partially Applied', 'Applying'].includes(frm.doc.status)) {
 			frm.add_custom_button(__('Revise & Resubmit'), () => {
 				frappe.confirm(
 					__('Reset this batch to Draft? You can then edit rows and resubmit for approval.'),
@@ -118,6 +153,82 @@ frappe.ui.form.on("CH Price Upload Batch", {
 
 
 // ── Price Intelligence ───────────────────────────────────────────────────────
+function _decide(frm, category, action, comments) {
+	return frappe.call({
+		method: 'ch_item_master.ch_item_master.price_approval.decide_category',
+		args: { batch_name: frm.doc.name, category: category, action: action, comments: comments },
+		freeze: true,
+		freeze_message: __('Recording your decision…'),
+	}).then((r) => {
+		const res = (r && r.message) || {};
+		if (res.decision === 'Approved') {
+			const n = (res.applied && res.applied.applied) || 0;
+			frappe.show_alert({
+				message: __('{0} approved — {1} price row(s) applied.', [category || '-', n]),
+				indicator: 'green',
+			});
+		}
+		frm.reload_doc();
+	});
+}
+
+function _reject_dialog(frm, category) {
+	const d = new frappe.ui.Dialog({
+		title: __('Reject {0}', [category || '-']),
+		fields: [{
+			fieldtype: 'Small Text',
+			fieldname: 'reason',
+			label: __('Reason'),
+			reqd: 1,
+			description: __('Shared with the person who submitted these changes.'),
+		}],
+		primary_action_label: __('Reject'),
+		primary_action(values) {
+			d.hide();
+			_decide(frm, category, 'Reject', values.reason);
+		},
+	});
+	d.show();
+}
+
+// Who owes a decision, and on how much. Rendered above the grid so an
+// approver can see at a glance whether the batch is waiting on them.
+function _render_category_approvals(frm) {
+	const rows = frm.doc.category_approvals || [];
+	if (!rows.length || !frm.fields_dict.alerts_html) return;
+
+	const colour = { Pending: 'orange', Approved: 'green', Rejected: 'red' };
+	const body = rows.map((r) => {
+		const is_me = r.approver === frappe.session.user;
+		const fallback = r.routed_via === 'Company Head'
+			? ` <span style="color:var(--orange-600)" title="${__('No Category Manager mapped — escalated to the company head')}">(fallback)</span>`
+			: '';
+		return `
+			<tr${is_me && r.status === 'Pending' ? ' style="background:var(--bg-light-gray)"' : ''}>
+				<td>${frappe.utils.escape_html(r.category || '-')}</td>
+				<td>${frappe.utils.escape_html(r.approver_name || r.approver || '-')}${is_me ? ' <b>' + __('(you)') + '</b>' : ''}${fallback}</td>
+				<td style="text-align:right">${r.row_count || 0}</td>
+				<td style="text-align:right">${format_currency(r.total_value || 0)}</td>
+				<td><span class="indicator ${colour[r.status] || 'grey'}">${__(r.status)}</span></td>
+				<td>${frappe.utils.escape_html(r.comments || '')}</td>
+			</tr>`;
+	}).join('');
+
+	$(frm.fields_dict.alerts_html.wrapper).html(`
+		<div style="margin-bottom:12px">
+			<h5 style="margin-bottom:6px">${__('Category Approvals')}</h5>
+			<table class="table table-bordered" style="font-size:12px;margin-bottom:0">
+				<thead><tr>
+					<th>${__('Category')}</th><th>${__('Approver')}</th>
+					<th style="text-align:right">${__('Rows')}</th>
+					<th style="text-align:right">${__('Value')}</th>
+					<th>${__('Status')}</th><th>${__('Comments')}</th>
+				</tr></thead>
+				<tbody>${body}</tbody>
+			</table>
+		</div>`);
+}
+
 function _render_price_intelligence(frm) {
 	const items = frm.doc.items || [];
 	if (!items.length) return;
@@ -256,7 +367,9 @@ function _render_price_intelligence(frm) {
 		frm.set_intro('✅ All changes look reasonable — no pricing anomalies detected', 'green');
 	}
 
-	$(frm.fields_dict.alerts_html.wrapper).html(html);
+	// Append — the category approval panel renders into the same wrapper and
+	// must not be clobbered.
+	$(frm.fields_dict.alerts_html.wrapper).append(html);
 }
 
 function _render_alert_group(title, alert_items, border_color, pill_color) {

@@ -7,6 +7,7 @@
   "item_code",
   "item_name",
   "channel",
+  "category",
   "change_type",
   "column_break_01",
   "field_label",
@@ -14,6 +15,7 @@
   "new_value",
   "reason",
   "column_break_02",
+  "approval_status",
   "status",
   "error_message",
   "enrichment_section",
@@ -167,6 +169,26 @@
    "label": "Margin % (new vs purchase)",
    "read_only": 1,
    "description": "Based on new value vs last purchase rate"
+  },
+  {
+   "fetch_from": "item_code.ch_category",
+   "fieldname": "category",
+   "fieldtype": "Link",
+   "label": "Category",
+   "options": "CH Category",
+   "read_only": 1,
+   "in_list_view": 1,
+   "columns": 1,
+   "description": "Routing dimension - approval goes to this category's manager."
+  },
+  {
+   "default": "Pending",
+   "fieldname": "approval_status",
+   "fieldtype": "Select",
+   "label": "Approval Status",
+   "options": "Pending\nApproved\nRejected",
+   "read_only": 1,
+   "description": "Set from this row's category approval. Distinct from Status, which records the apply outcome."
   }
  ],
  "index_web_pages_for_search": 0,

@@ -1,0 +1,111 @@
+{
+ "actions": [],
+ "creation": "2026-07-20 10:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "category",
+  "approver",
+  "approver_name",
+  "routed_via",
+  "column_break_1",
+  "status",
+  "row_count",
+  "total_value",
+  "responded_at",
+  "comments"
+ ],
+ "fields": [
+  {
+   "fieldname": "category",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Category",
+   "options": "CH Category",
+   "read_only": 1,
+   "reqd": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "approver",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Approver",
+   "options": "User",
+   "read_only": 1,
+   "reqd": 1,
+   "columns": 2
+  },
+  {
+   "fetch_from": "approver.full_name",
+   "fieldname": "approver_name",
+   "fieldtype": "Data",
+   "label": "Approver Name",
+   "read_only": 1
+  },
+  {
+   "description": "How this approver was resolved. 'Company Head' means the category had no Category Manager mapped.",
+   "fieldname": "routed_via",
+   "fieldtype": "Select",
+   "label": "Routed Via",
+   "options": "Category Manager\nCompany Head",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Pending",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "Pending\nApproved\nRejected",
+   "read_only": 1,
+   "reqd": 1,
+   "columns": 1
+  },
+  {
+   "description": "Price rows in this batch belonging to this category.",
+   "fieldname": "row_count",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Rows",
+   "read_only": 1,
+   "columns": 1
+  },
+  {
+   "description": "Sum of the new values across this category's rows, used for the value band.",
+   "fieldname": "total_value",
+   "fieldtype": "Currency",
+   "label": "Total Value",
+   "read_only": 1
+  },
+  {
+   "fieldname": "responded_at",
+   "fieldtype": "Datetime",
+   "label": "Responded At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "comments",
+   "fieldtype": "Small Text",
+   "label": "Comments",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-07-20 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "CH Item Master",
+ "name": "CH Price Approval Category",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "creation",
+ "sort_order": "ASC",
+ "states": [],
+ "track_changes": 0
+}

@@ -860,4 +860,31 @@ CUSTOM_FIELDS = {
 			"in_standard_filter": 1,
 		},
 	],
+	# ──────────────────────────────────────────────
+	# Approval routing: the company-level fallback approver.
+	#
+	# Price changes route to the CH Category's `category_manager`. When a
+	# category has no manager mapped, the request escalates here rather than
+	# sitting unrouted — see ch_item_master.ch_item_master.price_approval.
+	# ──────────────────────────────────────────────
+	"Company": [
+		{
+			"fieldname": "ch_approval_section",
+			"label": _("CH Approval Routing"),
+			"fieldtype": "Section Break",
+			"insert_after": "default_holiday_list",
+			"collapsible": 1,
+		},
+		{
+			"fieldname": "ch_company_head",
+			"label": _("Company Head"),
+			"fieldtype": "Link",
+			"options": "User",
+			"insert_after": "ch_approval_section",
+			"description": _(
+				"Fallback approver for this company. Receives any approval "
+				"request whose product category has no Category Manager set."
+			),
+		},
+	],
 }

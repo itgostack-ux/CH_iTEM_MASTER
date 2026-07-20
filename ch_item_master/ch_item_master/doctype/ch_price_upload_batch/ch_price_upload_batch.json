@@ -24,6 +24,8 @@
   "rejected_by",
   "rejected_at",
   "rejection_reason",
+  "approvals_section",
+  "category_approvals",
   "summary_section",
   "total_changes",
   "selling_price_changes",
@@ -65,7 +67,8 @@
    "label": "Company",
    "options": "Company",
    "in_standard_filter": 1,
-   "search_index": 1
+   "search_index": 1,
+   "reqd": 1
   },
   {
    "fieldname": "upload_file",
@@ -84,7 +87,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Status",
-   "options": "Draft\nPending Approval\nApproved\nApplying\nApplied\nPartially Applied\nRejected\nCancelled",
+   "options": "Draft\nPending Approval\nPartially Approved\nApproved\nApplying\nApplied\nPartially Applied\nRejected\nCancelled\nLegacy Import",
    "read_only": 1,
    "bold": 1,
    "search_index": 1
@@ -266,6 +269,20 @@
    "fieldname": "notes",
    "fieldtype": "Small Text",
    "label": "Notes"
+  },
+  {
+   "fieldname": "approvals_section",
+   "fieldtype": "Section Break",
+   "label": "Category Approvals",
+   "depends_on": "eval:doc.status && doc.status !== 'Draft'"
+  },
+  {
+   "description": "One row per product category in this batch, routed to that category's manager. Each approver decides only their own category's rows.",
+   "fieldname": "category_approvals",
+   "fieldtype": "Table",
+   "label": "Category Approvals",
+   "options": "CH Price Approval Category",
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 0,
