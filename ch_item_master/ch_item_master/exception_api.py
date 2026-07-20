@@ -324,6 +324,7 @@ def _notify_exception_raised(exc, etype, escalated: bool = False) -> None:
 	The requester is excluded. Best-effort: missing recipients are skipped.
 	"""
 	store = exc.store_warehouse
+	company = exc.get("company")
 	recipient_users: set[str] = set()
 
 	if exc.assigned_approver:
@@ -331,11 +332,11 @@ def _notify_exception_raised(exc, etype, escalated: bool = False) -> None:
 
 	team_role = etype.notify_team_role or etype.alert_role
 	if team_role:
-		recipient_users.update(_scoped_or_role(team_role, store))
+		recipient_users.update(_scoped_role_users(team_role, store, company))
 
 	mgr_role = _manager_role_for(exc)
 	if mgr_role:
-		recipient_users.update(_scoped_or_role(mgr_role, store))
+		recipient_users.update(_scoped_role_users(mgr_role, store, company))
 
 	# Resolve to emails; drop the requester and blanks.
 	emails: set[str] = set()
@@ -359,14 +360,25 @@ def _notify_exception_raised(exc, etype, escalated: bool = False) -> None:
 	)
 
 
-def _scoped_or_role(role, store):
-	"""Store-scoped holders of `role`, falling back to all role-holders."""
+def _scoped_role_users(role, store, company=None):
+	"""Holders of `role` scoped to `store` and `company` — FAIL-CLOSED.
+
+	This used to fall back to every holder of the role when the scoped lookup
+	came back empty, which turned a missing CH User Scope row into a site-wide,
+	cross-company blast. An unresolvable scope must narrow, never widen: the
+	assigned approver is added by the caller regardless, so the exception is
+	never left with nobody to action it.
+	"""
 	try:
-		from ch_erp15.ch_erp15.notification_router import get_scoped_users
-		users = get_scoped_users([role], store=store) or []
+		from ch_erp15.ch_erp15.notification_router import (
+			filter_users_by_company,
+			get_scoped_users,
+		)
+
+		return filter_users_by_company(get_scoped_users([role], store=store) or [], company)
 	except Exception:
-		users = []
-	return users or _users_with_role(role)
+		frappe.log_error(title=f"Exception notify: scope resolution failed for role {role}")
+		return []
 
 
 def _build_exception_email(exc, heading) -> str:
