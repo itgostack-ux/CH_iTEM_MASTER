@@ -425,17 +425,9 @@ CUSTOM_FIELDS = {
 			"depends_on": "eval:doc.ch_default_warranty_months",
 		},
 		{
-			"fieldname": "ch_default_warranty_plan",
-			"label": _("Default Warranty Plan"),
-			"fieldtype": "Link",
-			"options": "CH Warranty Plan",
-			"insert_after": "ch_default_warranty_uom",
-			"description": _("The default warranty plan automatically issued when this item is sold."),
-		},
-		{
 			"fieldname": "ch_warranty_col_break",
 			"fieldtype": "Column Break",
-			"insert_after": "ch_default_warranty_plan",
+			"insert_after": "ch_default_warranty_uom",
 		},
 		{
 			"fieldname": "ch_lifecycle_status",
