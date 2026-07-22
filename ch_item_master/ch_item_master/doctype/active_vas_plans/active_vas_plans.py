@@ -470,7 +470,15 @@ class ActiveVASPlans(Document):
 
 		try:
 			je = frappe.new_doc("Journal Entry")
-			je.posting_date = self.get("start_date") or frappe.utils.today()
+			# Park the deferral on the SALE date, not the coverage start:
+			# the customer pays now even when coverage starts later (plans
+			# that stack after the base warranty begin in a future period —
+			# posting there is wrong under ASC 606 and can land in a fiscal
+			# year that doesn't exist yet).
+			je.posting_date = (
+				frappe.db.get_value("Sales Invoice", self.sales_invoice, "posting_date")
+				if self.get("sales_invoice") else None
+			) or frappe.utils.today()
 			je.company = company
 			je.user_remark = f"Deferred Revenue — Active VAS Plans {self.name}"
 			je.flags.ch_system_generated_je = True

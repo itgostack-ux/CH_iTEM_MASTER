@@ -145,6 +145,14 @@
    "description": "Duration of the warranty/plan in months. 0 = one-time service."
   },
   {
+   "fieldname": "starts_after_base_warranty",
+   "fieldtype": "Check",
+   "label": "Starts After Base Warranty",
+   "default": "0",
+   "depends_on": "eval:['Extended Warranty','Protection Plan'].includes(doc.plan_type)",
+   "description": "Coverage begins the day after the device's manufacturer/seller warranty expires (instead of the purchase date), so the plan stacks on top of the base warranty."
+  },
+  {
    "fieldname": "coverage_description",
    "fieldtype": "Small Text",
    "label": "Coverage Description",
@@ -221,21 +229,21 @@
    "fieldtype": "Link",
    "label": "Deferred Revenue Account",
    "options": "Account",
-   "description": "ASC 606: liability account that parks the plan sale until earned over time. Blank → falls back to Company.default_deferred_revenue_account."
+   "description": "ASC 606: liability account that parks the plan sale until earned over time. Blank \u2192 falls back to Company.default_deferred_revenue_account."
   },
   {
    "fieldname": "revenue_account",
    "fieldtype": "Link",
    "label": "Revenue Recognition Account",
    "options": "Account",
-   "description": "Income account that receives recognised revenue each period. Blank → falls back to the Sales Invoice line's income_account, then Company.default_income_account."
+   "description": "Income account that receives recognised revenue each period. Blank \u2192 falls back to the Sales Invoice line's income_account, then Company.default_income_account."
   },
   {
    "fieldname": "warranty_expense_account",
    "fieldtype": "Link",
    "label": "Warranty Expense Account",
    "options": "Account",
-   "description": "Expense account for warranty repair / spare / labour costs when a claim is consumed. Blank → falls back to Company.default_expense_account."
+   "description": "Expense account for warranty repair / spare / labour costs when a claim is consumed. Blank \u2192 falls back to Company.default_expense_account."
   },
   {
    "fieldname": "section_applicability",
@@ -504,6 +512,6 @@
  ],
  "allow_import": 1,
  "actions": [],
- "modified": "2026-01-01 00:00:00.000000",
+ "modified": "2026-07-22 19:00:00.000000",
  "creation": "2026-01-01 00:00:00.000000"
 }

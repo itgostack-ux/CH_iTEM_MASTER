@@ -34,6 +34,15 @@ doctype_js = {
 	"Branch": "public/js/branch.js",
 }
 
+# Jinja helpers available inside print formats (Custom Sales Invoice
+# renders the per-device warranty summary through this).
+jinja = {
+	"methods": [
+		"ch_item_master.ch_item_master.warranty_api.get_invoice_warranty_rows",
+		"ch_item_master.ch_item_master.warranty_api.get_item_default_warranty",
+	],
+}
+
 # Installation / Migration
 after_install = "ch_item_master.install.after_install"
 after_migrate = [

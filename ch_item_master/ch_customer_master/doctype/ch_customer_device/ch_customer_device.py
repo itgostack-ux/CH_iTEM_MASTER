@@ -49,9 +49,22 @@ class CHCustomerDevice(Document):
 			if attr_map.get("Storage"):
 				self.storage_capacity = attr_map["Storage"]
 
-			# Auto-fill default warranty months from Item if not yet set
+			# Auto-fill the base (manufacturer/seller) warranty from the Item's
+			# default-warranty profile. Base warranty lives in its own fields so
+			# a sold Extended Warranty / VAS plan never overwrites it.
+			from ch_item_master.ch_item_master.warranty_api import get_item_default_warranty
+			base = get_item_default_warranty(self.item_code)
+			if base["months"]:
+				if not self.base_warranty_type:
+					self.base_warranty_type = base["type"]
+				if not self.base_warranty_months:
+					self.base_warranty_months = base["months"]
+				if not self.base_warranty_expiry and self.purchase_date:
+					self.base_warranty_expiry = frappe.utils.add_months(
+						self.purchase_date, base["months"])
+			# Legacy field kept in sync for existing consumers
 			if not self.warranty_months and item.ch_default_warranty_months:
-				self.warranty_months = item.ch_default_warranty_months
+				self.warranty_months = base["months"] or item.ch_default_warranty_months
 
 	def set_lifecycle_link(self):
 		"""Link to CH Serial Lifecycle if it exists."""
@@ -65,7 +78,20 @@ class CHCustomerDevice(Document):
 				self.lifecycle = lifecycle
 
 	def sync_warranty_status(self):
-		"""Sync warranty info from active Active VAS Plans."""
+		"""Sync warranty info from active Active VAS Plans.
+
+		Without a sold plan, warranty status derives from the base
+		(manufacturer/seller) warranty window.
+		"""
+		if not self.active_warranty_plan and self.base_warranty_expiry:
+			if not self.warranty_expiry:
+				self.warranty_expiry = self.base_warranty_expiry
+			if not self.warranty_status or self.warranty_status in ("In Warranty", "Expired"):
+				self.warranty_status = (
+					"In Warranty"
+					if frappe.utils.getdate(self.base_warranty_expiry) >= frappe.utils.getdate()
+					else "Expired"
+				)
 		if self.active_warranty_plan:
 			try:
 				plan = frappe.get_cached_doc("Active VAS Plans", self.active_warranty_plan)

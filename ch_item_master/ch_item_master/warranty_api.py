@@ -21,6 +21,102 @@ from frappe.utils import nowdate, now_datetime, getdate, add_months, flt
 from ch_item_master.security import get_company_filter_value, get_company_scope
 
 
+# ── Item default (base) warranty ────────────────────────────────────────────
+
+def get_item_default_warranty(item_code) -> dict:
+	"""Canonical base-warranty profile for an Item.
+
+	Reads the Item's default-warranty fields (type + duration + unit) and
+	normalises the duration to months. Returns
+	``{"type", "duration", "uom", "months", "label"}`` — months = 0 means the
+	item carries no default warranty.
+	"""
+	row = frappe.db.get_value(
+		"Item", item_code,
+		["ch_default_warranty_type", "ch_default_warranty_months", "ch_default_warranty_uom"],
+		as_dict=True,
+	) or frappe._dict()
+	duration = cint(row.get("ch_default_warranty_months"))
+	uom = row.get("ch_default_warranty_uom") or "Months"
+	months = duration * 12 if uom == "Years" else duration
+	wtype = row.get("ch_default_warranty_type") or ("Manufacturer" if months else "")
+	label = ""
+	if months:
+		if uom == "Years":
+			label = _("{0} Warranty — {1} Year(s)").format(_(wtype), duration)
+		else:
+			label = _("{0} Warranty — {1} Month(s)").format(_(wtype), duration)
+	return {"type": wtype, "duration": duration, "uom": uom, "months": months, "label": label}
+
+
+def get_base_warranty_expiry(item_code, sale_date) -> str | None:
+	"""Base-warranty expiry date for a device of `item_code` sold on `sale_date`."""
+	months = get_item_default_warranty(item_code)["months"]
+	if not months or not sale_date:
+		return None
+	return add_months(getdate(sale_date), months)
+
+
+def get_invoice_warranty_rows(doc) -> list[dict]:
+	"""Warranty summary rows for a Sales Invoice — used by the Custom Sales
+	Invoice print format (registered as a jinja method).
+
+	One row per serialised device on the invoice: the item's base warranty
+	(type + duration + expiry from posting date) plus any Active VAS Plans
+	(extended warranty / VAS) sold on this invoice for that serial.
+	"""
+	rows = []
+	plans_by_serial = {}
+	try:
+		for p in frappe.get_all(
+			"Active VAS Plans",
+			filters={"sales_invoice": doc.name, "status": ["!=", "Void"]},
+			fields=["serial_no", "plan_title", "warranty_plan", "plan_type",
+			        "start_date", "end_date", "duration_months"],
+		):
+			plans_by_serial.setdefault(p.serial_no or "", []).append(p)
+	except Exception:
+		pass
+
+	for item in (doc.items or []):
+		serials = []
+		if item.get("serial_no"):
+			serials = [s.strip() for s in str(item.serial_no).replace(",", "\n").split("\n") if s.strip()]
+		if not serials:
+			# serial bundle (v15) — resolve from bundle if present
+			if item.get("serial_and_batch_bundle"):
+				serials = frappe.get_all(
+					"Serial and Batch Entry",
+					filters={"parent": item.serial_and_batch_bundle},
+					pluck="serial_no",
+				)
+		base = get_item_default_warranty(item.item_code)
+		for sn in (serials or [None]):
+			if not base["months"] and not plans_by_serial.get(sn or ""):
+				continue
+			row = {
+				"item_code": item.item_code,
+				"item_name": item.item_name,
+				"serial_no": sn or "",
+				"base_label": base["label"],
+				"base_type": base["type"],
+				"base_months": base["months"],
+				"base_expiry": get_base_warranty_expiry(item.item_code, doc.posting_date),
+				"plans": [
+					{
+						"title": p.plan_title or p.warranty_plan,
+						"plan_type": p.plan_type,
+						"start_date": p.start_date,
+						"end_date": p.end_date,
+						"duration_months": p.duration_months,
+					}
+					for p in plans_by_serial.get(sn or "", [])
+				],
+			}
+			rows.append(row)
+	return rows
+
+
 def _load_active_plan_benefits(active_plan) -> list[dict]:
 	"""Return benefit rules from the Active VAS Plan snapshot."""
 	raw = getattr(active_plan, "benefit_snapshot_json", None)
@@ -229,12 +325,23 @@ def issue_warranty_plan(warranty_plan, customer, item_code, serial_no=None,
 	Returns:
 		dict with: active_plan name, status
 	"""
-	if not start_date:
-		start_date = nowdate()
-
 	frappe.has_permission("Active VAS Plans", "create", throw=True)
 
 	plan = frappe.get_doc("CH Warranty Plan", warranty_plan)
+
+	if not start_date:
+		start_date = nowdate()
+		if cint(plan.get("starts_after_base_warranty")):
+			# Stack on the device's base (manufacturer/seller) warranty:
+			# coverage begins the day after the base warranty expires.
+			base_expiry = None
+			if serial_no:
+				base_expiry = frappe.db.get_value(
+					"CH Customer Device", {"serial_no": serial_no}, "base_warranty_expiry")
+			if not base_expiry and item_code:
+				base_expiry = get_base_warranty_expiry(item_code, start_date)
+			if base_expiry and getdate(base_expiry) >= getdate(start_date):
+				start_date = frappe.utils.add_days(base_expiry, 1)
 
 	if not company:
 		company = plan.company
