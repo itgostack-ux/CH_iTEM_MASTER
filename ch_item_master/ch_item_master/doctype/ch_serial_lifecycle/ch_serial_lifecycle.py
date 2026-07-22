@@ -169,7 +169,9 @@ def update_lifecycle_status(serial_no, new_status, company=None,
             if key in allowed_extra_fields:
                 doc.set(key, value)
 
-        doc.save(ignore_permissions=False)
+        # doc.save(ignore_permissions=False)
+        doc.save(ignore_permissions=True)
+
         # v16: do not call frappe.db.commit() — caller or request lifecycle handles it
     finally:
         frappe.db.sql("SELECT RELEASE_LOCK(%s)", (lock_key,))
