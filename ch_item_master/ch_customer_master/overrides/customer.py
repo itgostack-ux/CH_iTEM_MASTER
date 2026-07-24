@@ -16,6 +16,8 @@ import frappe
 from frappe import _
 from frappe.utils import getdate, today, random_string
 
+from ch_item_master.id_sequences import next_numeric_id
+
 
 def before_insert(doc, method=None):
 	"""Before a new Customer is created."""
@@ -171,16 +173,7 @@ def _assign_customer_id(doc):
 	"""Auto-assign a unique integer ch_customer_id for API / mobile / POS use."""
 	if doc.get("ch_customer_id"):
 		return
-
-	frappe.db.sql("SELECT GET_LOCK('customer_id_gen', 10)")
-	try:
-		result = frappe.db.sql(
-			"SELECT IFNULL(MAX(ch_customer_id), 0) FROM `tabCustomer`"
-		)
-		next_id = (result[0][0] or 0) + 1
-		doc.ch_customer_id = next_id
-	finally:
-		frappe.db.sql("SELECT RELEASE_LOCK('customer_id_gen')")
+	doc.ch_customer_id = next_numeric_id("customer")
 
 
 def _set_kyc_verified_info(doc):
@@ -262,17 +255,7 @@ def _generate_membership_id(doc):
 		return
 
 	cust_id = doc.get("ch_customer_id")
-	if cust_id:
-		doc.ch_membership_id = f"GG-{int(cust_id):05d}"
-	else:
-		# Fallback: generate from max existing membership sequence
-		frappe.db.sql("SELECT GET_LOCK('membership_id_gen', 10)")
-		try:
-			result = frappe.db.sql(
-				"SELECT IFNULL(MAX(CAST(SUBSTRING(ch_membership_id, 4) AS UNSIGNED)), 0) "
-				"FROM `tabCustomer` WHERE ch_membership_id IS NOT NULL AND ch_membership_id != ''"
-			)
-			next_id = (result[0][0] or 0) + 1
-			doc.ch_membership_id = f"GG-{next_id:05d}"
-		finally:
-			frappe.db.sql("SELECT RELEASE_LOCK('membership_id_gen')")
+	if not cust_id:
+		cust_id = next_numeric_id("customer")
+		doc.ch_customer_id = cust_id
+	doc.ch_membership_id = f"GG-{int(cust_id):05d}"

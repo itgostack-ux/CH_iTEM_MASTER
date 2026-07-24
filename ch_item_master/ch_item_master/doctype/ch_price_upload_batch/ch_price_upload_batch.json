@@ -301,6 +301,7 @@
    "create": 1,
    "delete": 1,
    "export": 1,
+   "import": 1,
    "share": 1
   },
   {
@@ -325,6 +326,11 @@
    "write": 0,
    "create": 0,
    "export": 1
+  },
+  {
+   "role": "CH Category Head",
+   "read": 1,
+   "write": 1
   }
  ],
  "sort_field": "creation",

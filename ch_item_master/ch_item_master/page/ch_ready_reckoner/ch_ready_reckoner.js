@@ -306,9 +306,30 @@ function _build_filters($wrap, state, onchange) {
         { key: 'company',     label: 'Company',    type: 'link', doctype: 'Company' },
         { key: 'item_search', label: 'Search', type: 'text', placeholder: 'Item code / name…' },
         { key: 'category',    label: 'Category',    type: 'link', doctype: 'CH Category' },
-        { key: 'sub_category',label: 'Sub Category',type: 'link', doctype: 'CH Sub Category' },
-        { key: 'brand',       label: 'Brand',       type: 'link', doctype: 'Brand' },
-        { key: 'model',       label: 'Model',       type: 'link', doctype: 'CH Model' },
+        { key: 'sub_category',label: 'Sub Category',type: 'link', doctype: 'CH Sub Category',
+          get_query: () => state.filters.category
+              ? { filters: { category: state.filters.category } } : {} },
+        { key: 'brand',       label: 'Brand',       type: 'link', doctype: 'Brand',
+          get_query: () => {
+              const f = {};
+              if (state.filters.sub_category) f.sub_category = state.filters.sub_category;
+              else if (state.filters.category) f.category = state.filters.category;
+              return {
+                  query: 'ch_item_master.ch_item_master.api.search_brands_for_category',
+                  filters: f,
+              };
+          } },
+        { key: 'model',       label: 'Model',       type: 'link', doctype: 'CH Model',
+          get_query: () => {
+              const f = {};
+              if (state.filters.sub_category) f.sub_category = state.filters.sub_category;
+              else if (state.filters.category) f.category = state.filters.category;
+              if (state.filters.brand) f.brand = state.filters.brand;
+              return {
+                  query: 'ch_item_master.ch_item_master.api.search_ch_models',
+                  filters: f,
+              };
+          } },
         { key: 'channel',     label: 'Channel',     type: 'link', doctype: 'CH Price Channel' },
         { key: 'as_of_date',  label: 'As of Date',  type: 'date' },
         { key: 'tag_filter',  label: 'Tag', type: 'select',
@@ -344,22 +365,23 @@ function _build_filters($wrap, state, onchange) {
             // Use Frappe's awesomplete link field
             const $el = $(`<input class="form-control" type="text" placeholder="${inp.label}…">`).appendTo($grp);
             frappe.utils.make_event_emitter($el[0]);
+            const df = { label: inp.label, fieldname: inp.key, options: inp.doctype, fieldtype: 'Link' };
+            if (inp.get_query) df.get_query = inp.get_query;
             const ctrl = new frappe.ui.form.ControlLink({
                 parent: $grp[0],
-                df: { label: inp.label, fieldname: inp.key, options: inp.doctype, fieldtype: 'Link' },
+                df: df,
                 only_input: true,
             });
             ctrl.value = state.filters[inp.key] || '';
             ctrl.refresh();
             ctrl.$input.css({ height: '28px', fontSize: '12px', minWidth: '110px', maxWidth: '150px' });
-            ctrl.$input.on('change', function () {
-                state.filters[inp.key] = this.value;
-                onchange();
-            });
-            ctrl.$input.on('awesomplete-selectcomplete', function () {
-                state.filters[inp.key] = this.value;
-                onchange();
-            });
+            const commit_link = (value) => {
+                state.filters[inp.key] = value;
+                // Cascade: clear child filters made invalid by this change, then reload
+                _apply_filter_cascade(state, inp.key).then(onchange);
+            };
+            ctrl.$input.on('change', function () { commit_link(this.value); });
+            ctrl.$input.on('awesomplete-selectcomplete', function () { commit_link(this.value); });
             state.filter_controls[inp.key] = ctrl;
             // Remove the auto-generated label since we add our own
             $grp.find('.control-label').remove();
@@ -382,6 +404,72 @@ function _build_filters($wrap, state, onchange) {
        <button class="btn btn-sm btn-primary" id="chpb-refresh">⟳ Refresh</button>
      </div>`).appendTo($bar);
     $bar.find('#chpb-refresh').on('click', onchange);
+}
+
+
+// ─── Cascading filters (Category → Sub Category → Model, Brand → Model) ───────
+// After a parent filter changes, clear any child selection that no longer
+// belongs to the chosen parent (SAP search-help / Odoo domain behaviour).
+function _apply_filter_cascade(state, changed_key) {
+    const f = state.filters;
+    const clear = (key) => {
+        f[key] = '';
+        const ctrl = (state.filter_controls || {})[key];
+        if (ctrl) {
+            ctrl.value = '';
+            if (ctrl.$input) ctrl.$input.val('');
+        }
+    };
+    const checks = [];
+
+    if (changed_key === 'category' && f.category) {
+        if (f.sub_category) {
+            checks.push(frappe.db.get_value('CH Sub Category', f.sub_category, 'category')
+                .then((r) => {
+                    if (((r.message || {}).category || '') !== f.category) clear('sub_category');
+                }));
+        }
+        if (f.model) {
+            checks.push(frappe.db.get_value('CH Model', f.model, 'sub_category')
+                .then((r) => {
+                    const sub = (r.message || {}).sub_category;
+                    if (!sub) { clear('model'); return; }
+                    return frappe.db.get_value('CH Sub Category', sub, 'category').then((r2) => {
+                        if (((r2.message || {}).category || '') !== f.category) clear('model');
+                    });
+                }));
+        }
+    }
+
+    if ((changed_key === 'category' || changed_key === 'sub_category') && f.brand
+            && (f.category || f.sub_category)) {
+        const mf = { brand: f.brand, disabled: 0 };
+        if (f.sub_category) mf.sub_category = f.sub_category;
+        const coverage_check = f.sub_category
+            ? frappe.db.count('CH Model', { filters: mf })
+            : frappe.db.get_list('CH Model', {
+                  filters: { brand: f.brand, disabled: 0 },
+                  fields: ['sub_category'], limit: 0,
+              }).then((rows) => frappe.db.get_list('CH Sub Category', {
+                  filters: { name: ['in', rows.map(r => r.sub_category).filter(Boolean)],
+                             category: f.category },
+                  limit: 1,
+              }).then((hit) => hit.length));
+        checks.push(Promise.resolve(coverage_check).then((n) => { if (!n) clear('brand'); }));
+    }
+
+    if ((changed_key === 'sub_category' || changed_key === 'brand') && f.model && (f.sub_category || f.brand)) {
+        checks.push(frappe.db.get_value('CH Model', f.model, ['sub_category', 'brand'])
+            .then((r) => {
+                const m = r.message || {};
+                if ((f.sub_category && m.sub_category !== f.sub_category)
+                    || (f.brand && m.brand !== f.brand)) {
+                    clear('model');
+                }
+            }));
+    }
+
+    return Promise.all(checks);
 }
 
 

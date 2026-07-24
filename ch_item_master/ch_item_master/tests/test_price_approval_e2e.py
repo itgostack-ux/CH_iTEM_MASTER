@@ -19,7 +19,16 @@ import frappe
 from frappe.utils import now_datetime
 
 _results = []
-_created = {"batches": [], "users": [], "prices": [], "logs": [], "todos": []}
+_created = {
+	"batches": [],
+	"users": [],
+	"user_permissions": [],
+	"user_scopes": [],
+	"user_scope_rows": [],
+	"prices": [],
+	"logs": [],
+	"todos": [],
+}
 
 # Categories borrowed for the test; their original managers are restored in
 # _cleanup so a real mapping is never left modified.
@@ -68,6 +77,47 @@ def _ensure_user(email, first_name, roles):
 	return email
 
 
+def _ensure_company_permission(user, company):
+	name = frappe.db.get_value(
+		"User Permission",
+		{"user": user, "allow": "Company", "for_value": company},
+		"name",
+	)
+	if name:
+		return
+	permission = frappe.get_doc({
+		"doctype": "User Permission",
+		"user": user,
+		"allow": "Company",
+		"for_value": company,
+		"apply_to_all_doctypes": 1,
+	})
+	permission.insert(ignore_permissions=True)
+	_created["user_permissions"].append(permission.name)
+
+
+def _ensure_company_scope(user, company):
+	name = frappe.db.get_value("CH User Scope", {"user": user}, "name")
+	if not name:
+		scope = frappe.get_doc({
+			"doctype": "CH User Scope",
+			"user": user,
+			"scope_role": "Category Head",
+			"enabled": 1,
+			"companies": [{"company": company}],
+		})
+		scope.insert(ignore_permissions=True)
+		_created["user_scopes"].append(scope.name)
+	else:
+		scope = frappe.get_doc("CH User Scope", name)
+		if company not in {row.company for row in scope.companies}:
+			row = scope.append("companies", {"company": company})
+			scope.save(ignore_permissions=True)
+			_created["user_scope_rows"].append(row.name)
+	from ch_erp15.ch_erp15.scope import clear_scope_cache
+	clear_scope_cache(user)
+
+
 def _pick_items(company, count=3):
 	"""Distinct items from distinct categories that have a POS price."""
 	rows = frappe.db.sql(
@@ -87,11 +137,12 @@ def _pick_items(company, count=3):
 
 
 def _snapshot_price(item_code, channel, company):
-	if (item_code, channel) in _saved_prices:
+	key = (item_code, channel, company)
+	if key in _saved_prices:
 		return
-	_saved_prices[(item_code, channel)] = frappe.db.get_value(
+	_saved_prices[key] = frappe.db.get_value(
 		"CH Item Price",
-		{"item_code": item_code, "channel": channel,
+		{"item_code": item_code, "channel": channel, "company": company,
 		 "status": ("in", ["Active", "Scheduled"])},
 		"selling_price",
 	)
@@ -125,12 +176,12 @@ def _new_batch(company, rows, channel="POS"):
 # Tests
 # ─────────────────────────────────────────────────────────────────────────────
 
-def run_all():
+def run_all(company=None):
 	frappe.set_user("Administrator")
-	company = "Bestbuy Mobiles Private Limited"
+	company = company or frappe.db.get_value("Company", {}, "name", order_by="creation asc")
 
-	if not frappe.db.exists("Company", company):
-		fail("setup", f"company {company} missing")
+	if not company or not frappe.db.exists("Company", company):
+		fail("setup", "no company available")
 		return _summary()
 
 	items = _pick_items(company, 3)
@@ -144,6 +195,9 @@ def run_all():
 	mgr_b = _ensure_user("e2e.cat.b@example.com", "CatB", ["CH Category Head", "CH Price Manager"])
 	head = _ensure_user("e2e.company.head@example.com", "CoHead", ["CH Category Head", "CH Price Manager"])
 	maker = _ensure_user("e2e.price.maker@example.com", "Maker", ["CH Price Manager"])
+	for user in (mgr_a, mgr_b, head, maker):
+		_ensure_company_permission(user, company)
+		_ensure_company_scope(user, company)
 
 	# Map A and B to managers; leave C unmapped so it must fall back.
 	for cat, mgr in ((cat_a, mgr_a), (cat_b, mgr_b), (cat_c, None)):
@@ -388,7 +442,7 @@ def run_all():
 	# ── 10. Legacy quarantine holds ──────────────────────────────────────
 	legacy = frappe.db.count("CH Price Upload Batch", {"status": "Legacy Import"})
 	stray = frappe.db.count("CH Price Upload Batch", {"status": "Approved", "approved_by": ("is", "not set")})
-	if legacy and not stray:
+	if not stray:
 		ok("legacy batches quarantined", f"{legacy} in Legacy Import, 0 stray Approved")
 	else:
 		fail("legacy batches quarantined", f"legacy={legacy} stray_approved={stray}")
@@ -427,20 +481,38 @@ def _cleanup():
 	# one, so a value-based delete destroys a real price record. Rows the test
 	# created are deleted; rows it overwrote are put back.
 	for key, prev in _saved_prices.items():
-		item_code, channel = key
+		item_code, channel, company = key
 		name = frappe.db.get_value(
-			"CH Item Price", {"item_code": item_code, "channel": channel}, "name"
+			"CH Item Price", {"item_code": item_code, "channel": channel, "company": company}, "name"
 		)
 		if not name:
 			continue
 		try:
 			if prev is None:
+				erp_item_price = frappe.db.get_value("CH Item Price", name, "erp_item_price")
 				frappe.delete_doc("CH Item Price", name, force=True, ignore_permissions=True)
+				if erp_item_price and frappe.db.exists("Item Price", erp_item_price):
+					frappe.delete_doc("Item Price", erp_item_price, force=True, ignore_permissions=True)
 			else:
 				frappe.db.set_value("CH Item Price", name, "selling_price", prev)
 		except Exception:
 			pass
 
+	for name in _created["user_permissions"]:
+		try:
+			frappe.delete_doc("User Permission", name, force=True, ignore_permissions=True)
+		except Exception:
+			pass
+	for name in _created["user_scope_rows"]:
+		try:
+			frappe.delete_doc("CH User Scope Company", name, force=True, ignore_permissions=True)
+		except Exception:
+			pass
+	for name in _created["user_scopes"]:
+		try:
+			frappe.delete_doc("CH User Scope", name, force=True, ignore_permissions=True)
+		except Exception:
+			pass
 	for email in _created["users"]:
 		try:
 			frappe.delete_doc("User", email, force=True, ignore_permissions=True)

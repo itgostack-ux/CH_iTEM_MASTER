@@ -1,18 +1,14 @@
 import frappe
 from frappe.model.document import Document
 
+from ch_item_master.id_sequences import next_numeric_id
+
 
 class CHPaymentMethod(Document):
     def before_insert(self):
-        """Auto-assign sequential integer ID using advisory lock."""
-        frappe.db.sql("SELECT GET_LOCK('ch_payment_method_id', 10)")
-        try:
-            last = frappe.db.sql(
-                "SELECT MAX(payment_method_id) FROM `tabCH Payment Method`"
-            )[0][0] or 0
-            self.payment_method_id = last + 1
-        finally:
-            frappe.db.sql("SELECT RELEASE_LOCK('ch_payment_method_id')")
+        """Auto-assign the atomic sequential integration ID."""
+        if not self.payment_method_id:
+            self.payment_method_id = next_numeric_id("payment_method")
 
     def validate(self):
         """Auto-set requirement flags based on method_type."""

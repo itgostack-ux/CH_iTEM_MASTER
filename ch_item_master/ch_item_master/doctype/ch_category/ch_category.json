@@ -142,6 +142,18 @@
    "write": 0,
    "create": 0,
    "export": 1
+  },
+  {
+   "role": "CH Price Manager",
+   "read": 1
+  },
+  {
+   "role": "CH Offer Manager",
+   "read": 1
+  },
+  {
+   "role": "CH Warranty Manager",
+   "read": 1
   }
  ],
  "quick_entry": 1,

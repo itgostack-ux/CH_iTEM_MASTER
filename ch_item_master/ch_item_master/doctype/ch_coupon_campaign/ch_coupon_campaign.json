@@ -406,54 +406,55 @@
  "owner": "Administrator",
  "permissions": [
   {
-   "amend": 1,
-   "cancel": 1,
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
    "create": 1,
    "delete": 1,
-   "export": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "System Manager",
-   "share": 1,
    "submit": 1,
-   "write": 1
-  },
-  {
-   "amend": 1,
    "cancel": 1,
-   "create": 1,
+   "amend": 1,
    "export": 1,
+   "import": 1,
    "print": 1,
-   "read": 1,
    "report": 1,
+   "share": 1
+  },
+  {
    "role": "Sales Manager",
-   "share": 1,
-   "submit": 1,
-   "write": 1
-  },
-  {
+   "read": 1,
+   "write": 1,
    "create": 1,
-   "export": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "CH Master Manager",
    "submit": 1,
-   "write": 1
-  },
-  {
+   "cancel": 1,
+   "amend": 1,
    "export": 1,
    "print": 1,
-   "read": 1,
    "report": 1,
-   "role": "Sales User"
+   "share": 1
   },
   {
+   "role": "CH Master Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "submit": 1,
    "export": 1,
    "print": 1,
+   "report": 1
+  },
+  {
+   "role": "Sales User",
    "read": 1,
-   "role": "CH Viewer"
+   "export": 1,
+   "print": 1,
+   "report": 1
+  },
+  {
+   "role": "CH Viewer",
+   "read": 1,
+   "export": 1,
+   "print": 1
   }
  ],
  "sort_field": "creation",

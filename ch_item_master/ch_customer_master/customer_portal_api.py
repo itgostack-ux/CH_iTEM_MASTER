@@ -5,25 +5,65 @@ from frappe import _
 from frappe.rate_limiter import rate_limit
 from frappe.utils import cint, flt, validate_email_address
 
-from buyback.api import get_assessments_by_phone, get_orders_by_phone
-from buyback.buyback.whatsapp_notifications import _get_email_for_mobile, send_otp_email
+from buyback.api import get_customer_portal_buyback_history
+from buyback.buyback.whatsapp_notifications import send_otp_email
 from buyback.utils import validate_indian_phone
 from ch_item_master.ch_core.doctype.ch_otp_log.ch_otp_log import CHOTPLog
 from ch_item_master.ch_core.whatsapp import send_template_message
 
 PORTAL_SESSION_PREFIX = "customer_portal_session:"
+PORTAL_OTP_CLAIM_PREFIX = "customer_portal_otp_claim:"
 PORTAL_SESSION_TTL = 1800
 
 
-def _create_portal_session(mobile_no: str, customer: str | None = None) -> str:
+def _atomic_window_counter(key: str, window_seconds: int) -> int:
+    cache = frappe.cache
+    cache_key = cache.make_key(key)
+    cache.set(cache_key, 0, nx=True, ex=window_seconds)
+    value = cache.incrby(cache_key, 1)
+    if cache.ttl(cache_key) < 0:
+        cache.expire(cache_key, window_seconds)
+    return cint(value)
+
+
+def _create_portal_session(
+    mobile_no: str,
+    customer: str | None = None,
+    otp_log: str | None = None,
+) -> str:
+    if not otp_log:
+        frappe.throw(_("OTP verification did not produce a one-time credential."), frappe.AuthenticationError)
     session_token = frappe.generate_hash(length=32)
+    claim_key = frappe.cache.make_key(f"{PORTAL_OTP_CLAIM_PREFIX}{otp_log}")
+    if not frappe.cache.set(claim_key, session_token, nx=True, ex=PORTAL_SESSION_TTL):
+        frappe.throw(_("This OTP has already been used. Request a new OTP."), frappe.AuthenticationError)
     payload = {"mobile_no": mobile_no, "customer": customer or ""}
-    frappe.cache().set_value(
-        f"{PORTAL_SESSION_PREFIX}{session_token}",
-        json.dumps(payload),
-        expires_in_sec=PORTAL_SESSION_TTL,
-    )
+    try:
+        frappe.cache().set_value(
+            f"{PORTAL_SESSION_PREFIX}{session_token}",
+            json.dumps(payload),
+            expires_in_sec=PORTAL_SESSION_TTL,
+        )
+    except Exception:
+        frappe.cache.delete_value(claim_key, make_keys=False)
+        raise
     return session_token
+
+
+def _customer_for_mobile(mobile_no: str) -> dict | None:
+    rows = frappe.get_all(
+        "Customer",
+        filters={"mobile_no": mobile_no, "disabled": 0},
+        fields=["name", "customer_name", "email_id"],
+        order_by="name asc",
+        limit_page_length=2,
+    )
+    if len(rows) > 1:
+        frappe.throw(
+            _("This mobile number is linked to more than one customer account. Contact support to resolve the duplicate mapping."),
+            frappe.AuthenticationError,
+        )
+    return rows[0] if rows else None
 
 
 def _get_portal_session(session_token: str) -> dict:
@@ -127,22 +167,22 @@ def _get_loyalty_snapshot(customer: str | None, company: str | None = None) -> d
     }
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist(allow_guest=True, methods=["POST"])
 @rate_limit(limit=3, seconds=300, methods=["POST"], ip_based=True)
 def request_login_otp(mobile_no: str, customer_name: str = "Customer", email_id: str | None = None) -> dict:
     # Per-IP throttle (above) defeats single-host SMS bombing. Add a
     # per-mobile cap so a multi-IP attacker still cannot spam a victim.
     mobile_no = validate_indian_phone(mobile_no, "Mobile No")
     _send_key = f"login_otp_send:{mobile_no}"
-    _sent = int(frappe.cache().get_value(_send_key) or 0)
-    if _sent >= 5:
+    if _atomic_window_counter(_send_key, 3600) > 5:
         frappe.throw(
             _("OTP send limit reached for this mobile. Please try again in an hour."),
             frappe.PermissionError,
             title=_("Rate Limit Exceeded"),
         )
-    frappe.cache().set_value(_send_key, _sent + 1, expires_in_sec=3600)
-    to_email = (email_id or "").strip()
+    customer = _customer_for_mobile(mobile_no)
+    customer_name = (customer or {}).get("customer_name") or "Customer"
+    to_email = ((customer or {}).get("email_id") or "").strip()
     if to_email:
         to_email = validate_email_address(to_email, throw=True)
 
@@ -150,7 +190,7 @@ def request_login_otp(mobile_no: str, customer_name: str = "Customer", email_id:
         mobile_no=mobile_no,
         purpose="POS Customer Verification",
         reference_doctype="Customer",
-        reference_name="",
+        reference_name=(customer or {}).get("name") or "",
     )
 
     sent_whatsapp = False
@@ -175,8 +215,6 @@ def request_login_otp(mobile_no: str, customer_name: str = "Customer", email_id:
         frappe.log_error(frappe.get_traceback(), "Customer portal WhatsApp OTP delivery failed")
 
     try:
-        if not to_email:
-            to_email = _get_email_for_mobile(mobile_no)
         if to_email:
             sent_email = send_otp_email(to_email, otp_code, "Customer Portal Login", "")
     except Exception:
@@ -197,36 +235,39 @@ def request_login_otp(mobile_no: str, customer_name: str = "Customer", email_id:
     }
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist(allow_guest=True, methods=["POST"])
 @rate_limit(limit=10, seconds=300, methods=["POST"], ip_based=True)
 def verify_login_otp(mobile_no: str, otp_code: str) -> dict:
     mobile_no = validate_indian_phone(mobile_no, "Mobile No")
     # Per-mobile attempt cap (defeats multi-IP brute force).
     _atk_key = f"login_otp_attempts:{mobile_no}"
-    _attempts = int(frappe.cache().get_value(_atk_key) or 0)
-    if _attempts >= 20:
+    if _atomic_window_counter(_atk_key, 900) > 20:
         frappe.throw(
             _("Too many OTP attempts for this mobile. Please wait 15 minutes."),
             frappe.PermissionError,
             title=_("Rate Limit Exceeded"),
         )
-    frappe.cache().set_value(_atk_key, _attempts + 1, expires_in_sec=900)
+    customer = _customer_for_mobile(mobile_no)
     result = CHOTPLog.verify_otp(
         mobile_no=mobile_no,
         purpose="POS Customer Verification",
         otp_code=str(otp_code or "").strip(),
         reference_doctype="Customer",
-        reference_name="",
+        reference_name=(customer or {}).get("name") or "",
     )
     if not result.get("valid"):
         return result
 
-    customer = frappe.db.get_value("Customer", {"mobile_no": mobile_no}, "name")
-    session_token = _create_portal_session(mobile_no, customer)
+    customer_name = (customer or {}).get("name")
+    session_token = _create_portal_session(
+        mobile_no,
+        customer_name,
+        otp_log=result.get("otp_log"),
+    )
     result.update(
         {
             "session_token": session_token,
-            "customer": customer,
+            "customer": customer_name,
             "expires_in_seconds": PORTAL_SESSION_TTL,
         }
     )
@@ -309,6 +350,7 @@ def get_dashboard(session_token: str) -> dict:
             )
 
     stores = get_store_locator(city=profile.get("city"), capability="buyback", limit=6)
+    buyback_history = get_customer_portal_buyback_history(mobile_no)
 
     return {
         "customer": customer,
@@ -318,8 +360,8 @@ def get_dashboard(session_token: str) -> dict:
         "wallet": _get_store_credit_wallet(customer),
         "recent_purchases": purchases,
         "service_requests": service_requests,
-        "buyback_assessments": get_assessments_by_phone(mobile_no),
-        "buyback_orders": get_orders_by_phone(mobile_no),
+        "buyback_assessments": buyback_history["assessments"],
+        "buyback_orders": buyback_history["orders"],
         "vouchers": vouchers,
         "stores": stores,
     }

@@ -179,8 +179,10 @@ def on_data_import_complete(doc, method=None):
     if doc.reference_doctype not in relevant:
         return
 
+    save_point = "ch_item_master_data_import_id_cascade"
+    frappe.db.savepoint(save_point=save_point)
     try:
         _run_all_cascades()
-        frappe.db.commit()
     except Exception:
+        frappe.db.rollback(save_point=save_point)
         frappe.log_error("on_data_import_complete", frappe.get_traceback())

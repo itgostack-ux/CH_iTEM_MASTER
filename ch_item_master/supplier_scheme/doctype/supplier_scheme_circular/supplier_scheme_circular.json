@@ -9,11 +9,15 @@
   "naming_series",
   "scheme_name",
   "circular_number",
+  "company",
   "brand",
   "column_break_basic",
   "supplier",
   "distributor",
   "status",
+  "ai_confidence_score",
+  "source_upload",
+  "source_upload_part",
   "section_dates",
   "issue_date",
   "valid_from",
@@ -39,6 +43,12 @@
   "column_break_totals",
   "total_settled_amount",
   "total_pending_amount",
+  "section_review",
+  "reviewed_by",
+  "review_date",
+  "column_break_review",
+  "review_notes",
+  "last_expiry_reminder",
   "amended_from"
  ],
  "fields": [
@@ -65,6 +75,17 @@
    "fieldtype": "Data",
    "label": "Circular Number",
    "description": "Supplier/brand reference number on the circular"
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Company",
+   "options": "Company",
+   "remember_last_selected_value": 1,
+   "reqd": 1,
+   "search_index": 1
   },
   {
    "fieldname": "brand",
@@ -114,6 +135,22 @@
    "description": "Confidence score returned by AI extraction (0\u2013100). Review carefully if below 80.",
    "bold": 1,
    "depends_on": "eval:doc.ai_confidence_score > 0"
+  },
+  {
+   "fieldname": "source_upload",
+   "fieldtype": "Link",
+   "label": "Source Scheme Upload",
+   "no_copy": 1,
+   "options": "Scheme Document Upload",
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "source_upload_part",
+   "fieldtype": "Int",
+   "label": "Source Upload Part",
+   "no_copy": 1,
+   "read_only": 1
   },
   {
    "fieldname": "section_dates",
@@ -336,42 +373,58 @@
  "owner": "Administrator",
  "permissions": [
   {
-   "cancel": 1,
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
    "create": 1,
    "delete": 1,
-   "email": 1,
-   "export": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "System Manager",
-   "share": 1,
    "submit": 1,
-   "write": 1
-  },
-  {
    "cancel": 1,
+   "amend": 1,
+   "email": 1,
+   "export": 1,
+   "import": 1,
+   "print": 1,
+   "report": 1,
+   "share": 1
+  },
+  {
+   "role": "Accounts Manager",
+   "read": 1,
+   "write": 1,
    "create": 1,
+   "submit": 1,
+   "cancel": 1,
    "email": 1,
    "export": 1,
    "print": 1,
-   "read": 1,
    "report": 1,
-   "role": "Accounts Manager",
-   "share": 1,
-   "submit": 1,
-   "write": 1
+   "share": 1
   },
   {
-   "create": 1,
-   "read": 1,
-   "report": 1,
    "role": "Accounts User",
-   "write": 1
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "report": 1
   },
   {
+   "role": "Sales User",
+   "read": 1
+  },
+  {
+   "role": "Purchase Manager",
    "read": 1,
-   "role": "Sales User"
+   "write": 1,
+   "create": 1,
+   "submit": 1
+  },
+  {
+   "role": "Scheme Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "submit": 1
   }
  ],
  "sort_field": "creation",

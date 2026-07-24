@@ -29,6 +29,93 @@ from frappe import _
 from frappe.utils import flt, get_datetime
 from erpnext.stock.serial_batch_bundle import SerialBatchCreation
 
+from ch_item_master.config import (
+	get_int_setting,
+	is_privileged_user,
+	require_role_setting,
+)
+from ch_item_master.security import ensure_company_access
+
+
+_BIN_VIEW_ROLES = ("Stock Manager", "Stock User", "Store Manager", "Store Executive")
+_BIN_TRANSFER_ROLES = ("Stock Manager", "Stock User", "Store Manager")
+
+
+def _require_named_permission(doctype: str, permission_type: str = "read") -> None:
+	if is_privileged_user():
+		return
+	if not frappe.has_permission(doctype, ptype=permission_type):
+		frappe.throw(
+			_("You do not have {0} permission for {1}.").format(permission_type, doctype),
+			frappe.PermissionError,
+		)
+
+
+def _authorized_store(store: str, *, transfer: bool = False):
+	if not store:
+		frappe.throw(_("A store is required."), frappe.ValidationError)
+	require_role_setting(
+		"bin_transfer_roles" if transfer else "bin_view_roles",
+		_BIN_TRANSFER_ROLES if transfer else _BIN_VIEW_ROLES,
+		action=_("transfer stock between bins") if transfer else _("view bin inventory"),
+	)
+	store_doc = frappe.get_doc("CH Store", store)
+	if store_doc.disabled:
+		frappe.throw(_("The selected store is disabled."), frappe.ValidationError)
+	if is_privileged_user():
+		return store_doc
+
+	if not frappe.has_permission("CH Store", ptype="read", doc=store_doc):
+		frappe.throw(_("You do not have permission to view this store."), frappe.PermissionError)
+	ensure_company_access(store_doc.company)
+	try:
+		from ch_erp15.ch_erp15.scope import assert_user_has_store_scope
+	except (ImportError, ModuleNotFoundError):
+		frappe.throw(_("Store scope validation is unavailable."), frappe.PermissionError)
+	assert_user_has_store_scope(
+		store=store_doc.name,
+		warehouse=store_doc.warehouse,
+		company=store_doc.company,
+		msg=_("The selected store is outside your assigned scope."),
+	)
+	return store_doc
+
+
+def _validate_transfer_references(item_code, from_warehouse, serial_no=None, batch_no=None):
+	_require_named_permission("Item")
+	item = frappe.db.get_value("Item", item_code, ["name", "disabled"], as_dict=True)
+	if not item or item.disabled:
+		frappe.throw(_("The selected item is missing or disabled."), frappe.ValidationError)
+
+	serials = [value.strip() for value in str(serial_no or "").split("\n") if value.strip()]
+	if serials:
+		_require_named_permission("Serial No")
+		placeholders = ", ".join(["%s"] * len(serials))
+		rows = frappe.db.sql(
+			f"""
+			SELECT name, item_code, warehouse
+			FROM `tabSerial No`
+			WHERE name IN ({placeholders})
+			FOR UPDATE
+			""",
+			tuple(serials),
+			as_dict=True,
+		)
+		if len(rows) != len(set(serials)):
+			frappe.throw(_("One or more serial numbers do not exist."), frappe.ValidationError)
+		if any(row.item_code != item_code or row.warehouse != from_warehouse for row in rows):
+			frappe.throw(
+				_("Every serial number must belong to the selected item and source bin."),
+				frappe.ValidationError,
+			)
+
+	if batch_no:
+		_require_named_permission("Batch")
+		batch = frappe.db.get_value("Batch", batch_no, ["item", "disabled"], as_dict=True)
+		if not batch or batch.item != item_code or batch.disabled:
+			frappe.throw(_("The selected batch is invalid for this item."), frappe.ValidationError)
+	return serials
+
 
 # ──────────────────────────────────────────────────────────────────────────
 # 1. Bin types and default allocation rules
@@ -163,17 +250,32 @@ def transfer_between_bins(
 
 	Returns the Stock Entry name. Raises if anything is invalid.
 	"""
+	store_doc = _authorized_store(store, transfer=True)
+	for doctype, permission_type in (
+		("Stock Entry", "create"),
+		("Stock Entry", "submit"),
+		("CH Bin Transfer Reason", "read"),
+		("Warehouse", "read"),
+	):
+		_require_named_permission(doctype, permission_type)
+
 	if from_bin_type == to_bin_type:
 		frappe.throw(_("Source and destination bin cannot be the same."))
 
 	qty = flt(qty)
 	if qty <= 0:
 		frappe.throw(_("Quantity must be greater than zero."))
+	quantity_limit = get_int_setting("bin_transfer_quantity_limit", 1000, minimum=1)
+	if qty > quantity_limit:
+		frappe.throw(
+			_("Quantity cannot exceed the configured limit of {0}.").format(quantity_limit),
+			frappe.ValidationError,
+		)
 
 	from_wh = get_store_bin(store, from_bin_type)
 	to_wh = get_store_bin(store, to_bin_type)
 
-	company = frappe.db.get_value("CH Store", store, "company")
+	company = store_doc.company
 	if not company:
 		frappe.throw(_("Store {0} has no company configured.").format(store))
 
@@ -204,6 +306,18 @@ def transfer_between_bins(
 			)
 		if reason_doc.requires_serial and not serial_no:
 			frappe.throw(_("Reason {0} requires a serial number.").format(reason))
+	elif not is_privileged_user():
+		frappe.throw(_("A transfer reason is required."), frappe.ValidationError)
+
+	serials = _validate_transfer_references(item_code, from_wh, serial_no, batch_no)
+	bin_name = frappe.db.get_value(
+		"Bin",
+		{"item_code": item_code, "warehouse": from_wh},
+		"name",
+		for_update=True,
+	)
+	if not bin_name:
+		frappe.throw(_("No stock exists for the selected item in the source bin."), frappe.ValidationError)
 
 	se = frappe.new_doc("Stock Entry")
 	se.stock_entry_type = "Material Transfer"
@@ -231,7 +345,6 @@ def transfer_between_bins(
 	if batch_no:
 		row.batch_no = batch_no
 
-	se.flags.ignore_permissions = True
 	# Intra-store bin reclassification (both warehouses belong to the same
 	# CH Store). This is NOT an inter-store transfer, so it must not go
 	# through the in-transit logistics flow. Set the flag that the
@@ -243,11 +356,10 @@ def transfer_between_bins(
 	# row.serial_no may not guarantee exact-serial movement. Attach an explicit
 	# outward bundle so submit consumes the intended serial(s).
 	if serial_no and frappe.get_single_value("Stock Settings", "use_serial_batch_fields"):
-		serial_nos = [s.strip() for s in str(serial_no).split("\n") if s.strip()]
-		if len(serial_nos) != int(qty):
+		if len(serials) != int(qty):
 			frappe.throw(
 				_("Serial count {0} must match Qty {1} for serialized transfer.").format(
-					len(serial_nos), int(qty)
+					len(serials), int(qty)
 				)
 			)
 
@@ -265,17 +377,15 @@ def transfer_between_bins(
 				"posting_datetime": posting_dt,
 				"do_not_submit": True,
 			}
-		).make_serial_and_batch_bundle(serial_nos=serial_nos)
+		).make_serial_and_batch_bundle(serial_nos=serials)
 
 		if bundle:
 			row.serial_and_batch_bundle = bundle.name if hasattr(bundle, "name") else bundle
 			row.serial_no = ""
-			se.flags.ignore_permissions = True
-			se.save(ignore_permissions=True)
+			se.save()
 
 	if submit:
 		se.submit()
-	frappe.db.commit()
 	return se.name
 
 
@@ -283,7 +393,7 @@ def transfer_between_bins(
 # 4. POS-facing whitelisted APIs
 # ──────────────────────────────────────────────────────────────────────────
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def pos_bin_transfer(
 	item_code: str,
 	qty: float,
@@ -347,6 +457,8 @@ def pos_bin_transfer(
 @frappe.whitelist()
 def get_bin_transfer_reasons(target_bin_type: str | None = None) -> list:
 	"""Return active reasons, optionally filtered by destination bin."""
+	require_role_setting("bin_view_roles", _BIN_VIEW_ROLES, action=_("view bin transfer reasons"))
+	_require_named_permission("CH Bin Transfer Reason", "read")
 	filters = {"disabled": 0}
 	if target_bin_type:
 		filters["target_bin_type"] = target_bin_type
@@ -371,32 +483,41 @@ def get_pos_bin_summary(store: str | None = None, item_code: str | None = None) 
 	store = store or get_store_for_user()
 	if not store:
 		frappe.throw(_("Cannot determine store for current user."))
+	_authorized_store(store)
+	_require_named_permission("Warehouse", "read")
+	_require_named_permission("Bin", "read")
+	if item_code:
+		_require_named_permission("Item", "read")
 
 	bins = get_store_bins(store)
 	result = {"store": store, "bins": []}
+	params = {"warehouses": tuple(bins.values())}
+	if item_code:
+		params["item_code"] = item_code
+	summary_rows = frappe.db.sql(
+		"""
+		SELECT
+			warehouse,
+			IFNULL(SUM(actual_qty), 0) AS qty,
+			COUNT(DISTINCT item_code) AS item_count
+		FROM `tabBin`
+		WHERE warehouse IN %(warehouses)s
+			{item_filter}
+		GROUP BY warehouse
+		""".format(item_filter="AND item_code = %(item_code)s" if item_code else ""),
+		params,
+		as_dict=True,
+	) if bins else []
+	summary_by_warehouse = {row.warehouse: row for row in summary_rows}
 
 	for bin_type, wh in bins.items():
-		filters = {"wh": wh}
-		if item_code:
-			filters["item_code"] = item_code
-		row = frappe.db.sql(
-			"""
-			SELECT
-				IFNULL(SUM(actual_qty), 0) AS qty,
-				COUNT(DISTINCT item_code) AS item_count
-			FROM `tabBin`
-			WHERE warehouse = %(wh)s
-				{item_filter}
-			""".format(item_filter="AND item_code = %(item_code)s" if item_code else ""),
-			filters,
-			as_dict=True,
-		)
+		row = summary_by_warehouse.get(wh) or {}
 		result["bins"].append(
 			{
 				"bin_type": bin_type,
 				"warehouse": wh,
-				"qty": flt(row[0]["qty"]) if row else 0.0,
-				"items": int(row[0]["item_count"]) if row else 0,
+				"qty": flt(row.get("qty", 0)),
+				"items": int(row.get("item_count", 0)),
 			}
 		)
 	return result
@@ -418,6 +539,9 @@ def get_bin_items(doctype, txt, searchfield, start, page_len, filters):
 	bin_type = filters.get("from_bin_type") or filters.get("bin_type")
 	if not store or not bin_type:
 		return []
+	_authorized_store(store)
+	for doctype in ("Warehouse", "Bin", "Item"):
+		_require_named_permission(doctype, "read")
 
 	try:
 		warehouse = get_store_bin(store, bin_type)
@@ -425,6 +549,9 @@ def get_bin_items(doctype, txt, searchfield, start, page_len, filters):
 		# Bin not provisioned for this store — show nothing rather than erroring.
 		return []
 
+	query_limit = get_int_setting("bin_query_limit", 200, minimum=1)
+	page_len = max(1, min(int(page_len or 20), query_limit))
+	start = max(0, int(start or 0))
 	like = f"%{txt or ''}%"
 	return frappe.db.sql(
 		"""
@@ -441,8 +568,8 @@ def get_bin_items(doctype, txt, searchfield, start, page_len, filters):
 		{
 			"wh": warehouse,
 			"txt": like,
-			"start": int(start or 0),
-			"page_len": int(page_len or 20),
+			"start": start,
+			"page_len": page_len,
 		},
 	)
 
@@ -462,9 +589,17 @@ def get_store_bin_serials(
 	store = store or get_store_for_user()
 	if not store:
 		frappe.throw(_("Cannot determine store for current user."))
+	_authorized_store(store)
+	for doctype in ("Warehouse", "Serial No", "Item"):
+		_require_named_permission(doctype, "read")
+	if frappe.db.table_exists("CH Stock Bin"):
+		_require_named_permission("CH Stock Bin", "read")
 
 	warehouse = get_store_bin(store, bin_type)
-	limit = max(1, min(int(limit or 100), 500))
+	limit = max(
+		1,
+		min(int(limit or 100), get_int_setting("bin_query_limit", 200, minimum=1)),
+	)
 
 	rows = []
 	if frappe.db.table_exists("CH Stock Bin"):
@@ -549,7 +684,7 @@ _IN_TRANSIT_MANIFEST_STATES = ("Assigned", "Pickup Started", "In Transit", "Deli
 
 
 @frappe.whitelist()
-def get_store_in_transit(store: str | None = None) -> dict:
+def get_store_in_transit(store: str | None = None, limit: int = 200) -> dict:
 	"""Read-only: stock currently in transit TO this store.
 
 	Resolved from active (dispatched, not-yet-received) CH Transfer Manifests
@@ -557,8 +692,13 @@ def get_store_in_transit(store: str | None = None) -> dict:
 	company ``Goods In Transit`` warehouse; the destination + ETA come from the
 	manifest. Returns rows shaped like get_store_bin_serials for the UI.
 	"""
+	store = store or get_store_for_user()
 	if not store:
-		return {"warehouse": _("Goods In Transit"), "count": 0, "serials": []}
+		frappe.throw(_("Cannot determine store for current user."))
+	_authorized_store(store)
+	for doctype in ("CH Transfer Manifest", "Stock Entry", "Warehouse"):
+		_require_named_permission(doctype, "read")
+	limit = max(1, min(int(limit or 200), get_int_setting("bin_query_limit", 200, minimum=1)))
 
 	# A manifest is "to this store" if it names the store directly, or its
 	# destination warehouse belongs to the store (some manifests set only the
@@ -576,27 +716,43 @@ def get_store_in_transit(store: str | None = None) -> dict:
 		or_filters=or_filters,
 		fields=["name", "status", "source_store", "source_warehouse",
 				"estimated_delivery_date", "driver_name"],
+		order_by="modified desc",
+		limit_page_length=limit,
 	)
+	manifest_by_name = {manifest.name: manifest for manifest in manifests}
+	manifest_items = frappe.get_all(
+		"CH Transfer Manifest Item",
+		filters={
+			"parent": ("in", tuple(manifest_by_name)),
+			"stock_entry": ("is", "set"),
+		},
+		fields=["parent", "stock_entry"],
+		order_by="parent, idx",
+		limit_page_length=limit * 5,
+	) if manifest_by_name else []
+	manifest_by_stock_entry = {}
+	for item in manifest_items:
+		manifest_by_stock_entry.setdefault(item.stock_entry, manifest_by_name[item.parent])
+	stock_rows = frappe.get_all(
+		"Stock Entry Detail",
+		filters={"parent": ("in", tuple(manifest_by_stock_entry))},
+		fields=["parent", "item_code", "item_name", "qty", "serial_no"],
+		order_by="parent, idx",
+		limit_page_length=limit,
+	) if manifest_by_stock_entry else []
 	rows = []
-	for m in manifests:
-		se_names = [s for s in frappe.get_all(
-			"CH Transfer Manifest Item", filters={"parent": m.name}, pluck="stock_entry") if s]
-		if not se_names:
-			continue
-		for it in frappe.get_all(
-			"Stock Entry Detail", filters={"parent": ["in", se_names]},
-			fields=["item_code", "item_name", "qty", "serial_no"],
-		):
-			rows.append({
-				"serial_no": (it.serial_no or "").strip().split("\n")[0],
-				"item_code": it.item_code,
-				"item_name": it.item_name,
-				"qty": it.qty,
-				"manifest": m.name,
-				"source": m.source_store or m.source_warehouse or "",
-				"eta": m.estimated_delivery_date,
-				"status": m.status,
-			})
+	for item in stock_rows:
+		manifest = manifest_by_stock_entry[item.parent]
+		rows.append({
+			"serial_no": (item.serial_no or "").strip().split("\n")[0],
+			"item_code": item.item_code,
+			"item_name": item.item_name,
+			"qty": item.qty,
+			"manifest": manifest.name,
+			"source": manifest.source_store or manifest.source_warehouse or "",
+			"eta": manifest.estimated_delivery_date,
+			"status": manifest.status,
+		})
 	return {"warehouse": _("Goods In Transit"), "count": len(rows), "serials": rows}
 
 
@@ -608,6 +764,11 @@ def get_serial_bin_context(serial_no: str, store: str | None = None) -> dict:
 		frappe.throw(_("Cannot determine store for current user."))
 	if not serial_no:
 		frappe.throw(_("Serial number is required."))
+	_authorized_store(store)
+	for doctype in ("Warehouse", "Serial No", "Item"):
+		_require_named_permission(doctype, "read")
+	if frappe.db.table_exists("CH Stock Bin"):
+		_require_named_permission("CH Stock Bin", "read")
 
 	# Prefer CH Stock Bin overlay for exact, bin-level context.
 	if frappe.db.table_exists("CH Stock Bin"):
@@ -686,7 +847,6 @@ def get_serial_bin_context(serial_no: str, store: str | None = None) -> dict:
 #    into the per-store Sellable bin.
 # ──────────────────────────────────────────────────────────────────────────
 
-@frappe.whitelist()
 def backfill_existing_stock_to_sellable(store: str | None = None, dry_run: int = 0) -> dict:
 	"""For each CH Store, move all stock currently sitting in the parent store
 	warehouse (or any warehouse linked to the store but not a bin) into that
@@ -700,107 +860,141 @@ def backfill_existing_stock_to_sellable(store: str | None = None, dry_run: int =
 	"""
 	dry_run = int(dry_run or 0)
 	moved, skipped, errors = [], [], []
-
-	store_filters = {"disabled": 0}
-	if store:
-		store_filters["name"] = store
-
-	stores = frappe.get_all(
-		"CH Store",
-		filters=store_filters,
-		fields=["name", "warehouse", "company"],
-	)
-
-	for st in stores:
-		if not st.warehouse:
-			skipped.append({"store": st.name, "reason": "no parent warehouse"})
-			continue
-
-		sellable = frappe.db.get_value(
-			"Warehouse",
-			{"ch_store": st.name, "ch_bin_type": "Sellable", "disabled": 0},
-			"name",
-		) or st.warehouse
-		if not sellable:
-			errors.append({"store": st.name, "reason": "missing Sellable bin"})
-			continue
-
-		# Candidate source warehouses: parent warehouse and any warehouse linked
-		# to the store that is NOT one of the 5 bins.
-		linked_whs = frappe.get_all(
-			"Warehouse",
-			filters={"ch_store": st.name, "disabled": 0},
-			fields=["name", "ch_bin_type"],
+	if not store:
+		frappe.throw(
+			_("Select one store for each legacy stock backfill run."),
+			frappe.ValidationError,
 		)
-		source_whs = {w.name for w in linked_whs if not (w.ch_bin_type or "").strip()}
-		source_whs.add(st.warehouse)
-		source_whs.discard(sellable)
+	st = _authorized_store(store, transfer=True)
+	if not dry_run:
+		_require_named_permission("Stock Entry", "create")
+		_require_named_permission("Stock Entry", "submit")
+	maintenance_limit = min(get_int_setting("bin_query_limit", 200, minimum=1), 2000)
+	has_transfer_reason_fields = frappe.get_meta("Stock Entry").has_field("ch_bin_transfer_reason")
 
-		for src in source_whs:
-			bins = frappe.get_all(
-				"Bin",
-				filters={"warehouse": src, "actual_qty": (">", 0)},
-				fields=["item_code", "actual_qty"],
-			)
-			if not bins:
-				continue
+	if not st.warehouse:
+		return {
+			"moved": moved,
+			"skipped": [{"store": st.name, "reason": "no parent warehouse"}],
+			"errors": errors,
+		}
 
-			if dry_run:
-				moved.append({
-					"store": st.name, "from": src, "to": sellable,
-					"items": len(bins), "dry_run": True,
-				})
-				continue
+	sellable = frappe.db.get_value(
+		"Warehouse",
+		{"ch_store": st.name, "ch_bin_type": "Sellable", "disabled": 0},
+		"name",
+	) or st.warehouse
+	if not sellable:
+		return {
+			"moved": moved,
+			"skipped": skipped,
+			"errors": [{"store": st.name, "reason": "missing Sellable bin"}],
+		}
 
-			# ERPNext blocks group warehouses from transactions. If the source is a
-			# group node holding legacy stock, temporarily flip is_group, post the
-			# Stock Entry, then restore the group flag.
-			was_group = frappe.db.get_value("Warehouse", src, "is_group")
+	linked_whs = frappe.get_all(
+		"Warehouse",
+		filters={"ch_store": st.name, "disabled": 0},
+		fields=["name", "ch_bin_type"],
+		order_by="name asc",
+		limit_page_length=maintenance_limit + 1,
+	)
+	if len(linked_whs) > maintenance_limit:
+		frappe.throw(
+			_("Store {0} exceeds the configured Bin Query Row Limit. Increase it only for a controlled maintenance run.").format(st.name),
+			frappe.ValidationError,
+		)
+	source_whs = {w.name for w in linked_whs if not (w.ch_bin_type or "").strip()}
+	source_whs.add(st.warehouse)
+	source_whs.discard(sellable)
+
+	for src in sorted(source_whs):
+		bins = frappe.get_all(
+			"Bin",
+			filters={"warehouse": src, "actual_qty": (">", 0)},
+			fields=["item_code", "actual_qty"],
+			order_by="item_code asc",
+			limit_page_length=maintenance_limit + 1,
+		)
+		if not bins:
+			continue
+		if len(bins) > maintenance_limit:
+			errors.append({
+				"store": st.name,
+				"from": src,
+				"error": _("Positive-stock item count exceeds the configured Bin Query Row Limit."),
+			})
+			continue
+
+		if dry_run:
+			moved.append({
+				"store": st.name, "from": src, "to": sellable,
+				"items": len(bins), "dry_run": True,
+			})
+			continue
+
+		serial_rows = frappe.get_all(
+			"Serial No",
+			filters={
+				"item_code": ("in", tuple({row.item_code for row in bins})),
+				"warehouse": src,
+				"status": "Active",
+			},
+			fields=["name", "item_code"],
+			order_by="item_code, name",
+			limit_page_length=maintenance_limit + 1,
+		)
+		if len(serial_rows) > maintenance_limit:
+			errors.append({
+				"store": st.name,
+				"from": src,
+				"error": _("Active serial count exceeds the configured Bin Query Row Limit."),
+			})
+			continue
+		serials_by_item = {}
+		for serial in serial_rows:
+			serials_by_item.setdefault(serial.item_code, []).append(serial.name)
+
+		save_point = "ch_legacy_stock_backfill_source"
+		frappe.db.savepoint(save_point=save_point)
+		was_group = frappe.db.get_value("Warehouse", src, "is_group")
+		try:
 			if was_group:
 				frappe.db.set_value("Warehouse", src, "is_group", 0, update_modified=False)
-				frappe.db.commit()
+				frappe.clear_document_cache("Warehouse", src)
 
-			try:
-				se = frappe.new_doc("Stock Entry")
-				se.stock_entry_type = "Material Transfer"
-				se.purpose = "Material Transfer"
-				se.company = st.company
-				se.from_warehouse = src
-				se.to_warehouse = sellable
-				if frappe.db.exists("Custom Field", {"dt": "Stock Entry", "fieldname": "ch_bin_transfer_reason"}):
-					se.ch_from_bin_type = ""
-					se.ch_to_bin_type = "Sellable"
-					se.ch_store = st.name
-				for b in bins:
-					row = se.append("items", {})
-					row.item_code = b.item_code
-					row.qty = flt(b.actual_qty)
-					row.s_warehouse = src
-					row.t_warehouse = sellable
-					# Attach serials if this item is serialized at this warehouse
-					serials = frappe.get_all(
-						"Serial No",
-						filters={"item_code": b.item_code, "warehouse": src, "status": "Active"},
-						pluck="name",
-					)
-					if serials:
-						row.serial_no = "\n".join(serials)
-				se.flags.ignore_permissions = True
-				se.insert()
-				se.submit()
-				frappe.db.commit()
-				moved.append({
-					"store": st.name, "from": src, "to": sellable,
-					"items": len(bins), "stock_entry": se.name,
-					"restored_group": bool(was_group),
-				})
-			except Exception as exc:
-				frappe.db.rollback()
-				errors.append({"store": st.name, "from": src, "error": str(exc)})
-			finally:
-				if was_group:
-					frappe.db.set_value("Warehouse", src, "is_group", 1, update_modified=False)
-					frappe.db.commit()
+			se = frappe.new_doc("Stock Entry")
+			se.stock_entry_type = "Material Transfer"
+			se.purpose = "Material Transfer"
+			se.company = st.company
+			se.from_warehouse = src
+			se.to_warehouse = sellable
+			if has_transfer_reason_fields:
+				se.ch_from_bin_type = ""
+				se.ch_to_bin_type = "Sellable"
+				se.ch_store = st.name
+			for b in bins:
+				row = se.append("items", {})
+				row.item_code = b.item_code
+				row.qty = flt(b.actual_qty)
+				row.s_warehouse = src
+				row.t_warehouse = sellable
+				serials = serials_by_item.get(b.item_code, [])
+				if serials:
+					row.serial_no = "\n".join(serials)
+			se.insert()
+			se.submit()
+			if was_group:
+				frappe.db.set_value("Warehouse", src, "is_group", 1, update_modified=False)
+				frappe.clear_document_cache("Warehouse", src)
+			moved.append({
+				"store": st.name, "from": src, "to": sellable,
+				"items": len(bins), "stock_entry": se.name,
+				"restored_group": bool(was_group),
+			})
+		except Exception as exc:
+			frappe.db.rollback(save_point=save_point)
+			frappe.clear_document_cache("Warehouse", src)
+			errors.append({"store": st.name, "from": src, "error": str(exc)})
 
 	return {"moved": moved, "skipped": skipped, "errors": errors}
 
@@ -837,8 +1031,13 @@ def seed_default_reasons():
 	"""Idempotently create default bin-transfer reasons."""
 	if not frappe.db.table_exists("CH Bin Transfer Reason"):
 		return
+	existing = set(frappe.get_all(
+		"CH Bin Transfer Reason",
+		filters={"name": ("in", [reason[0] for reason in DEFAULT_REASONS])},
+		pluck="name",
+	))
 	for name, tgt, src, ser, desc in DEFAULT_REASONS:
-		if frappe.db.exists("CH Bin Transfer Reason", name):
+		if name in existing:
 			continue
 		d = frappe.new_doc("CH Bin Transfer Reason")
 		d.reason_name = name

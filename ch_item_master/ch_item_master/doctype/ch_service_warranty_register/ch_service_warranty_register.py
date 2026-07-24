@@ -7,9 +7,6 @@ from frappe.utils import getdate, nowdate, add_months
 
 
 class CHServiceWarrantyRegister(Document):
-	def autoname(self):
-		pass  # Uses naming rule from JSON
-
 	def validate(self):
 		if not self.warranty_end_date and self.warranty_start_date and self.warranty_months:
 			self.warranty_end_date = add_months(self.warranty_start_date, self.warranty_months)

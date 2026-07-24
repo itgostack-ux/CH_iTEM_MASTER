@@ -15,6 +15,14 @@ frappe.pages['ch-item-master-dashboard'].on_page_load = function (wrapper) {
 
 	// Refresh button
 	page.set_primary_action(__('Refresh'), () => load_dashboard(page), 'refresh-ccw');
+	page.company_field = page.add_field({
+		fieldname: 'company',
+		label: __('Company'),
+		fieldtype: 'Link',
+		options: 'Company',
+		default: frappe.defaults.get_user_default('Company'),
+		change: () => load_dashboard(page),
+	});
 
 	load_dashboard(page);
 };
@@ -22,6 +30,7 @@ frappe.pages['ch-item-master-dashboard'].on_page_load = function (wrapper) {
 function load_dashboard(page) {
 	frappe.call({
 		method: 'ch_item_master.ch_item_master.page.ch_item_master_dashboard.ch_item_master_dashboard.get_dashboard_data',
+		args: { company: page.company_field?.get_value() || '' },
 		freeze: false,
 		callback(r) {
 			if (r.message) {

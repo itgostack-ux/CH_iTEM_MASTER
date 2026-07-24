@@ -261,19 +261,6 @@ def seed_states():
 
 # ── 2. Seed CH City ───────────────────────────────────────────────────────────
 
-def _get_operating_companies():
-    rows = frappe.db.sql(
-        "SELECT name FROM `tabCompany` WHERE name IN ('BestBuy Mobiles Pvt Ltd','GOFIX SOLUTIONS PRIVATE LIMITED')",
-        as_dict=True,
-    )
-    if not rows:
-        rows = frappe.db.sql(
-            "SELECT name FROM `tabCompany` WHERE IFNULL(is_group,0)=0 LIMIT 2",
-            as_dict=True,
-        )
-    return [r.name for r in rows]
-
-
 def seed_cities():
     created = skipped = 0
     for city_name, state_name in _CITIES:

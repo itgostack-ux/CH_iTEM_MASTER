@@ -4,25 +4,114 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 from frappe.utils import cint, date_diff, flt, getdate, nowdate
-from frappe.utils import validate_email_address
 
-_APPROVER_ROLES = ("Purchase Manager", "Scheme Manager", "System Manager")
+from ch_item_master.config import get_enabled_role_emails, get_int_setting, has_role_setting
+from ch_item_master.security import require_scoped_document_action
+
+
+_SCHEME_APPROVAL_ROLES = ("Purchase Manager", "Scheme Manager")
+_SCHEME_SUBMIT_ROLES = ("Accounts User", "Accounts Manager", "Purchase Manager", "Scheme Manager")
+_SCHEME_MANAGEMENT_ROLES = ("Accounts Manager", "Purchase Manager", "Scheme Manager")
 
 
 def _is_approver():
 	"""Return True if the current user holds an approval role."""
-	return any(frappe.db.exists("Has Role", {"parent": frappe.session.user, "role": r}) for r in _APPROVER_ROLES)
+	return has_role_setting(
+		"supplier_scheme_approval_roles",
+		("Purchase Manager", "Scheme Manager", "System Manager"),
+	)
 
 
 class SupplierSchemeCircular(Document):
+	_APPROVAL_CONTEXT = object()
+	_PROTECTED_FIELDS = ("status", "reviewed_by", "review_date", "review_notes")
+	_REVIEW_SENSITIVE_FIELDS = (
+		"scheme_name",
+		"circular_number",
+		"company",
+		"brand",
+		"supplier",
+		"distributor",
+		"source_upload",
+		"source_upload_part",
+		"issue_date",
+		"valid_from",
+		"valid_to",
+		"settlement_type",
+		"tds_applicable",
+		"tds_percent",
+		"description",
+		"circular_attachment",
+		"rules",
+	)
+
+	def _authorize_approval_transition(self):
+		self.flags.supplier_scheme_approval_context = self._APPROVAL_CONTEXT
+
+	def _has_approval_context(self):
+		return self.flags.get("supplier_scheme_approval_context") is self._APPROVAL_CONTEXT
+
+	def _validate_approval_transition(self):
+		if self._has_approval_context():
+			return
+		before = self.get_doc_before_save() if not self.is_new() else None
+		if before is None:
+			if self.status not in (None, "", "Draft") or any(
+				self.get(fieldname) not in (None, "")
+				for fieldname in self._PROTECTED_FIELDS
+				if fieldname != "status"
+			):
+				frappe.throw(_("Scheme approval evidence is server-managed."), frappe.PermissionError)
+			return
+		if any(self.get(fieldname) != before.get(fieldname) for fieldname in self._PROTECTED_FIELDS):
+			frappe.throw(
+				_("Scheme approval state can only be changed through its workflow actions."),
+				frappe.PermissionError,
+			)
+		if before.status in ("Pending Approval", "Active") and any(
+			self.get(fieldname) != before.get(fieldname)
+			for fieldname in self._REVIEW_SENSITIVE_FIELDS
+		):
+			frappe.throw(
+				_("Approved or pending scheme terms are immutable. Reject or amend the scheme first."),
+				frappe.PermissionError,
+			)
+
+	def _require_action(self, role_field, default_roles, action, permission_types=("write",)) -> None:
+		require_scoped_document_action(
+			self,
+			role_field,
+			default_roles,
+			action=action,
+			permission_types=permission_types,
+			company_field="company",
+			lock=True,
+		)
+
+	@frappe.whitelist()
+	def get_ui_capabilities(self) -> dict:
+		"""Return review actions from the configured server approval policy."""
+		self.check_permission("read")
+		can_write = bool(frappe.has_permission(self.doctype, "write", doc=self, throw=False))
+		return {
+			"can_review": bool(
+				can_write
+				and self.docstatus == 0
+				and self.status == "Pending Approval"
+				and _is_approver()
+			)
+		}
+
 	def validate(self):
+		self._validate_approval_transition()
 		self._validate_dates()
 		self._validate_rules()
 		self._compute_days_remaining()
 		self._compute_totals()
 
 	def before_submit(self):
-		# Allow programmatic submit from TPD offer approve() to bypass approver check
+		if not self._has_approval_context():
+			frappe.throw(_("Use Approve Scheme to activate this scheme."), frappe.PermissionError)
 		if self.flags.get("tpd_auto_create"):
 			return
 		if not _is_approver():
@@ -114,23 +203,32 @@ class SupplierSchemeCircular(Document):
 		self.total_settled_amount = flt(settled[0][0]) if settled else 0
 		self.total_pending_amount = flt(self.total_claim_amount) - flt(self.total_settled_amount)
 
-	@frappe.whitelist()
+	@frappe.whitelist(methods=["POST"])
 	def recompute_achievements(self) -> None:
 		"""Trigger full recomputation of eligibility and payouts for this scheme."""
-		frappe.has_permission("Supplier Scheme Circular", "write", throw=True)
+		self._require_action(
+			"supplier_scheme_management_roles",
+			_SCHEME_MANAGEMENT_ROLES,
+			_("recompute supplier scheme achievements"),
+		)
 		from ch_item_master.supplier_scheme.engine import recompute_scheme
 		result = recompute_scheme(self.name)
 		self.reload()
 		return result
 
-	@frappe.whitelist()
+	@frappe.whitelist(methods=["POST"])
 	def generate_claim(self) -> None:
 		"""Generate a Scheme Claim Summary from current achievement data."""
+		self._require_action(
+			"supplier_scheme_management_roles",
+			_SCHEME_MANAGEMENT_ROLES,
+			_("generate a supplier scheme claim"),
+		)
 		frappe.has_permission("Scheme Claim Summary", "create", throw=True)
 		from ch_item_master.supplier_scheme.claim_engine import generate_claim_summary
 		return generate_claim_summary(self.name)
 
-	@frappe.whitelist()
+	@frappe.whitelist(methods=["POST"])
 	def link_existing_maps(self, names_json) -> dict:
 		"""Bulk-link unlinked Scheme Product Map records to this scheme.
 
@@ -140,92 +238,118 @@ class SupplierSchemeCircular(Document):
 			dict with 'linked' count.
 		"""
 		import json
-		frappe.has_permission("Supplier Scheme Circular", "write", throw=True)
+		self._require_action(
+			"supplier_scheme_management_roles",
+			_SCHEME_MANAGEMENT_ROLES,
+			_("link supplier scheme product maps"),
+		)
 		names = json.loads(names_json) if isinstance(names_json, str) else names_json
+		if not isinstance(names, list):
+			frappe.throw(_("Product map names must be a list."))
+		limit = min(get_int_setting("supplier_scheme_link_limit", 200, minimum=1), 1000)
+		names = list(dict.fromkeys(name for name in names if isinstance(name, str) and name))
+		if len(names) > limit:
+			frappe.throw(_("A maximum of {0} product maps can be linked at once.").format(limit))
 		linked = 0
 		for name in names:
-			if frappe.db.exists("Scheme Product Map", name):
+			if frappe.db.exists("Scheme Product Map", name) and frappe.has_permission(
+				"Scheme Product Map", "write", doc=name, user=frappe.session.user
+			):
 				frappe.db.set_value("Scheme Product Map", name, "scheme", self.name, update_modified=False)
 				linked += 1
 		return {"linked": linked}
 
-	@frappe.whitelist()
+	@frappe.whitelist(methods=["POST"])
 	def submit_for_review(self) -> None:
 		"""Maker step: move a Draft scheme into Pending Approval for manager sign-off."""
+		self._require_action(
+			"supplier_scheme_submit_roles",
+			_SCHEME_SUBMIT_ROLES,
+			_("submit a supplier scheme for review"),
+		)
 		if self.docstatus != 0:
 			frappe.throw(_("Only saved (Draft) schemes can be submitted for review."))
 		if self.status not in ("Draft",):
 			frappe.throw(_("Scheme is already '{0}'. Only Draft schemes can be submitted for review.").format(self.status))
-		self.db_set("status", "Pending Approval")
+		self.status = "Pending Approval"
+		self._authorize_approval_transition()
+		self.save()
 		# Notify approvers
-		approver_emails = frappe.db.sql("""
-			SELECT DISTINCT u.email
-			FROM `tabUser` u
-			JOIN `tabHas Role` hr ON hr.parent = u.name
-			WHERE hr.role IN ('Purchase Manager','Scheme Manager','System Manager')
-			  AND u.enabled = 1 AND u.email != ''
-		""", as_list=True)
+		approver_emails = get_enabled_role_emails(
+			_SCHEME_APPROVAL_ROLES,
+			company=self.company,
+		)
 		if approver_emails:
-			recipients = []
-			for row in approver_emails:
-				email = validate_email_address(row[0]) if row and row[0] else ""
-				if email:
-					recipients.append(email)
-
-			if recipients:
-				scheme_url = frappe.utils.get_url_to_form("Supplier Scheme Circular", self.name)
-				try:
-					frappe.sendmail(
-						recipients=recipients,
-						subject=_("Scheme Approval Required: {0}").format(self.scheme_name or self.name),
-						message=_(
-							"<div style='font-family:Segoe UI,Arial,sans-serif;max-width:680px;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden'>"
-							"<div style='background:#0f172a;color:#ffffff;padding:12px 16px;font-weight:600'>Congruence Holdings - Scheme Approval</div>"
-							"<div style='padding:16px'>"
-							"<p>Scheme <b>{name}</b> - <b>{scheme}</b> ({brand}) has been submitted for your approval.</p>"
-							"<p>Please review and approve or reject the scheme.</p>"
-							"<p><a href='{scheme_url}' style='background:#0b57d0;color:#ffffff;text-decoration:none;padding:10px 14px;border-radius:6px;display:inline-block;font-weight:600'>Open Scheme</a></p>"
-							"</div></div>"
-						).format(name=self.name, scheme=self.scheme_name or "", brand=self.brand or "", scheme_url=scheme_url),
-						delayed=True,
-					)
-				except Exception:
-					frappe.log_error(
-						frappe.get_traceback(),
-						f"Supplier Scheme approval notification failed: {self.name}",
-					)
+			scheme_url = frappe.utils.get_url_to_form("Supplier Scheme Circular", self.name)
+			try:
+				frappe.sendmail(
+					recipients=approver_emails,
+					subject=_("Scheme Approval Required: {0}").format(self.scheme_name or self.name),
+					message=_(
+						"<div style='font-family:Segoe UI,Arial,sans-serif;max-width:680px;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden'>"
+						"<div style='background:#0f172a;color:#ffffff;padding:12px 16px;font-weight:600'>Congruence Holdings - Scheme Approval</div>"
+						"<div style='padding:16px'>"
+						"<p>Scheme <b>{name}</b> - <b>{scheme}</b> ({brand}) has been submitted for your approval.</p>"
+						"<p>Please review and approve or reject the scheme.</p>"
+						"<p><a href='{scheme_url}' style='background:#0b57d0;color:#ffffff;text-decoration:none;padding:10px 14px;border-radius:6px;display:inline-block;font-weight:600'>Open Scheme</a></p>"
+						"</div></div>"
+					).format(name=self.name, scheme=self.scheme_name or "", brand=self.brand or "", scheme_url=scheme_url),
+					delayed=True,
+				)
+			except Exception:
+				frappe.log_error(
+					frappe.get_traceback(),
+					f"Supplier Scheme approval notification failed: {self.name}",
+				)
 		frappe.msgprint(_("Scheme submitted for review. Approvers have been notified."), indicator="blue", alert=True)
 
-	@frappe.whitelist()
+	@frappe.whitelist(methods=["POST"])
 	def approve_scheme(self) -> None:
 		"""Checker step: approve and activate the scheme (submits the document)."""
+		self._require_action(
+			"supplier_scheme_approval_roles",
+			_SCHEME_APPROVAL_ROLES,
+			_("approve a supplier scheme"),
+			permission_types=("write", "submit"),
+		)
 		if not _is_approver():
 			frappe.throw(_("Only a Purchase Manager or Scheme Manager can approve schemes."), title=_("Not Authorised"))
 		if self.docstatus != 0 or self.status != "Pending Approval":
 			frappe.throw(_("Only schemes in 'Pending Approval' state can be approved."))
-		self.db_set("reviewed_by", frappe.session.user)
-		self.db_set("review_date", nowdate())
-		# submit() will trigger on_submit → status = Active
-		self.reload()
+		self.reviewed_by = frappe.session.user
+		self.review_date = nowdate()
+		self._authorize_approval_transition()
 		self.submit()
 		frappe.msgprint(_("Scheme approved and is now Active."), indicator="green", alert=True)
 
-	@frappe.whitelist()
+	@frappe.whitelist(methods=["POST"])
 	def reject_scheme(self, reason: str = "") -> None:
 		"""Checker step: reject the scheme and return it to Draft with a note."""
+		self._require_action(
+			"supplier_scheme_approval_roles",
+			_SCHEME_APPROVAL_ROLES,
+			_("reject a supplier scheme"),
+		)
 		if not _is_approver():
 			frappe.throw(_("Only a Purchase Manager or Scheme Manager can reject schemes."), title=_("Not Authorised"))
 		if self.docstatus != 0 or self.status != "Pending Approval":
 			frappe.throw(_("Only schemes in 'Pending Approval' state can be rejected."))
-		self.db_set("status", "Draft")
-		self.db_set("reviewed_by", frappe.session.user)
-		self.db_set("review_date", nowdate())
-		self.db_set("review_notes", reason or "")
+		self.status = "Draft"
+		self.reviewed_by = frappe.session.user
+		self.review_date = nowdate()
+		self.review_notes = reason or ""
+		self._authorize_approval_transition()
+		self.save()
 		frappe.msgprint(_("Scheme rejected and returned to Draft."), indicator="orange", alert=True)
 
-	@frappe.whitelist()
+	@frappe.whitelist(methods=["POST"])
 	def close_scheme(self) -> None:
 		"""Close this scheme (no further achievement entries)."""
+		self._require_action(
+			"supplier_scheme_management_roles",
+			_SCHEME_MANAGEMENT_ROLES,
+			_("close a supplier scheme"),
+		)
 		if self.docstatus != 1:
 			frappe.throw(_("Only submitted schemes can be closed"), title=_("Supplier Scheme Circular Error"))
 		self.db_set("status", "Closed")

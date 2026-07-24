@@ -253,7 +253,7 @@ class TestRBACRoleGates(unittest.TestCase):
 
 		frappe.get_roles = lambda user=None: ["Stock User", "All"]
 		with self.assertRaises(frappe.ValidationError):
-			check_vendor_manager_role()
+			check_vendor_manager_role("stock.user@example.com")
 
 	def test_09_plm_manager_gate_blocks_stock_user(self):
 		"""check_plm_role() raises for users without CH PLM Manager (or higher) role."""
@@ -261,7 +261,7 @@ class TestRBACRoleGates(unittest.TestCase):
 
 		frappe.get_roles = lambda user=None: ["Stock User", "All"]
 		with self.assertRaises(frappe.ValidationError):
-			check_plm_role()
+			check_plm_role("stock.user@example.com")
 
 
 class TestRBACFieldSecurity(unittest.TestCase):

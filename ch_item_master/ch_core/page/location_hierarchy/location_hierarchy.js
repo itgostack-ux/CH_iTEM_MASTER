@@ -16,6 +16,10 @@ class LocationHierarchyView {
 		this.warehouse_view = 'all';
 		this.tree = [];
 		this.companies = [];
+		this.access_loaded = false;
+		this.can_view = false;
+		this.can_manage = false;
+		this.management_actions_added = false;
 
 		this.$container = $(`<div class="location-hierarchy-page"></div>`).appendTo(page.body);
 		this.inject_styles();
@@ -88,14 +92,8 @@ class LocationHierarchyView {
 	}
 
 	setup_toolbar() {
-		this.page.set_primary_action(__('Add City'), () => this.add_city(), 'add');
-		this.page.add_menu_item(__('Add State'), () => this.add_state());
-		this.page.add_menu_item(__('Add City to Master'), () => this._city_master_dialog({}, false, null));
-		this.page.add_menu_item(__('Add Zone'), () => this.add_zone());
-		this.page.add_menu_item(__('Assign Warehouse'), () => this.assign_warehouse_dialog());
-		this.page.add_menu_item(__('Assign Office'), () => this.assign_office_dialog());
-		this.page.add_menu_item(__('Add Office (Branch)'), () => this.create_office_dialog());
-		this.page.add_menu_item(__('Refresh'), () => this.render());
+		// Company and view filters are available to every configured viewer.
+		// Management actions are added after the server resolves role settings.
 
 		// Default to the user's company so the tree opens scoped, not showing
 		// every company at once.
@@ -129,14 +127,47 @@ class LocationHierarchyView {
 		});
 	}
 
+	setup_management_actions() {
+		if (this.management_actions_added) return;
+		this.management_actions_added = true;
+		this.page.set_primary_action(__('Add City'), () => this.add_city(), 'add');
+		this.page.add_menu_item(__('Add State'), () => this.add_state());
+		this.page.add_menu_item(__('Add City to Master'), () => this._city_master_dialog({}, false, null));
+		this.page.add_menu_item(__('Add Zone'), () => this.add_zone());
+		this.page.add_menu_item(__('Assign Warehouse'), () => this.assign_warehouse_dialog());
+		this.page.add_menu_item(__('Assign Office'), () => this.assign_office_dialog());
+		this.page.add_menu_item(__('Add Office (Branch)'), () => this.create_office_dialog());
+		this.page.add_menu_item(__('Refresh'), () => this.render());
+	}
+
+	async load_access() {
+		if (this.access_loaded) return;
+		const response = await frappe.call({
+			method: 'ch_item_master.ch_core.location_hierarchy.get_location_access',
+		});
+		const access = response.message || {};
+		this.can_view = !!access.can_view;
+		this.can_manage = !!access.can_manage;
+		this.access_loaded = true;
+		if (this.can_manage) this.setup_management_actions();
+	}
+
 	async render() {
 		this.$container.html('<div class="text-muted" style="padding:30px;">Loading…</div>');
+		await this.load_access();
+		if (!this.can_view) {
+			this.$container.html(`<div class="lh-empty-state">${__('You do not have permission to view the location hierarchy.')}</div>`);
+			return;
+		}
 		const r = await frappe.call({
 			method: 'ch_item_master.ch_core.location_hierarchy.get_company_location_tree',
 			args: { company: this.company || null, warehouse_view: this.warehouse_view || 'all' }
 		});
 		this.tree = r.message || [];
 		this.draw();
+		if (!this.can_manage) {
+			this.$container.find('.lh-add-btn, .lh-actions, #lh-first-city').remove();
+		}
 	}
 
 	draw() {
@@ -144,9 +175,11 @@ class LocationHierarchyView {
 			this.$container.html(`<div class="lh-empty-state">
 				<h4>${__('No location data yet')}</h4>
 				<p>${__('Start by adding a city, then add zones and assign warehouses / stores / offices.')}</p>
-				<button class="btn btn-primary btn-sm" id="lh-first-city">${__('Add First City')}</button>
+				${this.can_manage ? `<button class="btn btn-primary btn-sm" id="lh-first-city">${__('Add First City')}</button>` : ''}
 			</div>`);
-			this.$container.find('#lh-first-city').on('click', () => this.add_city());
+			if (this.can_manage) {
+				this.$container.find('#lh-first-city').on('click', () => this.add_city());
+			}
 			return;
 		}
 
@@ -366,11 +399,14 @@ class LocationHierarchyView {
 
 	unassign_city_hub(city, hub) {
 		const w = hub.warehouse || {};
-		const zones = (hub.zones_served || []).map(z => z.zone);
 		frappe.confirm(__('Remove hub {0} from {1} (its zones will have no source warehouse)?',
 			[w.warehouse_name || w.name, city.city_name || city.city]), () => {
-			Promise.all(zones.map(z => frappe.db.set_value('CH Store Zone', z, 'source_warehouse', '')))
-				.then(() => this.render());
+			frappe.call({
+				method: 'ch_item_master.ch_core.location_hierarchy.unassign_city_hub',
+				args: { warehouse: w.name, company: hub.company || w.company, city: city.city },
+				freeze: true,
+				freeze_message: __('Removing hub assignment…'),
+			}).then(() => this.render());
 		});
 	}
 
@@ -857,9 +893,10 @@ class LocationHierarchyView {
 			options: 'CH City', reqd: 1,
 			placeholder: __('Search the CH City master…'),
 			description: __('Pick from CH City master (full Indian district coverage is pre-seeded). Missing one? Use the link below.'),
-			// Bypass ch_erp15 scope filter — this is a master-data admin dialog
-			// and needs the full nation-wide city list, not the operator's own scope.
-			get_query: () => ({ query: 'ch_item_master.ch_core.location_hierarchy.master_city_query' }),
+				get_query: () => ({
+					query: 'ch_item_master.ch_core.location_hierarchy.master_city_query',
+					filters: { company: lockedCompany ? company : d.get_value('company') },
+				}),
 		});
 		fields.push({
 			fieldtype: 'HTML',
@@ -1016,7 +1053,8 @@ class LocationHierarchyView {
 		] : [
 			{ fieldtype: 'Link', fieldname: 'company', label: 'Company', options: 'Company', reqd: 1, default: doc.company || this.company },
 			{ fieldtype: 'Link', fieldname: 'city', label: 'City', options: 'CH City', reqd: 1, default: doc.city,
-				get_query: () => ({ query: 'ch_item_master.ch_core.location_hierarchy.master_city_query' }) },
+				get_query: () => ({ query: 'ch_item_master.ch_core.location_hierarchy.master_city_query',
+					filters: { company: d.get_value('company') } }) },
 			{ fieldtype: 'Data', fieldname: 'zone_name', label: 'Zone Name', reqd: 1, default: doc.zone_name },
 			{ fieldtype: 'Link', fieldname: 'source_warehouse', label: 'Source Warehouse', options: 'Warehouse', default: doc.source_warehouse,
 				get_query: () => ({
@@ -1120,7 +1158,8 @@ class LocationHierarchyView {
 			if (pickerHelp) fields.push({ fieldtype: 'HTML', options: helpHTML });
 			fields.push({ fieldtype: 'Link', fieldname: 'company', label: 'Company', options: 'Company', reqd: 1, default: e.company || this.company });
 			fields.push({ fieldtype: 'Link', fieldname: 'city', label: 'City', options: 'CH City', default: e.ch_city,
-				get_query: () => ({ query: 'ch_item_master.ch_core.location_hierarchy.master_city_query' }) });
+				get_query: () => ({ query: 'ch_item_master.ch_core.location_hierarchy.master_city_query',
+					filters: { company: d.get_value('company') } }) });
 			fields.push({ fieldtype: 'Link', fieldname: 'zone', label: 'Zone', options: 'CH Store Zone', default: e.ch_zone,
 				get_query: () => ({ filters: { company: d.get_value('company'), city: d.get_value('city') } }) });
 			fields.push({ fieldtype: 'Select', fieldname: 'location_type', label: __('Location Type'),
@@ -1174,7 +1213,8 @@ class LocationHierarchyView {
 			{ fieldtype: 'Link', fieldname: 'branch', label: 'Branch', options: 'Branch', reqd: 1 },
 			{ fieldtype: 'Link', fieldname: 'company', label: 'Company', options: 'Company', reqd: 1, default: this.company },
 			{ fieldtype: 'Link', fieldname: 'city', label: 'City', options: 'CH City',
-				get_query: () => ({ query: 'ch_item_master.ch_core.location_hierarchy.master_city_query' }) },
+				get_query: () => ({ query: 'ch_item_master.ch_core.location_hierarchy.master_city_query',
+					filters: { company: d.get_value('company') } }) },
 			{ fieldtype: 'Link', fieldname: 'zone', label: 'Zone', options: 'CH Store Zone',
 				get_query: () => ({ filters: { company: d.get_value('company'), city: d.get_value('city') } }) },
 		];
@@ -1210,7 +1250,8 @@ class LocationHierarchyView {
 				{ fieldtype: 'Data', fieldname: 'branch', label: 'Branch Name', reqd: 1 },
 				{ fieldtype: 'Link', fieldname: 'company', label: 'Company', options: 'Company', reqd: 1, default: this.company },
 				{ fieldtype: 'Link', fieldname: 'city', label: 'City', options: 'CH City',
-					get_query: () => ({ query: 'ch_item_master.ch_core.location_hierarchy.master_city_query' }) },
+					get_query: () => ({ query: 'ch_item_master.ch_core.location_hierarchy.master_city_query',
+						filters: { company: d.get_value('company') } }) },
 				{ fieldtype: 'Link', fieldname: 'zone', label: 'Zone', options: 'CH Store Zone',
 					get_query: () => ({ filters: { company: d.get_value('company'), city: d.get_value('city') } }) },
 			],
@@ -1244,7 +1285,8 @@ class LocationHierarchyView {
 		] : [
 			{ fieldtype: 'Link', fieldname: 'company', label: 'Company', options: 'Company', reqd: 1, default: this.company },
 			{ fieldtype: 'Link', fieldname: 'city', label: 'City', options: 'CH City', reqd: 1,
-				get_query: () => ({ query: 'ch_item_master.ch_core.location_hierarchy.master_city_query' }) },
+				get_query: () => ({ query: 'ch_item_master.ch_core.location_hierarchy.master_city_query',
+					filters: { company: d.get_value('company') } }) },
 			{ fieldtype: 'Link', fieldname: 'zone', label: 'Zone', options: 'CH Store Zone', reqd: 1,
 				get_query: () => ({ filters: { company: d.get_value('company'), city: d.get_value('city') } }) },
 			{ fieldtype: 'Data', fieldname: 'store_name', label: 'Store Name', reqd: 1 },
@@ -1283,7 +1325,8 @@ class LocationHierarchyView {
 			fields: [
 				{ fieldtype: 'HTML', options: `<div class="text-muted small" style="margin:-4px 0 8px;">${__('Select the city and zone this store belongs to. This corrects the missing zone assignment.')}</div>` },
 				{ fieldtype: 'Link', fieldname: 'city', label: 'City', options: 'CH City', reqd: 1,
-					get_query: () => ({ query: 'ch_item_master.ch_core.location_hierarchy.master_city_query' }) },
+					get_query: () => ({ query: 'ch_item_master.ch_core.location_hierarchy.master_city_query',
+						filters: { company } }) },
 				{ fieldtype: 'Link', fieldname: 'zone', label: 'Zone', options: 'CH Store Zone', reqd: 1,
 					get_query: () => ({ filters: { company, city: d.get_value('city') } }) },
 			],

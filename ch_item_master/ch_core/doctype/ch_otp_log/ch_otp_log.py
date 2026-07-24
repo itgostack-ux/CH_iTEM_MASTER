@@ -1,10 +1,11 @@
-import random
+import secrets
 import string
 
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import now_datetime, add_to_date
+from frappe.model.naming import make_autoname
+from frappe.utils import add_to_date, cint, now_datetime
 
 from ch_item_master.ch_item_master.utils import validate_indian_phone
 
@@ -14,17 +15,14 @@ class CHOTPLog(Document):
         if self.mobile_no:
             self.mobile_no = validate_indian_phone(self.mobile_no, "Mobile No")
 
-    def before_insert(self):
-        """Auto-assign sequential integer ID using advisory lock."""
-        frappe.db.sql("SELECT GET_LOCK('ch_otp_log_id', 10)")
-        try:
-            last = frappe.db.sql(
-                "SELECT MAX(otp_id) FROM `tabCH OTP Log`"
-            )[0][0] or 0
-            self.otp_id = last + 1
-        finally:
-            frappe.db.sql("SELECT RELEASE_LOCK('ch_otp_log_id')")
+    def autoname(self):
+        self.name = make_autoname(self.naming_series or "CHOTP-.#####", doc=self)
+        suffix = self.name.rsplit("-", 1)[-1]
+        if not suffix.isdigit():
+            frappe.throw(_("CH OTP Log naming series must end in a numeric counter."))
+        self.otp_id = cint(suffix)
 
+    def before_insert(self):
         if not self.generated_at:
             self.generated_at = now_datetime()
         if not self.expires_at:
@@ -42,36 +40,47 @@ class CHOTPLog(Document):
             otp = CHOTPLog.generate_otp("9876543210", "Buyback Confirmation",
                                          "Buyback Order", "BO-00001")
         """
-        otp_code = "".join(random.choices(string.digits, k=6))
+        mobile_no = validate_indian_phone(mobile_no, "Mobile No")
+        lock_name = f"ch_otp_generate:{mobile_no}"
+        lock_result = frappe.db.sql("SELECT GET_LOCK(%s, 10)", (lock_name,))
+        acquired = bool(lock_result and lock_result[0][0] == 1)
+        if not acquired:
+            frappe.throw(_("OTP generation is busy. Please retry."), frappe.ValidationError)
 
-        # BB-3 fix: Rate limit OTP generation — max 5 *unconsumed* OTPs per mobile per hour.
-        # Verified OTPs were legitimately used by the customer, so they don't count toward
-        # the throttle (otherwise a customer who completes 5 verifications is locked out
-        # for a full hour).
-        recent_count = frappe.db.count("CH OTP Log", {
-            "mobile_no": mobile_no,
-            "generated_at": (">=", add_to_date(now_datetime(), hours=-1)),
-            "status": ("!=", "Verified"),
-        })
-        if recent_count >= 5:
-            frappe.throw(
-                _("Too many OTP requests for {0}. Please wait a few minutes before trying again.").format(mobile_no),
-                title=_("Rate Limit Exceeded"),
-            )
+        try:
+            recent_count = frappe.db.count("CH OTP Log", {
+                "mobile_no": mobile_no,
+                "generated_at": (">=", add_to_date(now_datetime(), hours=-1)),
+                "status": ("!=", "Verified"),
+            })
+            if recent_count >= 5:
+                frappe.throw(
+                    _("Too many OTP requests for {0}. Please wait a few minutes before trying again.").format(mobile_no),
+                    title=_("Rate Limit Exceeded"),
+                )
 
-        doc = frappe.get_doc({
-            "doctype": "CH OTP Log",
-            "mobile_no": mobile_no,
-            "otp_code": otp_code,
-            "purpose": purpose,
-            "reference_doctype": reference_doctype,
-            "reference_name": reference_name,
-            "ip_address": frappe.local.request_ip if hasattr(frappe.local, "request_ip") else None,
-        })
-        doc.insert(ignore_permissions=True)
-        frappe.db.commit()
+            otp_code = "".join(secrets.choice(string.digits) for _ in range(6))
+            doc = frappe.get_doc({
+                "doctype": "CH OTP Log",
+                "mobile_no": mobile_no,
+                "otp_code": otp_code,
+                "purpose": purpose,
+                "reference_doctype": reference_doctype,
+                "reference_name": reference_name,
+                "ip_address": frappe.local.request_ip if hasattr(frappe.local, "request_ip") else None,
+            })
+            doc.insert(ignore_permissions=True)
+            return otp_code
+        finally:
+            frappe.db.sql("SELECT RELEASE_LOCK(%s)", (lock_name,))
 
-        return otp_code
+    @staticmethod
+    def _stored_otp(doc) -> str:
+        try:
+            value = doc.get_password("otp_code") or ""
+        except Exception:
+            value = ""
+        return str(value or doc.get("otp_code") or "").strip()
 
     @staticmethod
     def verify_otp(mobile_no, purpose, otp_code, reference_doctype=None, reference_name=None):
@@ -82,17 +91,9 @@ class CHOTPLog(Document):
         """
         from ch_item_master.ch_core.shadow_live import master_otp_matches
 
-        if master_otp_matches(otp_code):
-            # Shadow-live pilot: the configured master OTP stands in for the
-            # customer's OTP. Close any pending log rows for the audit trail.
-            frappe.db.set_value(
-                "CH OTP Log",
-                {"mobile_no": mobile_no, "purpose": purpose, "status": "Pending"},
-                "status", "Verified", update_modified=False,
-            )
-            return {"valid": True, "message": "Verified via shadow-live master OTP.", "shadow_live": True}
-
         MAX_ATTEMPTS = 5
+        mobile_no = validate_indian_phone(mobile_no, "Mobile No")
+        submitted_otp = str(otp_code or "").strip()
 
         filters = {
             "mobile_no": mobile_no,
@@ -104,84 +105,54 @@ class CHOTPLog(Document):
         if reference_name:
             filters["reference_name"] = reference_name
 
-        logs = frappe.get_all(
+        log_name = frappe.db.get_value(
             "CH OTP Log",
-            filters=filters,
-            fields=["name", "otp_code", "expires_at", "attempts"],
+            filters,
+            "name",
             order_by="creation desc",
-            limit=1,
+            for_update=True,
         )
 
-        if not logs:
-            # Idempotency (Oracle Fusion / Stripe pattern):
-            # If the same caller already verified an OTP for this (mobile, purpose, ref)
-            # within the last 10 minutes, treat the retry as a successful no-op instead
-            # of confusing the user with "No pending OTP found". This protects against
-            # double-clicks, network retries, and resumed flows.
-            verified_filters = {
-                "mobile_no": mobile_no,
-                "purpose": purpose,
-                "status": "Verified",
-                "verified_at": (">=", add_to_date(now_datetime(), minutes=-10)),
-            }
-            if reference_doctype:
-                verified_filters["reference_doctype"] = reference_doctype
-            if reference_name:
-                verified_filters["reference_name"] = reference_name
-
-            recent_verified = frappe.get_all(
-                "CH OTP Log",
-                filters=verified_filters,
-                fields=["name"],
-                order_by="verified_at desc",
-                limit=1,
-            )
-            if recent_verified:
-                return {
-                    "valid": True,
-                    "already_verified": True,
-                    "message": _("OTP already verified."),
-                }
-
+        if not log_name:
             return {"valid": False, "message": _("No pending OTP found for this mobile number.")}
 
-        log = logs[0]
-        doc = frappe.get_doc("CH OTP Log", log.name)
+        doc = frappe.get_doc("CH OTP Log", log_name)
 
         # Check expiry
         if now_datetime() > doc.expires_at:
             doc.status = "Expired"
             doc.save(ignore_permissions=True)
-            frappe.db.commit()
             return {"valid": False, "message": _("OTP has expired. Please request a new one.")}
 
         # Check max attempts
         if doc.attempts >= MAX_ATTEMPTS:
             doc.status = "Failed"
             doc.save(ignore_permissions=True)
-            frappe.db.commit()
             return {"valid": False, "message": _("Maximum OTP attempts exceeded.")}
 
-        doc.attempts += 1
-
-        # Verify code: support both Password and Data field storage.
-        stored_otp = ""
-        try:
-            stored_otp = doc.get_password("otp_code") or ""
-        except Exception:
-            stored_otp = ""
-        if not stored_otp:
-            stored_otp = (doc.get("otp_code") or "").strip()
-
-        if str(stored_otp) == str(otp_code or "").strip():
+        if master_otp_matches(submitted_otp):
             doc.status = "Verified"
             doc.verified_at = now_datetime()
             doc.save(ignore_permissions=True)
-            frappe.db.commit()
-            return {"valid": True, "message": _("OTP verified successfully.")}
+            return {
+                "valid": True,
+                "message": _("Verified via shadow-live master OTP."),
+                "shadow_live": True,
+                "otp_log": doc.name,
+            }
+
+        doc.attempts += 1
+        if secrets.compare_digest(CHOTPLog._stored_otp(doc), submitted_otp):
+            doc.status = "Verified"
+            doc.verified_at = now_datetime()
+            doc.save(ignore_permissions=True)
+            return {
+                "valid": True,
+                "message": _("OTP verified successfully."),
+                "otp_log": doc.name,
+            }
         else:
             doc.save(ignore_permissions=True)
-            frappe.db.commit()
             remaining = MAX_ATTEMPTS - doc.attempts
             return {
                 "valid": False,

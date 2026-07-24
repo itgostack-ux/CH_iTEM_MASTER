@@ -896,5 +896,24 @@ CUSTOM_FIELDS = {
 				"request whose product category has no Category Manager set."
 			),
 		},
+		{
+			"fieldname": "ch_external_device_section",
+			"label": _("External Device Configuration"),
+			"fieldtype": "Section Break",
+			"insert_after": "ch_company_head",
+			"collapsible": 1,
+		},
+		{
+			"fieldname": "ch_default_external_device_item",
+			"label": _("Default Generic Device Item"),
+			"fieldtype": "Link",
+			"options": "Item",
+			"insert_after": "ch_external_device_section",
+			"description": _(
+				"Generic non-stock item used as fallback when selling warranty/VAS plans "
+				"for customer-provided IMEIs without a plan-specific external device item. "
+				"Leave blank if each plan will configure its own generic device item."
+			),
+		},
 	],
 }

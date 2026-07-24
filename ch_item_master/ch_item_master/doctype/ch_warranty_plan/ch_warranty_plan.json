@@ -12,6 +12,9 @@
  "track_changes": 1,
  "title_field": "plan_name",
  "search_fields": "plan_name,plan_type,service_item,brand",
+ "field_order": [
+  "naming_series", "warranty_plan_id", "company", "plan_name", "plan_type", "coverage_scope", "purchase_window_hours", "column_break_basic", "service_item", "status", "brand", "section_validity", "valid_from", "valid_to", "section_coverage", "duration_months", "starts_after_base_warranty", "coverage_description", "column_break_coverage", "max_claims", "claims_per_year", "deductible_amount", "is_inhouse", "section_pricing", "price", "pricing_mode", "percentage_value", "column_break_pricing", "cost_to_company", "deferred_revenue_account", "revenue_account", "warranty_expense_account", "section_applicability", "applicable_item_groups", "applicable_categories", "column_break_applicability", "attach_level", "applicable_channels", "sellable_section", "is_sellable", "partner", "auto_attach", "column_break_sellable", "min_device_price", "max_device_price", "external_device_section", "allow_external_device", "section_vas_benefits", "fulfillment_type", "benefit_rules", "section_notes", "terms_and_conditions", "internal_notes", "section_claim_behaviour", "coverage_type_override", "priority", "column_break_claim_behaviour", "requires_approval", "company_share_percent", "post_repair_warranty_months", "section_fee_rules", "fee_rules", "section_coverage_rules", "coverage_rules"
+ ],
  "sort_field": "modified",
  "sort_order": "DESC",
  "fields": [
@@ -339,16 +342,15 @@
    "fieldtype": "Check",
    "label": "Allow Customer-Provided IMEI",
    "default": "0",
-   "description": "If enabled, POS may sell this VAS/protection plan for an IMEI not found in our Serial No / customer device records."
+   "description": "If enabled, POS may sell this VAS/protection plan for an IMEI not found in our Serial No / customer device records. A generic device item (plan-specific or company-level default) will be used."
   },
   {
    "fieldname": "external_device_item",
    "fieldtype": "Link",
-   "label": "External Device Item",
+   "label": "Generic Device Item (Optional)",
    "options": "Item",
    "depends_on": "eval:doc.allow_external_device",
-   "mandatory_depends_on": "eval:doc.allow_external_device",
-   "description": "Generic non-stock Item used on the Active VAS Plan when the customer-provided IMEI is outside our inventory."
+   "description": "Optional non-stock generic item for this plan's external devices. If not set, a company-level default generic item will be used at POS time. Only set this if you need a plan-specific generic device item; leave blank to use the global default."
   },
   {
    "fieldname": "section_vas_benefits",

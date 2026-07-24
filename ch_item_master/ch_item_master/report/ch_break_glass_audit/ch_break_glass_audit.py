@@ -27,13 +27,13 @@ import frappe
 from frappe import _
 from frappe.utils import add_days, now_datetime, get_datetime, getdate
 
+from ch_item_master.config import get_int_setting
 
 # SLA buckets (hours). Aligned with SAP GRC defaults:
 #   Within Target ≤ SLA target (default 4h)
 #   Breach      → SLA target < age ≤ Hard limit (default 24h)
 #   Hard Breach → age > Hard limit
 DEFAULT_SLA_HOURS = 4
-HARD_LIMIT_HOURS = 24
 
 
 def execute(filters=None):
@@ -57,6 +57,7 @@ def _resolve_filters(filters: dict | None) -> dict:
     filters.setdefault("review_status", "All")
     filters.setdefault("sla_hours", DEFAULT_SLA_HOURS)
     filters["sla_hours"] = max(1, int(filters.get("sla_hours") or DEFAULT_SLA_HOURS))
+    filters["hard_limit_hours"] = get_int_setting("break_glass_hard_limit_hours", 24, 1)
     return filters
 
 
@@ -139,7 +140,7 @@ def _get_data(filters: dict) -> list[dict]:
         # Recompute duration when it was not persisted (e.g., still open).
         r["duration_hours"] = round(hours, 2)
         r["status"] = "Open" if is_open else "Closed"
-        r["sla_bucket"] = _classify(hours, sla_hours, HARD_LIMIT_HOURS)
+        r["sla_bucket"] = _classify(hours, sla_hours, filters["hard_limit_hours"])
         r["reason"] = (r.get("reason") or "").strip().replace("\n", " ")[:280]
         # Optional row indicator picked up by Frappe report renderer.
         r["indicator"] = _indicator(r["sla_bucket"])
@@ -182,7 +183,7 @@ def _get_summary(rows: list[dict], filters: dict) -> list[dict]:
          "indicator": "Red" if open_count else "Green"},
         {"label": _("SLA Breach (>{0}h)").format(filters["sla_hours"]),
          "value": breach, "indicator": "Orange" if breach else "Green"},
-        {"label": _("Hard Breach (>{0}h)").format(HARD_LIMIT_HOURS),
+        {"label": _("Hard Breach (>{0}h)").format(filters["hard_limit_hours"]),
          "value": hard, "indicator": "Red" if hard else "Green"},
         {"label": _("Pending Review"), "value": pending,
          "indicator": "Orange" if pending else "Green"},

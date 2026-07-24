@@ -21,18 +21,12 @@ import frappe
 from frappe import _
 from frappe.utils import getdate, now_datetime, today
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Role constants
-# ─────────────────────────────────────────────────────────────────────────────
-
-_APPROVER_ROLES = frozenset({"CH Master Approver", "System Manager", "Administrator"})
-_MANAGER_ROLES  = frozenset({"CH Master Manager", "CH Master Approver", "System Manager", "Administrator"})
-_PLM_ROLES      = frozenset({"CH PLM Manager", "CH Master Approver", "CH Master Manager", "System Manager", "Administrator"})
-_VENDOR_ROLES   = frozenset({"CH Vendor Manager", "CH Master Manager", "System Manager", "Administrator"})
-_VENDOR_VIEW_ROLES = frozenset({"CH Vendor Manager", "CH Master Manager", "CH Master Approver", "CH Viewer", "System Manager", "Administrator"})
-_GTIN_ROLES     = frozenset({"CH GTIN Editor", "CH Master Manager", "CH Master Approver", "System Manager", "Administrator"})
-_PRICE_ROLES    = frozenset({"CH Price Manager", "CH Master Manager", "CH Master Approver", "System Manager", "Administrator"})
-_MRP_ROLES      = frozenset({"CH MRP Planner", "CH Master Manager", "System Manager", "Administrator"})
+from ch_item_master.config import (
+	get_enabled_system_role_emails,
+	get_int_setting,
+	get_role_setting,
+	is_privileged_user,
+)
 
 # Sensitive Item custom fields that get permlevel=1
 _SENSITIVE_FIELDS = [
@@ -41,14 +35,6 @@ _SENSITIVE_FIELDS = [
 	"ch_minimum_selling_price",
 	"ch_msp_effective_from",
 	"ch_gtin",
-]
-
-# Roles that receive permlevel=1 DocPerm on Item (can read/write sensitive fields)
-_PERMLEVEL1_ROLES = [
-	"CH Price Manager",
-	"CH Master Approver",
-	"CH Master Manager",
-	"CH GTIN Editor",
 ]
 
 SoDError    = frappe.ValidationError
@@ -63,6 +49,18 @@ def _roles(user: str | None = None) -> frozenset[str]:
 	return frozenset(frappe.get_roles(user or frappe.session.user))
 
 
+def _has_configured_role(fieldname: str, defaults, user: str | None = None) -> bool:
+	user = user or frappe.session.user
+	if is_privileged_user(user):
+		return True
+	return bool(_roles(user) & get_role_setting(fieldname, defaults))
+
+
+def _configured_role_users(fieldname: str, defaults) -> list[str]:
+	roles = get_role_setting(fieldname, defaults)
+	return get_enabled_system_role_emails(roles)
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # 1. Item Company Scoping (permission_query_condition)
 # ─────────────────────────────────────────────────────────────────────────────
@@ -73,23 +71,23 @@ def get_item_query(user: str) -> str:
 	allowed companies (resolved via ch_item_master.security).
 
 	Items with no tabItem Default rows are visible to all users (global items).
-	Returns "" (no restriction) for System Manager / Administrator.
+	Returns "" for configured supervisor roles and Administrator.
 	"""
 	if not user:
 		user = frappe.session.user
-	if user == "Administrator":
-		return ""
-	if "System Manager" in _roles(user) or "Administrator" in _roles(user):
+	if _has_configured_role("break_glass_supervisor_roles", ("System Manager",), user):
 		return ""
 
 	try:
 		from ch_item_master.security import get_user_allowed_companies
 		companies = get_user_allowed_companies(user)
 	except Exception:
-		return ""
+		return "1=0"
 
-	if not companies:
+	if companies is None:
 		return ""
+	if not companies:
+		return "1=0"
 
 	quoted = ", ".join(frappe.db.escape(c) for c in companies)
 	return (
@@ -109,7 +107,11 @@ def get_item_query(user: str) -> str:
 
 def check_plm_role(user: str | None = None) -> None:
 	"""Raise if user doesn't have the CH PLM Manager (or higher) role."""
-	if not bool(_roles(user) & _PLM_ROLES):
+	if not _has_configured_role(
+		"plm_manager_roles",
+		("CH PLM Manager", "CH Master Approver", "CH Master Manager", "System Manager"),
+		user,
+	):
 		frappe.throw(
 			_("CH PLM Manager role is required to change the PLM status of an item."),
 			title=_("PLM Role Required"),
@@ -119,7 +121,11 @@ def check_plm_role(user: str | None = None) -> None:
 
 def check_vendor_manager_role(user: str | None = None) -> None:
 	"""Raise if user doesn't have the CH Vendor Manager (or higher) role."""
-	if not bool(_roles(user) & _VENDOR_ROLES):
+	if not _has_configured_role(
+		"vendor_manager_roles",
+		("CH Vendor Manager", "CH Master Manager", "System Manager"),
+		user,
+	):
 		frappe.throw(
 			_("CH Vendor Manager role is required to create or update Vendor Info Records."),
 			title=_("Vendor Manager Role Required"),
@@ -129,7 +135,11 @@ def check_vendor_manager_role(user: str | None = None) -> None:
 
 def check_vendor_view_role(user: str | None = None) -> None:
 	"""Raise if user doesn't have read access to Vendor Info Records."""
-	if not bool(_roles(user) & _VENDOR_VIEW_ROLES):
+	if not _has_configured_role(
+		"vendor_view_roles",
+		("CH Vendor Manager", "CH Master Manager", "CH Master Approver", "CH Viewer", "System Manager"),
+		user,
+	):
 		frappe.throw(
 			_("You are not permitted to view Vendor Info Records."),
 			title=_("Vendor Info Access Denied"),
@@ -139,7 +149,11 @@ def check_vendor_view_role(user: str | None = None) -> None:
 
 def check_gtin_editor_role(user: str | None = None) -> None:
 	"""Raise if user doesn't have the CH GTIN Editor (or higher) role."""
-	if not bool(_roles(user) & _GTIN_ROLES):
+	if not _has_configured_role(
+		"gtin_editor_roles",
+		("CH GTIN Editor", "CH Master Manager", "CH Master Approver", "System Manager"),
+		user,
+	):
 		frappe.throw(
 			_("CH GTIN Editor role is required to set or update a GTIN/EAN/UPC code."),
 			title=_("GTIN Editor Role Required"),
@@ -149,7 +163,11 @@ def check_gtin_editor_role(user: str | None = None) -> None:
 
 def check_mrp_planner_role(user: str | None = None) -> None:
 	"""Raise if user doesn't have the CH MRP Planner (or higher) role."""
-	if not bool(_roles(user) & _MRP_ROLES):
+	if not _has_configured_role(
+		"mrp_planner_roles",
+		("CH MRP Planner", "CH Master Manager", "System Manager"),
+		user,
+	):
 		frappe.throw(
 			_("CH MRP Planner role is required to modify MRP/coverage planning fields."),
 			title=_("MRP Planner Role Required"),
@@ -166,7 +184,7 @@ def check_sod(submitted_by: str, approver: str | None = None) -> None:
 	Enforce maker-checker: the user who submitted an item for approval
 	cannot also be the one to approve it.
 
-	System Manager / Administrator users are exempt (sysadmin-level override).
+	Configured break-glass supervisors and Administrator are exempt.
 	This matches Oracle EBS behavior where DBA/sysadmin profiles bypass SoD.
 	Break-glass logging should be used when sysadmin approves own items.
 
@@ -177,13 +195,10 @@ def check_sod(submitted_by: str, approver: str | None = None) -> None:
 	approver = approver or frappe.session.user
 	if approver != submitted_by:
 		return  # different users — no violation
-	# Same user: check sysadmin bypass
-	try:
-		r = _roles(approver)
-		if "System Manager" in r or "Administrator" in r:
-			return  # sysadmin override (audited separately via break-glass)
-	except Exception:
-		pass  # if role lookup fails, fall through to the error
+	if _has_configured_role(
+		"break_glass_supervisor_roles", ("System Manager",), approver
+	):
+		return
 	frappe.throw(
 		_("Segregation of Duties violation: <b>{0}</b> submitted this item for "
 		  "review and cannot also approve it. A different approver is required.").format(submitted_by),
@@ -206,9 +221,10 @@ def is_effective_approver(user: str | None = None) -> bool:
 	(prevent self-delegation bypass of Segregation of Duties).
 	"""
 	user = user or frappe.session.user
+	approver_defaults = ("CH Master Approver", "System Manager")
 
 	# Direct role check
-	if bool(_roles(user) & _APPROVER_ROLES):
+	if _has_configured_role("master_approval_roles", approver_defaults, user):
 		return True
 
 	# Delegation check
@@ -228,7 +244,7 @@ def is_effective_approver(user: str | None = None) -> bool:
 		if d.delegator == user:
 			continue  # delegator cannot delegate to themselves
 		# Verify delegator actually has approver authority
-		if bool(_roles(d.delegator) & _APPROVER_ROLES):
+		if _has_configured_role("master_approval_roles", approver_defaults, d.delegator):
 			return True
 
 	return False
@@ -240,12 +256,15 @@ def is_effective_approver(user: str | None = None) -> bool:
 
 def install_custom_docperms() -> dict:
 	"""
-	Create Custom DocPerm records at permlevel=1 for Item, so that only
-	_PERMLEVEL1_ROLES can read/write sensitive pricing / compliance fields.
+	Create Custom DocPerm records at permlevel=1 for Item for configured roles.
 	Idempotent — skips existing records.
 	"""
 	created = 0
-	for role in _PERMLEVEL1_ROLES:
+	roles = get_role_setting(
+		"sensitive_field_roles",
+		("CH Price Manager", "CH Master Approver", "CH Master Manager", "CH GTIN Editor"),
+	)
+	for role in roles:
 		if not frappe.db.exists("Role", role):
 			continue  # role not yet installed, skip
 		exists = frappe.db.exists(
@@ -283,64 +302,119 @@ def install_custom_docperms() -> dict:
 
 def expire_role_assignments() -> dict:
 	"""
-	Daily task: find CH Role Assignment records past their valid_to date,
-	revoke the role from the user, and mark the assignment as Expired.
+	Expire a bounded batch of role assignments and revoke the corresponding roles.
 
-	Strategy: commit all status UPDATEs first, then do best-effort role removal.
-	This prevents a failed user_doc.save() from rolling back the status updates.
+	A user's roles are saved at most once per batch. Assignment statuses are updated
+	in one statement only after the associated role removal succeeds. Failures are
+	rolled back to a per-user savepoint, leaving those assignments active so the
+	next scheduler run can retry them. The scheduler transaction is committed by
+	Frappe after this function returns.
 	"""
 	if not frappe.db.table_exists("CH Role Assignment"):
-		return {"expired": 0}
+		return {"expired": 0, "failed": 0, "has_more": False}
 
 	today_date = today()
+	batch_limit = min(get_int_setting("role_expiry_batch_limit", 500, minimum=1), 5000)
 	expired_records = frappe.db.sql(
 		"""
 			SELECT `name`, `user`, `role`
 			FROM `tabCH Role Assignment`
 			WHERE `status` = 'Active'
-			  AND `valid_to` < %s
+			  AND `valid_to` < %(today)s
+			ORDER BY `valid_to` ASC, `name` ASC
+			LIMIT %(batch_limit)s
+			FOR UPDATE
 		""",
-		today_date,
+		{"today": today_date, "batch_limit": batch_limit},
 		as_dict=True,
 	)
 
 	if not expired_records:
-		return {"expired": 0}
+		return {"expired": 0, "failed": 0, "has_more": False}
 
-	# Phase 1: update all statuses and commit atomically
-	for rec in expired_records:
-		frappe.db.sql(
-			"UPDATE `tabCH Role Assignment` SET `status` = 'Expired' WHERE `name` = %s",
-			rec.name,
+	assignments_by_user: dict[str, list] = {}
+	for record in expired_records:
+		assignments_by_user.setdefault(record.user, []).append(record)
+
+	users = tuple(assignments_by_user)
+	roles = tuple(dict.fromkeys(record.role for record in expired_records))
+	current_assignments = {
+		(row.user, row.role)
+		for row in frappe.db.sql(
+			"""
+				SELECT DISTINCT `user`, `role`
+				FROM `tabCH Role Assignment`
+				WHERE `status` = 'Active'
+				  AND `valid_from` <= %(today)s
+				  AND `valid_to` >= %(today)s
+				  AND `user` IN %(users)s
+				  AND `role` IN %(roles)s
+			""",
+			{"today": today_date, "users": users, "roles": roles},
+			as_dict=True,
 		)
-	frappe.db.commit()  # persist before attempting risky user_doc operations
+	}
 
-	# Phase 2: best-effort role removal (failures do NOT affect the committed status)
-	for rec in expired_records:
+	successful_names: list[str] = []
+	failed = 0
+	for index, (user, records) in enumerate(assignments_by_user.items()):
+		save_point = f"role_expiry_{index}"
+		frappe.db.savepoint(save_point)
 		try:
-			user_doc = frappe.get_doc("User", rec.user)
-			has_role = any(r.role == rec.role for r in (user_doc.roles or []))
-			if has_role:
-				user_doc.roles = [r for r in user_doc.roles if r.role != rec.role]
-				user_doc.save(ignore_permissions=True)
+			roles_to_remove = {
+				record.role
+				for record in records
+				if (user, record.role) not in current_assignments
+			}
+			if roles_to_remove:
+				user_doc = frappe.get_doc("User", user)
+				retained_roles = [row for row in (user_doc.roles or []) if row.role not in roles_to_remove]
+				if len(retained_roles) != len(user_doc.roles or []):
+					user_doc.roles = retained_roles
+					user_doc.save(ignore_permissions=True)
+			successful_names.extend(record.name for record in records)
 		except Exception:
+			frappe.db.rollback(save_point=save_point)
+			failed += len(records)
 			frappe.log_error(
-				title=f"Role expiry: failed to remove {rec.role} from {rec.user}",
+				title=f"Role expiry: failed to process assignments for {user}",
 				message=frappe.get_traceback(),
 			)
 
-	return {"expired": len(expired_records)}
+	if successful_names:
+		placeholders = ", ".join(["%s"] * len(successful_names))
+		frappe.db.sql(
+			f"""
+				UPDATE `tabCH Role Assignment`
+				SET `status` = 'Expired', `modified` = %s, `modified_by` = %s
+				WHERE `status` = 'Active'
+				  AND `valid_to` < %s
+				  AND `name` IN ({placeholders})
+			""",
+			(
+				now_datetime(),
+				frappe.session.user,
+				today_date,
+				*successful_names,
+			),
+		)
+
+	return {
+		"expired": len(successful_names),
+		"failed": failed,
+		"has_more": len(expired_records) == batch_limit,
+	}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 7. Break-Glass Emergency Access
 # ─────────────────────────────────────────────────────────────────────────────
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def open_break_glass(reason: str) -> str:
 	"""
 	Open a break-glass emergency access session.
-	Creates a CH Break Glass Log entry and notifies System Managers.
+	Creates a CH Break Glass Log entry and notifies configured supervisors.
 	Returns the log document name.
 	"""
 	reason = (reason or "").strip()
@@ -358,8 +432,7 @@ def open_break_glass(reason: str) -> str:
 		"start_time": now_datetime(),
 		"review_status": "Pending Review",
 	})
-	doc.insert(ignore_permissions=True)
-	frappe.db.commit()
+	doc.insert()
 
 	# Notify system managers (best-effort, no failure if email not configured)
 	_notify_break_glass(doc.name, reason)
@@ -367,25 +440,26 @@ def open_break_glass(reason: str) -> str:
 	return doc.name
 
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def close_break_glass(log_name: str, actions_taken: str = "") -> None:
 	"""Close a break-glass session by setting end_time and actions_taken."""
 	doc = frappe.get_doc("CH Break Glass Log", log_name)
-	if doc.user != frappe.session.user and "System Manager" not in _roles():
+	if doc.user != frappe.session.user and not _has_configured_role(
+		"break_glass_supervisor_roles", ("System Manager",)
+	):
 		frappe.throw(_("You can only close your own Break Glass sessions."))
+	doc.check_permission("write")
 	doc.end_time = now_datetime()
 	if actions_taken:
 		doc.actions_taken = actions_taken
-	doc.save(ignore_permissions=True)
+	doc.save()
 
 
 def _notify_break_glass(log_name: str, reason: str) -> None:
-	"""Send alert to System Manager users (best-effort)."""
+	"""Send an alert to configured supervisors."""
 	try:
-		mgr_emails = frappe.get_all(
-			"Has Role",
-			filters={"role": "System Manager", "parenttype": "User"},
-			pluck="parent",
+		mgr_emails = _configured_role_users(
+			"break_glass_supervisor_roles", ("System Manager",)
 		)
 		mgr_emails = [e for e in mgr_emails if "@" in (e or "")]
 		if not mgr_emails:
@@ -410,16 +484,11 @@ def _notify_break_glass(log_name: str, reason: str) -> None:
 # Hourly scheduled task: escalates sessions that stay open past the SLA window.
 # ─────────────────────────────────────────────────────────────────────────────
 
-# SLA targets (hours). Aligned with the CH Break Glass Audit report buckets.
-BREAK_GLASS_SLA_HOURS = 4
-BREAK_GLASS_HARD_LIMIT_HOURS = 24
-
-
 def monitor_break_glass_sessions() -> dict:
 	"""Hourly scheduler hook.
 
-	1. Marks sessions open beyond :data:`BREAK_GLASS_SLA_HOURS` as ``Escalated``.
-	2. Sends a consolidated digest e-mail to System Managers listing every
+	1. Marks sessions open beyond the configured SLA as ``Escalated``.
+	2. Sends a consolidated digest e-mail to configured supervisors listing every
 	   currently-open session (with hours-open) and every closed session that
 	   is still ``Pending Review`` — so security can act in one place.
 
@@ -428,6 +497,9 @@ def monitor_break_glass_sessions() -> dict:
 	"""
 	from frappe.utils import get_datetime
 
+	sla_hours = get_int_setting("break_glass_sla_hours", 4, minimum=1)
+	hard_limit_hours = get_int_setting("break_glass_hard_limit_hours", 24, minimum=1)
+	batch_limit = min(get_int_setting("break_glass_monitor_batch_limit", 200, minimum=1), 2000)
 	now = now_datetime()
 
 	open_rows = frappe.get_all(
@@ -435,6 +507,7 @@ def monitor_break_glass_sessions() -> dict:
 		filters={"end_time": ["is", "not set"]},
 		fields=["name", "user", "reason", "start_time", "review_status"],
 		order_by="start_time asc",
+		limit=batch_limit,
 	)
 
 	overdue: list[dict] = []
@@ -445,43 +518,50 @@ def monitor_break_glass_sessions() -> dict:
 			continue
 		hours = (now - start).total_seconds() / 3600
 		row["hours_open"] = round(hours, 2)
-		if hours > BREAK_GLASS_HARD_LIMIT_HOURS:
+		if hours > hard_limit_hours:
 			hard_breach.append(row)
-		elif hours > BREAK_GLASS_SLA_HOURS:
+		elif hours > sla_hours:
 			overdue.append(row)
 
-	# Escalate (status flip) — only when not already escalated.
-	for row in overdue + hard_breach:
-		if row.get("review_status") != "Escalated":
-			try:
-				frappe.db.set_value(
-					"CH Break Glass Log", row["name"], "review_status", "Escalated",
-					update_modified=False,
-				)
-			except Exception:
-				frappe.log_error(
-					title=f"Break Glass escalation failed for {row['name']}",
-					message=frappe.get_traceback(),
-				)
-	if overdue or hard_breach:
-		frappe.db.commit()
+	escalation_names = [
+		row["name"]
+		for row in overdue + hard_breach
+		if row.get("review_status") != "Escalated"
+	]
+	if escalation_names:
+		placeholders = ", ".join(["%s"] * len(escalation_names))
+		frappe.db.sql(
+			f"""
+				UPDATE `tabCH Break Glass Log`
+				SET `review_status` = 'Escalated'
+				WHERE `name` IN ({placeholders})
+				  AND `review_status` != 'Escalated'
+			""",
+			tuple(escalation_names),
+		)
 
 	pending_review = frappe.get_all(
 		"CH Break Glass Log",
 		filters={"end_time": ["is", "set"], "review_status": "Pending Review"},
 		fields=["name", "user", "start_time", "end_time", "duration_hours"],
 		order_by="end_time asc",
-		limit_page_length=20,
+		limit=20,
 	)
 
 	if not (overdue or hard_breach or pending_review):
-		return {"open_overdue": 0, "open_hard_breach": 0, "pending_review": 0}
+		return {
+			"open_overdue": 0,
+			"open_hard_breach": 0,
+			"pending_review": 0,
+			"has_more": len(open_rows) == batch_limit,
+		}
 
-	_send_break_glass_digest(overdue, hard_breach, pending_review)
+	_send_break_glass_digest(overdue, hard_breach, pending_review, sla_hours, hard_limit_hours)
 	return {
 		"open_overdue": len(overdue),
 		"open_hard_breach": len(hard_breach),
 		"pending_review": len(pending_review),
+		"has_more": len(open_rows) == batch_limit,
 	}
 
 
@@ -489,13 +569,13 @@ def _send_break_glass_digest(
 	overdue: list[dict],
 	hard_breach: list[dict],
 	pending_review: list[dict],
+	sla_hours: int,
+	hard_limit_hours: int,
 ) -> None:
-	"""Email a consolidated security digest to System Managers (best-effort)."""
+	"""Email a consolidated security digest to configured supervisors."""
 	try:
-		recipients = frappe.get_all(
-			"Has Role",
-			filters={"role": "System Manager", "parenttype": "User"},
-			pluck="parent",
+		recipients = _configured_role_users(
+			"break_glass_supervisor_roles", ("System Manager",)
 		)
 		recipients = [e for e in recipients if "@" in (e or "")]
 		if not recipients:
@@ -530,8 +610,8 @@ def _send_break_glass_digest(
 		html = (
 			"<p>Hourly Break Glass governance digest. Review and close the "
 			"items below in the <b>CH Break Glass Audit</b> report.</p>"
-			+ _table("Hard SLA Breach (>24h open)", hard_breach, open_cols)
-			+ _table(f"SLA Breach (>{BREAK_GLASS_SLA_HOURS}h open)", overdue, open_cols)
+			+ _table(f"Hard SLA Breach (>{hard_limit_hours}h open)", hard_breach, open_cols)
+			+ _table(f"SLA Breach (>{sla_hours}h open)", overdue, open_cols)
 			+ _table("Closed sessions pending review", pending_review, review_cols)
 		)
 

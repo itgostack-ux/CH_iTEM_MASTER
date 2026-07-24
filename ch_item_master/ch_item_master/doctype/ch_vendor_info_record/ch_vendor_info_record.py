@@ -8,7 +8,76 @@ from frappe.model.document import Document
 
 
 class CHVendorInfoRecord(Document):
+	_APPROVAL_CONTEXT = object()
+	_PROTECTED_FIELDS = (
+		"approval_status",
+		"submitted_by",
+		"submitted_on",
+		"approved_by",
+		"approved_on",
+	)
+	APPROVAL_SENSITIVE_FIELDS = (
+		"item_code",
+		"supplier",
+		"company",
+		"purchase_org",
+		"supplier_site",
+		"preferred",
+		"active",
+		"source_rank",
+		"allocation_pct",
+		"vendor_item_code",
+		"vendor_item_name",
+		"currency",
+		"standard_price",
+		"price_valid_from",
+		"price_valid_to",
+		"lead_time_days",
+		"min_order_qty",
+		"price_breaks",
+		"contracts",
+	)
+
+	def _authorize_approval_transition(self):
+		self.flags.ch_vendor_info_approval_context = self._APPROVAL_CONTEXT
+
+	def _has_approval_context(self):
+		return self.flags.get("ch_vendor_info_approval_context") is self._APPROVAL_CONTEXT
+
+	def _validate_approval_transition(self):
+		if self._has_approval_context():
+			return
+		before = self.get_doc_before_save() if not self.is_new() else None
+		if before is None:
+			if self.approval_status not in (None, "", "Draft") or any(
+				self.get(fieldname) not in (None, "")
+				for fieldname in self._PROTECTED_FIELDS
+				if fieldname != "approval_status"
+			):
+				frappe.throw(
+					_("Vendor approval state is set only by the approval workflow."),
+					frappe.PermissionError,
+				)
+			return
+
+		if any(self.get(fieldname) != before.get(fieldname) for fieldname in self._PROTECTED_FIELDS):
+			frappe.throw(
+				_("Vendor approval state can only be changed through Submit or Approve."),
+				frappe.PermissionError,
+			)
+
+		if before.approval_status == "Approved" and any(
+			self.get(fieldname) != before.get(fieldname)
+			for fieldname in self.APPROVAL_SENSITIVE_FIELDS
+		):
+			self.approval_status = "Draft"
+			self.submitted_by = None
+			self.submitted_on = None
+			self.approved_by = None
+			self.approved_on = None
+
 	def validate(self):
+		self._validate_approval_transition()
 		self._validate_dates()
 		self._validate_quantities()
 		self._validate_sourcing_fields()
@@ -48,7 +117,7 @@ class CHVendorInfoRecord(Document):
 			seen.add(key)
 
 	def _normalize_single_preferred_supplier(self):
-		if not cint(self.preferred) or not cint(self.active):
+		if self.approval_status != "Approved" or not cint(self.preferred) or not cint(self.active):
 			return
 
 		filters = {

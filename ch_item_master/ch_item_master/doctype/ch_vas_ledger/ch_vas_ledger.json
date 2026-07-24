@@ -12,6 +12,7 @@
  "editable_grid": 0,
  "track_changes": 0,
  "in_create": 1,
+ "field_order": ["sold_plan", "event_type", "column_break_1", "claim_amount", "remaining_claims", "remaining_value", "section_reference", "reference_doctype", "reference_name", "column_break_ref", "remarks"],
  "allow_import": 1,
  "allow_rename": 0,
  "sort_field": "creation",
@@ -96,10 +97,11 @@
   {
    "role": "System Manager",
    "read": 1,
-   "write": 0,
-   "create": 0,
+   "write": 1,
+   "create": 1,
    "delete": 1,
    "export": 1,
+   "import": 1,
    "share": 1
   },
   {
@@ -111,6 +113,18 @@
    "role": "CH Viewer",
    "read": 1,
    "export": 1
+  },
+  {
+   "role": "Service Manager",
+   "read": 1
+  },
+  {
+   "role": "Sales Manager",
+   "read": 1
+  },
+  {
+   "role": "Sales User",
+   "read": 1
   }
  ],
  "links": [

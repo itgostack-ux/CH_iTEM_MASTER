@@ -16,23 +16,72 @@ from frappe import _
 from frappe.utils import flt, getdate, nowdate, get_datetime, now_datetime
 from frappe.utils.xlsxutils import make_xlsx
 
+from ch_item_master.config import get_bounded_rows, get_int_setting, require_role_setting
+from ch_item_master.security import get_company_scope
+
+
+def _require_reckoner_access():
+    require_role_setting(
+        "app_access_roles",
+        ("System Manager", "CH Master Manager", "CH Price Manager", "CH Offer Manager", "CH Warranty Manager", "CH Viewer", "Stock User"),
+        action=_("view the ready reckoner"),
+    )
+    frappe.has_permission("Item", "read", throw=True)
+
+
+def _require_price_operation():
+    require_role_setting(
+        "price_approval_roles",
+        ("System Manager", "CH Master Manager", "CH Price Manager", "CH Master Approver"),
+        action=_("manage item pricing"),
+    )
+
+
+def _require_master_approval():
+    require_role_setting(
+        "master_approval_roles",
+        ("System Manager", "CH Master Approver", "CH Master Manager"),
+        action=_("approve master data"),
+    )
+
+
+def _resolve_write_company(company=None):
+    company = (company or "").strip()
+    scope = get_company_scope(requested_company=company or None)
+    if scope is None:
+        return company
+    if not scope:
+        frappe.throw(_("No company scope is assigned to this user."), frappe.PermissionError)
+    if company:
+        return company
+    if len(scope) == 1:
+        return scope[0]
+    frappe.throw(_("Select a company before changing prices."), frappe.PermissionError)
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Helpers: affects_price spec grouping
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _get_non_price_specs():
+def _get_non_price_specs(sub_categories):
     """Return set of Item Attribute names that are variant specs but do NOT affect price.
 
     These are specs with is_variant=1 AND affects_price=0 in any CH Sub Category Spec row.
     Built as a global set — the same attribute (e.g. "Colour") may affect price in one
     sub-category but not another, so we index per sub-category.
     """
-    rows = frappe.get_all(
+    frappe.has_permission("CH Sub Category", "read", throw=True)
+    if not sub_categories:
+        return {}
+    rows = get_bounded_rows(
         "CH Sub Category Spec",
-        filters={"is_variant": 1, "affects_price": 0},
+        filters={
+            "parent": ("in", tuple(sub_categories)),
+            "is_variant": 1,
+            "affects_price": 0,
+        },
         fields=["parent as sub_category", "spec"],
-        ignore_permissions=True,
+        limit=get_int_setting("ready_reckoner_related_row_limit", 10000, minimum=1),
     )
     # Return dict: sub_category → set of non-price spec names
     result: dict = {}
@@ -71,6 +120,34 @@ def _build_price_group_key(item, variant_attributes, non_price_specs_map):
 # Main Ready Reckoner grid
 # ─────────────────────────────────────────────────────────────────────────────
 
+_READY_RECKONER_ITEM_FILTER_COLUMNS = frozenset({
+    "disabled",
+    "has_variants",
+    "ch_category",
+    "ch_sub_category",
+    "brand",
+    "ch_model",
+})
+
+
+def _count_ready_reckoner_items(item_filters, item_search=None):
+    clauses = []
+    values = {}
+    for fieldname, value in item_filters.items():
+        if fieldname not in _READY_RECKONER_ITEM_FILTER_COLUMNS:
+            frappe.throw(_("Unsupported Item filter."), frappe.ValidationError)
+        clauses.append(f"`{fieldname}` = %({fieldname})s")
+        values[fieldname] = value
+    if item_search:
+        clauses.append("(`name` LIKE %(item_search)s OR `item_name` LIKE %(item_search)s)")
+        values["item_search"] = f"%{item_search}%"
+    where_clause = " AND ".join(clauses) or "1 = 1"
+    return int(frappe.db.sql(
+        f"SELECT COUNT(*) FROM `tabItem` WHERE {where_clause}",
+        values,
+    )[0][0] or 0)
+
+
 @frappe.whitelist()
 def get_ready_reckoner_data(
     category=None,
@@ -94,14 +171,25 @@ def get_ready_reckoner_data(
     representative item, with a 'variant_count' field indicating how many
     color/non-price variants exist.
     """
-    frappe.only_for(["System Manager", "CH Master Manager", "CH Price Manager",
-                     "CH Offer Manager", "CH Warranty Manager", "CH Viewer", "Stock User"])
+    _require_reckoner_access()
 
     as_of = getdate(as_of_date) if as_of_date else getdate(nowdate())
 
+    page_length = min(
+        max(int(page_length or 100), 1),
+        get_int_setting("ready_reckoner_page_limit", 200, minimum=1),
+    )
+    page = max(int(page or 1), 1)
+
     # Company filter: include records where company matches OR company is blank (all companies)
-    _company_filter = ["in", [company, "", None]] if company else None
-    offset = (int(page) - 1) * int(page_length)
+    company_scope = get_company_scope(requested_company=company)
+    if company_scope is None:
+        _company_filter = None
+    elif company_scope:
+        _company_filter = ["in", [*company_scope, "", None]]
+    else:
+        _company_filter = ["in", ["__no_company_scope__"]]
+    offset = (page - 1) * page_length
 
     # ── 1. Fetch items matching filters ──────────────────────────────────────
     item_filters = {"disabled": 0, "has_variants": 0}
@@ -139,7 +227,7 @@ def get_ready_reckoner_data(
             "ch_item_mrp",
         ],
         limit_start=offset,
-        limit_page_length=int(page_length),
+        limit_page_length=page_length,
         order_by="item_name asc",
     )
 
@@ -156,7 +244,9 @@ def get_ready_reckoner_data(
     all_item_codes = list(item_codes)  # all codes for price/offer lookups
 
     if group_mode:
-        non_price_map = _get_non_price_specs()
+        non_price_map = _get_non_price_specs(
+            {item.get("ch_sub_category") for item in items if item.get("ch_sub_category")}
+        )
         if non_price_map:
             # Fetch variant attributes for all items in one query
             va_rows = frappe.db.sql("""
@@ -207,11 +297,13 @@ def get_ready_reckoner_data(
             item["variant_count"] = 1
 
     # ── 2. Get all channels (with price_list for later use) ──────────────
-    channels_qs = frappe.get_all(
+    related_row_limit = get_int_setting("ready_reckoner_related_row_limit", 10000, minimum=1)
+    channels_qs = get_bounded_rows(
         "CH Price Channel",
         filters={"disabled": 0, **({"channel_name": channel} if channel else {})},
         fields=["name as channel_name", "price_list", "is_buying"],
         order_by="channel_name",
+        limit=related_row_limit,
     )
     channel_names = [c["channel_name"] for c in channels_qs]
     buying_channels = {c["channel_name"] for c in channels_qs if c.get("is_buying")}
@@ -227,7 +319,7 @@ def get_ready_reckoner_data(
     if _company_filter:
         _price_filters["company"] = _company_filter
 
-    price_records = frappe.get_all(
+    price_records = get_bounded_rows(
         "CH Item Price",
         filters=_price_filters,
         fields=[
@@ -236,6 +328,7 @@ def get_ready_reckoner_data(
             "status", "name as price_name",
         ],
         order_by="item_code, channel, effective_from desc",
+        limit=related_row_limit,
     )
 
     # Index: item_code → channel → best price (latest effective_from per channel)
@@ -263,13 +356,14 @@ def get_ready_reckoner_data(
     if _company_filter:
         _offer_filters["company"] = _company_filter
 
-    offer_records = frappe.get_all(
+    offer_records = get_bounded_rows(
         "CH Item Offer",
         filters=_offer_filters,
         fields=[
             "item_code", "offer_type", "value_type", "value",
             "priority", "stackable", "channel",
         ],
+        limit=related_row_limit,
     )
 
     # Index: item_code → list of active offers
@@ -287,10 +381,11 @@ def get_ready_reckoner_data(
     if tag_filter:
         tag_filters["tag"] = tag_filter
 
-    tag_records = frappe.get_all(
+    tag_records = get_bounded_rows(
         "CH Item Commercial Tag",
         filters=tag_filters,
         fields=["item_code", "tag"],
+        limit=related_row_limit,
     )
     tag_index: dict = {}
     for t in tag_records:
@@ -311,10 +406,11 @@ def get_ready_reckoner_data(
             "a_grade_oow_11", "b_grade_oow_11", "c_grade_oow_11", "d_grade_oow_11",
             "scrap_oow_11", "phone_dead_oow_11",
         ]
-        bpm_records = frappe.get_all(
+        bpm_records = get_bounded_rows(
             "Buyback Price Master",
             filters={"item_code": ("in", item_codes), "is_active": 1},
             fields=_bpm_fields,
+            limit=related_row_limit,
         )
         for bp in bpm_records:
             buyback_index[bp.item_code] = bp
@@ -390,19 +486,7 @@ def get_ready_reckoner_data(
 
         rows.append(row)
 
-    # frappe.db.count() does not support or_filters, so handle item_search separately
-    if item_search:
-        total = len(frappe.get_all(
-            "Item",
-            filters=item_filters,
-            or_filters=[
-                ["name", "like", f"%{item_search}%"],
-                ["item_name", "like", f"%{item_search}%"],
-            ],
-            pluck="name",
-        ))
-    else:
-        total = frappe.db.count("Item", filters=item_filters)
+    total = _count_ready_reckoner_items(item_filters, item_search)
 
     return {
         "items": rows,
@@ -463,8 +547,7 @@ def _compute_best_offer(offers):
 @frappe.whitelist()
 def get_item_price_detail(item_code, company=None) -> dict:
     """Return full price + offer + tag detail for the side drawer."""
-    frappe.only_for(["System Manager", "CH Master Manager", "CH Price Manager",
-                     "CH Offer Manager", "CH Warranty Manager", "CH Viewer", "Stock User"])
+    _require_reckoner_access()
 
     _detail_company = ["in", [company, "", None]] if company else None
 
@@ -673,23 +756,23 @@ def get_active_price(item_code, channel, as_of_date=None) -> dict:
 # Approval actions
 # ─────────────────────────────────────────────────────────────────────────────
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def approve_price(price_name) -> str:
     """Approve a CH Item Price record.
 
     Delegates to CHItemPrice.approve() to ensure single code path
     for status computation, ERP sync, and permission checks.
     """
-    frappe.only_for(["System Manager", "CH Master Manager"])
+    _require_master_approval()
     doc = frappe.get_doc("CH Item Price", price_name)
     doc.approve()
     return "ok"
 
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def approve_offer(offer_name) -> str:
     """Approve a CH Item Offer."""
-    frappe.only_for(["System Manager", "CH Master Manager"])
+    _require_master_approval()
     doc = frappe.get_doc("CH Item Offer", offer_name)
     doc.approve()
     return "ok"
@@ -699,20 +782,22 @@ def approve_offer(offer_name) -> str:
 # Clone pricing from one item to another
 # ─────────────────────────────────────────────────────────────────────────────
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def clone_item_pricing(source_item, target_item, include_offers=True, effective_from=None) -> dict:
     """Copy all price records (and optionally offers) from source → target."""
-    frappe.only_for(["System Manager", "CH Master Manager"])
+    _require_price_operation()
 
     eff_from = getdate(effective_from) if effective_from else getdate(nowdate())
     created = []
+    clone_limit = get_int_setting("ready_reckoner_clone_limit", 200, minimum=1)
 
-    prices = frappe.get_all(
+    prices = get_bounded_rows(
         "CH Item Price",
         filters={"item_code": source_item, "status": ("in", ["Active", "Scheduled"])},
         fields=[
             "channel", "mrp", "mop", "selling_price", "notes",
         ],
+        limit=clone_limit,
     )
     for pr in prices:
         new_doc = frappe.new_doc("CH Item Price")
@@ -728,7 +813,7 @@ def clone_item_pricing(source_item, target_item, include_offers=True, effective_
         created.append(new_doc.name)
 
     if include_offers:
-        offers = frappe.get_all(
+        offers = get_bounded_rows(
             "CH Item Offer",
             filters={"item_code": source_item, "status": ("in", ["Active", "Scheduled"])},
             fields=[
@@ -736,6 +821,7 @@ def clone_item_pricing(source_item, target_item, include_offers=True, effective_
                 "channel", "priority", "stackable", "start_date", "end_date",
                 "bank_name", "card_type", "min_bill_amount", "payment_mode", "notes",
             ],
+            limit=clone_limit,
         )
         for of in offers:
             new_offer = frappe.new_doc("CH Item Offer")
@@ -789,11 +875,11 @@ def _get_sibling_item_codes(item_code):
 
     # Find non-price specs for this sub-category
     non_price_specs = set()
+    frappe.has_permission("CH Sub Category", "read", throw=True)
     spec_rows = frappe.get_all(
         "CH Sub Category Spec",
         filters={"parent": sub_cat, "is_variant": 1, "affects_price": 0},
         pluck="spec",
-        ignore_permissions=True,
     )
     non_price_specs = set(spec_rows)
 
@@ -856,7 +942,7 @@ def get_sibling_items(item_code) -> dict:
 
     Used by the UI to show how many items will be affected by price propagation.
     """
-    frappe.only_for(["System Manager", "CH Master Manager", "CH Price Manager"])
+    _require_reckoner_access()
     siblings = _get_sibling_item_codes(item_code)
     return {
         "siblings": siblings,
@@ -875,44 +961,56 @@ def export_ready_reckoner(
     model=None, channel=None, as_of_date=None, company=None,
 ) -> None:
     """Export CH Ready Reckoner as Excel file."""
-    frappe.only_for(["System Manager", "CH Master Manager"])
+    _require_reckoner_access()
 
-    # Configurable max export rows (fallback to 5000 if not set)
-    try:
-        _MAX_EXPORT_ROWS = int(frappe.db.get_single_value("System Settings", "ch_max_export_rows") or 5000)
-    except Exception:
-        _MAX_EXPORT_ROWS = 5000
-    data = get_ready_reckoner_data(
-        category=category,
-        sub_category=sub_category,
-        brand=brand,
-        model=model,
-        channel=channel,
-        as_of_date=as_of_date,
-        company=company,
-        page_length=_MAX_EXPORT_ROWS,
+    max_export_rows = get_int_setting("ready_reckoner_export_limit", 5000, minimum=1)
+    page_length = min(
+        get_int_setting("ready_reckoner_page_limit", 200, minimum=1),
+        max_export_rows,
     )
-    if data.get("total", 0) > _MAX_EXPORT_ROWS:
+    page = 1
+    rows_data = []
+    channels = []
+    buying_channels = set()
+    total = 0
+    while len(rows_data) < max_export_rows:
+        data = get_ready_reckoner_data(
+            category=category,
+            sub_category=sub_category,
+            brand=brand,
+            model=model,
+            channel=channel,
+            as_of_date=as_of_date,
+            company=company,
+            page_length=page_length,
+            page=page,
+        )
+        total = data.get("total", 0)
+        channels = data.get("channels", channels)
+        buying_channels.update(data.get("buying_channels", []))
+        page_rows = data.get("items", [])
+        rows_data.extend(page_rows[: max_export_rows - len(rows_data)])
+        if len(page_rows) < page_length or len(rows_data) >= total:
+            break
+        page += 1
+    if total > max_export_rows:
         frappe.msgprint(
             _("Export is limited to {0} rows. Use category / brand / model filters "
-              "to narrow the selection and export in batches.").format(_MAX_EXPORT_ROWS),
+              "to narrow the selection and export in batches.").format(max_export_rows),
             indicator="orange",
             title=_("Export Truncated"),
         )
-
-    channels = data["channels"]
-    buying_channels = set(data.get("buying_channels", []))
-    rows_data = data["items"]
 
     # ── Build buyback index so we can include grade fields in export ──────
     buyback_export_index: dict = {}
     if buying_channels:
         all_export_items = [r.get("item_code") for r in rows_data if r.get("item_code")]
         if all_export_items:
-            bpm_rows = frappe.get_all(
+            bpm_rows = get_bounded_rows(
                 "Buyback Price Master",
                 filters={"item_code": ("in", all_export_items), "is_active": 1},
                 fields=["item_code", "current_market_price", "vendor_price"] + BUYBACK_GRADE_FIELDS,
+                limit=get_int_setting("ready_reckoner_related_row_limit", 10000, minimum=1),
             )
             for bp in bpm_rows:
                 buyback_export_index[bp.item_code] = bp
@@ -1007,7 +1105,7 @@ _BUYBACK_FIELD_LABELS = {
 }
 
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def create_price_change_batch(
     item_code, change_type, reason="", company="",
     channel="", propagate=0,
@@ -1025,7 +1123,10 @@ def create_price_change_batch(
         change_type: "Selling Price" or "Buyback Price"
         propagate: 1 to also include sibling colour variants (selling only)
     """
-    frappe.only_for(["System Manager", "CH Master Manager", "CH Price Manager"])
+    _require_price_operation()
+    frappe.has_permission("CH Price Upload Batch", "create", throw=True)
+    frappe.has_permission("Item", "read", item_code, throw=True)
+    company = _resolve_write_company(company)
 
     batch_items = []
 
@@ -1035,6 +1136,12 @@ def create_price_change_batch(
             target_items = _get_sibling_item_codes(item_code)
         else:
             target_items = [item_code]
+        target_limit = get_int_setting("ready_reckoner_batch_item_limit", 500, minimum=1)
+        if len(target_items) > target_limit:
+            frappe.throw(
+                _("A price batch can contain at most {0} items.").format(target_limit),
+                frappe.ValidationError,
+            )
 
         new_prices = {
             "mrp": float(mrp or 0),
@@ -1044,13 +1151,19 @@ def create_price_change_batch(
         label_map = {"mrp": "MRP", "mop": "MOP", "selling_price": "Selling Price"}
 
         for target in target_items:
-            existing = frappe.db.get_value(
+            existing_rows = frappe.get_list(
                 "CH Item Price",
-                {"item_code": target, "channel": channel,
-                 "status": ("in", ["Active", "Scheduled"])},
-                ["mrp", "mop", "selling_price"],
-                as_dict=True,
+                filters={
+                    "item_code": target,
+                    "channel": channel,
+                    "company": ("in", [company, "", None]),
+                    "status": ("in", ["Active", "Scheduled"]),
+                },
+                fields=["mrp", "mop", "selling_price"],
+                order_by="effective_from desc, modified desc",
+                limit_page_length=1,
             )
+            existing = existing_rows[0] if existing_rows else None
             for field in ("mrp", "mop", "selling_price"):
                 old_val = float((existing or {}).get(field) or 0)
                 new_val = new_prices[field]
@@ -1125,8 +1238,7 @@ def create_price_change_batch(
     # Enrich with sales/stock context
     _enrich_batch_items(batch, {bi["item_code"] for bi in batch_items})
 
-    batch.insert(ignore_permissions=True)
-    frappe.db.commit()
+    batch.insert()
 
     return {
         "batch_name": batch.name,
@@ -1134,7 +1246,7 @@ def create_price_change_batch(
     }
 
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def save_ready_reckoner_price(
     item_code,
     channel,
@@ -1150,7 +1262,7 @@ def save_ready_reckoner_price(
     This endpoint now creates a one-line CH Price Upload Batch instead of
     mutating CH Item Price directly.
     """
-    frappe.only_for(["System Manager", "CH Master Manager", "CH Price Manager"])
+    _require_price_operation()
 
     allowed_fields = {"mrp", "mop", "selling_price"}
     if field not in allowed_fields:
@@ -1178,7 +1290,7 @@ def save_ready_reckoner_price(
     return create_price_change_batch(**args)
 
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def create_inline_price_change_batch(
     changes,
     reason=None,
@@ -1191,12 +1303,57 @@ def create_inline_price_change_batch(
     `changes` expects a JSON array of rows:
       {item_code, channel, field, old_value, new_value}
     """
-    frappe.only_for(["System Manager", "CH Master Manager", "CH Price Manager"])
+    _require_price_operation()
+    frappe.has_permission("CH Price Upload Batch", "create", throw=True)
+    company = _resolve_write_company(company)
 
     parsed_changes = frappe.parse_json(changes) if isinstance(changes, str) else changes
     parsed_changes = parsed_changes or []
     if not isinstance(parsed_changes, list):
         frappe.throw(_("Invalid payload for inline changes."), title=_("API Error"))
+    row_limit = get_int_setting("ready_reckoner_batch_item_limit", 500, minimum=1)
+    if len(parsed_changes) > row_limit:
+        frappe.throw(
+            _("A price batch can contain at most {0} changes.").format(row_limit),
+            frappe.ValidationError,
+        )
+
+    requested_items = {
+        (row or {}).get("item_code", "").strip()
+        for row in parsed_changes
+        if isinstance(row, dict) and (row.get("item_code") or "").strip()
+    }
+    visible_items = set(
+        frappe.get_list(
+            "Item",
+            filters={"name": ("in", list(requested_items))},
+            pluck="name",
+            limit_page_length=max(len(requested_items), 1),
+        )
+    ) if requested_items else set()
+    if visible_items != requested_items:
+        frappe.throw(_("One or more requested items are missing or outside your scope."), frappe.PermissionError)
+
+    requested_channels = {
+        (row or {}).get("channel", "").strip()
+        for row in parsed_changes
+        if isinstance(row, dict) and (row.get("channel") or "").strip()
+    }
+    price_rows = frappe.get_list(
+        "CH Item Price",
+        filters={
+            "item_code": ("in", list(requested_items)),
+            "channel": ("in", list(requested_channels)),
+            "company": ("in", [company, "", None]),
+            "status": ("in", ["Active", "Scheduled"]),
+        },
+        fields=["item_code", "channel", "mrp", "mop", "selling_price"],
+        order_by="effective_from desc, modified desc",
+        limit_page_length=max(row_limit, 1),
+    ) if requested_items and requested_channels else []
+    current_prices = {}
+    for price_row in price_rows:
+        current_prices.setdefault((price_row.item_code, price_row.channel), price_row)
 
     field_label_map = {
         "mrp": "MRP",
@@ -1205,6 +1362,7 @@ def create_inline_price_change_batch(
     }
 
     batch_items = []
+    seen_changes = set()
     for row in parsed_changes:
         row = row or {}
         item_code = (row.get("item_code") or "").strip()
@@ -1214,7 +1372,16 @@ def create_inline_price_change_batch(
         if not item_code or not channel or field not in field_label_map:
             continue
 
-        old_val = float(row.get("old_value") or 0)
+        change_key = (item_code, channel, field)
+        if change_key in seen_changes:
+            frappe.throw(
+                _("Duplicate inline change for {0}, {1}, {2}.").format(item_code, channel, field),
+                frappe.ValidationError,
+            )
+        seen_changes.add(change_key)
+
+        current = current_prices.get((item_code, channel))
+        old_val = float((current or {}).get(field) or 0)
         new_val = float(row.get("new_value") or 0)
         if old_val == new_val:
             continue
@@ -1270,14 +1437,13 @@ def create_inline_price_change_batch(
         batch.append("items", item_data)
 
     _enrich_batch_items(batch, unique_items)
-    batch.insert(ignore_permissions=True)
+    batch.insert()
 
     submitted = False
     if int(submit_for_approval or 0):
         batch.submit_for_approval()
         submitted = True
 
-    frappe.db.commit()
     return {
         "batch_name": batch.name,
         "total_changes": len(batch_items),
@@ -1290,45 +1456,10 @@ def create_inline_price_change_batch(
 # Direct Item-level MRP update (Ready Reckoner MRP column)
 # ─────────────────────────────────────────────────────────────────────────────
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def update_item_mrp(item_code, mrp) -> dict:
-	"""Directly update Item.ch_item_mrp from the Ready Reckoner grid.
-
-	This is intentionally a direct update (not maker-checker) because:
-	  - ch_item_mrp is item master data, not a per-channel price record
-	  - Price Managers and Master Managers are trusted to update item master fields
-	  - The change is auditable via Frappe's Version history on Item
-
-	Also propagates the new MRP to all Active/Scheduled CH Item Price records
-	for this item via ``item_mrp.sync_item_mrp_to_price`` (invoked directly).
-
-	Implementation — attribute-scoped update (SAP MM ``BAPI_MATERIAL_SAVEDATA``
-	parity)
-	------------------------------------------------------------------------
-	Uses ``frappe.db.set_value`` for the single-field write instead of
-	``frappe.get_doc().save()``. Rationale:
-
-	* MRP is a top-level Item field with no cross-field invariants —
-	  changing it does not require re-validating the Purchasing view,
-	  Storage view, or GST view.
-	* A full ``item_doc.save()`` walks every child table (``item_defaults``,
-	  ``taxes``, ``uoms``, ``supplier_items``, ``customer_items``,
-	  ``reorder_levels``, ``manufacturers``, ...) and re-validates every
-	  link. A single stale FK anywhere — e.g. a renamed default warehouse,
-	  a deleted price list, a merged supplier — throws
-	  ``LinkValidationError`` and blocks the MRP save even though the user
-	  only touched one number.
-	* Version history is still captured because ``track_changes = 1`` on
-	  Item picks up ``frappe.db.set_value`` writes via the on_change
-	  observer.
-	* The ``ch_mrp_sync_to_price`` hook is invoked manually so downstream
-	  CH Item Price records still propagate.
-
-	This is the ERPNext-idiomatic pattern for surgical master-data updates
-	from grid UIs (mirrors how the standard Item Price grid, Stock Level
-	inline edit, and the Employee master's quick-edit dialog work).
-	"""
-	frappe.only_for(["System Manager", "CH Master Manager", "CH Price Manager"])
+	"""Update Item MRP through the standard Item permission and validation path."""
+	_require_price_operation()
 
 	item_code = (item_code or "").strip()
 	if not item_code:
@@ -1344,54 +1475,15 @@ def update_item_mrp(item_code, mrp) -> dict:
 
 	if not frappe.db.exists("Item", item_code):
 		frappe.throw(_("Item {0} not found.").format(item_code), title=_("Invalid Input"))
+	item_doc = frappe.get_doc("Item", item_code)
+	item_doc.check_permission("write")
 
 	old_mrp = flt(frappe.db.get_value("Item", item_code, "ch_item_mrp") or 0)
 	if old_mrp == mrp:
 		return {"item_code": item_code, "mrp": mrp, "changed": False}
 
-	# ── Attribute-scoped write ──────────────────────────────────────────
-	# Bypasses full Item.validate so unrelated stale FKs on the item
-	# (renamed default warehouse, deleted supplier, ...) do not block a
-	# legitimate MRP-only change. update_modified=True still bumps
-	# ``modified`` so tracking / cache invalidation stays consistent.
-	frappe.db.set_value(
-		"Item", item_code, "ch_item_mrp", mrp, update_modified=True
-	)
-
-	# ── Manually invoke the MRP → CH Item Price propagation ────────────
-	# ``sync_item_mrp_to_price`` is normally wired to Item.on_update; since
-	# we bypassed .save(), fire it explicitly against a lightweight shim
-	# doc so the same code path runs. Loop-guard flag ensures the sync
-	# does not ping-pong via CH Item Price.on_update.
-	from ch_item_master.ch_item_master import item_mrp as _item_mrp
-
-	class _MRPUpdateShim:
-		"""Duck-typed stand-in for the Item doc consumed by sync_item_mrp_to_price."""
-
-		def __init__(self, item_code: str, new_mrp: float, old_mrp: float):
-			self.item_code = item_code
-			self.ch_item_mrp = new_mrp
-			self._pre_save = frappe._dict(ch_item_mrp=old_mrp)
-
-		def get_doc_before_save(self):
-			return self._pre_save
-
-	shim = _MRPUpdateShim(item_code, mrp, old_mrp)
-	try:
-		_item_mrp.sync_item_mrp_to_price(shim, method="on_update")
-	except Exception:
-		# The DB write already succeeded; a downstream sync hiccup must not
-		# roll it back. Log and continue — CH Item Price records can be
-		# reconciled via the standard batch flow.
-		frappe.log_error(
-			title=f"MRP sync to CH Item Price failed for {item_code}",
-			message=frappe.get_traceback(),
-		)
-
-	# Bust cached Item snapshot so the next read reflects the new MRP.
-	frappe.clear_document_cache("Item", item_code)
-
-	frappe.db.commit()
+	item_doc.ch_item_mrp = mrp
+	item_doc.save()
 	frappe.logger("item_mrp").info(
 		f"[RR Direct MRP Update] {item_code}: {old_mrp} → {mrp} by {frappe.session.user}"
 	)
@@ -1444,7 +1536,7 @@ _TAG_HEADER = "Tags"
 _VALID_TAGS = {"EOL", "FAST MOVING", "SLOW MOVING", "NEW", "PROMO FOCUS", "RESTRICTED"}
 
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def upload_ready_reckoner_prices(file_url, effective_from=None, company=None, reason=None) -> None:
     """Parse a Ready Reckoner Excel and create a CH Price Upload Batch (Draft).
 
@@ -1457,12 +1549,15 @@ def upload_ready_reckoner_prices(file_url, effective_from=None, company=None, re
     The batch must then be submitted for approval and approved by a manager
     before any prices or tags are actually modified.
     """
-    frappe.only_for(["System Manager", "CH Master Manager", "CH Price Manager"])
+    _require_price_operation()
+    frappe.has_permission("CH Price Upload Batch", "create", throw=True)
+    company = _resolve_write_company(company)
 
     import openpyxl
 
     # Read the uploaded file
     file_doc = frappe.get_doc("File", {"file_url": file_url})
+    file_doc.check_permission("read")
     file_path = file_doc.get_full_path()
 
     wb = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
@@ -1486,9 +1581,13 @@ def upload_ready_reckoner_prices(file_url, effective_from=None, company=None, re
         tags_idx = headers.index(_TAG_HEADER)
 
     # ── Parse header columns to determine channel → field mappings ────────
-    buying_channel_set = set(
-        frappe.get_all("CH Price Channel", filters={"is_buying": 1, "disabled": 0}, pluck="name")
-    )
+    related_row_limit = get_int_setting("ready_reckoner_related_row_limit", 10000, minimum=1)
+    buying_channel_set = set(get_bounded_rows(
+        "CH Price Channel",
+        filters={"is_buying": 1, "disabled": 0},
+        pluck="name",
+        limit=related_row_limit,
+    ))
 
     col_map = {}
     for idx, header in enumerate(headers):
@@ -1514,8 +1613,16 @@ def upload_ready_reckoner_prices(file_url, effective_from=None, company=None, re
                        "Ensure column headers match the exported format."))
 
     # ── Collect all item codes first for batch DB lookups ─────────────────
-    all_rows = list(rows_iter)
+    from itertools import islice
+
+    row_limit = get_int_setting("ready_reckoner_upload_row_limit", 5000, minimum=1)
+    all_rows = list(islice(rows_iter, row_limit + 1))
     wb.close()
+    if len(all_rows) > row_limit:
+        frappe.throw(
+            _("The upload contains more than {0} data rows.").format(row_limit),
+            frappe.ValidationError,
+        )
 
     item_codes_in_file = set()
     for row in all_rows:
@@ -1527,18 +1634,36 @@ def upload_ready_reckoner_prices(file_url, effective_from=None, company=None, re
     if not item_codes_in_file:
         frappe.throw(_("No item codes found in the file."), title=_("API Error"))
 
+    visible_items = set(
+        frappe.get_list(
+            "Item",
+            filters={"name": ("in", list(item_codes_in_file))},
+            pluck="name",
+            limit_page_length=len(item_codes_in_file),
+        )
+    )
+    inaccessible_items = item_codes_in_file - visible_items
+    if inaccessible_items:
+        frappe.throw(
+            _("The upload contains items that are missing or outside your scope."),
+            frappe.PermissionError,
+        )
+
     # Batch-fetch current selling prices
     selling_price_index = {}  # (item_code, channel) → {mrp, mop, selling_price}
     selling_channels = set(m["channel"] for m in col_map.values() if m["type"] == "selling")
     if selling_channels:
-        sp_records = frappe.get_all(
+        sp_records = get_bounded_rows(
             "CH Item Price",
             filters={
                 "item_code": ("in", list(item_codes_in_file)),
                 "channel": ("in", list(selling_channels)),
+                "company": ("in", [company, "", None]),
                 "status": ("in", ["Active", "Scheduled"]),
             },
             fields=["item_code", "channel", "mrp", "mop", "selling_price"],
+            limit=related_row_limit,
+            permission_aware=True,
         )
         for sp in sp_records:
             selling_price_index[(sp.item_code, sp.channel)] = sp
@@ -1548,10 +1673,12 @@ def upload_ready_reckoner_prices(file_url, effective_from=None, company=None, re
     buyback_channels = set(m["channel"] for m in col_map.values() if m["type"] == "buyback")
     if buyback_channels:
         bb_fields = ["item_code", "current_market_price", "vendor_price"] + BUYBACK_GRADE_FIELDS
-        bb_records = frappe.get_all(
+        bb_records = get_bounded_rows(
             "Buyback Price Master",
             filters={"item_code": ("in", list(item_codes_in_file)), "is_active": 1},
             fields=bb_fields,
+            limit=related_row_limit,
+            permission_aware=True,
         )
         for bb in bb_records:
             buyback_price_index[bb.item_code] = bb
@@ -1559,10 +1686,12 @@ def upload_ready_reckoner_prices(file_url, effective_from=None, company=None, re
     # Batch-fetch current tags
     tag_index = {}  # item_code → set of active tags
     if tags_idx is not None:
-        tag_records = frappe.get_all(
+        tag_records = get_bounded_rows(
             "CH Item Commercial Tag",
             filters={"item_code": ("in", list(item_codes_in_file)), "status": "Active"},
             fields=["item_code", "tag"],
+            limit=related_row_limit,
+            permission_aware=True,
         )
         for t in tag_records:
             tag_index.setdefault(t.item_code, set()).add(t.tag)
@@ -1579,10 +1708,6 @@ def upload_ready_reckoner_prices(file_url, effective_from=None, company=None, re
         item_code = str(row[item_code_idx] or "").strip()
         if not item_code:
             continue
-        if not frappe.db.exists("Item", item_code):
-            parse_errors.append(f"Row {row_num}: Item '{item_code}' not found")
-            continue
-
         total_rows += 1
 
         # ── Selling & Buyback price columns ───────────────────────────────
@@ -1703,7 +1828,7 @@ def upload_ready_reckoner_prices(file_url, effective_from=None, company=None, re
         note_lines.extend(parse_errors[:50])
     batch.notes = "\n".join(note_lines)
 
-    batch.insert(ignore_permissions=True)
+    batch.insert()
     return {
         "batch_name": batch.name,
         "total_rows": total_rows,

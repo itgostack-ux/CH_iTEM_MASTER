@@ -8,17 +8,10 @@ Adds auto-increment logic for item_group_id (API integration).
 
 import frappe
 
+from ch_item_master.id_sequences import next_numeric_id
+
 
 def before_insert(doc, method=None):
-	"""Auto-generate item_group_id if not set, with advisory lock for concurrency."""
+	"""Auto-generate the atomic Item Group integration ID."""
 	if not doc.item_group_id:
-		lock_name = "ch_item_group_autoname"
-		frappe.db.sql("SELECT GET_LOCK(%s, 10)", lock_name)
-		try:
-			max_id = frappe.db.sql("""
-				SELECT IFNULL(MAX(item_group_id), 0)
-				FROM `tabItem Group`
-			""")[0][0]
-			doc.item_group_id = int(max_id) + 1
-		finally:
-			frappe.db.sql("SELECT RELEASE_LOCK(%s)", lock_name)
+		doc.item_group_id = next_numeric_id("item_group")

@@ -13,6 +13,8 @@
   "otp_expiry",
   "sec_gw",
   "sms_gateway_url",
+  "allowed_hosts",
+  "gateway_timeout_seconds",
   "use_post",
   "cb_gw",
   "message_parameter",
@@ -66,7 +68,23 @@
    "fieldname": "sms_gateway_url",
    "fieldtype": "Small Text",
    "label": "SMS Gateway URL",
+   "mandatory_depends_on": "eval:doc.enabled",
+   "description": "Must use HTTPS and an exact hostname listed below."
+  },
+  {
+   "description": "Exact public HTTPS hostnames permitted for SMS delivery, one per line.",
+   "fieldname": "allowed_hosts",
+   "fieldtype": "Small Text",
+   "label": "Allowed Gateway Hosts",
    "mandatory_depends_on": "eval:doc.enabled"
+  },
+  {
+   "default": "10",
+   "fieldname": "gateway_timeout_seconds",
+   "fieldtype": "Int",
+   "label": "Gateway Timeout (Seconds)",
+   "non_negative": 1,
+   "reqd": 1
   },
   {
    "fieldname": "use_post",

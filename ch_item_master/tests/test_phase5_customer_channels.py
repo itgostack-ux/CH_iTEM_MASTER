@@ -57,6 +57,7 @@ def run():
 
 	from buyback.public_portal_api import get_public_quote_estimate, get_quote_grades, submit_public_quote_request
 	from ch_item_master.ch_core import whatsapp_webhook
+	from ch_item_master.ch_core.doctype.ch_otp_log.ch_otp_log import CHOTPLog
 	from ch_item_master.ch_customer_master.customer_portal_api import _create_portal_session, get_dashboard, get_store_locator
 
 	customer, mobile_no = _get_or_create_customer()
@@ -80,7 +81,24 @@ def run():
 	)
 	_must("Public quote request created assessment", bool(assessment.get("name")), str(assessment))
 
-	session_token = _create_portal_session(mobile_no, customer)
+	otp_code = CHOTPLog.generate_otp(
+		mobile_no,
+		"POS Customer Verification",
+		reference_doctype="Customer",
+		reference_name=customer,
+	)
+	verification = CHOTPLog.verify_otp(
+		mobile_no,
+		"POS Customer Verification",
+		otp_code,
+		reference_doctype="Customer",
+		reference_name=customer,
+	)
+	session_token = _create_portal_session(
+		mobile_no,
+		customer,
+		otp_log=verification.get("otp_log"),
+	)
 	dashboard = get_dashboard(session_token=session_token)
 	_must("Portal dashboard returns profile", dashboard.get("profile", {}).get("mobile_no") == mobile_no)
 	_must("Portal dashboard includes buyback rows", isinstance(dashboard.get("buyback_assessments"), list))
@@ -88,20 +106,21 @@ def run():
 	_must("Store locator API works", isinstance(stores, list))
 
 	unique_template = f"phase5_webhook_{frappe.generate_hash(length=6)}"
-	original_loader = whatsapp_webhook._request_payload
-	try:
-		whatsapp_webhook._request_payload = lambda: {
-			"recipient": {"phone": mobile_no},
-			"template_name": unique_template,
-			"status": "delivered",
-		}
-		result = whatsapp_webhook.gallabox_webhook()
-	finally:
-		whatsapp_webhook._request_payload = original_loader
+	company = frappe.defaults.get_global_default("company") or frappe.db.get_value("Company", {}, "name")
+	result = whatsapp_webhook.process_status_event({
+		"recipient": {"phone": mobile_no},
+		"template_name": unique_template,
+		"status": "delivered",
+	}, company=company)
 
 	_must("Webhook returns ok", bool(result.get("ok")), str(result))
-	wa_log = frappe.db.get_value("CH WhatsApp Log", {"template_name": unique_template}, ["name", "status"], as_dict=True)
+	wa_log = frappe.db.get_value(
+		"CH WhatsApp Log",
+		{"template_name": unique_template, "company": company},
+		["name", "status"],
+		as_dict=True,
+	)
 	_must("Webhook log inserted", bool(wa_log and wa_log.get("name")), str(wa_log))
-	_must("Webhook log status updated", (wa_log or {}).get("status") == "Sent", str(wa_log))
+	_must("Webhook log status updated", (wa_log or {}).get("status") == "Delivered", str(wa_log))
 
 	print("Phase 5 - ALL PASS")

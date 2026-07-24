@@ -279,8 +279,12 @@ class TestItemGovernanceTierA(unittest.TestCase):
 		item.ch_lifecycle_status = "Pending Review"
 		item.save(ignore_permissions=True)
 		item.ch_lifecycle_status = "Active"
-		with self.assertRaises(IncompleteItemMasterError):
-			item.save(ignore_permissions=True)
+		frappe.flags.enforce_ch_item_governance = True
+		try:
+			with self.assertRaises(IncompleteItemMasterError):
+				item.save(ignore_permissions=True)
+		finally:
+			frappe.flags.enforce_ch_item_governance = False
 
 	# ── Audit log ────────────────────────────────────────────────────────
 	def test_50_audit_row_created_on_lifecycle_change(self):

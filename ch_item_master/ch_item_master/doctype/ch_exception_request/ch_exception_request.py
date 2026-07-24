@@ -1,18 +1,92 @@
 # Copyright (c) 2026, GoStack and contributors
 # For license information, please see license.txt
 
+import json
+import re
+
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import now_datetime, add_to_date, getdate, flt
+from frappe.utils import add_to_date, flt, getdate, now_datetime
 
 from ch_item_master.ch_item_master.utils import validate_indian_phone
+from ch_item_master.config import get_int_setting, get_list_setting, has_role_setting
+from ch_item_master.security import require_scoped_document_action
+
+
+_DELIVERY_NOTE_CREATION_ROLES = ("Sales User", "Sales Manager")
 
 
 class CHExceptionRequest(Document):
+	_APPROVAL_CONTEXT = object()
+	_PROTECTED_FIELDS = (
+		"status",
+		"assigned_approver",
+		"approval_role",
+		"approval_channel",
+		"approver",
+		"approver_name",
+		"approved_at",
+		"resolved_at",
+		"resolved_by",
+		"approval_expiry",
+		"otp_reference",
+		"resolution_value",
+		"last_escalated_at",
+	)
+
+	def _authorize_approval_transition(self):
+		self.flags.ch_exception_approval_context = self._APPROVAL_CONTEXT
+
+	def _has_approval_context(self):
+		return self.flags.get("ch_exception_approval_context") is self._APPROVAL_CONTEXT
+
+	def _validate_approval_transition(self):
+		if self._has_approval_context():
+			return
+		before = self.get_doc_before_save() if not self.is_new() else None
+		if before is None:
+			frappe.throw(
+				_("Create exception requests through the scoped exception API."),
+				frappe.PermissionError,
+			)
+		if any(self.get(fieldname) != before.get(fieldname) for fieldname in self._PROTECTED_FIELDS):
+			frappe.throw(
+				_("Exception routing, decisions, and approval evidence can only be changed through authorized actions."),
+				frappe.PermissionError,
+			)
+
+	@frappe.whitelist()
+	def get_ui_capabilities(self):
+		"""Return server-authoritative actions available to the current user."""
+		self.check_permission("read")
+		can_review = bool(
+			self.docstatus == 0
+			and self.status in ("Pending", "Escalated")
+			and frappe.has_permission(self.doctype, "write", doc=self)
+		)
+		if can_review:
+			try:
+				self._validate_approver(None)
+				from ch_item_master.ch_item_master.rbac import check_sod
+
+				check_sod(submitted_by=self.requested_by, approver=frappe.session.user)
+			except (frappe.PermissionError, frappe.ValidationError):
+				can_review = False
+
+		return {
+			"can_review": can_review,
+			"requires_otp": bool(
+				can_review
+				and frappe.get_cached_value(
+					"CH Exception Type", self.exception_type, "requires_otp"
+				)
+			),
+		}
+
 	def before_insert(self):
 		self.raised_at = now_datetime()
-		self.requested_by = self.requested_by or frappe.session.user
+		self.requested_by = frappe.session.user
 		request = getattr(frappe.local, "request", None)
 		self.ip_address = request.remote_addr if request else ""
 
@@ -41,6 +115,7 @@ class CHExceptionRequest(Document):
 				))
 
 	def validate(self):
+		self._validate_approval_transition()
 		if self.customer_phone:
 			self.customer_phone = validate_indian_phone(self.customer_phone, "Customer Phone")
 		self._validate_exception_type()
@@ -72,12 +147,18 @@ class CHExceptionRequest(Document):
 			)
 
 	def _validate_approver(self, approver):
-		approver = approver or frappe.session.user
-		roles = set(frappe.get_roles(approver))
-		bypass_roles = {"System Manager", "Administrator"}
+		authenticated_user = frappe.session.user
+		if approver and approver != authenticated_user:
+			frappe.throw(
+				_("Approver identity is derived from the authenticated session."),
+				frappe.PermissionError,
+			)
+		approver = authenticated_user
 
 		if self.assigned_approver:
-			if approver == self.assigned_approver or roles.intersection(bypass_roles):
+			if approver == self.assigned_approver or has_role_setting(
+				"exception_override_roles", ("System Manager",), user=approver
+			):
 				return approver
 			frappe.throw(
 				_("This exception is assigned to {0}. Only that user can approve or reject it.").format(
@@ -86,14 +167,11 @@ class CHExceptionRequest(Document):
 				title=_("Unauthorized Approver"),
 			)
 
-		allowed_roles = {
-			"Store Manager",
-			"Sales Manager",
-			"Service Manager",
-			"System Manager",
-			"Administrator",
-		}
-		if not roles.intersection(allowed_roles):
+		if not has_role_setting(
+			"exception_approval_roles",
+			("Store Manager", "Sales Manager", "Service Manager", "System Manager"),
+			user=approver,
+		):
 			frappe.throw(
 				_("User {0} is not authorized to approve or reject exception requests.").format(approver),
 				title=_("Unauthorized Approver"),
@@ -147,8 +225,8 @@ class CHExceptionRequest(Document):
 			)
 
 		company_name = self.company
-		ggr_match = "GoGizmo" in (company_name or "")
-		gfs_match = "GoFix" in (company_name or "")
+		ggr_match = company_name in get_list_setting("exception_ggr_companies")
+		gfs_match = company_name in get_list_setting("exception_gfs_companies")
 
 		if ggr_match and not etype.applicable_to_ggr:
 			frappe.throw(
@@ -192,6 +270,10 @@ class CHExceptionRequest(Document):
 	            resolution_value=None, remarks=None):
 		"""Approve this exception request."""
 		approver = self._validate_approver(approver)
+		from ch_item_master.ch_item_master.rbac import check_sod
+
+		check_sod(submitted_by=self.requested_by, approver=approver)
+		self._authorize_approval_transition()
 		now = now_datetime()
 		prior_status = self.status or "Pending"
 
@@ -232,6 +314,10 @@ class CHExceptionRequest(Document):
 	def reject(self, approver=None, reason=None):
 		"""Reject this exception request."""
 		approver = self._validate_approver(approver)
+		from ch_item_master.ch_item_master.rbac import check_sod
+
+		check_sod(submitted_by=self.requested_by, approver=approver)
+		self._authorize_approval_transition()
 		now = now_datetime()
 		prior_status = self.status or "Pending"
 
@@ -482,8 +568,6 @@ class CHExceptionRequest(Document):
 			update_modified=False,
 		)
 
-		frappe.db.commit()
-
 		# ── Verify ─────────────────────────────────────────────────────────
 		verify = frappe.db.get_value(
 			"Delivery Note Item", target_row.name,
@@ -649,7 +733,7 @@ class CHExceptionRequest(Document):
 # WHITELISTED API — called from Delivery Note JS
 # ═══════════════════════════════════════════════════════════════════════════════
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def create_from_delivery_note(delivery_note, exception_type, items, requested_reason=None):
 	"""Create ONE CH Exception Request per selected IMEI + set DN status.
 
@@ -661,38 +745,135 @@ def create_from_delivery_note(delivery_note, exception_type, items, requested_re
 	    requested_by       = session user
 	    requested_reason   = <user-entered reason>
 	    requested_value    = <exception/deduction amount for this IMEI>
-	    original_value     = <rate × qty of the DN row = current item.amount>
+	    original_value     = <server-side unit rate of the DN row>
 	"""
-	import json
 	if isinstance(items, str):
-		items = json.loads(items)
+		try:
+			items = json.loads(items)
+		except (TypeError, ValueError):
+			frappe.throw(_("Items must be valid JSON."), frappe.ValidationError)
 
-	if not items:
+	if not isinstance(items, list) or not items:
 		frappe.throw(_("At least one IMEI must be selected."))
-
-	if not frappe.db.exists("Delivery Note", delivery_note):
-		frappe.throw(_("Delivery Note {0} not found.").format(delivery_note))
+	item_limit = get_int_setting("exception_delivery_note_item_limit", 50, minimum=1)
+	if len(items) > item_limit:
+		frappe.throw(
+			_("A maximum of {0} IMEIs can be submitted at once.").format(item_limit),
+			frappe.ValidationError,
+		)
+	if any(not isinstance(item, dict) for item in items):
+		frappe.throw(_("Every item must be an object."), frappe.ValidationError)
 
 	dn = frappe.get_doc("Delivery Note", delivery_note)
+	require_scoped_document_action(
+		dn,
+		"exception_delivery_note_creation_roles",
+		_DELIVERY_NOTE_CREATION_ROLES,
+		action=_("create delivery-note exception requests"),
+		permission_types=("read", "write"),
+		store_field="set_warehouse",
+		lock=True,
+	)
+	frappe.has_permission("CH Exception Request", "create", throw=True)
+
+	exception_type = (exception_type or "").strip()
+	etype = frappe.get_cached_doc("CH Exception Type", exception_type)
+	if not etype.enabled:
+		frappe.throw(_("Exception type {0} is disabled.").format(exception_type), frappe.ValidationError)
+
+	reason = (requested_reason or "").strip()
+	if not reason:
+		frappe.throw(_("A reason is required."), frappe.ValidationError)
+	reason_limit = get_int_setting("exception_request_reason_limit", 1000, minimum=1)
+	if len(reason) > reason_limit:
+		frappe.throw(
+			_("Reason cannot exceed {0} characters.").format(reason_limit),
+			frappe.ValidationError,
+		)
+
+	amount_limit = flt(get_int_setting("exception_request_amount_limit", 10_000_000, minimum=1))
+	rows = {row.name: row for row in dn.items}
+	validated = []
+	seen = set()
+	total_amount = 0.0
+	warehouses = set()
+	for item in items:
+		row_name = (item.get("row_name") or "").strip()
+		imei = (item.get("imei_no") or "").strip()
+		amount = flt(item.get("exception_amount"))
+		row = rows.get(row_name)
+		if not row or not imei:
+			frappe.throw(_("Every IMEI must reference an item row from this Delivery Note."), frappe.ValidationError)
+		if (row_name, imei) in seen:
+			frappe.throw(_("IMEI {0} was submitted more than once.").format(imei), frappe.ValidationError)
+		seen.add((row_name, imei))
+
+		if item.get("item_code") and item.get("item_code") != row.item_code:
+			frappe.throw(_("Item code does not match Delivery Note row {0}.").format(row.idx), frappe.ValidationError)
+		if item.get("item_name") and item.get("item_name") != row.item_name:
+			frappe.throw(_("Item name does not match Delivery Note row {0}.").format(row.idx), frappe.ValidationError)
+
+		row_serials = {
+			serial.strip()
+			for serial in re.split(r"[\n,]+", row.serial_no or "")
+			if serial.strip()
+		}
+		if imei not in row_serials:
+			frappe.throw(
+				_("IMEI {0} does not belong to Delivery Note row {1}.").format(imei, row.idx),
+				frappe.ValidationError,
+			)
+
+		unit_value = flt(row.rate, 2)
+		if amount <= 0 or amount > unit_value or amount > amount_limit:
+			frappe.throw(
+				_("Exception amount for IMEI {0} must be positive and cannot exceed its item rate or the configured limit.").format(
+					imei
+				),
+				frappe.ValidationError,
+			)
+		total_amount += amount
+		if total_amount > amount_limit:
+			frappe.throw(_("Total exception amount exceeds the configured limit."), frappe.ValidationError)
+
+		warehouse = row.warehouse or dn.get("set_warehouse")
+		if warehouse:
+			warehouses.add(warehouse)
+		validated.append((row, imei, amount, warehouse, unit_value))
+
+	if warehouses:
+		from ch_erp15.ch_erp15.scope import assert_user_has_store_scope
+
+		for warehouse in warehouses:
+			assert_user_has_store_scope(
+				warehouse=warehouse,
+				company=dn.company,
+				msg=_("You are not permitted to create exceptions for this Delivery Note location."),
+			)
+
+	existing = frappe.get_all(
+		"CH Exception Request",
+		filters={
+			"reference_doctype": "Delivery Note",
+			"reference_name": dn.name,
+			"exception_type": exception_type,
+			"serial_no": ("in", [row[1] for row in validated]),
+			"status": ("in", ["Pending", "Escalated", "Awaiting Approval"]),
+			"docstatus": ("!=", 2),
+		},
+		fields=["name", "serial_no"],
+		limit_page_length=item_limit,
+	)
+	if existing:
+		frappe.throw(
+			_("An open exception request already exists for IMEI {0}: {1}.").format(
+				existing[0].serial_no, existing[0].name
+			),
+			frappe.ValidationError,
+		)
 
 	created = []
-	for it in items:
-		imei = (it.get("imei_no") or "").strip()
-		amount = flt(it.get("exception_amount"))
-		row_name = it.get("row_name")
-
-		if not imei or amount <= 0 or not row_name:
-			continue
-
-		# Locate the DN row to capture warehouse + original_value (= rate × qty)
-		warehouse = None
-		original_value = 0
-		for row in dn.items:
-			if row.name == row_name:
-				warehouse = row.warehouse
-				original_value = flt(row.rate) * flt(row.qty)
-				break
-
+	for row, imei, amount, warehouse, unit_value in validated:
 		doc = frappe.new_doc("CH Exception Request")
 		doc.exception_type    = exception_type
 		doc.company           = dn.company
@@ -700,40 +881,30 @@ def create_from_delivery_note(delivery_note, exception_type, items, requested_re
 		doc.status            = "Pending"
 		doc.reference_doctype = "Delivery Note"
 		doc.reference_name    = delivery_note
-		doc.item_code         = it.get("item_code")
-		doc.item_name         = it.get("item_name")
+		doc.item_code         = row.item_code
+		doc.item_name         = row.item_name
 		doc.serial_no         = imei
 		doc.customer          = dn.customer
 		doc.customer_name     = dn.customer_name
 		doc.requested_by      = frappe.session.user
-		doc.requested_reason  = requested_reason
-		doc.requested_value   = amount                       # the deduction amount
-		doc.original_value    = flt(original_value, 2)       # rate × qty (current item.amount)
+		doc.requested_reason  = reason
+		doc.requested_value   = amount
+		doc.original_value    = unit_value
 
-		doc.insert(ignore_permissions=True)
+		doc.insert()
 		created.append(doc.name)
-
-	if not created:
-		frappe.throw(_("No valid exception requests could be created."))
 
 	# ── Set DN status to "Pending Approval" (if field exists) ────────────
 	dn_meta = frappe.get_meta("Delivery Note")
 	if dn_meta.has_field("custom_dn_status"):
-		frappe.db.set_value(
-			"Delivery Note", delivery_note,
-			"custom_dn_status", "Pending Approval",
-			update_modified=False,
+		dn.custom_dn_status = "Pending Approval"
+		dn.flags.ignore_validate_update_after_submit = True
+		dn.save()
+		frappe.publish_realtime(
+			event=f"dn_status_changed:{delivery_note}",
+			message={"status": "Pending Approval"},
+			after_commit=True,
 		)
-		try:
-			frappe.publish_realtime(
-				event=f"dn_status_changed:{delivery_note}",
-				message={"status": "Pending Approval"},
-				after_commit=True,
-			)
-		except Exception:
-			pass
-
-	frappe.db.commit()
 
 	return {
 		"count": len(created),

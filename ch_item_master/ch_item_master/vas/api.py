@@ -17,16 +17,9 @@ were NOT merged and continue to work as-is.
 """
 
 import frappe
-from frappe.utils import flt
+from frappe import _
 
-
-def _item_price_for_pos(item_code: str) -> float:
-	price = frappe.db.get_value(
-		"CH Item Price",
-		{"item_code": item_code, "channel": "POS", "status": "Active"},
-		"selling_price",
-	)
-	return flt(price)
+from ch_item_master.config import require_role_setting
 
 
 @frappe.whitelist()
@@ -39,7 +32,8 @@ def get_vas_product_catalog(limit=50):
 	are marked ``is_sellable=1``.
 	"""
 	limit = min(int(limit or 50), 200)
-	return frappe.get_all(
+	frappe.has_permission("CH Warranty Plan", "read", throw=True)
+	return frappe.get_list(
 		"CH Warranty Plan",
 		filters={"status": "Active", "is_sellable": 1},
 		fields=[
@@ -58,7 +52,8 @@ def get_vas_product_catalog(limit=50):
 def get_vas_plan_catalog(limit=100):
 	"""Return sellable CH Warranty Plans."""
 	limit = min(int(limit or 100), 300)
-	return frappe.get_all(
+	frappe.has_permission("CH Warranty Plan", "read", throw=True)
+	return frappe.get_list(
 		"CH Warranty Plan",
 		filters={"status": "Active", "is_sellable": 1},
 		fields=[
@@ -75,7 +70,8 @@ def get_vas_plan_catalog(limit=100):
 def get_vas_claims(limit=100):
 	"""Return CH Warranty Claims (the single claim surface post-merge)."""
 	limit = min(int(limit or 100), 300)
-	return frappe.get_all(
+	frappe.has_permission("CH Warranty Claim", "read", throw=True)
+	return frappe.get_list(
 		"CH Warranty Claim",
 		fields=[
 			"name", "claim_date", "customer", "sold_plan",
@@ -105,32 +101,32 @@ def get_vas_attach_offers(item_code: str, selling_price=None, company=None):
 	return get_attach_rules_for_item(item_code)
 
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def auto_match_partner_commissions(partner=None):
 	"""Simple reconciliation helper: mark rows with settlement_reference as matched."""
+	require_role_setting(
+		"vas_finance_roles",
+		("Accounts Manager", "CH Warranty Manager"),
+		action=_("reconcile VAS partner commissions"),
+	)
 	if not frappe.db.exists("DocType", "VAS Commission"):
 		return {"updated": 0}
 
-	filters = {"settlement_status": "Pending"}
+	filters = {
+		"settlement_status": "Pending",
+		"settlement_reference": ["is", "set"],
+	}
 	if partner:
 		filters["partner"] = partner
 
-	rows = frappe.get_all(
-		"VAS Commission",
-		filters=filters,
-		fields=["name", "settlement_reference"],
-		limit=5000,
-	)
-	updated = 0
-	for row in rows:
-		if row.settlement_reference:
-			frappe.db.set_value(
-				"VAS Commission",
-				row.name,
-				"settlement_status",
-				"Matched",
-				update_modified=False,
-			)
-			updated += 1
+	updated = frappe.db.count("VAS Commission", filters)
+	if updated:
+		frappe.db.set_value(
+			"VAS Commission",
+			filters,
+			"settlement_status",
+			"Matched",
+			update_modified=False,
+		)
 
 	return {"updated": updated}

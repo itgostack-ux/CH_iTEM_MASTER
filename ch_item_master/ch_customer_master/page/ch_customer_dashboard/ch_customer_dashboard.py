@@ -38,35 +38,68 @@ from frappe.utils import (
     date_diff, now_datetime, get_first_day, get_last_day,
 )
 
+from ch_item_master.config import (
+    get_int_setting,
+    is_privileged_user,
+    iter_all_rows,
+    require_role_setting,
+)
+
+
+_CUSTOMER_DASHBOARD_ROLES = ("Sales Manager", "Marketing Manager", "CH Master Manager")
+
 
 # ── Permission Helpers ───────────────────────────────────────────────────────
 
 def _get_allowed_companies():
     """Return companies the current user may view."""
-    user = frappe.session.user
-    if user == "Administrator" or "System Manager" in frappe.get_roles(user):
-        return frappe.get_all("Company", pluck="name", order_by="name")
+    from ch_item_master.security import get_user_allowed_companies
 
-    permitted = frappe.get_all(
-        "User Permission",
-        filters={"user": user, "allow": "Company"},
-        pluck="for_value",
-    )
-    if permitted:
-        return permitted
-
-    default = frappe.defaults.get_user_default("Company", user)
-    return [default] if default else frappe.get_all("Company", pluck="name", order_by="name")
+    companies = get_user_allowed_companies(frappe.session.user)
+    if companies is None:
+        return list(iter_all_rows("Company", pluck="name", order_by="name asc"))
+    return companies
 
 
 def _validate_company(company):
     """Validate and normalise the company argument."""
     if not company or company == "All":
+        if not is_privileged_user():
+            frappe.throw(_("Select a company before opening the customer dashboard."), frappe.PermissionError)
         return None
     allowed = _get_allowed_companies()
     if company not in allowed:
         frappe.throw(_("You do not have permission to view data for {0}").format(company), title=_("Validation Error"))
     return company
+
+
+def _require_dashboard_access(company=None):
+    require_role_setting(
+        "customer_dashboard_roles",
+        _CUSTOMER_DASHBOARD_ROLES,
+        action=_("view the customer network dashboard"),
+    )
+    frappe.has_permission("Customer", "read", throw=True)
+    frappe.has_permission("Company", "read", throw=True)
+    frappe.has_permission("Sales Invoice", "read", throw=True)
+    if frappe.db.exists("DocType", "Service Request"):
+        frappe.has_permission("Service Request", "read", throw=True)
+    if is_privileged_user() or not company:
+        return
+    try:
+        from ch_erp15.ch_erp15.scope import get_user_scope
+    except (ImportError, ModuleNotFoundError):
+        frappe.throw(_("Location scope validation is unavailable."), frappe.PermissionError)
+    scope = get_user_scope() or {}
+    allowed_stores = set(scope.get("stores") or ())
+    company_stores = set(frappe.get_all(
+        "CH Store", filters={"company": company, "disabled": 0}, pluck="name"
+    ))
+    if not company_stores or not company_stores.issubset(allowed_stores):
+        frappe.throw(
+            _("The customer network dashboard requires full store scope for {0}.").format(company),
+            frappe.PermissionError,
+        )
 
 
 def _co_cond(company, alias="si", field="company"):
@@ -105,6 +138,7 @@ def _customers_of_company_subquery(company):
 @frappe.whitelist()
 def get_allowed_companies() -> dict:
     """Return companies the current user can access (for the dropdown)."""
+    _require_dashboard_access()
     companies = _get_allowed_companies()
     return {"companies": companies, "show_all": len(companies) > 1}
 
@@ -117,22 +151,28 @@ def get_dashboard_data(company=None) -> dict:
         company: company name or None/"All" for all.
     """
     company = _validate_company(company)
+    _require_dashboard_access(company)
     today = nowdate()
     month_start = str(get_first_day(today))
 
+    kpis = _get_kpis(today, month_start, company)
+    if not is_privileged_user():
+        kpis["total_loyalty"] = None
+        kpis["total_devices"] = None
+
     return {
         "selected_company": company or "All",
-        "kpis":              _get_kpis(today, month_start, company),
-        "alerts":            _get_alerts(today, company),
-        "insights":          _get_insights(today, company),
+        "kpis":              kpis,
+        "alerts":            _get_alerts(today, company) if is_privileged_user() else [],
+        "insights":          _get_insights(today, company) if is_privileged_user() else [],
         "segments":          _get_segment_distribution(company),
-        "loyalty_overview":  _get_loyalty_overview(),               # ALWAYS overall
+        "loyalty_overview":  _get_loyalty_overview() if is_privileged_user() else {},
         "company_breakdown": _get_company_breakdown(today, company),
         "top_customers":     _get_top_customers(company),
-        "device_analytics":  _get_device_analytics(),               # ALWAYS common
-        "recent_activity":   _get_recent_activity(company),
+        "device_analytics":  _get_device_analytics() if is_privileged_user() else {},
+        "recent_activity":   _get_recent_activity(company) if is_privileged_user() else [],
         "revenue_trend":     _get_revenue_trend(today, company),
-        "referral_stats":    _get_referral_stats(),                 # ALWAYS common
+        "referral_stats":    _get_referral_stats() if is_privileged_user() else {},
         "store_performance": _get_store_performance(today, company),
     }
 
@@ -144,6 +184,7 @@ def _get_kpis(today, month_start, company):
     p = _co_params(company)
     cond = _co_cond(company, "si")
     cust_sub = _customers_of_company_subquery(company)
+    active_window_days = get_int_setting("customer_active_window_days", 90)
 
     # ─ Total Customers (company-scoped when filtered) ────────────────────
     if company:
@@ -198,12 +239,12 @@ def _get_kpis(today, month_start, company):
             SELECT COUNT(*) FROM `tabCustomer` c
             WHERE c.disabled = 0 AND c.ch_last_visit_date >= %(cutoff)s
               AND c.name IN {cust_sub}
-        """.format(cust_sub=cust_sub), {**p, "cutoff": add_days(today, -90)})[0][0] or 0  # noqa: UP032
+        """.format(cust_sub=cust_sub), {**p, "cutoff": add_days(today, -active_window_days)})[0][0] or 0  # noqa: UP032
     else:
         active_customers = frappe.db.sql("""
             SELECT COUNT(*) FROM `tabCustomer`
             WHERE disabled = 0 AND ch_last_visit_date >= %(cutoff)s
-        """, {"cutoff": add_days(today, -90)})[0][0] or 0
+        """, {"cutoff": add_days(today, -active_window_days)})[0][0] or 0
 
     # ─ Revenue (always company-filtered) ─────────────────────────────────
     total_revenue = frappe.db.sql("""
@@ -222,7 +263,7 @@ def _get_kpis(today, month_start, company):
 
     # ─ Loyalty — ALWAYS overall ──────────────────────────────────────────
     total_loyalty = 0
-    if frappe.db.exists("DocType", "CH Loyalty Transaction"):
+    if is_privileged_user() and frappe.db.exists("DocType", "CH Loyalty Transaction"):
         total_loyalty = frappe.db.sql("""
             SELECT IFNULL(SUM(points), 0) FROM `tabCH Loyalty Transaction`
             WHERE docstatus = 1 AND is_expired = 0
@@ -230,7 +271,7 @@ def _get_kpis(today, month_start, company):
 
     # ─ Devices — ALWAYS common (cross-company) ──────────────────────────
     total_devices = 0
-    if frappe.db.exists("DocType", "CH Customer Device"):
+    if is_privileged_user() and frappe.db.exists("DocType", "CH Customer Device"):
         total_devices = frappe.db.count("CH Customer Device")
 
     # ─ KYC (company-scoped customer set) ─────────────────────────────────
@@ -263,13 +304,16 @@ def _get_kpis(today, month_start, company):
 def _get_alerts(today, company):
     """Critical alerts. Customer-level alerts are COMMON; loyalty ALWAYS overall."""
     alerts = []
+    dormant_months = get_int_setting("customer_dormant_months", 6)
+    loyalty_expiry_days = get_int_setting("customer_loyalty_expiry_alert_days", 30)
+    warranty_expiry_days = get_int_setting("customer_warranty_expiry_alert_days", 30)
 
     # 1 — Dormant customers (COMMON — segment is overall)
     dormant = frappe.db.count("Customer", {"ch_customer_segment": "Dormant", "disabled": 0})
     if dormant:
         alerts.append({
             "type": "warning", "icon": "alert-triangle",
-            "title": f"{dormant} customer(s) marked Dormant (no visit in 6+ months)",
+            "title": f"{dormant} customer(s) marked Dormant (no visit in {dormant_months}+ months)",
             "action": "/desk/customer?ch_customer_segment=Dormant",
         })
 
@@ -290,12 +334,15 @@ def _get_alerts(today, company):
             FROM `tabCH Loyalty Transaction`
             WHERE docstatus = 1 AND is_expired = 0
               AND expiry_date BETWEEN %(today)s AND %(cutoff)s AND points > 0
-        """, {"today": today, "cutoff": add_days(today, 30)}, as_dict=True)
+        """, {"today": today, "cutoff": add_days(today, loyalty_expiry_days)}, as_dict=True)
         if exp and exp[0].customers:
             e = exp[0]
             alerts.append({
                 "type": "warning", "icon": "clock",
-                "title": f"{cint(e.points)} loyalty pts expiring for {cint(e.customers)} customer(s) in 30 days",
+                "title": (
+                    f"{cint(e.points)} loyalty pts expiring for {cint(e.customers)} "
+                    f"customer(s) in {loyalty_expiry_days} days"
+                ),
                 "action": "/desk/ch-loyalty-transaction?is_expired=0",
             })
 
@@ -329,11 +376,14 @@ def _get_alerts(today, company):
             SELECT COUNT(*) FROM `tabCH Customer Device`
             WHERE warranty_expiry BETWEEN %(today)s AND %(cutoff)s
               AND current_status = 'Owned'
-        """, {"today": today, "cutoff": add_days(today, 30)})[0][0]
+        """, {"today": today, "cutoff": add_days(today, warranty_expiry_days)})[0][0]
         if we:
             alerts.append({
                 "type": "info", "icon": "shield",
-                "title": f"{we} device warranty(ies) expiring in 30 days — upsell opportunity",
+                "title": (
+                    f"{we} device warranty(ies) expiring in {warranty_expiry_days} days "
+                    "— upsell opportunity"
+                ),
                 "action": "/desk/ch-customer-device?current_status=Owned",
             })
 
@@ -345,6 +395,13 @@ def _get_alerts(today, company):
 def _get_insights(today, company):
     """AI insights. Segment/referral/VAS = COMMON. Revenue = company-specific."""
     insights = []
+    dormant_months = get_int_setting("customer_dormant_months", 6)
+    dormancy_threshold = get_int_setting("customer_dormancy_insight_percent", 25)
+    churn_threshold = get_int_setting("customer_churn_insight_percent", 10)
+    concentration_threshold = get_int_setting("customer_revenue_concentration_percent", 50)
+    referral_target = get_int_setting("customer_referral_target_percent", 5)
+    conversion_target = get_int_setting("customer_conversion_target_percent", 30)
+    unsubscribed_value = get_int_setting("customer_unsubscribed_value_amount", 50000)
 
     # 1 — Segment analysis (COMMON — segment is overall attribute)
     segments = frappe.db.sql("""
@@ -370,16 +427,16 @@ def _get_insights(today, company):
                 "severity": "info",
                 "action": "/desk/customer?ch_customer_segment=VIP",
             })
-        if dormant_pct > 25:
+        if dormant_pct > dormancy_threshold:
             insights.append({
                 "type": "recommendation", "icon": "alert-circle",
                 "title": f"High Dormancy: {dormant_pct}% customers inactive",
-                "description": f"{segment_map.get('Dormant', 0)} customers inactive 6+ months. "
+                "description": f"{segment_map.get('Dormant', 0)} customers inactive {dormant_months}+ months. "
                                "Consider WhatsApp/SMS re-engagement campaign.",
                 "severity": "high",
                 "action": "/desk/customer?ch_customer_segment=Dormant",
             })
-        if churned_pct > 10:
+        if churned_pct > churn_threshold:
             insights.append({
                 "type": "recommendation", "icon": "x-circle",
                 "title": f"Churn Alert: {churned_pct}% customers churned",
@@ -411,7 +468,7 @@ def _get_insights(today, company):
             top5_rev = sum(r.total for r in top_revenue)
             top5_pct = round(top5_rev / total_rev * 100, 1)
             label = f" ({company})" if company else ""
-            if top5_pct > 50:
+            if top5_pct > concentration_threshold:
                 insights.append({
                     "type": "analysis", "icon": "alert-triangle",
                     "title": f"Revenue Concentration Risk{label}: Top 5 = {top5_pct}%",
@@ -429,8 +486,8 @@ def _get_insights(today, company):
             "type": "analysis", "icon": "share-2",
             "title": f"Referral Conversion: {ref_rate}%",
             "description": f"{total_referred} joined via referral out of {total_with_ref} with codes. "
-                           f"{'Boost incentives.' if ref_rate < 5 else 'Program performing well.'}",
-            "severity": "medium" if ref_rate < 5 else "low",
+                           f"{'Boost incentives.' if ref_rate < referral_target else 'Program performing well.'}",
+            "severity": "medium" if ref_rate < referral_target else "low",
         })
 
     # 4 — Devices without VAS (COMMON — cross-company)
@@ -460,19 +517,22 @@ def _get_insights(today, company):
             "type": "analysis", "icon": "trending-up",
             "title": f"New→Regular Conversion: {conv}%",
             "description": f"{new_c} new customer(s) yet to repeat. Consider first-purchase incentives.",
-            "severity": "medium" if conv < 30 else "low",
+            "severity": "medium" if conv < conversion_target else "low",
         })
 
     # 6 — High-value unsubscribed (COMMON)
     unsub_vip = frappe.db.sql("""
         SELECT COUNT(*) FROM `tabCustomer`
-        WHERE ch_is_subscribed = 0 AND ch_total_purchases > 50000 AND disabled = 0
-    """)[0][0]
+        WHERE ch_is_subscribed = 0 AND ch_total_purchases > %(minimum_value)s AND disabled = 0
+    """, {"minimum_value": unsubscribed_value})[0][0]
     if unsub_vip:
         insights.append({
             "type": "recommendation", "icon": "mail",
             "title": f"{unsub_vip} High-Value Customer(s) Unsubscribed",
-            "description": "Rs.50k+ spenders opted out of communications. Personalized outreach recommended.",
+            "description": (
+                f"Customers above {frappe.format_value(unsubscribed_value, {'fieldtype': 'Currency'})} "
+                "in purchases opted out of communications. Personalized outreach recommended."
+            ),
             "severity": "medium",
         })
 
@@ -642,9 +702,10 @@ def _get_device_analytics():
 # ── Recent Activity ──────────────────────────────────────────────────────────
 
 def _get_recent_activity(company):
-    """Last 7 days. Customer registrations = COMMON. Transactions = filtered."""
+    """Recent customer registrations and company-scoped transactions."""
     activity = []
-    seven_days_ago = add_days(nowdate(), -7)
+    activity_days = get_int_setting("customer_recent_activity_days", 7)
+    seven_days_ago = add_days(nowdate(), -activity_days)
 
     # New customers — ALWAYS common
     for c in frappe.get_all(
@@ -746,38 +807,79 @@ def _get_revenue_trend(today, company):
     """Monthly revenue + acquisition trend (6 months). Revenue = company-filtered."""
     cond = _co_cond(company, "si")
     p_base = _co_params(company)
-    months = []
-
+    month_ranges = []
     for i in range(5, -1, -1):
         d = add_months(today, -i)
         ms = str(get_first_day(d))
         me = str(get_last_day(d))
-        label = getdate(d).strftime("%b %Y")
-
-        p = {"start": ms, "end": me, **p_base}
-
-        revenue = frappe.db.sql("""
-            SELECT IFNULL(SUM(si.grand_total), 0) FROM `tabSales Invoice` si
-            WHERE si.docstatus = 1 AND si.posting_date BETWEEN %(start)s AND %(end)s {cond}
-        """.format(cond=cond), p)[0][0]  # noqa: UP032
-
-        transactions = frappe.db.sql("""
-            SELECT COUNT(*) FROM `tabSales Invoice` si
-            WHERE si.docstatus = 1 AND si.posting_date BETWEEN %(start)s AND %(end)s {cond}
-        """.format(cond=cond), p)[0][0]  # noqa: UP032
-
-        new_custs = frappe.db.count("Customer", {
-            "creation": ("between", [ms, me + " 23:59:59"]),
-            "disabled": 0,
+        month_ranges.append({
+            "key": (getdate(d).year, getdate(d).month),
+            "label": getdate(d).strftime("%b %Y"),
+            "start": ms,
+            "end": me,
         })
 
+    range_params = {
+        "range_start": month_ranges[0]["start"],
+        "range_end": month_ranges[-1]["end"],
+        **p_base,
+    }
+    invoice_rows = frappe.db.sql("""
+        SELECT
+            YEAR(si.posting_date) AS year_no,
+            MONTH(si.posting_date) AS month_no,
+            IFNULL(SUM(si.grand_total), 0) AS revenue,
+            COUNT(*) AS transactions
+        FROM `tabSales Invoice` si
+        WHERE si.docstatus = 1
+          AND si.posting_date BETWEEN %(range_start)s AND %(range_end)s {cond}
+        GROUP BY YEAR(si.posting_date), MONTH(si.posting_date)
+    """.format(cond=cond), range_params, as_dict=True)  # noqa: UP032
+    invoice_by_month = {
+        (cint(row.year_no), cint(row.month_no)): row for row in invoice_rows
+    }
+
+    if company:
+        acquisition_rows = frappe.db.sql("""
+            SELECT
+                YEAR(first_purchase.first_posting_date) AS year_no,
+                MONTH(first_purchase.first_posting_date) AS month_no,
+                COUNT(*) AS new_customers
+            FROM (
+                SELECT customer, MIN(posting_date) AS first_posting_date
+                FROM `tabSales Invoice`
+                WHERE docstatus = 1 AND company = %(company)s
+                GROUP BY customer
+            ) first_purchase
+            WHERE first_purchase.first_posting_date
+              BETWEEN %(range_start)s AND %(range_end)s
+            GROUP BY YEAR(first_purchase.first_posting_date), MONTH(first_purchase.first_posting_date)
+        """, range_params, as_dict=True)
+    else:
+        acquisition_rows = frappe.db.sql("""
+            SELECT
+                YEAR(creation) AS year_no,
+                MONTH(creation) AS month_no,
+                COUNT(*) AS new_customers
+            FROM `tabCustomer`
+            WHERE disabled = 0
+              AND creation BETWEEN %(range_start)s AND CONCAT(%(range_end)s, ' 23:59:59')
+            GROUP BY YEAR(creation), MONTH(creation)
+        """, range_params, as_dict=True)
+    acquisitions_by_month = {
+        (cint(row.year_no), cint(row.month_no)): cint(row.new_customers)
+        for row in acquisition_rows
+    }
+
+    months = []
+    for month_range in month_ranges:
+        invoice = invoice_by_month.get(month_range["key"], {})
         months.append({
-            "month": label,
-            "revenue": flt(revenue),
-            "new_customers": cint(new_custs),
-            "transactions": cint(transactions),
+            "month": month_range["label"],
+            "revenue": flt(invoice.get("revenue")),
+            "new_customers": acquisitions_by_month.get(month_range["key"], 0),
+            "transactions": cint(invoice.get("transactions")),
         })
-
     return months
 
 

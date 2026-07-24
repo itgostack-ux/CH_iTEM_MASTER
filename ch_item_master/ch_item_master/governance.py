@@ -25,6 +25,8 @@ import frappe
 from frappe import _
 from frappe.utils import now_datetime
 
+from ch_item_master.config import has_role_setting
+
 from ch_item_master.ch_item_master.exceptions import (
 	IncompleteItemMasterError,
 	InvalidLifecycleTransitionError,
@@ -57,7 +59,7 @@ _ALLOWED_TRANSITIONS = {
 	"Blocked":        {"Active": "Approver"},
 }
 
-_APPROVER_ROLES = {"CH Master Approver", "System Manager", "Administrator"}
+_DEFAULT_APPROVER_ROLES = {"CH Master Approver", "System Manager"}
 
 # Audit-tracked fields on Item — these record an audit entry on change.
 _AUDITED_ITEM_FIELDS = (
@@ -76,13 +78,8 @@ _AUDITED_ITEM_FIELDS = (
 # Utility: role + normalisation
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _user_roles(user: str | None = None) -> set[str]:
-	user = user or frappe.session.user
-	return set(frappe.get_roles(user))
-
-
 def _is_approver() -> bool:
-	return bool(_user_roles() & _APPROVER_ROLES)
+	return has_role_setting("master_approval_roles", _DEFAULT_APPROVER_ROLES)
 
 
 _NORM_RE = re.compile(r"[^a-z0-9]+")
@@ -373,7 +370,7 @@ def validate_completeness(doc) -> None:
 	# forces ch_lifecycle_status="Active" — so completeness would fail at
 	# test-module import time and keep every FrappeTestCase in the bench
 	# from ever running. The escape hatch is only True under bench run-tests.
-	if frappe.flags.in_test:
+	if frappe.flags.in_test and not frappe.flags.get("enforce_ch_item_governance"):
 		return
 
 	target_status = (doc.get("ch_lifecycle_status") or "").strip()

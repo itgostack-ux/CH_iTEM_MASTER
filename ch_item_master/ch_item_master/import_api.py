@@ -73,6 +73,7 @@ from collections import OrderedDict, defaultdict
 
 import frappe
 from frappe import _
+from ch_item_master.config import iter_all_rows, require_role_setting
 from frappe.utils import escape_html
 
 from ch_item_master.ch_item_master.exceptions import ImportIdempotencyError
@@ -144,7 +145,7 @@ def _build_lookup(doctype, name_field="name"):
 
     Used for case-insensitive / whitespace-tolerant matching.
     """
-    rows = frappe.get_all(doctype, pluck=name_field)
+    rows = iter_all_rows(doctype, pluck=name_field, order_by="name asc")
     return {_norm_key(r): r for r in rows}
 
 
@@ -183,11 +184,12 @@ def _ensure_attribute_value(attribute, value):
 	value = escape_html(value)
 
 	# Single query: fetch all existing values for this attribute
-	all_vals = frappe.get_all(
+	all_vals = list(iter_all_rows(
 		"Item Attribute Value",
 		filters={"parent": attribute},
 		pluck="attribute_value",
-	)
+		order_by="idx asc, name asc",
+	))
 
 	if value in all_vals:
 		return value  # exact match
@@ -238,9 +240,10 @@ def _validate_and_import(payload):
     hsn_lookup = _build_lookup("GST HSN Code")
     cat_lookup = _build_lookup("CH Category")
     # Sub-category lookup: key = "CATEGORY-SUBCATEGORY"
-    sc_rows = frappe.get_all(
+    sc_rows = iter_all_rows(
         "CH Sub Category",
         fields=["name", "category", "sub_category_name"],
+        order_by="name asc",
     )
     sc_lookup = {
         _norm_key(f"{r.category}-{r.sub_category_name}"): r.name
@@ -698,7 +701,7 @@ def _infer_item_nature(sc):
 # Whitelisted entry points
 # ─────────────────────────────────────────────────────────────────────────────
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def import_masters(data, dry_run: int = 0, idempotency_key: str | None = None) -> dict:
     """Import CH masters from a structured JSON payload.
 
@@ -713,7 +716,11 @@ def import_masters(data, dry_run: int = 0, idempotency_key: str | None = None) -
     Returns:
         dict with success, summary, errors, dry_run, idempotency_key.
     """
-    frappe.only_for(["System Manager", "CH Master Manager"])
+    require_role_setting(
+        "data_import_roles",
+        defaults=("System Manager", "CH Master Manager"),
+        action=_("import item master data"),
+    )
 
     if isinstance(data, str):
         data = json.loads(data)
@@ -754,7 +761,7 @@ def _dry_run_validate(payload) -> dict:
     return result
 
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def import_masters_from_csv() -> dict:
     """Import CH masters from an uploaded CSV file.
 
@@ -767,7 +774,11 @@ def import_masters_from_csv() -> dict:
     Returns:
         dict with success, summary, and errors.
     """
-    frappe.only_for(["System Manager", "CH Master Manager"])
+    require_role_setting(
+        "data_import_roles",
+        defaults=("System Manager", "CH Master Manager"),
+        action=_("import item master data"),
+    )
 
     uploaded = frappe.request.files.get("file")
     if not uploaded:

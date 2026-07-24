@@ -10,7 +10,60 @@ import frappe
 from frappe import _
 from frappe.utils import cint, flt, getdate, today
 
+from ch_item_master.config import (
+	get_bounded_rows,
+	get_int_setting,
+	is_privileged_user,
+	require_role_setting,
+)
 from ch_item_master.security import get_company_scope
+
+
+_CUSTOMER_360_ROLES = ("Sales Manager", "Service Manager", "CH Master Manager")
+
+
+def _assert_customer_scope(customer, company):
+	if is_privileged_user():
+		return
+	if not company:
+		frappe.throw(_("Select a company before opening Customer 360."), frappe.PermissionError)
+	try:
+		from ch_erp15.ch_erp15.scope import get_user_scope
+	except (ImportError, ModuleNotFoundError):
+		frappe.throw(_("Location scope validation is unavailable."), frappe.PermissionError)
+	scope = get_user_scope() or {}
+	if scope.get("bypass"):
+		return
+	warehouses = tuple(scope.get("warehouses") or ("__no_warehouse_scope__",))
+	store_values = set(scope.get("stores") or ()) | set(scope.get("warehouses") or ())
+	stores = tuple(store_values or {"__no_store_scope__"})
+	visible = frappe.db.sql(
+		"""
+		SELECT 1
+		FROM `tabSales Invoice` si
+		LEFT JOIN `tabPOS Profile` pp ON pp.name = si.pos_profile
+		WHERE si.customer = %(customer)s AND si.company = %(company)s AND si.docstatus < 2
+		  AND (si.set_warehouse IN %(warehouses)s OR pp.warehouse IN %(warehouses)s)
+		LIMIT 1
+		""",
+		{"customer": customer, "company": company, "warehouses": warehouses},
+	)
+	if not visible and frappe.db.exists("DocType", "CH Customer Device"):
+		visible = frappe.get_all(
+			"CH Customer Device",
+			filters={"customer": customer, "company": company, "purchase_store": ("in", stores)},
+			pluck="name",
+			limit_page_length=1,
+		)
+	if not visible and frappe.db.exists("DocType", "CH Warranty Claim"):
+		visible = frappe.get_all(
+			"CH Warranty Claim",
+			filters={"customer": customer, "company": company, "reported_at_store": ("in", stores)},
+			pluck="name",
+			limit_page_length=1,
+		)
+	if not visible:
+		frappe.throw(_("This customer is outside your assigned store scope."), frappe.PermissionError)
 
 
 @frappe.whitelist()
@@ -25,13 +78,22 @@ def get_customer_360(customer, company=None) -> dict:
 		dict with keys: profile, kyc, payment_accounts, devices, loyalty,
 		recent_transactions, store_visits, segment, referrals
 	"""
+	require_role_setting("customer_360_roles", _CUSTOMER_360_ROLES, action=_("view Customer 360"))
 	frappe.has_permission("Customer", "read", customer, throw=True)
 	if not frappe.db.exists("Customer", customer):
 		frappe.throw(_("Customer {0} does not exist").format(customer), title=_("API Error"))
 
 	company_scope = get_company_scope(requested_company=company)
+	if company_scope == []:
+		frappe.throw(_("No company scope is assigned to your user."), frappe.PermissionError)
 	if not company and company_scope and len(company_scope) == 1:
 		company = company_scope[0]
+	elif not company and company_scope and len(company_scope) > 1:
+		frappe.throw(
+			_("Select a company before opening Customer 360."),
+			frappe.PermissionError,
+		)
+	_assert_customer_scope(customer, company)
 
 	cust = frappe.get_doc("Customer", customer)
 
@@ -44,14 +106,14 @@ def get_customer_360(customer, company=None) -> dict:
 		"recent_transactions": _get_recent_transactions(customer, company=company),
 		"store_visits": _get_store_visits(cust, company=company),
 		"segment": _get_segment(cust),
-		"referrals": _get_referrals(customer),
-		"summary": _get_summary(cust),
+		"referrals": _get_referrals(customer) if is_privileged_user() else {"code": None, "count": 0, "referred_customers": []},
+		"summary": _get_summary(cust) if is_privileged_user() else {},
 		"sold_plans": _get_sold_plans(customer, company=company),
-		"vouchers": _get_vouchers(customer),
+		"vouchers": _get_vouchers(customer, company=company),
 		"coupon_usage": _get_coupon_usage(customer, company=company),
 		"refunds": _get_refunds(customer, company=company),
 		"claims_and_escalations": _get_claims_and_escalations(customer, company=company),
-		"communications": _get_communications(customer),
+		"communications": _get_communications(customer) if is_privileged_user() else [],
 		"feedback": _get_feedback(cust),
 		"company_filter": company,
 	}
@@ -133,7 +195,9 @@ def _get_devices(customer, company=None):
 	if company:
 		filters["company"] = company
 
-	devices = frappe.get_all(
+	frappe.has_permission("CH Customer Device", "read", throw=True)
+	device_limit = min(get_int_setting("customer_360_device_limit", 100, minimum=1), 1000)
+	devices = get_bounded_rows(
 		"CH Customer Device",
 		filters=filters,
 		fields=[
@@ -143,32 +207,86 @@ def _get_devices(customer, company=None):
 			"buyback_date", "buyback_price", "buyback_grade",
 		],
 		order_by="purchase_date desc",
+		limit=device_limit,
 	)
+	if not devices:
+		return []
 
-	# Enrich with VAS plans and lifecycle logs
-	for device in devices:
-		device["vas_plans"] = frappe.get_all(
-			"CH Customer Device VAS",
-			filters={"parent": device.name},
-			fields=["plan_name", "status", "valid_from", "valid_to", "claims_used", "max_claims"],
+	device_names = tuple(device.name for device in devices)
+	related_limit = min(
+		get_int_setting("customer_360_related_row_limit", 5000, minimum=1),
+		50000,
+	)
+	vas_by_device = {}
+	vas_rows = get_bounded_rows(
+		"CH Customer Device VAS",
+		filters={"parent": ("in", device_names)},
+		fields=["parent", "plan_name", "status", "valid_from", "valid_to", "claims_used", "max_claims"],
+		order_by="parent asc, idx asc",
+		limit=related_limit,
+	)
+	for vas_row in vas_rows:
+		vas_by_device.setdefault(vas_row.parent, []).append(vas_row)
+
+	lifecycle_by_serial = {}
+	logs_by_lifecycle = {}
+	serials = tuple({device.serial_no for device in devices if device.get("serial_no")})
+	if serials and frappe.db.exists("DocType", "CH Serial Lifecycle"):
+		frappe.has_permission("CH Serial Lifecycle", "read", throw=True)
+		lifecycle_rows = get_bounded_rows(
+			"CH Serial Lifecycle",
+			filters={"serial_no": ("in", serials)},
+			fields=["name", "serial_no"],
+			order_by="serial_no asc, modified desc",
+			limit=related_limit,
 		)
-		# Lifecycle history from CH Serial Lifecycle
-		if device.get("serial_no") and frappe.db.exists("DocType", "CH Serial Lifecycle"):
-			lifecycle_name = frappe.db.get_value(
-				"CH Serial Lifecycle", {"serial_no": device.serial_no}, "name"
+		for lifecycle in lifecycle_rows:
+			lifecycle_by_serial.setdefault(lifecycle.serial_no, lifecycle.name)
+
+		lifecycle_names = tuple(lifecycle_by_serial.values())
+		if lifecycle_names:
+			log_limit = min(
+				get_int_setting("customer_360_lifecycle_log_limit", 20, minimum=1),
+				100,
 			)
-			if lifecycle_name:
-				device["lifecycle_logs"] = frappe.get_all(
-					"CH Serial Lifecycle Log",
-					filters={"parent": lifecycle_name},
-					fields=["log_timestamp", "from_status", "to_status", "changed_by", "company", "warehouse", "remarks"],
-					order_by="log_timestamp desc",
-					limit=20,
+			log_rows = frappe.db.sql(
+				"""
+				SELECT *
+				FROM (
+					SELECT
+						parent, log_timestamp, from_status, to_status, changed_by,
+						company, warehouse, remarks,
+						ROW_NUMBER() OVER (
+							PARTITION BY parent
+							ORDER BY log_timestamp DESC, idx DESC, name DESC
+						) AS row_number
+					FROM `tabCH Serial Lifecycle Log`
+					WHERE parent IN %(parents)s
+				) ranked_logs
+				WHERE row_number <= %(per_parent_limit)s
+				ORDER BY parent ASC, log_timestamp DESC
+				LIMIT %(related_limit)s
+				""",
+				{
+					"parents": lifecycle_names,
+					"per_parent_limit": log_limit,
+					"related_limit": related_limit + 1,
+				},
+				as_dict=True,
+			)
+			if len(log_rows) > related_limit:
+				frappe.throw(
+					_("Customer 360 lifecycle data exceeds the configured related-row limit."),
+					frappe.ValidationError,
 				)
-			else:
-				device["lifecycle_logs"] = []
-		else:
-			device["lifecycle_logs"] = []
+			for log_row in log_rows:
+				log_row.pop("row_number", None)
+				logs_by_lifecycle.setdefault(log_row.parent, []).append(log_row)
+
+	for device in devices:
+		device["vas_plans"] = vas_by_device.get(device.name, [])
+		lifecycle_name = lifecycle_by_serial.get(device.get("serial_no"))
+		device["lifecycle_logs"] = logs_by_lifecycle.get(lifecycle_name, [])
 
 	return devices
 
@@ -195,9 +313,9 @@ def _get_loyalty(customer, company=None):
 	by_company = frappe.db.sql(
 		"""SELECT company, SUM(points) as total
 		FROM `tabCH Loyalty Transaction`
-		WHERE customer = %s AND docstatus = 1 AND is_expired = 0
-		GROUP BY company""",
-		customer,
+		WHERE customer = %s AND docstatus = 1 AND is_expired = 0 {company_cond}
+		GROUP BY company""".format(company_cond=company_cond),
+		company_args,
 		as_dict=True,
 	)
 
@@ -366,14 +484,17 @@ def _get_sold_plans(customer, company=None):
 	)
 
 
-def _get_vouchers(customer):
+def _get_vouchers(customer, company=None):
 	"""Vouchers issued to this customer."""
 	if not frappe.db.exists("DocType", "CH Voucher"):
 		return []
 
+	filters = {"issued_to": customer, "docstatus": 1}
+	if company:
+		filters["company"] = company
 	return frappe.get_all(
 		"CH Voucher",
-		filters={"issued_to": customer, "docstatus": 1},
+		filters=filters,
 		fields=[
 			"name", "voucher_code", "voucher_type", "original_amount",
 			"balance", "status", "valid_from", "valid_upto",
@@ -459,6 +580,8 @@ def _get_claims_and_escalations(customer, company=None):
 
 	if frappe.db.exists("DocType", "CH Exception Request"):
 		er_filters = {"customer": customer}
+		if company:
+			er_filters["company"] = company
 		result["exception_requests"] = frappe.get_all(
 			"CH Exception Request",
 			filters=er_filters,
@@ -524,57 +647,26 @@ def _mask_account(account_no):
 	return account_no
 
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def merge_customers(primary_customer, duplicate_customer) -> dict:
 	"""Merge a duplicate customer into the primary customer.
 
 	Transfers all transactions, devices, loyalty, and visits.
 	"""
-	frappe.only_for("System Manager")
+	require_role_setting(
+		"master_approval_roles",
+		("System Manager", "CH Master Approver", "CH Master Manager"),
+		action=_("merge customers"),
+	)
 
 	if primary_customer == duplicate_customer:
 		frappe.throw(_("Cannot merge a customer with itself"), title=_("API Error"))
 
 	primary = frappe.get_doc("Customer", primary_customer)
 	duplicate = frappe.get_doc("Customer", duplicate_customer)
-
-	# Transfer CH Customer Devices
-	if frappe.db.exists("DocType", "CH Customer Device"):
-		frappe.db.sql(
-			"""UPDATE `tabCH Customer Device`
-			SET customer = %s, customer_name = %s
-			WHERE customer = %s""",
-			(primary_customer, primary.customer_name, duplicate_customer),
-		)
-
-	# Transfer CH Loyalty Transactions
-	if frappe.db.exists("DocType", "CH Loyalty Transaction"):
-		frappe.db.sql(
-			"""UPDATE `tabCH Loyalty Transaction`
-			SET customer = %s, customer_name = %s
-			WHERE customer = %s""",
-			(primary_customer, primary.customer_name, duplicate_customer),
-		)
-
-	# Transfer Buyback Requests (re-link customer field)
-	if frappe.db.exists("DocType", "Buyback Request"):
-		frappe.db.sql(
-			"""UPDATE `tabBuyback Request`
-			SET customer = %s
-			WHERE customer = %s""",
-			(primary_customer, duplicate_customer),
-		)
-		# Also re-link any buybacks matched by duplicate's mobile
-		dup_mobile = (duplicate.mobile_no or "").strip().replace(" ", "").replace("-", "")
-		if dup_mobile:
-			dup_mobile10 = dup_mobile[-10:]
-			frappe.db.sql(
-				"""UPDATE `tabBuyback Request`
-				SET customer = %s
-				WHERE (customer IS NULL OR customer = '')
-				AND mobile_no = %s""",
-				(primary_customer, dup_mobile10),
-			)
+	primary.check_permission("write")
+	duplicate.check_permission("read")
+	duplicate.check_permission("delete")
 
 	# Copy over missing profile data
 	profile_fields = [
@@ -613,7 +705,7 @@ def merge_customers(primary_customer, duplicate_customer) -> dict:
 			"remarks": f"[Merged from {duplicate_customer}] {visit.remarks or ''}",
 		})
 
-	primary.save(ignore_permissions=True)
+	primary.save()
 
 	# Use ERPNext's built-in rename to handle all linked documents
 	frappe.rename_doc("Customer", duplicate_customer, primary_customer, merge=True)

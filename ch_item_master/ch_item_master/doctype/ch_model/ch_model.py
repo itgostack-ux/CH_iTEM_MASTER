@@ -5,6 +5,8 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 
+from ch_item_master.id_sequences import next_numeric_id
+
 from ch_item_master.ch_item_master.exceptions import (
 	BrandManufacturerMismatchError,
 	DuplicateModelError,
@@ -33,16 +35,7 @@ class CHModel(Document):
 		UNIQUE constraint violation.
 		"""
 		if not self.model_id:
-			lock_name = "ch_model_autoname"
-			frappe.db.sql("SELECT GET_LOCK(%s, 10)", lock_name)
-			try:
-				last_id = frappe.db.sql("""
-					SELECT COALESCE(MAX(model_id), 0) 
-					FROM `tabCH Model`
-				""")[0][0]
-				self.model_id = (last_id or 0) + 1
-			finally:
-				frappe.db.sql("SELECT RELEASE_LOCK(%s)", lock_name)
+			self.model_id = next_numeric_id("model")
 
 	def validate(self):
 		if self.model_name:

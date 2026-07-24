@@ -6,6 +6,7 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import getdate, nowdate
 
+from ch_item_master.security import require_scoped_document_action
 from ch_item_master.ch_item_master.exceptions import (
 	InvalidPriceError,
 	InvalidPriceHierarchyError,
@@ -14,7 +15,69 @@ from ch_item_master.ch_item_master.exceptions import (
 
 
 class CHItemPrice(Document):
+	_APPROVAL_CONTEXT = object()
+	_PROTECTED_FIELDS = ("status", "approved_by", "approved_at", "erp_item_price")
+	_APPROVAL_SENSITIVE_FIELDS = (
+		"item_code",
+		"channel",
+		"company",
+		"mrp",
+		"mop",
+		"selling_price",
+		"cost_price",
+		"effective_from",
+		"effective_to",
+	)
+
+	def _authorize_approval_transition(self):
+		self.flags.ch_item_price_approval_context = self._APPROVAL_CONTEXT
+
+	def _has_approval_context(self):
+		return self.flags.get("ch_item_price_approval_context") is self._APPROVAL_CONTEXT
+
+	def _require_action(self, action):
+		require_scoped_document_action(
+			self,
+			"price_approval_roles",
+			("System Manager", "CH Master Approver", "CH Master Manager", "CH Price Manager"),
+			action=action,
+			permission_types=("write",),
+			lock=True,
+		)
+
+	def _validate_approval_transition(self):
+		if self._has_approval_context():
+			return
+		before = self.get_doc_before_save() if not self.is_new() else None
+		if before is None:
+			for fieldname in self._PROTECTED_FIELDS:
+				value = self.get(fieldname)
+				allowed = (None, "", "Draft") if fieldname == "status" else (None, "")
+				if value not in allowed:
+					frappe.throw(
+						_("{0} is set only by the item-price approval workflow.").format(
+							self.meta.get_label(fieldname) or fieldname
+						),
+						frappe.PermissionError,
+					)
+			return
+
+		if any(self.get(fieldname) != before.get(fieldname) for fieldname in self._PROTECTED_FIELDS):
+			frappe.throw(
+				_("Item-price approval state can only be changed through Approve or Reject."),
+				frappe.PermissionError,
+			)
+
+		if before.status in ("Active", "Scheduled") and any(
+			self.get(fieldname) != before.get(fieldname)
+			for fieldname in self._APPROVAL_SENSITIVE_FIELDS
+		):
+			self.status = "Draft"
+			self.approved_by = None
+			self.approved_at = None
+
 	def validate(self):
+		self._validate_approval_transition()
 		self._validate_positive_prices()
 		self._validate_price_hierarchy()
 		self._validate_effective_dates()
@@ -184,15 +247,18 @@ class CHItemPrice(Document):
 			sync_price_mrp_to_item(self)
 		elif self.status == "Expired":
 			self._expire_erp_item_price()
+		elif self.status == "Draft" and self.get("erp_item_price"):
+			self._expire_erp_item_price()
 
-	@frappe.whitelist()
+	@frappe.whitelist(methods=["POST"])
 	def approve(self) -> None:
 		"""Approve this price record — activates it and syncs to ERPNext.
 
 		Only CH Price Manager or System Manager can approve.
 		"""
 		from frappe.utils import now_datetime as _now
-		frappe.only_for(["System Manager", "CH Price Manager", "CH Master Manager"])
+		self._require_action(_("approve an item price"))
+		self._authorize_approval_transition()
 
 		self.approved_by = frappe.session.user
 		self.approved_at = _now()
@@ -217,12 +283,15 @@ class CHItemPrice(Document):
 			indicator="green",
 		)
 
-	@frappe.whitelist()
+	@frappe.whitelist(methods=["POST"])
 	def reject(self) -> None:
 		"""Reject this price record — expires it and disables the ERPNext sync."""
-		frappe.only_for(["System Manager", "CH Price Manager", "CH Master Manager"])
+		self._require_action(_("reject an item price"))
+		self._authorize_approval_transition()
 
 		self.status = "Expired"
+		self.approved_by = None
+		self.approved_at = None
 		self.save()
 
 		# Expire the linked ERPNext Item Price

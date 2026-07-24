@@ -6,6 +6,8 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import cint, get_datetime, now_datetime, flt
 
+from ch_item_master.config import get_int_setting
+from ch_item_master.security import require_scoped_document_action
 from ch_item_master.ch_item_master.exceptions import (
 	InvalidOfferError,
 	OverlappingOfferError,
@@ -13,7 +15,102 @@ from ch_item_master.ch_item_master.exceptions import (
 
 
 class CHItemOffer(Document):
+	_APPROVAL_CONTEXT = object()
+	_PROTECTED_FIELDS = (
+		"approval_status",
+		"approved_by",
+		"approved_at",
+		"status",
+		"erp_pricing_rule",
+	)
+	_APPROVAL_SENSITIVE_FIELDS = (
+		"company",
+		"offer_name",
+		"offer_level",
+		"apply_on",
+		"target_item_group",
+		"target_brand",
+		"apply_discount_on",
+		"offer_type",
+		"value_type",
+		"value",
+		"channel",
+		"priority",
+		"stackable",
+		"start_date",
+		"end_date",
+		"item_code",
+		"trigger_item",
+		"reward_item",
+		"gift_delivery",
+		"is_gamified",
+		"min_qty",
+		"max_qty",
+		"customer_group",
+		"territory",
+		"warehouse",
+		"additional_companies",
+		"combo_items",
+	)
+
+	def _authorize_approval_transition(self):
+		self.flags.ch_item_offer_approval_context = self._APPROVAL_CONTEXT
+
+	def _has_approval_context(self):
+		return self.flags.get("ch_item_offer_approval_context") is self._APPROVAL_CONTEXT
+
+	def _require_action(self, action):
+		require_scoped_document_action(
+			self,
+			"offer_approval_roles",
+			("System Manager", "CH Offer Manager", "CH Master Approver", "CH Master Manager"),
+			action=action,
+			permission_types=("write",),
+			lock=True,
+		)
+
+	def _validate_approval_transition(self):
+		if self._has_approval_context():
+			return
+		before = self.get_doc_before_save() if not self.is_new() else None
+		if before is None:
+			allowed = {
+				"approval_status": (None, "", "Pending Approval"),
+				"status": (None, "", "Draft"),
+			}
+			for fieldname in self._PROTECTED_FIELDS:
+				value = self.get(fieldname)
+				if value not in allowed.get(fieldname, (None, "")):
+					frappe.throw(
+						_("{0} is set only by the offer approval workflow.").format(
+							self.meta.get_label(fieldname) or fieldname
+						),
+						frappe.PermissionError,
+					)
+			return
+
+		changed = [
+			fieldname
+			for fieldname in self._PROTECTED_FIELDS
+			if self.get(fieldname) != before.get(fieldname)
+		]
+		if changed:
+			frappe.throw(
+				_("Offer approval state can only be changed through Approve or Reject."),
+				frappe.PermissionError,
+			)
+
+		if before.approval_status == "Approved" and any(
+			self.get(fieldname) != before.get(fieldname)
+			for fieldname in self._APPROVAL_SENSITIVE_FIELDS
+		):
+			self.approval_status = "Pending Approval"
+			self.approved_by = None
+			self.approved_at = None
+			self.status = "Draft"
+
 	def validate(self):
+		self._validate_approval_transition()
 		self._sync_gift_delivery()
 		self._validate_dates()
 		self._validate_value()
@@ -28,7 +125,11 @@ class CHItemOffer(Document):
 		# Keep the instant-gift Pricing Rule in step with Gift Delivery even
 		# when the mode is toggled after approval — a Spin Wheel freebie must
 		# never have a live Product-discount rule (double giveaway).
-		if self.offer_type != "Freebie" or self.approval_status != "Approved":
+		if self.approval_status != "Approved":
+			if self.get("erp_pricing_rule"):
+				self._disable_linked_pricing_rules()
+			return
+		if self.offer_type != "Freebie":
 			return
 		if self._is_spin_wheel_freebie():
 			self._disable_linked_pricing_rules()
@@ -154,7 +255,8 @@ class CHItemOffer(Document):
 				title=_("Invalid Value"),
 				exc=InvalidOfferError,
 			)
-		if self.value_type == "Amount" and self.value > 500000:
+		warning_amount = get_int_setting("offer_high_amount_warning", 500000, minimum=1)
+		if self.value_type == "Amount" and self.value > warning_amount:
 			frappe.msgprint(
 				_("Discount amount {0} is unusually high. Please verify.").format(
 					frappe.format_value(self.value, dict(fieldtype="Currency"))
@@ -256,10 +358,11 @@ class CHItemOffer(Document):
 		else:
 			self.status = "Active"
 
-	@frappe.whitelist()
+	@frappe.whitelist(methods=["POST"])
 	def approve(self) -> None:
 		"""Approve this offer — called from form action button."""
-		frappe.only_for(["System Manager", "CH Master Manager"])
+		self._require_action(_("approve an item offer"))
+		self._authorize_approval_transition()
 		self.approval_status = "Approved"
 		self.approved_by = frappe.session.user
 		self.approved_at = now_datetime()
@@ -280,11 +383,14 @@ class CHItemOffer(Document):
 				indicator="green",
 			)
 
-	@frappe.whitelist()
+	@frappe.whitelist(methods=["POST"])
 	def reject(self) -> None:
 		"""Reject this offer."""
-		frappe.only_for(["System Manager", "CH Master Manager"])
+		self._require_action(_("reject an item offer"))
+		self._authorize_approval_transition()
 		self.approval_status = "Rejected"
+		self.approved_by = None
+		self.approved_at = None
 		self.status = "Cancelled"
 		# Disable the linked Pricing Rule if it exists
 		if self.get("erp_pricing_rule") and frappe.db.exists("Pricing Rule", self.erp_pricing_rule):
@@ -563,6 +669,7 @@ class CHItemOffer(Document):
 		# ── Build circular ──────────────────────────────────────────────────
 		circular = frappe.new_doc("Supplier Scheme Circular")
 		circular.scheme_name = f"TPD — {self.offer_name}"
+		circular.company = self.company
 		circular.brand = brand
 		circular.supplier = self.tpd_supplier or ""
 		circular.valid_from = getdate(self.start_date)
@@ -577,6 +684,7 @@ class CHItemOffer(Document):
 
 		circular.flags.ignore_permissions = True
 		circular.flags.tpd_auto_create = True  # bypass approver-role check
+		circular._authorize_approval_transition()
 		circular.insert()
 
 		# Frappe v16: grandchild rows (Scheme Rule Detail) are NOT cascade-saved
@@ -590,6 +698,7 @@ class CHItemOffer(Document):
 		rule_doc.save(ignore_permissions=True)
 
 		circular.flags.tpd_auto_create = True
+		circular._authorize_approval_transition()
 		circular.submit()
 
 		self.db_set("linked_scheme_circular", circular.name, update_modified=False)

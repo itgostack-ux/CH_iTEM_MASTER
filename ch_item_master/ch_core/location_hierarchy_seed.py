@@ -85,6 +85,8 @@ from typing import Any, Iterable
 
 import frappe
 
+from ch_item_master.config import iter_all_rows
+
 
 # Format version — bump when the schema of the JSON changes.  Import
 # refuses to load a file whose version is newer than what this module
@@ -210,7 +212,12 @@ def _export_companies(company_filter: Iterable[str] | None) -> list[dict]:
             filters["company"] = ["in", list(company_filter)]
         names.update(
             r.company
-            for r in frappe.get_all(doctype, filters=filters, fields=["company"])
+            for r in iter_all_rows(
+                doctype,
+                filters=filters,
+                fields=["company"],
+                order_by="name asc",
+            )
             if r.company
         )
     out = []
@@ -231,13 +238,13 @@ def _export_companies(company_filter: Iterable[str] | None) -> list[dict]:
 
 
 def _export_states() -> list[dict]:
-    rows = frappe.get_all("CH State", fields=list(_STATE_FIELDS), order_by="state_name")
+    rows = iter_all_rows("CH State", fields=list(_STATE_FIELDS), order_by="state_name, name")
     return [dict(r) for r in rows]
 
 
 def _export_cities() -> list[dict]:
-    rows = frappe.get_all(
-        "CH City", fields=list(_CITY_FIELDS), order_by="city_name"
+    rows = iter_all_rows(
+        "CH City", fields=list(_CITY_FIELDS), order_by="city_name, name"
     )
     return [dict(r) for r in rows]
 
@@ -246,11 +253,11 @@ def _export_zones(company_filter: Iterable[str] | None) -> list[dict]:
     filters: dict[str, Any] = {}
     if company_filter:
         filters["company"] = ["in", list(company_filter)]
-    rows = frappe.get_all(
+    rows = iter_all_rows(
         "CH Store Zone",
         filters=filters,
         fields=[*_ZONE_FIELDS, "company", "source_warehouse"],
-        order_by="company, zone_name",
+        order_by="company, zone_name, name",
     )
     out = []
     for r in rows:
@@ -272,11 +279,11 @@ def _export_stores(company_filter: Iterable[str] | None) -> list[dict]:
     filters: dict[str, Any] = {}
     if company_filter:
         filters["company"] = ["in", list(company_filter)]
-    rows = frappe.get_all(
+    rows = iter_all_rows(
         "CH Store",
         filters=filters,
         fields=[*_STORE_FIELDS, "company", "warehouse"],
-        order_by="company, store_code",
+        order_by="company, store_code, name",
     )
     out = []
     for r in rows:
@@ -643,31 +650,6 @@ def _upsert_city(entry: dict, plan: dict) -> None:
             if entry.get(k) is not None:
                 setattr(doc, k, entry.get(k))
         doc.insert(ignore_permissions=True)
-
-
-def _resolve_warehouse_for_seed(base_name: str, company: str, plan: dict, purpose: str) -> str | None:
-    """Return a target-site warehouse name for a seed reference.
-
-    We do NOT create warehouses here — Zones and Stores accept a
-    warehouse ref that must already exist.  If the target site is
-    missing the warehouse we RECORD it as a manual follow-up and
-    return None; the caller then skips / defers the parent record.
-    """
-    if not base_name:
-        return None
-    target = _warehouse_target_name(base_name, company)
-    if frappe.db.exists("Warehouse", target):
-        return target
-    plan["manual_followups"].append(
-        {
-            "type": "Warehouse",
-            "base_name": base_name,
-            "company": company,
-            "purpose": purpose,
-            "reason": "warehouse does not exist on target site — create it first",
-        }
-    )
-    return None
 
 
 def _ensure_seed_zone_warehouse(base_name: str, company: str, city: str, plan: dict) -> str | None:

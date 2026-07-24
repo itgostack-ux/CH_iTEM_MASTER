@@ -24,6 +24,13 @@ import re
 import frappe
 from frappe import _
 from frappe.utils import cint, cstr, flt, getdate, now_datetime, nowdate, today
+from ch_item_master.config import (
+    get_int_setting,
+    get_list_setting,
+    has_role_setting,
+    is_privileged_user,
+    require_role_setting,
+)
 
 
 # ── Status bucket grouping ────────────────────────────────────────────────────
@@ -45,6 +52,18 @@ BUCKET_LABELS = {
     "bought_back":  "Bought Back",
     "out_of_pool":  "Out of Pool",
 }
+
+
+@frappe.whitelist()
+def get_ui_capabilities():
+    return {
+        "can_bulk_update": has_role_setting(
+            "bulk_imei_roles",
+            defaults=("System Manager", "Stock Manager", "CH Master Manager"),
+        ),
+        "unsold_stale_days": get_int_setting("imei_unsold_stale_days", 90),
+        "service_stale_days": get_int_setting("imei_service_stale_days", 30),
+    }
 
 
 # ── Serial-kind tri-state classification ──────────────────────────────────────
@@ -202,12 +221,14 @@ def _build_where(f, alias_lc="lc", alias_sn="sn"):
         # We approximate last_status_change via lc.modified for performance.
         if f["aging_bucket"] == "unsold_90":
             where.append(f"{alias_lc}.lifecycle_status IN ('Received','In Stock','Displayed') "
-                         f"AND DATEDIFF(%(today)s, {alias_lc}.purchase_date) > 90")
+                         f"AND DATEDIFF(%(today)s, {alias_lc}.purchase_date) > %(unsold_stale_days)s")
             params["today"] = today()
+            params["unsold_stale_days"] = get_int_setting("imei_unsold_stale_days", 90)
         elif f["aging_bucket"] == "in_service_30":
             where.append(f"{alias_lc}.lifecycle_status IN ('In Service','Repaired') "
-                         f"AND DATEDIFF(%(today)s, {alias_lc}.modified) > 30")
+                         f"AND DATEDIFF(%(today)s, {alias_lc}.modified) > %(service_stale_days)s")
             params["today"] = today()
+            params["service_stale_days"] = get_int_setting("imei_service_stale_days", 30)
 
     return " AND ".join(where), params
 
@@ -223,7 +244,7 @@ def _join_clause():
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
-def _apply_scope(f):
+def _apply_scope(f, strict=False):
     """Resolve user scope + company-warehouse list and stash it onto f.
 
     Mutates `f` in place by adding `_allowed_warehouses` (list[str] or None).
@@ -244,7 +265,8 @@ def _apply_scope(f):
             store=f.get("store"),
         )
     except Exception:
-        # Fallback: no scope module available — leave unfiltered
+        if strict:
+            frappe.throw(_("IMEI store scope cannot be verified."), frappe.PermissionError)
         f["_allowed_warehouses"] = None
         return
 
@@ -401,11 +423,19 @@ def get_imei_tracker_data(filters=None):
     rows = frappe.db.sql(list_sql, list_params, as_dict=True)
 
     # Tag aging flags on rows
+    unsold_stale_days = get_int_setting("imei_unsold_stale_days", 90)
+    service_stale_days = get_int_setting("imei_service_stale_days", 30)
     for r in rows:
         r["aging_flags"] = []
-        if r["lifecycle_status"] in ("Received", "In Stock", "Displayed") and (r["age_days"] or 0) > 90:
+        if (
+            r["lifecycle_status"] in ("Received", "In Stock", "Displayed")
+            and (r["age_days"] or 0) > unsold_stale_days
+        ):
             r["aging_flags"].append("unsold_90")
-        if r["lifecycle_status"] in ("In Service", "Repaired") and (r["days_since_change"] or 0) > 30:
+        if (
+            r["lifecycle_status"] in ("In Service", "Repaired")
+            and (r["days_since_change"] or 0) > service_stale_days
+        ):
             r["aging_flags"].append("in_service_30")
 
     return {
@@ -419,148 +449,382 @@ def get_imei_tracker_data(filters=None):
     }
 
 
+_IMEI_VIEW_ROLES = (
+    "CH Master Manager",
+    "CH Warranty Manager",
+    "CH Viewer",
+    "Stock User",
+)
+_IMEI_BULK_ROLES = ("Stock Manager", "CH Master Manager")
+
+
+def _require_imei_view_access():
+    if not (
+        has_role_setting("app_access_roles", _IMEI_VIEW_ROLES)
+        or has_role_setting("bulk_imei_roles", _IMEI_BULK_ROLES)
+    ):
+        frappe.throw(_("You do not have permission to view IMEI history."), frappe.PermissionError)
+
+
+def _require_named_read(doctype, name):
+    if not frappe.has_permission(
+        doctype,
+        ptype="read",
+        doc=name,
+        user=frappe.session.user,
+        throw=False,
+    ):
+        frappe.throw(
+            _("You do not have permission to read {0} {1}.").format(doctype, name),
+            frappe.PermissionError,
+        )
+
+
+def _has_named_read(doctype, name):
+    try:
+        return bool(frappe.has_permission(
+            doctype,
+            ptype="read",
+            doc=name,
+            user=frappe.session.user,
+            throw=False,
+        ))
+    except Exception:
+        return False
+
+
+def _serial_values(value):
+    return {
+        part.strip()
+        for part in re.split(r"[\n,]+", value or "")
+        if part.strip()
+    }
+
+
+def _get_permitted_buyback_rows(doctype, serial_field, serial_no, fields, limit):
+    if not frappe.db.exists("DocType", doctype):
+        return []
+    rows = []
+    for name in frappe.get_all(
+        doctype,
+        filters={serial_field: serial_no},
+        pluck="name",
+        order_by="creation desc",
+        limit_page_length=limit,
+    ):
+        if not _has_named_read(doctype, name):
+            continue
+        row = frappe.db.get_value(doctype, name, fields, as_dict=True)
+        if row:
+            row["doctype"] = doctype
+            rows.append(row)
+    return rows
+
+
 @frappe.whitelist()
 def get_imei_history(serial_no=None, imei=None):
-    """Full lifecycle history for a single serial / IMEI.
+    """Return a bounded, named-permission and store-scoped serial history."""
+    _require_imei_view_access()
+    key = str(serial_no or imei or "").strip()
+    if not key or len(key) > 140:
+        frappe.throw(_("Provide a valid serial_no or imei."), frappe.ValidationError)
 
-    Reuses buyback.serial_no_utils.get_imei_history (canonical history) and
-    augments with stock movements + sales / service / lifecycle log.
-    """
-    key = (serial_no or imei or "").strip()
-    if not key:
-        frappe.throw(_("Provide a serial_no or imei to look up."))
+    lifecycle_name = None
+    for filters in (
+        {"serial_no": key},
+        {"imei_number": key},
+        {"imei_number_2": key},
+    ):
+        lifecycle_name = frappe.db.get_value("CH Serial Lifecycle", filters, "name")
+        if lifecycle_name:
+            break
 
-    # Resolve to an actual Serial No (key may be IMEI in lifecycle table)
-    sn_name = (
-        frappe.db.get_value("CH Serial Lifecycle", {"serial_no": key}, "serial_no")
-        or frappe.db.get_value("CH Serial Lifecycle", {"imei_number": key}, "serial_no")
-        or frappe.db.get_value("CH Serial Lifecycle", {"imei_number_2": key}, "serial_no")
-        or (frappe.db.exists("Serial No", key) and key)
-    )
-    if not sn_name:
-        return {"error": _("No record found for {0}").format(key), "key": key}
-
-    # ── Lifecycle master ──
-    lc = None
-    if frappe.db.exists("CH Serial Lifecycle", sn_name):
-        lc = frappe.get_doc("CH Serial Lifecycle", sn_name).as_dict()
-
-    # ── Serial No master (with custom fields) ──
-    sn = frappe.get_doc("Serial No", sn_name).as_dict() if frappe.db.exists("Serial No", sn_name) else {}
-
-    # ── Stock movements (Stock Ledger Entry serial-level) ──
-    sle = frappe.db.sql(
-        """
-        SELECT name, posting_date, posting_time, voucher_type, voucher_no,
-               warehouse, actual_qty, qty_after_transaction, valuation_rate
-        FROM `tabStock Ledger Entry`
-        WHERE serial_no LIKE %(s)s
-        ORDER BY posting_date DESC, posting_time DESC, creation DESC
-        LIMIT 200
-        """,
-        {"s": f"%{sn_name}%"},
-        as_dict=True,
-    )
-
-    # ── Buyback / Service / Sales aggregator from buyback module ──
-    aggregated = {}
-    try:
-        from buyback.serial_no_utils import get_imei_history as _bb_history
-        aggregated = _bb_history(sn_name) or {}
-    except Exception:
-        frappe.log_error(title="IMEI Tracker: buyback aggregator failed")
-
-    # ── Sales Invoices that reference this serial ──
-    sales = frappe.db.sql(
-        """
-        SELECT si.name, si.posting_date, si.customer, si.customer_name,
-               si.grand_total, sii.item_code, sii.qty, sii.rate
-        FROM `tabSales Invoice Item` sii
-        INNER JOIN `tabSales Invoice` si ON si.name = sii.parent
-        WHERE sii.serial_no LIKE %(s)s AND si.docstatus = 1
-        ORDER BY si.posting_date DESC LIMIT 50
-        """,
-        {"s": f"%{sn_name}%"},
-        as_dict=True,
-    )
-
-    # ── POS Invoices ──
-    pos = frappe.db.sql(
-        """
-        SELECT pi.name, pi.posting_date, pi.customer, pi.customer_name,
-               pi.grand_total, pii.item_code, pii.qty, pii.rate
-        FROM `tabPOS Invoice Item` pii
-        INNER JOIN `tabPOS Invoice` pi ON pi.name = pii.parent
-        WHERE pii.serial_no LIKE %(s)s AND pi.docstatus = 1
-        ORDER BY pi.posting_date DESC LIMIT 50
-        """,
-        {"s": f"%{sn_name}%"},
-        as_dict=True,
-    )
-
-    # ── Lifecycle audit log (chronological state transitions) ──
-    audit = []
-    if lc and lc.get("name"):
-        audit = frappe.db.sql(
-            """
-            SELECT log_timestamp, from_status, to_status, changed_by,
-                   company, warehouse, remarks
-            FROM `tabCH Serial Lifecycle Log`
-            WHERE parent = %(p)s
-            ORDER BY log_timestamp DESC
-            """,
-            {"p": lc["name"]},
+    lifecycle = None
+    if lifecycle_name:
+        _require_named_read("CH Serial Lifecycle", lifecycle_name)
+        lifecycle = frappe.db.get_value(
+            "CH Serial Lifecycle",
+            lifecycle_name,
+            [
+                "name", "serial_no", "ch_serial_kind", "imei_number", "imei_number_2",
+                "item_code", "item_name", "lifecycle_status", "sub_status",
+                "stock_condition", "current_company", "current_warehouse", "current_store",
+                "warranty_status", "purchase_date", "sale_date", "customer",
+            ],
             as_dict=True,
         )
 
-    # ── Build unified timeline ──
+    sn_name = (
+        lifecycle.get("serial_no") if lifecycle else None
+    ) or (key if frappe.db.exists("Serial No", key) else None)
+    if not sn_name:
+        return {"error": _("No record found for {0}").format(key), "key": key}
+
+    _require_named_read("Serial No", sn_name)
+    serial = frappe.db.get_value(
+        "Serial No",
+        sn_name,
+        [
+            "name", "item_code", "item_name", "warehouse", "status", "brand",
+            "item_group", "ch_serial_kind", "ch_is_imei", "ch_buyback_status",
+            "ch_buyback_order", "ch_buyback_date", "ch_buyback_price",
+            "ch_buyback_grade", "ch_buyback_count", "ch_buyback_customer",
+        ],
+        as_dict=True,
+    )
+    if not serial:
+        frappe.throw(_("Serial No {0} no longer exists.").format(sn_name), frappe.DoesNotExistError)
+
+    warehouse = lifecycle.get("current_warehouse") if lifecycle else None
+    lifecycle_company = lifecycle.get("current_company") if lifecycle else None
+    if warehouse and serial.warehouse and warehouse != serial.warehouse:
+        frappe.throw(_("Serial warehouse references are inconsistent."), frappe.ValidationError)
+    warehouse = warehouse or serial.warehouse
+    company = None
+    if warehouse:
+        _require_named_read("Warehouse", warehouse)
+        warehouse_data = frappe.db.get_value(
+            "Warehouse", warehouse, ["company", "disabled"], as_dict=True
+        )
+        if not warehouse_data or warehouse_data.disabled:
+            frappe.throw(_("The serial warehouse is not active."), frappe.PermissionError)
+        company = warehouse_data.company
+    if lifecycle_company and company and lifecycle_company != company:
+        frappe.throw(_("Serial company references are inconsistent."), frappe.ValidationError)
+    company = lifecycle_company or company
+    if company:
+        _require_named_read("Company", company)
+
+    if not is_privileged_user() and (not company or not warehouse):
+        frappe.throw(
+            _("The serial's exact company and warehouse cannot be verified."),
+            frappe.PermissionError,
+        )
+    scope_filters = {"company": company}
+    _apply_scope(scope_filters, strict=True)
+    allowed_warehouses = scope_filters.get("_allowed_warehouses")
+    if allowed_warehouses is not None and warehouse not in set(allowed_warehouses):
+        frappe.throw(_("You are not permitted to view this serial's location."), frappe.PermissionError)
+
+    history_limit = min(get_int_setting("bulk_imei_limit", 200, minimum=1), 200)
+    query_limit = history_limit
+    serial_pattern = (
+        rf"(^|[\r\n,])[[:space:]]*{re.escape(sn_name)}[[:space:]]*($|[\r\n,])"
+    )
+    stock_candidates = frappe.db.sql(
+        f"""
+        SELECT name, serial_no, posting_date, posting_time, voucher_type, voucher_no,
+               warehouse, actual_qty, qty_after_transaction, valuation_rate
+        FROM `tabStock Ledger Entry`
+        WHERE serial_no REGEXP %(serial_pattern)s
+        ORDER BY posting_date DESC, posting_time DESC, creation DESC
+        LIMIT {query_limit}
+        """,
+        {"serial_pattern": serial_pattern},
+        as_dict=True,
+    )
+    stock_movements = []
+    for row in stock_candidates:
+        if sn_name not in _serial_values(row.serial_no) or not _has_named_read(
+            "Stock Ledger Entry", row.name
+        ):
+            continue
+        row.pop("serial_no", None)
+        stock_movements.append(row)
+        if len(stock_movements) >= history_limit:
+            break
+
+    invoice_limit = min(history_limit, 100)
+    sales_candidates = frappe.db.sql(
+        f"""
+        SELECT si.name, si.posting_date, si.customer, si.customer_name,
+               si.grand_total, sii.item_code, sii.qty, sii.rate, sii.serial_no
+        FROM `tabSales Invoice Item` sii
+        INNER JOIN `tabSales Invoice` si ON si.name = sii.parent
+        WHERE sii.serial_no REGEXP %(serial_pattern)s AND si.docstatus = 1
+        ORDER BY si.posting_date DESC, si.creation DESC LIMIT {query_limit}
+        """,
+        {"serial_pattern": serial_pattern},
+        as_dict=True,
+    )
+    sales = []
+    sales_permissions = {}
+    for row in sales_candidates:
+        if row.name not in sales_permissions:
+            sales_permissions[row.name] = _has_named_read("Sales Invoice", row.name)
+        if sn_name not in _serial_values(row.serial_no) or not sales_permissions[row.name]:
+            continue
+        row.pop("serial_no", None)
+        sales.append(row)
+        if len(sales) >= invoice_limit:
+            break
+
+    pos_candidates = frappe.db.sql(
+        f"""
+        SELECT pi.name, pi.posting_date, pi.customer, pi.customer_name,
+               pi.grand_total, pii.item_code, pii.qty, pii.rate, pii.serial_no
+        FROM `tabPOS Invoice Item` pii
+        INNER JOIN `tabPOS Invoice` pi ON pi.name = pii.parent
+        WHERE pii.serial_no REGEXP %(serial_pattern)s AND pi.docstatus = 1
+        ORDER BY pi.posting_date DESC, pi.creation DESC LIMIT {query_limit}
+        """,
+        {"serial_pattern": serial_pattern},
+        as_dict=True,
+    )
+    pos_sales = []
+    pos_permissions = {}
+    for row in pos_candidates:
+        if row.name not in pos_permissions:
+            pos_permissions[row.name] = _has_named_read("POS Invoice", row.name)
+        if sn_name not in _serial_values(row.serial_no) or not pos_permissions[row.name]:
+            continue
+        row.pop("serial_no", None)
+        pos_sales.append(row)
+        if len(pos_sales) >= invoice_limit:
+            break
+
+    audit = []
+    if lifecycle_name:
+        audit = frappe.db.sql(
+            f"""
+            SELECT log_timestamp, from_status, to_status, changed_by,
+                   company, warehouse, remarks
+            FROM `tabCH Serial Lifecycle Log`
+            WHERE parent = %(parent)s
+            ORDER BY log_timestamp DESC
+            LIMIT {history_limit}
+            """,
+            {"parent": lifecycle_name},
+            as_dict=True,
+        )
+
+    buyback_limit = min(history_limit, 50)
+    aggregated = {
+        "assessments": _get_permitted_buyback_rows(
+            "Buyback Assessment", "imei_serial", sn_name,
+            [
+                "name", "assessment_id", "customer", "customer_name", "store",
+                "item", "item_name", "quoted_price", "estimated_price", "status", "creation",
+            ],
+            buyback_limit,
+        ),
+        "inspections": _get_permitted_buyback_rows(
+            "Buyback Inspection", "imei_serial", sn_name,
+            [
+                "name", "inspection_id", "customer", "customer_name", "item",
+                "item_name", "status", "condition_grade", "revised_price",
+                "diagnostic_source", "creation",
+            ],
+            buyback_limit,
+        ),
+        "orders": _get_permitted_buyback_rows(
+            "Buyback Order", "imei_serial", sn_name,
+            [
+                "name", "order_id", "customer", "customer_name", "store", "item",
+                "item_name", "final_price", "condition_grade", "status",
+                "payment_status", "creation",
+            ],
+            buyback_limit,
+        ),
+        "exchanges": _get_permitted_buyback_rows(
+            "Buyback Exchange Order", "old_imei_serial", sn_name,
+            [
+                "name", "exchange_id", "customer", "old_item", "new_item",
+                "buyback_amount", "amount_to_pay", "status", "creation",
+            ],
+            buyback_limit,
+        ),
+        "timeline": [],
+        "audit_log": [],
+    }
+    if _has_named_read("Serial No", sn_name):
+        comment_rows = frappe.get_all(
+            "Comment",
+            filters={
+                "reference_doctype": "Serial No",
+                "reference_name": sn_name,
+                "comment_type": "Info",
+            },
+            fields=["name", "content", "comment_by", "creation"],
+            order_by="creation desc",
+            limit_page_length=min(history_limit, 50),
+        )
+        aggregated["timeline"] = [
+            row for row in comment_rows if _has_named_read("Comment", row.name)
+        ]
+    order_names = [row.name for row in aggregated["orders"]]
+    if order_names and frappe.db.exists("DocType", "Buyback Audit Log"):
+        for name in frappe.get_all(
+            "Buyback Audit Log",
+            filters={
+                "reference_doctype": "Buyback Order",
+                "reference_name": ["in", order_names],
+            },
+            pluck="name",
+            order_by="timestamp desc",
+            limit_page_length=min(history_limit, 100),
+        ):
+            if not _has_named_read("Buyback Audit Log", name):
+                continue
+            row = frappe.db.get_value(
+                "Buyback Audit Log",
+                name,
+                ["name", "action", "reference_name", "user", "timestamp", "old_value", "new_value"],
+                as_dict=True,
+            )
+            if row:
+                aggregated["audit_log"].append(row)
+
     timeline = []
-    for e in sle:
+    for event in stock_movements:
         timeline.append({
             "kind": "stock",
-            "ts": f"{e.posting_date} {e.posting_time}",
-            "summary": f"{e.voucher_type} {e.voucher_no} — qty {e.actual_qty} @ {e.warehouse}",
-            "doc_type": e.voucher_type,
-            "doc_name": e.voucher_no,
+            "ts": f"{event.posting_date} {event.posting_time}",
+            "summary": f"{event.voucher_type} {event.voucher_no} — qty {event.actual_qty} @ {event.warehouse}",
+            "doc_type": event.voucher_type,
+            "doc_name": event.voucher_no,
         })
-    for s in sales:
+    for event in sales:
         timeline.append({
             "kind": "sale",
-            "ts": str(s.posting_date),
-            "summary": f"Sales Invoice {s.name} — {s.customer_name or s.customer} ₹{s.grand_total}",
-            "doc_type": "Sales Invoice", "doc_name": s.name,
+            "ts": str(event.posting_date),
+            "summary": f"Sales Invoice {event.name} — {event.customer_name or event.customer} ₹{event.grand_total}",
+            "doc_type": "Sales Invoice",
+            "doc_name": event.name,
         })
-    for p in pos:
+    for event in pos_sales:
         timeline.append({
             "kind": "pos",
-            "ts": str(p.posting_date),
-            "summary": f"POS Invoice {p.name} — {p.customer_name or p.customer} ₹{p.grand_total}",
-            "doc_type": "POS Invoice", "doc_name": p.name,
+            "ts": str(event.posting_date),
+            "summary": f"POS Invoice {event.name} — {event.customer_name or event.customer} ₹{event.grand_total}",
+            "doc_type": "POS Invoice",
+            "doc_name": event.name,
         })
-    for a in audit:
+    for event in audit:
         timeline.append({
             "kind": "lifecycle",
-            "ts": str(a.log_timestamp),
-            "summary": f"{a.from_status or '∅'} → {a.to_status} by {a.changed_by} — {a.remarks or ''}",
+            "ts": str(event.log_timestamp),
+            "summary": f"{event.from_status or '∅'} → {event.to_status} by {event.changed_by} — {event.remarks or ''}",
         })
-    for k in ("assessments", "inspections", "orders", "exchanges"):
-        for item in (aggregated.get(k) or []):
+    for key_name in ("assessments", "inspections", "orders", "exchanges"):
+        for event in aggregated[key_name]:
             timeline.append({
-                "kind": k,
-                "ts": str(item.get("creation") or item.get("posting_date") or item.get("date") or ""),
-                "summary": f"{k.title()}: {item.get('name')} — {item.get('status') or ''}",
-                "doc_type": item.get("doctype"),
-                "doc_name": item.get("name"),
+                "kind": key_name,
+                "ts": str(event.get("creation") or ""),
+                "summary": f"{key_name.title()}: {event.get('name')} — {event.get('status') or ''}",
+                "doc_type": event.get("doctype"),
+                "doc_name": event.get("name"),
             })
-    timeline.sort(key=lambda e: e["ts"], reverse=True)
+    timeline.sort(key=lambda event: event["ts"], reverse=True)
+    timeline = timeline[: history_limit * 4]
 
     return {
         "key": sn_name,
-        "serial_no": sn,
-        "lifecycle": lc,
-        "stock_movements": sle,
+        "serial_no": serial,
+        "lifecycle": lifecycle,
+        "stock_movements": stock_movements,
         "sales": sales,
-        "pos_sales": pos,
+        "pos_sales": pos_sales,
         "buyback": aggregated,
         "audit": audit,
         "timeline": timeline,
@@ -642,15 +906,18 @@ def export_imei_data(filters=None, file_format="csv"):
     }
 
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def bulk_update_status(serial_nos, new_status, remarks=""):
     """Bulk-update the lifecycle status of selected serial / IMEI records.
 
     Allowed admin transitions only — Scrapped / Lost / In Stock (recovery).
     Logs each transition to CH Serial Lifecycle Log for audit.
     """
-    ALLOWED = {"Scrapped", "Lost", "In Stock"}
-    if new_status not in ALLOWED:
+    allowed_statuses = get_list_setting(
+        "bulk_imei_target_statuses",
+        ("Scrapped", "Lost", "In Stock"),
+    )
+    if new_status not in allowed_statuses:
         frappe.throw(_("Bulk transition not allowed for status: {0}").format(new_status))
 
     if isinstance(serial_nos, str):
@@ -662,43 +929,61 @@ def bulk_update_status(serial_nos, new_status, remarks=""):
     if not serial_nos:
         frappe.throw(_("No serial numbers provided."))
 
-    # Permission gate — bulk write requires Stock Manager or System Manager
-    if not (
-        "System Manager" in frappe.get_roles()
-        or "Stock Manager" in frappe.get_roles()
-        or "CH Master Manager" in frappe.get_roles()
-    ):
-        frappe.throw(_("You do not have permission to perform bulk status updates."))
+    serial_nos = list(dict.fromkeys(str(value).strip() for value in serial_nos if str(value).strip()))
+    limit = get_int_setting("bulk_imei_limit", 200, minimum=1)
+    if len(serial_nos) > limit:
+        frappe.throw(
+            _("A maximum of {0} serial numbers can be updated at once.").format(limit),
+            frappe.ValidationError,
+        )
+
+    require_role_setting(
+        "bulk_imei_roles",
+        defaults=("System Manager", "Stock Manager", "CH Master Manager"),
+        action=_("perform bulk IMEI status updates"),
+    )
+
+    lifecycle_docs = {}
+    for sn in serial_nos:
+        if not frappe.db.exists("CH Serial Lifecycle", sn):
+            continue
+        lc = frappe.get_doc("CH Serial Lifecycle", sn)
+        if not is_privileged_user():
+            try:
+                from ch_erp15.ch_erp15.scope import assert_user_has_store_scope
+            except (ImportError, ModuleNotFoundError):
+                frappe.throw(_("Store scope cannot be verified."), frappe.PermissionError)
+            assert_user_has_store_scope(
+                company=lc.current_company,
+                warehouse=lc.current_warehouse,
+            )
+        lifecycle_docs[sn] = lc
 
     updated = 0
     skipped = []
+    from ch_item_master.ch_item_master.doctype.ch_serial_lifecycle.ch_serial_lifecycle import (
+        update_lifecycle_status,
+    )
+
     for sn in serial_nos:
-        if not frappe.db.exists("CH Serial Lifecycle", sn):
+        if sn not in lifecycle_docs:
             skipped.append({"serial_no": sn, "reason": "lifecycle row missing"})
             continue
-        lc = frappe.get_doc("CH Serial Lifecycle", sn)
-        old_status = lc.lifecycle_status
-        if old_status == new_status:
+        if lifecycle_docs[sn].lifecycle_status == new_status:
             continue
-        lc.append("lifecycle_log", {
-            "log_timestamp": now_datetime(),
-            "from_status": old_status,
-            "to_status": new_status,
-            "changed_by": frappe.session.user,
-            "company": lc.current_company,
-            "warehouse": lc.current_warehouse,
-            "remarks": remarks or f"Bulk update via IMEI Tracker",
-        })
-        lc.lifecycle_status = new_status
-        lc.flags.ignore_permissions = True
-        lc.flags.ignore_validate = True
-        lc.save()
-        updated += 1
+        result = update_lifecycle_status(
+            sn,
+            new_status,
+            remarks=remarks or _("Bulk update via IMEI Tracker"),
+        )
+        if result.get("status") == "ok":
+            updated += 1
+        else:
+            skipped.append({"serial_no": sn, "reason": result.get("reason") or "not updated"})
 
     return {"updated": updated, "skipped": skipped}
 
 
-@frappe.whitelist()
 def backfill_is_imei_flag():
     """Recompute Serial No.ch_serial_kind, Serial No.ch_is_imei, and
     CH Serial Lifecycle.ch_serial_kind from the authoritative

@@ -5,51 +5,112 @@ Upload a brand scheme PDF/image → AI extracts structured data
 """
 
 import json
+from pathlib import Path
 
 import frappe
 from frappe import _
 from frappe.model.document import Document
 from frappe.utils import flt, getdate
-import urllib.parse
 
-# Allowlisted AI endpoints (SSRF defence — C7)
-ALLOWED_AI_HOSTS = {"api.openai.com"}
+from ch_item_master.config import get_int_setting
+from ch_item_master.outbound_security import parse_exact_host_allowlist, post_json_with_credentials
+from ch_item_master.security import require_scoped_document_action
+_SCHEME_MANAGEMENT_ROLES = ("Accounts Manager", "Purchase Manager", "Scheme Manager")
 
 
 class SchemeDocumentUpload(Document):
 	pass
 
 
-def _validate_ai_endpoint(url: str) -> None:
-	"""Enforce SSRF defence: only allow OpenAI official API."""
-	if not url:
-		frappe.throw("AI endpoint URL is required")
+def _require_upload_action(doc, action):
+	if not doc.company:
+		frappe.throw(_("Company is required for a scheme upload."), frappe.ValidationError)
+	require_scoped_document_action(
+		doc,
+		"supplier_scheme_management_roles",
+		_SCHEME_MANAGEMENT_ROLES,
+		action=action,
+		permission_types=("read", "write"),
+		company_field="company",
+		lock=True,
+	)
+
+
+def _enforce_scheme_ai_rate_limit(endpoint):
 	try:
-		parsed = urllib.parse.urlparse(url)
-		hostname = parsed.hostname
-		if hostname not in ALLOWED_AI_HOSTS:
-			frappe.throw(
-				f"AI endpoint '{hostname}' is not whitelisted. "
-				f"Only {', '.join(ALLOWED_AI_HOSTS)} is allowed.",
-				title="SSRF Protection",
-			)
-		if parsed.scheme != "https":
-			frappe.throw(
-				"AI endpoint must use HTTPS",
-				title="Security Requirement",
-			)
-	except ValueError as e:
-		frappe.throw(f"Invalid AI endpoint URL: {e}", title="URL Validation Error")
+		from ch_pos.api.ai import _enforce_ai_rate_limit
+	except (ImportError, ModuleNotFoundError):
+		frappe.throw(_("POS AI rate-limit service is unavailable."), frappe.PermissionError)
+	_enforce_ai_rate_limit(endpoint)
 
 
+def _max_payload_chars():
+	configured = get_int_setting(
+		"supplier_scheme_ai_payload_char_limit",
+		8000,
+		minimum=1000,
+	)
+	return min(configured, 1_000_000)
 
 
-@frappe.whitelist()
+def _validate_payload_size(value):
+	serialized = value if isinstance(value, str) else json.dumps(value or {}, default=str)
+	if len(serialized) > _max_payload_chars():
+		frappe.throw(_("Scheme payload exceeds the configured AI payload limit."), frappe.ValidationError)
+
+
+def _get_owned_private_file(upload_doc):
+	if not upload_doc.document_file:
+		frappe.throw(_("Please attach a document first"), title=_("Scheme Document Upload Error"))
+	file_names = frappe.get_all(
+		"File",
+		filters={
+			"file_url": upload_doc.document_file,
+			"attached_to_doctype": upload_doc.doctype,
+			"attached_to_name": upload_doc.name,
+		},
+		pluck="name",
+		order_by="creation desc",
+		limit_page_length=2,
+	)
+	if len(file_names) != 1:
+		frappe.throw(_("The uploaded file reference is missing or ambiguous."), frappe.ValidationError)
+	frappe.db.get_value("File", file_names[0], "name", for_update=True)
+	file_doc = frappe.get_doc("File", file_names[0])
+	file_doc.check_permission("read")
+	if (
+		not file_doc.is_private
+		or not (file_doc.file_url or "").startswith("/private/files/")
+		or file_doc.attached_to_doctype != upload_doc.doctype
+		or file_doc.attached_to_name != upload_doc.name
+		or (file_doc.attached_to_field and file_doc.attached_to_field != "document_file")
+	):
+		frappe.throw(_("Scheme documents must be private files attached to this upload."), frappe.PermissionError)
+
+	file_path = Path(file_doc.get_full_path()).resolve()
+	private_root = Path(frappe.get_site_path("private", "files")).resolve()
+	if private_root not in file_path.parents:
+		frappe.throw(_("Scheme document path is outside the private file store."), frappe.PermissionError)
+	return file_doc
+
+
+def _validate_upload_references(doc):
+	company = frappe.get_doc("Company", doc.company)
+	company.check_permission("read")
+	for doctype, name in (("Brand", doc.brand), ("Supplier", doc.supplier)):
+		if name:
+			reference = frappe.get_doc(doctype, name)
+			reference.check_permission("read")
+
+
+@frappe.whitelist(methods=["POST"])
 def extract_scheme_data(upload_name) -> dict:
 	"""Parse the uploaded document using AI and store extracted JSON."""
 	doc = frappe.get_doc("Scheme Document Upload", upload_name)
-	if not doc.document_file:
-		frappe.throw(_("Please attach a document first"), title=_("Scheme Document Upload Error"))
+	_require_upload_action(doc, _("extract supplier scheme data"))
+	_validate_upload_references(doc)
+	file_doc = _get_owned_private_file(doc)
+	_enforce_scheme_ai_rate_limit("supplier-scheme-extraction")
 
 	ai_settings = _get_ai_settings()
 	if not ai_settings:
@@ -60,13 +121,13 @@ def extract_scheme_data(upload_name) -> dict:
 
 	try:
 		_add_log(doc, "Info", "File Read", "Reading uploaded document from file system")
-		file_url = doc.document_file
-		file_content = _read_file_content(file_url)
+		file_content = _read_file_content(file_doc)
 		mime = file_content.get("mime_type", "unknown")
 		_add_log(doc, "Info", "File Read", f"File loaded — type: {mime}, size: {len(file_content.get('base64', '')) * 3 // 4} bytes")
 
 		_add_log(doc, "Info", "AI Request", f"Sending to AI model {ai_settings.get('model')} (timeout {ai_settings['timeout']}s)")
 		extracted = _call_ai_extraction(file_content, ai_settings)
+		_validate_payload_size(extracted)
 		_add_log(doc, "Info", "AI Request", "AI responded successfully", ai_model=ai_settings.get("model"))
 
 		doc.extracted_json = json.dumps(extracted, indent=2, ensure_ascii=False)
@@ -96,7 +157,7 @@ def extract_scheme_data(upload_name) -> dict:
 			summary_lines.append(f"  Part {i+1}: {s.get('scheme_name', '?')} — {len(s.get('rules', []))} rule lines")
 		doc.extraction_log = "\n".join(summary_lines)
 
-		doc.save(ignore_permissions=True)
+		doc.save()
 		return {
 			"success": True,
 			"schemes_count": len(schemes),
@@ -126,13 +187,35 @@ def extract_scheme_data(upload_name) -> dict:
 		_add_log(doc, "Error", step_label, user_msg, traceback=tb[-3000:])
 		doc.status = "Failed"
 		doc.extraction_log = user_msg + "\n\n" + tb[-1500:]
-		doc.save(ignore_permissions=True)
-		frappe.db.commit()
+		doc.save()
 		frappe.log_error(tb, f"Scheme extraction failed: {upload_name}")
-		frappe.throw(user_msg, title=_("Extraction Failed"))
+		return {"success": False, "error": user_msg}
 
 
-@frappe.whitelist()
+def _validate_scheme_payload(data):
+	if not isinstance(data, dict):
+		frappe.throw(_("Scheme data must be a JSON object."), frappe.ValidationError)
+	_validate_payload_size(data)
+	schemes = data.get("schemes", [])
+	if not isinstance(schemes, list) or not schemes:
+		frappe.throw(_("No schemes found in extracted data"), title=_("Scheme Document Upload Error"))
+	row_limit = min(get_int_setting("supplier_scheme_link_limit", 200, minimum=1), 1000)
+	if len(schemes) > row_limit:
+		frappe.throw(_("A maximum of {0} schemes can be created at once.").format(row_limit))
+	rule_count = 0
+	for scheme in schemes:
+		if not isinstance(scheme, dict) or not isinstance(scheme.get("rules", []), list):
+			frappe.throw(_("Every scheme must be an object with a rules list."), frappe.ValidationError)
+		rule_count += len(scheme.get("rules", []))
+		if rule_count > row_limit:
+			frappe.throw(_("A maximum of {0} scheme rule rows can be created at once.").format(row_limit))
+		for row in scheme.get("rules", []):
+			if not isinstance(row, dict):
+				frappe.throw(_("Every scheme rule row must be an object."), frappe.ValidationError)
+	return schemes
+
+
+@frappe.whitelist(methods=["POST"])
 def create_schemes_from_upload(upload_name, schemes_json=None) -> dict:
 	"""Create Supplier Scheme Circular(s) from extracted data.
 
@@ -140,59 +223,92 @@ def create_schemes_from_upload(upload_name, schemes_json=None) -> dict:
 	Otherwise use the stored extracted_json.
 	"""
 	doc = frappe.get_doc("Scheme Document Upload", upload_name)
+	_require_upload_action(doc, _("create supplier schemes from an upload"))
+	_validate_upload_references(doc)
+	_get_owned_private_file(doc)
+	_enforce_scheme_ai_rate_limit("supplier-scheme-create")
+
+	if not doc.extracted_json:
+		frappe.throw(_("No extracted data. Please run extraction first."), title=_("Scheme Document Upload Error"))
+	_validate_payload_size(doc.extracted_json)
+	stored_data = json.loads(doc.extracted_json)
+	stored_schemes = _validate_scheme_payload(stored_data)
+	for stored_scheme in stored_schemes:
+		stored_scheme.pop("_created_doc", None)
 
 	if schemes_json:
 		if isinstance(schemes_json, str):
-			data = json.loads(schemes_json)
+			_validate_payload_size(schemes_json)
+			selected_data = json.loads(schemes_json)
+		else:
+			selected_data = schemes_json
+		selected_schemes = _validate_scheme_payload(selected_data)
+		selected_parts = []
+		seen_parts = set()
+		for selected in selected_schemes:
+			part = cint(selected.get("_source_part"))
+			if part < 1 or part > len(stored_schemes) or part in seen_parts:
+				frappe.throw(_("Selected scheme part reference is invalid."), frappe.ValidationError)
+			seen_parts.add(part)
+			edited = dict(selected)
+			edited.pop("_source_part", None)
+			edited.pop("_created_doc", None)
+			stored_schemes[part - 1] = edited
+			selected_parts.append((part, edited))
+		for key, value in selected_data.items():
+			if key != "schemes":
+				stored_data[key] = value
 	else:
-		if not doc.extracted_json:
-			frappe.throw(_("No extracted data. Please run extraction first."), title=_("Scheme Document Upload Error"))
-		data = json.loads(doc.extracted_json)
+		selected_parts = [(index, scheme) for index, scheme in enumerate(stored_schemes, start=1)]
 
-	schemes = data.get("schemes", [])
-	if not schemes:
-		frappe.throw(_("No schemes found in extracted data"), title=_("Scheme Document Upload Error"))
+	stored_data["schemes"] = stored_schemes
+	existing_rows = frappe.get_all(
+		"Supplier Scheme Circular",
+		filters={"source_upload": doc.name, "company": doc.company, "docstatus": ("!=", 2)},
+		fields=["name", "source_upload_part", "company"],
+		order_by="source_upload_part asc, creation asc",
+		limit_page_length=len(stored_schemes) + 1,
+	)
+	existing_by_part = {}
+	for row in existing_rows:
+		part = cint(row.source_upload_part)
+		if part < 1 or part > len(stored_schemes) or part in existing_by_part:
+			frappe.throw(_("Scheme upload has duplicate or invalid source references."), frappe.ValidationError)
+		existing = frappe.get_doc("Supplier Scheme Circular", row.name)
+		existing.check_permission("read")
+		if existing.company != doc.company or existing.source_upload != doc.name:
+			frappe.throw(_("Existing scheme source reference failed integrity validation."), frappe.ValidationError)
+		existing_by_part[part] = existing.name
+		stored_schemes[part - 1]["_created_doc"] = existing.name
 
 	created = []
-	failed = []
-	for i, scheme_data in enumerate(schemes):
-		# Skip schemes already created in a previous run
-		if scheme_data.get("_created_doc"):
-			created.append(scheme_data["_created_doc"])
+	for part, scheme_data in selected_parts:
+		if part in existing_by_part:
+			created.append(existing_by_part[part])
 			continue
-		try:
-			circular = _create_single_circular(scheme_data, doc)
-			created.append(circular.name)
-			# Mark this scheme as created in the data so retries skip it
-			schemes[i]["_created_doc"] = circular.name
-		except Exception:
-			failed.append(scheme_data.get("scheme_name", f"Part {i+1}"))
-			frappe.log_error(
-				frappe.get_traceback(),
-				f"Failed to create scheme: {scheme_data.get('scheme_name', '?')}"
-			)
+		frappe.has_permission("Supplier Scheme Circular", ptype="create", throw=True)
+		circular = _create_single_circular(scheme_data, doc, stored_data, part)
+		created.append(circular.name)
+		stored_schemes[part - 1]["_created_doc"] = circular.name
 
 	# Persist updated extracted_json with _created_doc markers
-	data["schemes"] = schemes
-	doc.extracted_json = json.dumps(data, indent=2, ensure_ascii=False)
+	stored_data["schemes"] = stored_schemes
+	doc.extracted_json = json.dumps(stored_data, indent=2, ensure_ascii=False)
 
-	# Accumulate created_schemes (don't overwrite previous run's entries)
-	existing = [s.strip() for s in (doc.created_schemes or "").split(",") if s.strip()]
-	all_created = existing + [c for c in created if c not in existing]
-	if all_created:
-		doc.created_schemes = ", ".join(all_created)
+	all_created = [scheme.get("_created_doc") for scheme in stored_schemes if scheme.get("_created_doc")]
+	doc.created_schemes = ", ".join(dict.fromkeys(all_created))
 
-	all_done = all(s.get("_created_doc") for s in schemes)
+	all_done = all(s.get("_created_doc") for s in stored_schemes)
 	if all_done:
 		doc.status = "Schemes Created"
-	elif created:
+	else:
 		doc.status = "Partial"
-	doc.save(ignore_permissions=True)
+	doc.save()
 	return {
 		"created": created,
-		"failed_names": failed,
+		"failed_names": [],
 		"count": len(created),
-		"failed": len(schemes) - len(created),
+		"failed": 0,
 	}
 
 
@@ -212,9 +328,14 @@ def _get_ai_settings():
 		return {
 			"api_key": api_key,
 			"endpoint": settings.api_endpoint or "https://api.openai.com/v1/chat/completions",
+			"allowed_hosts": settings.get("allowed_api_hosts") or "api.openai.com",
 			"model": settings.comparison_model or "gpt-4o",
 			# Minimum 120s — scheme images can be large and GPT-4o vision is slow
 			"timeout": max(settings.timeout_sec or 120, 120),
+			"max_response_bytes": min(
+				get_int_setting("supplier_scheme_ai_response_byte_limit", 1048576, minimum=1024),
+				8388608,
+			),
 		}
 	except frappe.DoesNotExistError:
 		return None
@@ -234,30 +355,35 @@ def _add_log(doc, level, step, message, traceback=None, ai_model=None):
 	return row
 
 
-def _read_file_content(file_url):
+def _read_file_content(file_doc):
 	"""Read file and return base64 content + mime type for AI vision.
 
 	Validation (H16):
-	  - Max 10 MB file size
+	  - System-configured maximum file size
 	  - MIME type must be PDF / image (PNG, JPEG, GIF, WebP)
 	  - Magic bytes must match MIME type (prevent spoofed extensions)
 	"""
 	import base64
 	import mimetypes
+	from frappe.core.api.file import get_max_file_size
 
-	# Get file from Frappe file system
-	file_doc = frappe.get_doc("File", {"file_url": file_url})
 	file_path = file_doc.get_full_path()
-
 	mime_type = mimetypes.guess_type(file_path)[0] or "application/pdf"
+	max_file_size = get_max_file_size()
+	if cint(file_doc.file_size) > max_file_size:
+		frappe.throw(
+			_("File exceeds the configured maximum size of {0} MB.").format(
+				round(max_file_size / 1024 / 1024, 2)
+			),
+			title=_("File Size Error"),
+		)
 
 	with open(file_path, "rb") as f:
-		raw = f.read()
+		raw = f.read(max_file_size + 1)
 
-	# Size cap: 10 MB (H16)
-	if len(raw) > 10_000_000:
+	if len(raw) > max_file_size:
 		frappe.throw(
-			_("File is too large. Maximum 10 MB allowed."),
+			_("File exceeds the configured maximum size."),
 			title=_("File Size Error"),
 		)
 
@@ -279,7 +405,8 @@ def _read_file_content(file_url):
 	}
 
 	expected_magic = magic_checks.get(mime_type)
-	if expected_magic and not raw.startswith(expected_magic):
+	webp_invalid = mime_type == "image/webp" and (len(raw) < 12 or raw[8:12] != b"WEBP")
+	if (expected_magic and not raw.startswith(expected_magic)) or webp_invalid:
 		frappe.throw(
 			_("File content does not match the declared type. Possible file spoofing."),
 			title=_("File Validation Error"),
@@ -432,28 +559,28 @@ Return JSON with structure:
 
 def _send_ai_request(messages, ai_settings):
 	"""POST messages to OpenAI and return parsed JSON response."""
-	import requests
-
 	endpoint = ai_settings["endpoint"]
-	# Validate endpoint against SSRF allowlist (C7) — before any HTTP call
-	_validate_ai_endpoint(endpoint)
-
-	resp = requests.post(
+	response = post_json_with_credentials(
 		endpoint,
+		allowed_hosts=parse_exact_host_allowlist(
+			ai_settings["allowed_hosts"],
+			label="Supplier Scheme AI",
+		),
+		label="Supplier Scheme AI",
 		headers={
 			"Authorization": f"Bearer {ai_settings['api_key']}",
 			"Content-Type": "application/json",
 		},
-		json={
+		payload={
 			"model": ai_settings["model"],
 			"messages": messages,
 			"max_tokens": 16000,
 			"response_format": {"type": "json_object"},
 		},
 		timeout=ai_settings["timeout"],
+		max_response_bytes=ai_settings["max_response_bytes"],
 	)
-	resp.raise_for_status()
-	content = resp.json()["choices"][0]["message"]["content"]
+	content = response["choices"][0]["message"]["content"]
 	return json.loads(content)
 
 
@@ -515,18 +642,16 @@ def _call_ai_extraction(file_content, ai_settings):
 	return _send_ai_request(messages, ai_settings)
 
 
-def _create_single_circular(scheme_data, upload_doc):
+def _create_single_circular(scheme_data, upload_doc, top_data, part_number):
 	"""Create one Supplier Scheme Circular from parsed scheme data."""
-	# Get top-level data from parent document's extracted JSON
-	top_data = {}
-	if upload_doc.extracted_json:
-		top_data = json.loads(upload_doc.extracted_json)
-
 	circular = frappe.new_doc("Supplier Scheme Circular")
 	circular.scheme_name = scheme_data.get("scheme_name", "Untitled Scheme")
 	circular.circular_number = top_data.get("circular_number", "")
+	circular.company = upload_doc.company
 	circular.brand = upload_doc.brand or ""
 	circular.supplier = upload_doc.supplier or ""
+	circular.source_upload = upload_doc.name
+	circular.source_upload_part = part_number
 
 	# Dates
 	valid_from = top_data.get("valid_from")
@@ -551,9 +676,13 @@ def _create_single_circular(scheme_data, upload_doc):
 
 	# Description: combine terms as HTML
 	terms = top_data.get("terms", [])
+	if not isinstance(terms, list):
+		frappe.throw(_("Scheme terms must be a list."), frappe.ValidationError)
 	if terms:
 		terms_html = "<h4>Terms & Conditions</h4><ol>"
 		for t in terms:
+			if not isinstance(t, str):
+				frappe.throw(_("Every scheme term must be text."), frappe.ValidationError)
 			terms_html += f"<li>{frappe.utils.escape_html(t)}</li>"
 		terms_html += "</ol>"
 		circular.description = terms_html
@@ -611,7 +740,7 @@ def _create_single_circular(scheme_data, upload_doc):
 	# Attach the fully-built rule (with its details) to the circular
 	circular.append("rules", rule)
 
-	circular.insert(ignore_permissions=True)
+	circular.insert()
 	return circular
 
 

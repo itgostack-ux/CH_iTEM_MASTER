@@ -46,7 +46,7 @@ def process_invoice_items(doc, method=None):
 		return
 
 	# Find all active schemes whose period covers the invoice date
-	active_schemes = _get_active_schemes(getdate(doc.posting_date))
+	active_schemes = _get_active_schemes(getdate(doc.posting_date), doc.company)
 	if not active_schemes:
 		return
 
@@ -99,14 +99,16 @@ def _extract_invoice_items(doc):
 	return items
 
 
-def _get_active_schemes(invoice_date):
+def _get_active_schemes(invoice_date, company):
 	"""Return names of submitted schemes whose period covers the invoice date.
 
 	Cached per-day in Redis (TTL 5 min). Schemes are low-volume and rarely
 	change mid-day, so the cache avoids a full-scan on every invoice submit.
 	Cache is invalidated on Supplier Scheme Circular save (see hooks below).
 	"""
-	cache_key = f"active_supplier_schemes::{invoice_date}"
+	if not company:
+		return []
+	cache_key = f"active_supplier_schemes::{company}::{invoice_date}"
 	cached = frappe.cache().get_value(cache_key)
 	if cached is not None:
 		return cached
@@ -114,6 +116,7 @@ def _get_active_schemes(invoice_date):
 	schemes = frappe.get_all(
 		"Supplier Scheme Circular",
 		filters={
+			"company": company,
 			"docstatus": 1,
 			"status": "Active",
 			"valid_from": ("<=", invoice_date),

@@ -10,10 +10,7 @@
  "owner": "Administrator",
  "page_name": "location-hierarchy",
  "roles": [
-  {"role": "System Manager"},
-  {"role": "CH Master Manager"},
-  {"role": "Stock Manager"},
-  {"role": "Sales Manager"}
+  {"role": "All"}
  ],
  "standard": "Yes",
  "title": "Location Hierarchy"

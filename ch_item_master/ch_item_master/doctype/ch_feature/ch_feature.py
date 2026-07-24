@@ -4,6 +4,8 @@
 import frappe
 from frappe.model.document import Document
 
+from ch_item_master.id_sequences import next_numeric_id
+
 
 class CHFeature(Document):
 	def before_insert(self):
@@ -17,7 +19,4 @@ class CHFeature(Document):
 		"""Auto-assign a unique integer feature_id for API / mobile use."""
 		if self.feature_id:
 			return
-		result = frappe.db.sql(
-			"SELECT COALESCE(MAX(feature_id), 0) FROM `tabCH Feature`"
-		)
-		self.feature_id = (result[0][0] or 0) + 1
+		self.feature_id = next_numeric_id("feature")

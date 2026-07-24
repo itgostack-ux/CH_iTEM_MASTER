@@ -10,20 +10,23 @@ Idempotent: skips stores that already have the Demo bin linked.
 
 import frappe
 
+from ch_item_master.config import iter_all_rows
+
 
 def execute():
     from ch_item_master.ch_core.doctype.ch_store.ch_store import ensure_store_bins
 
-    stores = frappe.get_all("CH Store", pluck="name")
-    created = 0
-    for name in stores:
-        try:
-            store = frappe.get_doc("CH Store", name)
-            if not store.warehouse or not store.company:
-                continue
-            ensure_store_bins(store)
-            created += 1
-        except Exception:
-            frappe.log_error(frappe.get_traceback(), f"v16_add_demo_bin: {name}")
-    frappe.db.commit()
-    print(f"v16_add_demo_bin: refreshed bins for {created}/{len(stores)} stores")
+    refreshed = 0
+    skipped = 0
+    for name in iter_all_rows("CH Store", pluck="name", order_by="name asc", page_size=200):
+        store = frappe.get_doc("CH Store", name)
+        if not store.warehouse or not store.company:
+            skipped += 1
+            continue
+        ensure_store_bins(store)
+        refreshed += 1
+    frappe.logger("ch_item_master").info(
+        "v16_add_demo_bin refreshed %s stores; skipped %s incomplete stores",
+        refreshed,
+        skipped,
+    )

@@ -314,54 +314,70 @@
  "is_submittable": 1,
  "permissions": [
   {
-   "cancel": 1,
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
    "create": 1,
    "delete": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1,
    "email": 1,
    "export": 1,
    "import": 1,
    "print": 1,
-   "read": 1,
    "report": 1,
-   "role": "System Manager",
-   "share": 1,
-   "submit": 1,
-   "write": 1
+   "share": 1
   },
   {
-   "cancel": 1,
-   "create": 1,
-   "email": 1,
-   "export": 1,
-   "print": 1,
-   "read": 1,
    "role": "CH Master Manager",
-   "submit": 1,
-   "write": 1
-  },
-  {
-   "cancel": 1,
+   "read": 1,
+   "write": 1,
    "create": 1,
-   "email": 1,
-   "export": 1,
-   "print": 1,
-   "read": 1,
-   "role": "CH Price Manager",
    "submit": 1,
-   "write": 1
-  },
-  {
+   "cancel": 1,
    "email": 1,
    "export": 1,
-   "print": 1,
-   "read": 1,
-   "role": "Sales User",
-   "write": 0
+   "print": 1
   },
   {
-   "export": 1,
+   "role": "CH Price Manager",
    "read": 1,
-   "role": "CH Viewer"
+   "write": 1,
+   "create": 1,
+   "submit": 1,
+   "cancel": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1
+  },
+  {
+   "role": "Sales User",
+   "read": 1,
+   "write": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1
+  },
+  {
+   "role": "CH Viewer",
+   "read": 1,
+   "export": 1
+  },
+  {
+   "role": "CH Warranty Manager",
+   "read": 1
+  },
+  {
+   "role": "Service Manager",
+   "read": 1
+  },
+  {
+   "role": "Sales Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "submit": 1
   }
  ],
  "search_fields": "voucher_code,voucher_type,issued_to,status",

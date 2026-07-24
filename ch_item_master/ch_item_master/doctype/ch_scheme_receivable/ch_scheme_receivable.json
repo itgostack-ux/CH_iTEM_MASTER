@@ -170,7 +170,8 @@
    "fieldname": "written_off_amount",
    "fieldtype": "Currency",
    "label": "Written Off Amount",
-   "default": "0"
+   "default": "0",
+   "read_only": 1
   },
   {
    "fieldname": "column_break_amounts",
@@ -207,13 +208,15 @@
   {
    "fieldname": "settlement_date",
    "fieldtype": "Date",
-   "label": "Settlement Date"
+   "label": "Settlement Date",
+   "read_only": 1
   },
   {
    "fieldname": "payment_reference",
    "fieldtype": "Data",
    "label": "Payment / UTR Reference",
-   "description": "Bank UTR or reference number of the settlement."
+   "description": "Bank UTR or reference number of the settlement.",
+   "read_only": 1
   },
   {
    "fieldname": "column_break_settle",
@@ -224,14 +227,16 @@
    "fieldtype": "Link",
    "label": "Payment Entry",
    "options": "Payment Entry",
-   "description": "ERPNext Payment Entry recording the receipt."
+   "description": "ERPNext Payment Entry recording the receipt.",
+   "read_only": 1
   },
   {
    "fieldname": "journal_entry",
    "fieldtype": "Link",
    "label": "Journal Entry",
    "options": "Journal Entry",
-   "description": "JV for write-off or adjustment if needed."
+   "description": "JV for write-off or adjustment if needed.",
+   "read_only": 1
   },
   {
    "fieldname": "invoices_section",
@@ -257,6 +262,7 @@
    "label": "Remarks"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "last_dunning_date",
    "fieldtype": "Date",
    "label": "Last Dunning Date",
@@ -281,42 +287,43 @@
  "owner": "Administrator",
  "permissions": [
   {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
    "create": 1,
    "delete": 1,
-   "email": 1,
-   "export": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "System Manager",
-   "share": 1,
    "submit": 1,
    "cancel": 1,
    "amend": 1,
-   "write": 1
-  },
-  {
-   "create": 1,
    "email": 1,
    "export": 1,
+   "import": 1,
    "print": 1,
-   "read": 1,
    "report": 1,
+   "share": 1
+  },
+  {
    "role": "Accounts Manager",
-   "share": 1,
+   "read": 1,
+   "write": 1,
+   "create": 1,
    "submit": 1,
    "cancel": 1,
    "amend": 1,
-   "write": 1
-  },
-  {
    "email": 1,
    "export": 1,
    "print": 1,
-   "read": 1,
    "report": 1,
+   "share": 1
+  },
+  {
    "role": "Accounts User",
-   "write": 1
+   "read": 1,
+   "write": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "report": 1
   }
  ],
  "search_fields": "scheme_type,party_name,status,company",

@@ -111,6 +111,9 @@
   "pickup_partner",
   "pickup_tracking_no",
   "delivery_otp",
+  "delivery_otp_sent_at",
+  "delivery_otp_attempts",
+  "delivery_otp_consumed_at",
   "pickup_scheduled_at",
   "picked_up_at",
   "out_for_delivery_at",
@@ -190,7 +193,7 @@
   "processing_fee_status",
   "processing_fee_amount",
   "column_break_processing_fee",
-  "processing_fee_invoice",
+  "processing_fee_journal_entry",
   "processing_fee_payment_mode",
   "section_fee_payment_link",
   "processing_fee_link_url",
@@ -200,8 +203,9 @@
   "processing_fee_paid_at",
   "processing_fee_paid_amount",
   "processing_fee_payment_ref",
-  "gateway_order_id",
-  "gateway_payload",
+  "processing_fee_posting_attempts",
+  "processing_fee_last_posting_at",
+  "processing_fee_gl_error",
   "section_fee_waiver",
   "processing_fee_waived_amount",
   "processing_fee_waiver_reason",
@@ -588,7 +592,7 @@
    "fieldname": "processing_fee_status",
    "fieldtype": "Select",
    "label": "Processing Fee Status",
-   "options": "Not Required\nPending\nLink Sent\nPaid\nWaived",
+   "options": "Not Required\nPending\nLink Sent\nPosting Pending\nPosting Failed\nPaid\nWaived",
    "default": "Not Required",
    "read_only": 1,
    "no_copy": 1,
@@ -607,12 +611,13 @@
    "fieldtype": "Column Break"
   },
   {
-   "fieldname": "processing_fee_invoice",
+   "fieldname": "processing_fee_journal_entry",
    "fieldtype": "Link",
-   "label": "Processing Fee Invoice",
-   "options": "Sales Invoice",
+   "label": "Processing Fee Journal Entry",
+   "options": "Journal Entry",
+   "read_only": 1,
    "allow_on_submit": 1,
-   "description": "Invoice for processing fee collection"
+   "description": "Submitted accounting entry for the processing fee collection"
   },
   {
    "fieldname": "section_cost",
@@ -807,8 +812,43 @@
   {
    "fieldname": "delivery_otp",
    "fieldtype": "Data",
-   "label": "Delivery OTP",
-   "allow_on_submit": 1
+   "label": "Delivery OTP Digest",
+   "allow_on_submit": 1,
+   "hidden": 1,
+   "no_copy": 1,
+   "read_only": 1,
+   "permlevel": 1
+  },
+  {
+   "fieldname": "delivery_otp_sent_at",
+   "fieldtype": "Datetime",
+   "label": "Delivery OTP Sent At",
+   "allow_on_submit": 1,
+   "hidden": 1,
+   "no_copy": 1,
+   "read_only": 1,
+   "permlevel": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "delivery_otp_attempts",
+   "fieldtype": "Int",
+   "label": "Delivery OTP Attempts",
+   "allow_on_submit": 1,
+   "hidden": 1,
+   "no_copy": 1,
+   "read_only": 1,
+   "permlevel": 1
+  },
+  {
+   "fieldname": "delivery_otp_consumed_at",
+   "fieldtype": "Datetime",
+   "label": "Delivery OTP Consumed At",
+   "allow_on_submit": 1,
+   "hidden": 1,
+   "no_copy": 1,
+   "read_only": 1,
+   "permlevel": 1
   },
   {
    "fieldname": "pickup_scheduled_at",
@@ -1230,7 +1270,7 @@
   },
   {
    "fieldname": "processing_fee_link_url",
-   "fieldtype": "Data",
+   "fieldtype": "Small Text",
    "label": "Payment Link URL",
    "read_only": 1,
    "allow_on_submit": 1
@@ -1275,21 +1315,30 @@
    "allow_on_submit": 1
   },
   {
-   "fieldname": "gateway_order_id",
-   "fieldtype": "Data",
-   "label": "Gateway Order ID",
+   "default": "0",
+   "fieldname": "processing_fee_posting_attempts",
+   "fieldtype": "Int",
+   "label": "Accounting Posting Attempts",
    "read_only": 1,
    "allow_on_submit": 1,
    "hidden": 1
   },
   {
-   "fieldname": "gateway_payload",
+   "fieldname": "processing_fee_last_posting_at",
+   "fieldtype": "Datetime",
+   "label": "Last Accounting Posting At",
+   "read_only": 1,
+   "allow_on_submit": 1,
+   "hidden": 1
+  },
+  {
+   "fieldname": "processing_fee_gl_error",
    "fieldtype": "Small Text",
-   "label": "Gateway Payload",
+   "label": "Accounting Posting Error",
    "read_only": 1,
    "allow_on_submit": 1,
    "hidden": 1,
-   "description": "Raw JSON payload from payment gateway webhook (last 2000 chars)"
+   "description": "Retryable accounting error captured after payment confirmation"
   },
   {
    "fieldname": "section_fee_waiver",
@@ -1567,6 +1616,13 @@
    "share": 1
   },
   {
+   "role": "System Manager",
+   "permlevel": 1,
+   "read": 1,
+   "write": 1,
+   "create": 1
+  },
+  {
    "role": "CH Warranty Manager",
    "read": 1,
    "write": 1,
@@ -1606,6 +1662,21 @@
    "cancel": 1,
    "amend": 1,
    "export": 1
+  },
+  {
+   "role": "Store Manager",
+   "read": 1,
+   "write": 1
+  },
+  {
+   "role": "Stock Manager",
+   "read": 1,
+   "write": 1
+  },
+  {
+   "role": "Accounts Manager",
+   "read": 1,
+   "write": 1
   }
  ],
  "links": [],

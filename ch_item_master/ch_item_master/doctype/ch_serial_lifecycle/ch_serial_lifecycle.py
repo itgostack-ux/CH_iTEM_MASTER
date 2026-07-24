@@ -14,6 +14,8 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import nowdate, now_datetime, getdate
 
+from ch_item_master.security import has_serial_lifecycle_permission
+
 
 # Valid lifecycle transitions: from_status → [allowed to_statuses]
 VALID_TRANSITIONS = {
@@ -103,7 +105,55 @@ class CHSerialLifecycle(Document):
 
 # ── Whitelisted API methods ─────────────────────────────────────────────────
 
-@frappe.whitelist()
+
+def _is_system_write() -> bool:
+    """True while a document-driven register update is in flight.
+
+    Set only by update_lifecycle_status_for_document() below — a server-side
+    frappe.flags marker that HTTP clients cannot inject. Market pattern
+    (SAP material document → serial history, Oracle Install Base): once the
+    business document has passed its own authorization gates, derived
+    registers update with system privileges."""
+    return bool(getattr(frappe.flags, "lifecycle_system_write", False))
+
+
+def _require_lifecycle_access(doc, permission_type: str) -> None:
+    if _is_system_write():
+        return
+    doc.check_permission(permission_type)
+    if not has_serial_lifecycle_permission(
+        doc=doc,
+        user=frappe.session.user,
+        permission_type=permission_type,
+    ):
+        frappe.throw(
+            _("This serial lifecycle record is outside your assigned store scope."),
+            frappe.PermissionError,
+        )
+
+
+def _validate_target_location(doc, company=None, warehouse=None) -> tuple[str | None, str | None]:
+    effective_company = company or doc.current_company
+    effective_warehouse = warehouse or doc.current_warehouse
+    if effective_warehouse:
+        warehouse_row = frappe.db.get_value(
+            "Warehouse", effective_warehouse, ["company", "disabled"], as_dict=True
+        )
+        if not warehouse_row or warehouse_row.disabled:
+            frappe.throw(_("The target warehouse is unavailable."), frappe.ValidationError)
+        if effective_company and warehouse_row.company != effective_company:
+            frappe.throw(_("The target warehouse belongs to another company."), frappe.ValidationError)
+        effective_company = effective_company or warehouse_row.company
+    if not _is_system_write():
+        probe = frappe._dict(
+            current_company=effective_company,
+            current_warehouse=effective_warehouse,
+        )
+        if not has_serial_lifecycle_permission(doc=probe, user=frappe.session.user, permission_type="write"):
+            frappe.throw(_("The target location is outside your assigned store scope."), frappe.PermissionError)
+    return effective_company, effective_warehouse
+
+@frappe.whitelist(methods=["POST"])
 def update_lifecycle_status(serial_no, new_status, company=None,
                             warehouse=None, remarks=None, **kwargs) -> dict:
     """Change lifecycle status of a serial number.
@@ -134,6 +184,9 @@ def update_lifecycle_status(serial_no, new_status, company=None,
         return {"status": "skipped", "serial_no": serial_no, "reason": "lock_timeout"}
     try:
         doc = frappe.get_doc("CH Serial Lifecycle", serial_no)
+
+        _require_lifecycle_access(doc, "write")
+        company, warehouse = _validate_target_location(doc, company, warehouse)
 
         # P0 FIX: Re-read current status from DB inside the lock to detect races.
         # A concurrent request may have already advanced the status between the
@@ -169,7 +222,7 @@ def update_lifecycle_status(serial_no, new_status, company=None,
             if key in allowed_extra_fields:
                 doc.set(key, value)
 
-        doc.save(ignore_permissions=False)
+        doc.save(ignore_permissions=_is_system_write())
         # v16: do not call frappe.db.commit() — caller or request lifecycle handles it
     finally:
         frappe.db.sql("SELECT RELEASE_LOCK(%s)", (lock_key,))
@@ -177,10 +230,32 @@ def update_lifecycle_status(serial_no, new_status, company=None,
     return {"status": "ok", "serial_no": doc.name, "new_status": doc.lifecycle_status}
 
 
+def update_lifecycle_status_for_document(serial_no, new_status, **kwargs) -> dict:
+    """System write for DOCUMENT-DRIVEN register updates.
+
+    Use this from doc-event / workflow code (POS invoice submit, buyback
+    close, service request custody, warranty claim) where the business
+    document already passed its own authorization gates — the lifecycle
+    register is a derived audit ledger, not a user document, so the
+    operator does not additionally need write permission on it.
+
+    Deliberately NOT whitelisted: direct client calls must keep using
+    update_lifecycle_status(), which stays fully gated (role +
+    CH User Scope). The privilege marker is a server-side flag that
+    request payloads cannot inject.
+    """
+    frappe.flags.lifecycle_system_write = True
+    try:
+        return update_lifecycle_status(serial_no, new_status, **kwargs)
+    finally:
+        frappe.flags.lifecycle_system_write = False
+
+
 @frappe.whitelist()
 def get_lifecycle_history(serial_no) -> dict:
     """Get full lifecycle history of a device."""
     doc = frappe.get_doc("CH Serial Lifecycle", serial_no)
+    _require_lifecycle_access(doc, "read")
     return {
         "serial_no": doc.serial_no,
         "item_code": doc.item_code,
@@ -217,6 +292,7 @@ def scan_serial(serial_no) -> dict:
     if not name:
         frappe.throw(_("Serial / IMEI not found: {0}").format(serial_no), title=_("Ch Serial Lifecycle Error"))
     doc = frappe.get_doc("CH Serial Lifecycle", name)
+    _require_lifecycle_access(doc, "read")
 
     # Valid next transitions
     allowed_next = VALID_TRANSITIONS.get(doc.lifecycle_status, [])

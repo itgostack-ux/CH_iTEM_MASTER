@@ -120,14 +120,38 @@
  "owner": "Administrator",
  "permissions": [
   {
+   "role": "System Manager",
+   "permlevel": 0,
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
    "email": 1,
    "export": 1,
-   "permlevel": 0,
+   "import": 1,
    "print": 1,
-   "read": 1,
    "report": 1,
-   "role": "All",
    "share": 1
+  },
+  {
+   "role": "CH Master Manager",
+   "read": 1,
+   "export": 1,
+   "report": 1
+  },
+  {
+   "role": "CH Master Approver",
+   "read": 1,
+   "export": 1,
+   "report": 1
+  },
+  {
+   "role": "CH Viewer",
+   "read": 1
+  },
+  {
+   "role": "Stock User",
+   "read": 1
   }
  ],
  "sort_field": "version_number",

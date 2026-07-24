@@ -1,7 +1,10 @@
 """VAS Hub – Backend API for warranty plans, claims, and vouchers dashboard."""
 
 import frappe
+from frappe import _
 from frappe.utils import flt, nowdate, get_first_day, cint, getdate, add_days
+
+from ch_item_master.config import get_int_setting, is_privileged_user, require_role_setting
 
 try:
     from ch_erp15.ch_erp15.scope import intersect_filters
@@ -9,6 +12,37 @@ except ImportError:
     def intersect_filters(**kwargs):
         return {"company": kwargs.get("company"), "store": kwargs.get("store"),
                 "allowed_stores": None, "allowed_warehouses": None}
+
+
+_VAS_DASHBOARD_ROLES = ("CH Warranty Manager", "Service Manager", "Sales Manager")
+
+
+def _require_vas_dashboard_access(company):
+    require_role_setting(
+        "vas_dashboard_roles",
+        _VAS_DASHBOARD_ROLES,
+        action=_("view the VAS operations dashboard"),
+    )
+    for doctype in ("Active VAS Plans", "CH Warranty Claim", "CH Voucher"):
+        frappe.has_permission(doctype, "read", throw=True)
+    if is_privileged_user():
+        return
+    if not company:
+        frappe.throw(_("Select a company before opening the VAS dashboard."), frappe.PermissionError)
+    try:
+        from ch_erp15.ch_erp15.scope import get_user_scope
+    except (ImportError, ModuleNotFoundError):
+        frappe.throw(_("Location scope validation is unavailable."), frappe.PermissionError)
+    scope = get_user_scope() or {}
+    allowed_stores = set(scope.get("stores") or ())
+    company_stores = set(frappe.get_all(
+        "CH Store", filters={"company": company, "disabled": 0}, pluck="name"
+    ))
+    if not company_stores or not company_stores.issubset(allowed_stores):
+        frappe.throw(
+            _("The VAS network dashboard requires full store scope for {0}.").format(company),
+            frappe.PermissionError,
+        )
 
 
 def _build_filters(company=None, store=None, from_date=None, to_date=None, city=None, zone=None):
@@ -60,6 +94,7 @@ def _build_filters(company=None, store=None, from_date=None, to_date=None, city=
 @frappe.whitelist()
 def get_vas_hub_data(company=None, store=None, from_date=None, to_date=None, city=None, zone=None):
     """VAS dashboard: Warranty Plans → Active VAS Plans → Claims → Vouchers."""
+    _require_vas_dashboard_access(company)
     f = _build_filters(company, store, from_date, to_date, city=city, zone=zone)
     prm = f["prm"]
     co_sp = f["co_sp"]
@@ -225,7 +260,9 @@ def get_vas_hub_data(company=None, store=None, from_date=None, to_date=None, cit
             "detail": "Claims awaiting approval may delay customer resolution.",
             "action": "Review and approve/reject pending claims promptly."
         })
-    if flt(voucher_redeemed) / max(flt(voucher_total), 1) < 0.3 and flt(voucher_total) > 0:
+    low_utilization_percent = get_int_setting("vas_low_voucher_utilization_percent", 30)
+    voucher_utilization_percent = flt(voucher_redeemed) / max(flt(voucher_total), 1) * 100
+    if voucher_utilization_percent < low_utilization_percent and flt(voucher_total) > 0:
         ai_insights.append({
             "severity": "Medium", "title": "Low Voucher Utilization",
             "detail": f"Only {voucher_util} of voucher value has been redeemed.",

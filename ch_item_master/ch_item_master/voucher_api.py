@@ -8,17 +8,114 @@ import frappe
 from frappe import _
 from frappe.utils import flt, getdate, nowdate, now_datetime, cint
 
+from ch_item_master.config import (
+	get_int_setting,
+	get_list_setting,
+	is_privileged_user,
+	require_role_setting,
+)
+from ch_item_master.security import (
+	get_company_filter_value,
+	require_scoped_document_action,
+)
+
+
+_VOUCHER_ISSUE_ROLES = ("CH Master Manager", "CH Price Manager", "Sales Manager")
+_VOUCHER_REDEMPTION_ROLES = ("Sales User", "Sales Manager", "CH Price Manager")
+_VOUCHER_REFUND_ROLES = ("Sales Manager", "CH Price Manager")
+_VOUCHER_TOPUP_ROLES = ("Sales Manager", "CH Price Manager")
+_VOUCHER_VIEW_ROLES = ("Sales User", "Sales Manager", "CH Price Manager", "CH Viewer")
+_VOUCHER_SOURCE_DOCTYPES = (
+	"Sales Invoice",
+	"POS Invoice",
+	"Delivery Note",
+	"Payment Entry",
+	"CH Coupon Campaign",
+	"Active VAS Plans",
+)
+_VOUCHER_REFERENCE_DOCTYPES = ("Sales Invoice", "POS Invoice", "Delivery Note", "Payment Entry")
+
+
+def _allowed_doctypes(fieldname, defaults):
+	return get_list_setting(fieldname, defaults)
+
+
+def _voucher_document(voucher_code):
+	voucher_name = frappe.db.get_value("CH Voucher", {"voucher_code": voucher_code}, "name")
+	if not voucher_name:
+		frappe.throw(_("Voucher not found"), title=_("API Error"))
+	return frappe.get_doc("CH Voucher", voucher_name)
+
+
+def _authorize_voucher(voucher, role_field, default_roles, action, permission_type="write", lock=True):
+	require_scoped_document_action(
+		voucher,
+		role_field,
+		default_roles,
+		action=action,
+		permission_types=(permission_type,),
+		lock=lock,
+	)
+
+
+def _validate_reference(doctype, name, company, allowed_doctypes, require_submitted=False):
+	if not doctype or not name:
+		frappe.throw(_("Reference DocType and document are both required."))
+	if doctype not in allowed_doctypes:
+		frappe.throw(_("{0} is not an allowed voucher reference type.").format(doctype))
+	if not frappe.db.exists(doctype, name):
+		frappe.throw(_("Referenced {0} {1} does not exist.").format(doctype, name))
+	if not is_privileged_user() and not frappe.has_permission(
+		doctype, "read", doc=name, user=frappe.session.user
+	):
+		frappe.throw(_("You cannot access the referenced document."), frappe.PermissionError)
+
+	meta = frappe.get_meta(doctype)
+	fields = ["docstatus"]
+	for fieldname in ("company", "customer", "pos_profile", "set_warehouse"):
+		if meta.has_field(fieldname):
+			fields.append(fieldname)
+	values = frappe.db.get_value(doctype, name, fields, as_dict=True) or frappe._dict()
+	if require_submitted and cint(values.get("docstatus")) != 1:
+		frappe.throw(_("Referenced {0} must be submitted.").format(doctype))
+	if "company" in fields and values.get("company") != company:
+		frappe.throw(_("Voucher and referenced document must belong to the same company."))
+
+	warehouse = values.get("set_warehouse")
+	if values.get("pos_profile"):
+		profile = frappe.db.get_value(
+			"POS Profile", values.pos_profile, ["company", "warehouse"], as_dict=True
+		) or frappe._dict()
+		if profile.get("company") and profile.company != company:
+			frappe.throw(_("The referenced POS Profile belongs to another company."))
+		warehouse = profile.get("warehouse") or warehouse
+	if warehouse and not is_privileged_user():
+		try:
+			from ch_erp15.ch_erp15.scope import assert_user_has_store_scope
+		except (ImportError, ModuleNotFoundError):
+			frappe.throw(_("Location scope validation is unavailable."), frappe.PermissionError)
+		assert_user_has_store_scope(company=company, warehouse=warehouse)
+	return values
+
+
+def _resolve_source_doctype(source_document, allowed_doctypes):
+	if not source_document:
+		return None
+	matches = [doctype for doctype in allowed_doctypes if frappe.db.exists(doctype, source_document)]
+	if len(matches) != 1:
+		frappe.throw(_("Specify an unambiguous Source DocType for the source document."))
+	return matches[0]
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Issue / Create
 # ─────────────────────────────────────────────────────────────────────────────
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def issue_voucher(voucher_type, amount, company, customer=None, phone=None,
                   valid_days=365, source_type=None, source_document=None,
                   reason=None, single_use=0, min_order_amount=0,
                   max_discount_amount=0, applicable_channel=None,
-                  applicable_item_group=None, sold_plan=None) -> dict:
+                  applicable_item_group=None, sold_plan=None, source_doctype=None) -> dict:
 	"""Issue a new voucher (Gift Card / Store Credit / Promo Voucher / Return Credit / VAS Voucher).
 
 	Args:
@@ -39,20 +136,58 @@ def issue_voucher(voucher_type, amount, company, customer=None, phone=None,
 	"""
 	from datetime import timedelta
 
-	frappe.has_permission("CH Voucher", "create", throw=True)
-
 	amount = flt(amount)
 	if amount <= 0:
 		frappe.throw(_("Voucher amount must be greater than zero"), title=_("API Error"))
-	# IM-7 fix: Boundary validation for amount
-	if amount > 500000:
-		frappe.throw(_("Voucher amount cannot exceed ₹5,00,000"), title=_("API Error"))
+	maximum_amount = get_int_setting("voucher_max_amount", 500000, minimum=1)
+	if amount > maximum_amount:
+		frappe.throw(
+			_("Voucher amount cannot exceed {0}").format(
+				frappe.format_value(maximum_amount, {"fieldtype": "Currency"})
+			),
+			title=_("API Error"),
+		)
 	if flt(min_order_amount) < 0:
 		frappe.throw(_("Minimum order amount cannot be negative"), title=_("API Error"))
 	if flt(max_discount_amount) < 0:
 		frappe.throw(_("Maximum discount amount cannot be negative"), title=_("API Error"))
 	if cint(valid_days) < 1 or cint(valid_days) > 3650:
 		frappe.throw(_("Validity must be between 1 and 3650 days"), title=_("API Error"))
+	if voucher_type not in {"Gift Card", "Store Credit", "Promo Voucher", "Return Credit", "VAS Voucher"}:
+		frappe.throw(_("Unsupported voucher type."), title=_("API Error"))
+	source_type = source_type or "Manual"
+	if source_type not in {"Manual", "Return", "Promotion", "Compensation", "Purchase"}:
+		frappe.throw(_("Unsupported voucher source type."), title=_("API Error"))
+	if source_type == "Return" and not source_document:
+		frappe.throw(_("A return source document is required."), title=_("API Error"))
+
+	allowed_sources = _allowed_doctypes("voucher_source_doctypes", _VOUCHER_SOURCE_DOCTYPES)
+	if source_document:
+		source_doctype = source_doctype or _resolve_source_doctype(source_document, allowed_sources)
+		source_values = _validate_reference(
+			source_doctype, source_document, company, allowed_sources, require_submitted=True
+		)
+		if customer and source_values.get("customer") and source_values.customer != customer:
+			frappe.throw(_("Voucher customer does not match the source document customer."))
+	elif source_doctype:
+		frappe.throw(_("A source document is required when Source DocType is supplied."))
+
+	if customer:
+		if not frappe.db.exists("Customer", customer):
+			frappe.throw(_("Customer does not exist."))
+		if not is_privileged_user() and not frappe.has_permission(
+			"Customer", "read", doc=customer, user=frappe.session.user
+		):
+			frappe.throw(_("You cannot access this customer."), frappe.PermissionError)
+	if sold_plan:
+		plan_values = _validate_reference(
+			"Active VAS Plans",
+			sold_plan,
+			company,
+			frozenset({"Active VAS Plans"}),
+		)
+		if customer and plan_values.get("customer") and plan_values.customer != customer:
+			frappe.throw(_("Voucher customer does not match the sold plan customer."))
 
 	today = getdate(nowdate())
 	valid_upto = today + timedelta(days=cint(valid_days) or 365)
@@ -66,7 +201,9 @@ def issue_voucher(voucher_type, amount, company, customer=None, phone=None,
 		"phone": phone,
 		"valid_from": str(today),
 		"valid_upto": str(valid_upto),
-		"source_type": source_type or "Manual",
+		"source_type": source_type,
+		"source_doctype": source_doctype,
+		"source_document": source_document,
 		"reason": reason,
 		"single_use": cint(single_use),
 		"min_order_amount": flt(min_order_amount),
@@ -75,7 +212,14 @@ def issue_voucher(voucher_type, amount, company, customer=None, phone=None,
 		"applicable_item_group": applicable_item_group,
 		"sold_plan": sold_plan,
 	})
-	voucher.insert(ignore_permissions=True)
+	require_scoped_document_action(
+		voucher,
+		"voucher_issue_roles",
+		_VOUCHER_ISSUE_ROLES,
+		action=_("issue a voucher"),
+		permission_types=("create", "submit"),
+	)
+	voucher.insert()
 
 	# Add issue transaction
 	voucher.append("transactions", {
@@ -85,7 +229,7 @@ def issue_voucher(voucher_type, amount, company, customer=None, phone=None,
 		"transaction_date": now_datetime(),
 		"note": f"Voucher issued: {voucher_type}",
 	})
-	voucher.save(ignore_permissions=True)
+	voucher.save()
 
 	# Submit to activate
 	voucher.submit()
@@ -119,18 +263,18 @@ def validate_voucher(voucher_code, cart_total=0, customer=None, channel=None) ->
 	if not voucher_code:
 		return {"valid": False, "reason": "No voucher code provided"}
 
-	voucher = frappe.db.get_value(
-		"CH Voucher",
-		{"voucher_code": voucher_code},
-		["name", "voucher_type", "status", "balance", "original_amount",
-		 "valid_from", "valid_upto", "issued_to", "company",
-		 "min_order_amount", "max_discount_amount", "single_use",
-		 "applicable_channel", "applicable_item_group"],
-		as_dict=True,
-	)
-
-	if not voucher:
+	try:
+		voucher = _voucher_document(voucher_code)
+	except frappe.ValidationError:
 		return {"valid": False, "reason": "Voucher code not found"}
+	_authorize_voucher(
+		voucher,
+		"voucher_redemption_roles",
+		_VOUCHER_REDEMPTION_ROLES,
+		_("validate a voucher"),
+		permission_type="read",
+		lock=False,
+	)
 
 	today = getdate(nowdate())
 
@@ -139,8 +283,7 @@ def validate_voucher(voucher_code, cart_total=0, customer=None, channel=None) ->
 		return {"valid": False, "reason": f"Voucher is {voucher.status}"}
 
 	# Must be submitted
-	docstatus = frappe.db.get_value("CH Voucher", voucher.name, "docstatus")
-	if cint(docstatus) != 1:
+	if cint(voucher.docstatus) != 1:
 		return {"valid": False, "reason": "Voucher has not been activated (not submitted)"}
 
 	# Date check
@@ -155,11 +298,14 @@ def validate_voucher(voucher_code, cart_total=0, customer=None, channel=None) ->
 		return {"valid": False, "reason": "Voucher has no remaining balance"}
 
 	# Customer check (if voucher is customer-bound)
-	if voucher.issued_to and customer and voucher.issued_to != customer:
-		return {"valid": False, "reason": "Voucher is issued to a different customer"}
+	if voucher.issued_to:
+		if not customer:
+			return {"valid": False, "reason": "Customer is required for this voucher"}
+		if voucher.issued_to != customer:
+			return {"valid": False, "reason": "Voucher is issued to a different customer"}
 
 	# Channel check
-	if voucher.applicable_channel and channel and voucher.applicable_channel != channel:
+	if voucher.applicable_channel and voucher.applicable_channel != channel:
 		return {"valid": False, "reason": f"Voucher is only valid for {voucher.applicable_channel} channel"}
 
 	# Min order check
@@ -194,7 +340,7 @@ def validate_voucher(voucher_code, cart_total=0, customer=None, channel=None) ->
 # Redeem (debit balance)
 # ─────────────────────────────────────────────────────────────────────────────
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def redeem_voucher(voucher_code, amount, pos_invoice=None, reference_doctype=None,
                    reference_document=None) -> dict:
 	"""Redeem (use) a voucher — deducts from balance.
@@ -212,54 +358,73 @@ def redeem_voucher(voucher_code, amount, pos_invoice=None, reference_doctype=Non
 	if amount <= 0:
 		frappe.throw(_("Redemption amount must be greater than zero"), title=_("API Error"))
 
-	frappe.has_permission("CH Voucher", "write", throw=True)
-
-	voucher_name = frappe.db.get_value("CH Voucher", {"voucher_code": voucher_code}, "name")
-	if not voucher_name:
-		frappe.throw(_("Voucher not found"), title=_("API Error"))
-
-	# Acquire row-level lock before reading — prevents concurrent redemptions from
-	# reading the same stale balance and both succeeding.
-	frappe.db.sql("SELECT name FROM `tabCH Voucher` WHERE name=%s FOR UPDATE", voucher_name)
-
-	# Read balance fields directly from DB *after* the lock (bypasses Frappe's document
-	# cache which may hold a pre-lock snapshot).
-	locked = frappe.db.get_value(
-		"CH Voucher", voucher_name,
-		["docstatus", "status", "balance", "valid_upto", "single_use", "applicable_item_group"],
-		as_dict=True,
+	voucher = _voucher_document(voucher_code)
+	_authorize_voucher(
+		voucher,
+		"voucher_redemption_roles",
+		_VOUCHER_REDEMPTION_ROLES,
+		_("redeem a voucher"),
+		lock=True,
 	)
 
-	if locked.docstatus != 1:
+	if voucher.docstatus != 1:
 		frappe.throw(_("Voucher has not been activated (not submitted)"), title=_("API Error"))
 
-	if locked.status not in ("Active", "Partially Used"):
+	if voucher.status not in ("Active", "Partially Used"):
 		frappe.throw(
-			_("Voucher is {0} and cannot be redeemed").format(locked.status),
+			_("Voucher is {0} and cannot be redeemed").format(voucher.status),
 			title=_("API Error"),
 		)
 
-	# Expiry check
-	if locked.valid_upto and getdate(locked.valid_upto) < getdate(nowdate()):
+	if voucher.valid_upto and getdate(voucher.valid_upto) < getdate(nowdate()):
 		frappe.throw(
-			_("Voucher expired on {0}").format(frappe.format(locked.valid_upto, "Date")),
+			_("Voucher expired on {0}").format(frappe.format(voucher.valid_upto, "Date")),
 			title=_("API Error"),
 		)
 
-	# Balance check on the freshly locked row
-	balance = flt(locked.balance)
+	balance = flt(voucher.balance)
 	if balance <= 0:
 		frappe.throw(_("Voucher has no remaining balance"), title=_("API Error"))
 
-	# Load full doc now (only for append/save — validations above used the locked row)
-	voucher = frappe.get_doc("CH Voucher", voucher_name)
+	reference_required = bool(get_int_setting("voucher_redemption_reference_required", 1))
+	if pos_invoice:
+		if reference_document and reference_document != pos_invoice:
+			frappe.throw(_("POS invoice and reference document do not match."))
+		if reference_doctype and reference_doctype != "Sales Invoice":
+			frappe.throw(_("POS invoice references must use Sales Invoice."))
+		reference_doctype = "Sales Invoice"
+		reference_document = pos_invoice
+	elif reference_doctype or reference_document:
+		if not (reference_doctype and reference_document):
+			frappe.throw(_("Reference DocType and document are both required."))
+	elif reference_required and not is_privileged_user():
+		frappe.throw(_("A submitted transaction reference is required to redeem a voucher."))
+
+	reference_values = frappe._dict()
+	if reference_document:
+		reference_values = _validate_reference(
+			reference_doctype,
+			reference_document,
+			voucher.company,
+			_allowed_doctypes("voucher_reference_doctypes", _VOUCHER_REFERENCE_DOCTYPES),
+			require_submitted=True,
+		)
+		if voucher.issued_to and reference_values.get("customer") != voucher.issued_to:
+			frappe.throw(_("Voucher and transaction customers do not match."))
+		if any(
+			t.transaction_type == "Redeem"
+			and t.reference_doctype == reference_doctype
+			and t.reference_document == reference_document
+			for t in (voucher.transactions or [])
+		):
+			frappe.throw(_("This transaction has already redeemed the voucher."))
 
 	# Enforce item group restriction (e.g. VAS vouchers → Accessories only)
-	if locked.applicable_item_group and pos_invoice:
-		_validate_voucher_item_groups(pos_invoice, locked.applicable_item_group)
+	if voucher.applicable_item_group and pos_invoice:
+		_validate_voucher_item_groups(pos_invoice, voucher.applicable_item_group)
 
 	# Single-use: forfeit entire balance on first redemption
-	if locked.single_use:
+	if voucher.single_use:
 		existing_redeems = [t for t in (voucher.transactions or [])
 		                    if t.transaction_type == "Redeem"]
 		if existing_redeems:
@@ -277,14 +442,14 @@ def redeem_voucher(voucher_code, amount, pos_invoice=None, reference_doctype=Non
 		"balance_after": new_balance,
 		"transaction_date": now_datetime(),
 		"pos_invoice": pos_invoice,
-		"reference_doctype": reference_doctype or ("Sales Invoice" if pos_invoice else None),
-		"reference_document": reference_document or pos_invoice,
+		"reference_doctype": reference_doctype,
+		"reference_document": reference_document,
 		"note": f"Redeemed ₹{redeem_amount:,.2f} at {pos_invoice or 'counter'}",
 	})
 
 	voucher.balance = new_balance
 	voucher.flags.ignore_validate_update_after_submit = True
-	voucher.save(ignore_permissions=True)
+	voucher.save()
 
 	# Explicitly persist status for submitted docs (validate changes aren't tracked)
 	voucher._auto_set_status()
@@ -327,7 +492,7 @@ def redeem_voucher(voucher_code, amount, pos_invoice=None, reference_doctype=Non
 # Refund (credit back on cancellation)
 # ─────────────────────────────────────────────────────────────────────────────
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def refund_voucher(voucher_code, amount, pos_invoice=None, reason=None) -> dict:
 	"""Refund amount back to a voucher (e.g. on invoice cancellation).
 
@@ -344,14 +509,42 @@ def refund_voucher(voucher_code, amount, pos_invoice=None, reason=None) -> dict:
 	if amount <= 0:
 		frappe.throw(_("Refund amount must be greater than zero"), title=_("API Error"))
 
-	frappe.has_permission("CH Voucher", "write", throw=True)
-
-	voucher = frappe.get_doc("CH Voucher", {"voucher_code": voucher_code})
-	if not voucher:
-		frappe.throw(_("Voucher not found"), title=_("API Error"))
+	voucher = _voucher_document(voucher_code)
+	_authorize_voucher(
+		voucher,
+		"voucher_refund_roles",
+		_VOUCHER_REFUND_ROLES,
+		_("refund a voucher balance"),
+		lock=True,
+	)
 
 	if voucher.voucher_type == "VAS Voucher":
 		frappe.throw(_("VAS Vouchers cannot be refunded"), title=_("API Error"))
+	if not pos_invoice and not is_privileged_user():
+		frappe.throw(_("The original Sales Invoice is required for a voucher refund."))
+	if pos_invoice:
+		invoice = _validate_reference(
+			"Sales Invoice",
+			pos_invoice,
+			voucher.company,
+			frozenset({"Sales Invoice"}),
+		)
+		if cint(invoice.get("docstatus")) not in (1, 2):
+			frappe.throw(_("The referenced Sales Invoice must be submitted or cancelled."))
+		if voucher.issued_to and invoice.get("customer") != voucher.issued_to:
+			frappe.throw(_("Voucher and refund customers do not match."))
+		redeemed = sum(
+			-flt(transaction.amount)
+			for transaction in (voucher.transactions or [])
+			if transaction.transaction_type == "Redeem" and transaction.pos_invoice == pos_invoice
+		)
+		already_refunded = sum(
+			flt(transaction.amount)
+			for transaction in (voucher.transactions or [])
+			if transaction.transaction_type == "Refund" and transaction.pos_invoice == pos_invoice
+		)
+		if amount > redeemed - already_refunded:
+			frappe.throw(_("Refund exceeds the voucher amount redeemed on this invoice."))
 
 	new_balance = flt(voucher.balance) + amount
 	# Don't exceed original amount
@@ -372,7 +565,7 @@ def refund_voucher(voucher_code, amount, pos_invoice=None, reason=None) -> dict:
 
 	voucher.balance = new_balance
 	voucher.flags.ignore_validate_update_after_submit = True
-	voucher.save(ignore_permissions=True)
+	voucher.save()
 
 	# Explicitly persist status for submitted docs
 	voucher._auto_set_status()
@@ -389,8 +582,9 @@ def refund_voucher(voucher_code, amount, pos_invoice=None, reason=None) -> dict:
 # Top-Up
 # ─────────────────────────────────────────────────────────────────────────────
 
-@frappe.whitelist()
-def topup_voucher(voucher_code, amount, reason=None) -> dict:
+@frappe.whitelist(methods=["POST"])
+def topup_voucher(voucher_code, amount, reason=None, reference_doctype=None,
+                  reference_document=None) -> dict:
 	"""Add balance to an existing voucher (Gift Card top-up).
 
 	Returns:
@@ -400,33 +594,65 @@ def topup_voucher(voucher_code, amount, reason=None) -> dict:
 	if amount <= 0:
 		frappe.throw(_("Top-up amount must be greater than zero"), title=_("API Error"))
 
-	frappe.has_permission("CH Voucher", "write", throw=True)
-
-	voucher = frappe.get_doc("CH Voucher", {"voucher_code": voucher_code})
-	if not voucher:
-		frappe.throw(_("Voucher not found"), title=_("API Error"))
+	voucher = _voucher_document(voucher_code)
+	_authorize_voucher(
+		voucher,
+		"voucher_topup_roles",
+		_VOUCHER_TOPUP_ROLES,
+		_("top up a voucher"),
+		lock=True,
+	)
 
 	if voucher.voucher_type == "VAS Voucher":
 		frappe.throw(_("VAS Vouchers cannot be topped up"), title=_("API Error"))
 
 	if voucher.status in ("Cancelled", "Expired"):
 		frappe.throw(_("Cannot top-up a {0} voucher").format(voucher.status), title=_("API Error"))
+	reference_values = frappe._dict()
+	if reference_doctype or reference_document:
+		reference_values = _validate_reference(
+			reference_doctype,
+			reference_document,
+			voucher.company,
+			_allowed_doctypes("voucher_reference_doctypes", _VOUCHER_REFERENCE_DOCTYPES),
+			require_submitted=True,
+		)
+		if voucher.issued_to and reference_values.get("customer") and reference_values.customer != voucher.issued_to:
+			frappe.throw(_("Voucher and top-up transaction customers do not match."))
+		if any(
+			transaction.transaction_type == "Top-Up"
+			and transaction.reference_doctype == reference_doctype
+			and transaction.reference_document == reference_document
+			for transaction in (voucher.transactions or [])
+		):
+			frappe.throw(_("This transaction has already topped up the voucher."))
+	elif get_int_setting("voucher_topup_reference_required", 1) and not is_privileged_user():
+		frappe.throw(_("A submitted payment or transaction reference is required for a top-up."))
 
 	new_balance = flt(voucher.balance) + amount
 	new_original = flt(voucher.original_amount) + amount
+	maximum_amount = get_int_setting("voucher_max_amount", 500000, minimum=1)
+	if new_original > maximum_amount:
+		frappe.throw(
+			_("Voucher value cannot exceed {0}.").format(
+				frappe.format_value(maximum_amount, {"fieldtype": "Currency"})
+			)
+		)
 
 	voucher.append("transactions", {
 		"transaction_type": "Top-Up",
 		"amount": amount,
 		"balance_after": new_balance,
 		"transaction_date": now_datetime(),
+		"reference_doctype": reference_doctype,
+		"reference_document": reference_document,
 		"note": reason or f"Top-up ₹{amount:,.2f}",
 	})
 
 	voucher.balance = new_balance
 	voucher.original_amount = new_original
 	voucher.flags.ignore_validate_update_after_submit = True
-	voucher.save(ignore_permissions=True)
+	voucher.save()
 
 	# Explicitly persist status for submitted docs
 	voucher._auto_set_status()
@@ -449,15 +675,18 @@ def check_balance(voucher_code) -> dict:
 	if not voucher_code:
 		return {"error": "Voucher code required"}
 
-	voucher = frappe.db.get_value(
-		"CH Voucher",
-		{"voucher_code": voucher_code},
-		["voucher_type", "status", "balance", "original_amount", "valid_upto"],
-		as_dict=True,
-	)
-
-	if not voucher:
+	try:
+		voucher = _voucher_document(voucher_code)
+	except frappe.ValidationError:
 		return {"error": "Voucher not found"}
+	_authorize_voucher(
+		voucher,
+		"voucher_view_roles",
+		_VOUCHER_VIEW_ROLES,
+		_("view a voucher balance"),
+		permission_type="read",
+		lock=False,
+	)
 
 	return {
 		"voucher_type": voucher.voucher_type,
@@ -484,11 +713,18 @@ def get_customer_vouchers(customer, company=None, include_expired=False) -> list
 	Returns:
 		list of voucher dicts
 	"""
+	require_role_setting("voucher_view_roles", _VOUCHER_VIEW_ROLES, action=_("view customer vouchers"))
+	frappe.has_permission("CH Voucher", "read", throw=True)
+	if not frappe.db.exists("Customer", customer):
+		frappe.throw(_("Customer does not exist."))
+	frappe.has_permission("Customer", "read", doc=customer, throw=True)
 	filters = {"issued_to": customer}
-	if company:
-		filters["company"] = company
+	company_filter = get_company_filter_value(requested_company=company)
+	if company_filter is not None:
+		filters["company"] = company_filter
 	if not include_expired:
 		filters["status"] = ("in", ["Active", "Partially Used"])
+	limit = min(get_int_setting("voucher_list_limit", 200, minimum=1), 1000)
 
 	return frappe.get_all(
 		"CH Voucher",
@@ -498,6 +734,7 @@ def get_customer_vouchers(customer, company=None, include_expired=False) -> list
 			"original_amount", "balance", "valid_from", "valid_upto",
 		],
 		order_by="creation desc",
+		limit_page_length=limit,
 	)
 
 
@@ -505,7 +742,7 @@ def get_customer_vouchers(customer, company=None, include_expired=False) -> list
 # Issue Return Credit (called from POS on returns)
 # ─────────────────────────────────────────────────────────────────────────────
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def issue_return_credit(customer, amount, company, pos_invoice=None, reason=None) -> dict:
 	"""Issue a Return Credit voucher when processing a return at POS.
 
@@ -520,6 +757,7 @@ def issue_return_credit(customer, amount, company, pos_invoice=None, reason=None
 		company=company,
 		customer=customer,
 		source_type="Return",
+		source_doctype="Sales Invoice" if pos_invoice else None,
 		source_document=pos_invoice,
 		reason=reason or f"Return credit from {pos_invoice}",
 		valid_days=365,
@@ -531,40 +769,83 @@ def issue_return_credit(customer, amount, company, pos_invoice=None, reason=None
 # ─────────────────────────────────────────────────────────────────────────────
 
 def expire_vouchers():
-	"""Scheduled task: expire vouchers past valid_upto date."""
-	today = getdate(nowdate())
-
-	expired = frappe.get_all(
-		"CH Voucher",
-		filters={
-			"status": ("in", ["Active", "Partially Used"]),
-			"valid_upto": ("<", str(today)),
-		},
-		fields=["name", "balance", "voucher_code"],
+	"""Expire one bounded batch with set-based balance and ledger updates."""
+	today_date = getdate(nowdate())
+	batch_limit = min(get_int_setting("scheduler_batch_limit", 500, minimum=1), 5000)
+	rows = frappe.db.sql(
+		"""
+			SELECT voucher.`name`, voucher.`balance`, COALESCE(MAX(txn.`idx`), 0) AS `last_idx`
+			FROM `tabCH Voucher` voucher
+			LEFT JOIN `tabCH Voucher Transaction` txn
+			  ON txn.`parent` = voucher.`name`
+			 AND txn.`parenttype` = 'CH Voucher'
+			 AND txn.`parentfield` = 'transactions'
+			WHERE voucher.`status` IN ('Active', 'Partially Used')
+			  AND voucher.`valid_upto` < %(today)s
+			GROUP BY voucher.`name`, voucher.`balance`, voucher.`valid_upto`
+			ORDER BY voucher.`valid_upto` ASC, voucher.`name` ASC
+			LIMIT %(fetch_limit)s
+		""",
+		{"today": today_date, "fetch_limit": batch_limit + 1},
+		as_dict=True,
 	)
+	vouchers = rows[:batch_limit]
+	if not vouchers:
+		return {"expired": 0, "has_more": False}
 
-	for v in expired:
-		voucher = frappe.get_doc("CH Voucher", v.name)
+	now = now_datetime()
+	actor = frappe.session.user
+	transaction_values = []
+	for voucher in vouchers:
 		remaining = flt(voucher.balance)
-		if remaining > 0:
-			voucher.append("transactions", {
-				"transaction_type": "Expiry",
-				"amount": -remaining,
-				"balance_after": 0,
-				"transaction_date": now_datetime(),
-				"note": f"Voucher expired with ₹{remaining:,.2f} unused",
-			})
-			voucher.balance = 0
-		voucher.status = "Expired"
-		voucher.flags.ignore_validate_update_after_submit = True
-		voucher.save(ignore_permissions=True)
-		voucher.db_set("status", "Expired", update_modified=False)
-
-	if expired:
-		frappe.db.commit()
-		frappe.logger("ch_item_master").info(
-			f"Voucher expiry: {len(expired)} voucher(s) expired"
+		if remaining <= 0:
+			continue
+		transaction_values.append((
+			frappe.generate_hash(length=10),
+			now,
+			now,
+			actor,
+			actor,
+			0,
+			cint(voucher.last_idx) + 1,
+			voucher.name,
+			"CH Voucher",
+			"transactions",
+			"Expiry",
+			-remaining,
+			0,
+			now,
+			f"Voucher expired with ₹{remaining:,.2f} unused",
+		))
+	if transaction_values:
+		frappe.db.bulk_insert(
+			"CH Voucher Transaction",
+			fields=[
+				"name", "creation", "modified", "owner", "modified_by", "docstatus", "idx",
+				"parent", "parenttype", "parentfield", "transaction_type", "amount",
+				"balance_after", "transaction_date", "note",
+			],
+			values=transaction_values,
 		)
+
+	names = tuple(voucher.name for voucher in vouchers)
+	frappe.db.sql(
+		"""
+			UPDATE `tabCH Voucher`
+			SET `balance` = 0,
+			    `status` = 'Expired',
+			    `modified` = %(modified)s,
+			    `modified_by` = %(actor)s
+			WHERE `name` IN %(names)s
+			  AND `status` IN ('Active', 'Partially Used')
+			  AND `valid_upto` < %(today)s
+		""",
+		{"names": names, "today": today_date, "modified": now, "actor": actor},
+	)
+	frappe.logger("ch_item_master").info(
+		f"Voucher expiry: {len(vouchers)} voucher(s) expired"
+	)
+	return {"expired": len(vouchers), "has_more": len(rows) > batch_limit}
 
 
 

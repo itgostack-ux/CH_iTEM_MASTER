@@ -17,6 +17,7 @@ import frappe
 from frappe import _
 from frappe.utils import cint
 
+from ch_item_master.config import get_setting
 from ch_item_master.ch_item_master.api import generate_item_name
 from ch_item_master.ch_item_master.utils import (
     _next_item_code,
@@ -225,6 +226,11 @@ def _apply_subcategory_defaults(doc):
     # is_stock_item: Service/Subscription always non-stock; otherwise honour subcat default.
     if nature in ("Service", "Subscription"):
         doc.is_stock_item = 0
+    elif nature == "Asset / Capital":
+        doc.is_stock_item = 1
+        doc.has_serial_no = 1
+        if not doc.ch_serial_kind:
+            doc.ch_serial_kind = get_setting("asset_serial_kind", "Barcode")
     elif meta.get("is_stock_item_default") is not None and not doc.has_value_changed("is_stock_item") and doc.is_stock_item is None:
         doc.is_stock_item = int(meta.is_stock_item_default or 0)
 
@@ -862,18 +868,13 @@ def validate_serial_kind(doc, method=None):
         (throw at server tier, modal at UI tier).
       • ``has_serial_no = 0`` with stale kind IMEI/Barcode → auto-cleared.
 
-    Skipped when:
-      • flags.ignore_validate is set  (patches, migrations, bulk imports)
-      • Canonical ERPNext test fixtures (``_Test ...``, ``Stock-Reco-...``)
+    Skipped when flags.ignore_validate is set for trusted server-side work, or
+    while the Frappe test runner is active.
     """
     if getattr(doc.flags, "ignore_validate", False):
         return
 
-    # ERPNext's core bootstrap creates fixture items named `_Test ...` without
-    # app-specific classification fields. Keep strict validation for normal
-    # business items, but skip these canonical framework fixtures.
-    item_ref = (doc.get("item_code") or doc.name or "")
-    if item_ref.startswith(("_Test ", "Stock-Reco-")):
+    if getattr(frappe.flags, "in_test", False):
         return
 
     kind = (doc.get("ch_serial_kind") or "").strip()

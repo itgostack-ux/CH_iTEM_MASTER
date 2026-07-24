@@ -38,62 +38,15 @@ frappe.ui.form.on("CH Price Upload Batch", {
 
 		if (['Pending Approval', 'Partially Approved'].includes(frm.doc.status)) {
 			_render_category_approvals(frm);
-
-			const is_override = frappe.user_roles.includes('System Manager')
-				|| frappe.user_roles.includes('CH Master Manager');
-
-			// My categories — the normal path. Each approver decides only the
-			// categories routed to them; the server enforces this regardless.
-			const mine = (frm.doc.category_approvals || []).filter(
-				(r) => r.status === 'Pending' && r.approver === frappe.session.user
-			);
-
-			mine.forEach((row) => {
-				frm.add_custom_button(__('Approve {0}', [row.category || '-']), () => {
-					frappe.confirm(
-						__('Approve the {0} price changes ({1} row(s))? They will apply immediately.',
-							[row.category || '-', row.row_count || 0]),
-						() => _decide(frm, row.category, 'Approve')
-					);
-				}, __('Approve')).addClass('btn-primary');
-
-				frm.add_custom_button(__('Reject {0}', [row.category || '-']), () => {
-					_reject_dialog(frm, row.category);
-				}, __('Reject'));
+			const request_id = (frm.__price_capability_request || 0) + 1;
+			frm.__price_capability_request = request_id;
+			frm.call('get_ui_capabilities').then((r) => {
+				if (frm.__price_capability_request !== request_id
+					|| !['Pending Approval', 'Partially Approved'].includes(frm.doc.status)) {
+					return;
+				}
+				_render_price_approval_actions(frm, r.message || {});
 			});
-
-			if (!mine.length && !is_override) {
-				frm.dashboard.set_headline(
-					__('Waiting on other category approvers. Nothing is routed to you on this batch.')
-				);
-			}
-
-			if (is_override) {
-				frm.add_custom_button(__('Approve All Remaining'), () => {
-					frappe.confirm(
-						__('Approve every category still pending? This is an override action and is audited.'),
-						() => frm.call('approve_and_apply').then(() => frm.reload_doc())
-					);
-				}, __('Override')).addClass('btn-danger');
-
-				frm.add_custom_button(__('Reject All Remaining'), () => {
-					const d = new frappe.ui.Dialog({
-						title: __('Reject Price Upload'),
-						fields: [{
-							fieldtype: 'Small Text',
-							fieldname: 'reason',
-							label: __('Rejection Reason'),
-							reqd: 1,
-						}],
-						primary_action_label: __('Reject'),
-						primary_action(values) {
-							d.hide();
-							frm.call('reject_batch', { reason: values.reason }).then(() => frm.reload_doc());
-						},
-					});
-					d.show();
-				}, __('Override')).addClass('btn-danger');
-			}
 		}
 
 		if (frm.doc.status === 'Legacy Import') {
@@ -150,6 +103,59 @@ frappe.ui.form.on("CH Price Upload Batch", {
 		}
 	},
 });
+
+function _render_price_approval_actions(frm, capabilities) {
+	const actionable = new Set(capabilities.actionable_categories || []);
+	const mine = (frm.doc.category_approvals || []).filter(
+		(row) => row.status === 'Pending' && actionable.has(row.category || '')
+	);
+
+	mine.forEach((row) => {
+		frm.add_custom_button(__('Approve {0}', [row.category || '-']), () => {
+			frappe.confirm(
+				__('Approve the {0} price changes ({1} row(s))? They will apply immediately.',
+					[row.category || '-', row.row_count || 0]),
+				() => _decide(frm, row.category, 'Approve')
+			);
+		}, __('Approve')).addClass('btn-primary');
+
+		frm.add_custom_button(__('Reject {0}', [row.category || '-']), () => {
+			_reject_dialog(frm, row.category);
+		}, __('Reject'));
+	});
+
+	if (!mine.length && !capabilities.can_override) {
+		frm.dashboard.set_headline(
+			__('Waiting on other category approvers. Nothing is routed to you on this batch.')
+		);
+	}
+
+	if (!capabilities.can_override) return;
+	frm.add_custom_button(__('Approve All Remaining'), () => {
+		frappe.confirm(
+			__('Approve every category still pending? This is an override action and is audited.'),
+			() => frm.call('approve_and_apply').then(() => frm.reload_doc())
+		);
+	}, __('Override')).addClass('btn-danger');
+
+	frm.add_custom_button(__('Reject All Remaining'), () => {
+		const d = new frappe.ui.Dialog({
+			title: __('Reject Price Upload'),
+			fields: [{
+				fieldtype: 'Small Text',
+				fieldname: 'reason',
+				label: __('Rejection Reason'),
+				reqd: 1,
+			}],
+			primary_action_label: __('Reject'),
+			primary_action(values) {
+				d.hide();
+				frm.call('reject_batch', { reason: values.reason }).then(() => frm.reload_doc());
+			},
+		});
+		d.show();
+	}, __('Override')).addClass('btn-danger');
+}
 
 
 // ── Price Intelligence ───────────────────────────────────────────────────────

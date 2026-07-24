@@ -27,7 +27,7 @@ def on_submit(doc, method=None):
 
     try:
         from ch_item_master.ch_item_master.doctype.ch_serial_lifecycle.ch_serial_lifecycle import (
-            update_lifecycle_status,
+            update_lifecycle_status_for_document as update_lifecycle_status,
         )
         update_lifecycle_status(
             serial_no=doc.serial_no,
@@ -62,7 +62,7 @@ def on_cancel(doc, method=None):
 
     try:
         from ch_item_master.ch_item_master.doctype.ch_serial_lifecycle.ch_serial_lifecycle import (
-            update_lifecycle_status,
+            update_lifecycle_status_for_document as update_lifecycle_status,
         )
         update_lifecycle_status(
             serial_no=doc.serial_no,

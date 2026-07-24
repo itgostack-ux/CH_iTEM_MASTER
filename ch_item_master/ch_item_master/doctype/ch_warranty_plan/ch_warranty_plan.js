@@ -82,4 +82,17 @@ frappe.ui.form.on('CH Warranty Plan', {
 			});
 		}
 	},
+
+	allow_external_device(frm) {
+		// When checkbox is toggled, refresh applicable categories visibility and warn if no categories set
+		if (frm.doc.allow_external_device) {
+			let plan_categories = (frm.doc.applicable_categories || []).filter(row => row.category).map(row => row.category);
+			if (!plan_categories.length) {
+				frappe.show_alert({
+					message: __('When allowing customer-provided IMEI, configure one or more applicable categories in the Applicability section. Generic device items are resolved from these categories at POS sale time.'),
+					indicator: 'orange'
+				});
+			}
+		}
+	},
 });

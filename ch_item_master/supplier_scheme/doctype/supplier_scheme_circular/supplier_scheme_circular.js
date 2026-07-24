@@ -2,6 +2,7 @@ frappe.ui.form.on("Supplier Scheme Circular", {
 	refresh(frm) {
 		_update_days_remaining(frm);
 		_render_confidence_badge(frm);
+		frm.set_df_property("review_notes", "read_only", 1);
 
 		// Achievement vs target (only for saved docs)
 		if (!frm.is_new()) {
@@ -29,31 +30,40 @@ frappe.ui.form.on("Supplier Scheme Circular", {
 		}
 
 		// ---------- CHECKER: Approve / Reject ----------
-		const is_approver = frappe.user.has_role(["Purchase Manager", "Scheme Manager", "System Manager"]);
-		if (frm.doc.docstatus === 0 && frm.doc.status === "Pending Approval" && is_approver) {
-			frm.add_custom_button(__("Approve"), () => {
-				frappe.confirm(
-					__("Approve and activate this scheme? This cannot be undone without cancellation."),
-					() => frm.call("approve_scheme").then(() => frm.reload_doc())
-				);
-			}, __("Review Actions")).addClass("btn-success");
+		if (frm.doc.docstatus === 0 && frm.doc.status === "Pending Approval") {
+			const request_id = (frm.__scheme_capability_request || 0) + 1;
+			frm.__scheme_capability_request = request_id;
+			frm.call("get_ui_capabilities").then((r) => {
+				if (frm.__scheme_capability_request !== request_id
+					|| frm.doc.status !== "Pending Approval"
+					|| !r.message?.can_review) {
+					return;
+				}
+				frm.set_df_property("review_notes", "read_only", 0);
+				frm.add_custom_button(__("Approve"), () => {
+					frappe.confirm(
+						__("Approve and activate this scheme? This cannot be undone without cancellation."),
+						() => frm.call("approve_scheme").then(() => frm.reload_doc())
+					);
+				}, __("Review Actions")).addClass("btn-success");
 
-			frm.add_custom_button(__("Reject"), () => {
-				frappe.prompt(
-					[{
-						fieldname: "reason",
-						fieldtype: "Small Text",
-						label: __("Rejection Reason"),
-						reqd: 1,
-						description: __("This will be stored on the scheme and visible to the team."),
-					}],
-					({ reason }) => {
-						frm.call("reject_scheme", { reason }).then(() => frm.reload_doc());
-					},
-					__("Reject Scheme"),
-					__("Reject")
-				);
-			}, __("Review Actions")).addClass("btn-danger");
+				frm.add_custom_button(__("Reject"), () => {
+					frappe.prompt(
+						[{
+							fieldname: "reason",
+							fieldtype: "Small Text",
+							label: __("Rejection Reason"),
+							reqd: 1,
+							description: __("This will be stored on the scheme and visible to the team."),
+						}],
+						({ reason }) => {
+							frm.call("reject_scheme", { reason }).then(() => frm.reload_doc());
+						},
+						__("Reject Scheme"),
+						__("Reject")
+					);
+				}, __("Review Actions")).addClass("btn-danger");
+			});
 		}
 
 		// ---------- Upload Scheme Document (Draft only) ----------
@@ -61,11 +71,6 @@ frappe.ui.form.on("Supplier Scheme Circular", {
 			frm.add_custom_button(__("Upload Scheme Document"), () => {
 				frappe.new_doc("Scheme Document Upload");
 			});
-		}
-
-		// Make review fields read-only for non-approvers
-		if (!is_approver) {
-			frm.set_df_property("review_notes", "read_only", 1);
 		}
 
 		// On duplicate, Frappe copies the original status — reset it to Draft
@@ -83,7 +88,7 @@ frappe.ui.form.on("Supplier Scheme Circular", {
 			// Override savesubmit — intercepts the button, the "Submit this document to confirm"
 			// shortcut link, and any keyboard trigger regardless of Frappe version.
 			frm.savesubmit = function () {
-				if (frm.doc.status === "Pending Approval" && is_approver) {
+				if (frm.doc.status === "Pending Approval") {
 					frappe.msgprint({
 						title: __("Use Review Actions"),
 						message: __("Go to Review Actions → Approve to activate this scheme."),

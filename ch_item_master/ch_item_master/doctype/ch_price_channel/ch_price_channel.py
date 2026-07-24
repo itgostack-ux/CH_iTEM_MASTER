@@ -5,6 +5,8 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 
+from ch_item_master.id_sequences import next_numeric_id
+
 
 class CHPriceChannel(Document):
 	def autoname(self):
@@ -20,11 +22,7 @@ class CHPriceChannel(Document):
 		UNIQUE constraint violation.
 		"""
 		if not self.channel_id:
-			last_id = frappe.db.sql("""
-				SELECT COALESCE(MAX(channel_id), 0) 
-				FROM `tabCH Price Channel`
-			""")[0][0]
-			self.channel_id = (last_id or 0) + 1
+			self.channel_id = next_numeric_id("price_channel")
 
 	def validate(self):
 		if self.channel_name:

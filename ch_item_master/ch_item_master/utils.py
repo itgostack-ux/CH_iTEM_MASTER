@@ -4,8 +4,15 @@ import re
 import frappe
 from frappe import _
 
-# Roles that are allowed to access the CH Item Master app
-CH_APP_ROLES = frozenset([
+from ch_item_master.config import (
+	get_int_setting,
+	get_role_setting,
+	has_role_setting,
+	require_role_setting,
+)
+
+
+DEFAULT_APP_ROLES = frozenset([
 	"CH Master Manager",
 	"CH Price Manager",
 	"CH Offer Manager",
@@ -13,22 +20,19 @@ CH_APP_ROLES = frozenset([
 	"CH Viewer",
 ])
 
+_ASSIGNMENT_ROLE_SETTINGS = {
+    "category_manager": ("category_manager_assignment_roles", ("CH Category Head",)),
+    "exception_approver": ("exception_assignment_roles", ("CH Master Approver",)),
+}
+
 
 def check_app_permission():
 	"""Check if user has a CH-specific role to access the CH Item Master app.
 
-	Returns True for Administrator unconditionally; for all others the user must
-	have at least one of the CH_APP_ROLES — generic Item read access is NOT
+	The user must have at least one of the configured app roles; generic Item read access is NOT
 	sufficient (prevents all ERPNext stock users from landing here).
 	"""
-	if frappe.session.user == "Administrator":
-		return True
-
-	user_roles = set(frappe.get_roles(frappe.session.user))
-	if user_roles & CH_APP_ROLES:
-		return True
-
-	return False
+	return has_role_setting("app_access_roles", DEFAULT_APP_ROLES)
 
 
 # ───────────────────────────────────────────────────────────────────────────────
@@ -45,32 +49,61 @@ def get_users_by_role(doctype, txt, searchfield, start, page_len, filters):
 
         frm.set_query("fieldname", () => ({
             query: "ch_item_master.ch_item_master.utils.get_users_by_role",
-            filters: { role: "CH Category Head" }
+            filters: { assignment: "category_manager" }
         }));
 
-    ``filters.role`` may be a single role string or a JSON list of role strings.
-    When multiple roles are supplied, any matching role qualifies the user.
+    New callers should pass a server-owned ``filters.assignment`` key. Legacy
+    callers may pass ``filters.role``; the requested roles are still constrained
+    by the configured assignable-role allowlist.
     """
-    role = (filters or {}).get("role") if isinstance(filters, dict) else None
-    if not role:
-        return []
+    require_role_setting(
+        "user_directory_roles",
+        defaults=("CH Master Manager", "CH Master Approver"),
+        action=_("search the item-governance user directory"),
+    )
 
-    if isinstance(role, str):
-        try:
-            import json as _json
-            parsed = _json.loads(role)
-            roles = parsed if isinstance(parsed, list) else [role]
-        except Exception:
-            roles = [role]
+    filters = filters if isinstance(filters, dict) else {}
+    assignment = str(filters.get("assignment") or "").strip()
+    if assignment:
+        setting = _ASSIGNMENT_ROLE_SETTINGS.get(assignment)
+        if not setting:
+            return []
+        roles = list(get_role_setting(*setting))
     else:
-        roles = list(role)
+        role = filters.get("role")
+        if not role:
+            return []
+        if isinstance(role, str):
+            try:
+                import json as _json
+                parsed = _json.loads(role)
+                roles = parsed if isinstance(parsed, list) else [role]
+            except Exception:
+                roles = [role]
+        else:
+            roles = list(role)
+
+    roles = list(dict.fromkeys(
+        str(value).strip() for value in roles
+        if value and 0 < len(str(value).strip()) <= 140
+    ))
+    if not roles or len(roles) > 10:
+        return []
+    assignable_roles = get_role_setting(
+        "assignable_user_roles", ("CH Category Head", "CH Master Approver")
+    )
+    if not set(roles).issubset(assignable_roles):
+        frappe.throw(_("The requested assignment role is not permitted."), frappe.PermissionError)
 
     txt_filter = f"%{txt}%" if txt else "%"
     placeholders = ", ".join(["%s"] * len(roles))
+    page_limit = get_int_setting("user_lookup_page_limit", 50, minimum=1)
+    page_len = min(max(int(page_len or 20), 1), page_limit)
+    start = min(max(int(start or 0), 0), 1000)
 
     results = frappe.db.sql(
         f"""
-        SELECT DISTINCT u.name, u.full_name, u.email
+        SELECT DISTINCT u.name, u.full_name
         FROM `tabUser` u
         INNER JOIN `tabHas Role` hr ON hr.parent = u.name
         WHERE hr.parenttype = 'User'
@@ -85,7 +118,7 @@ def get_users_by_role(doctype, txt, searchfield, start, page_len, filters):
         ORDER BY u.full_name ASC
         LIMIT %s OFFSET %s
         """,
-        tuple(roles) + (txt_filter, txt_filter, txt_filter, int(page_len or 20), int(start or 0)),
+        tuple(roles) + (txt_filter, txt_filter, txt_filter, page_len, start),
         as_list=True,
     )
     return results
@@ -98,23 +131,12 @@ def get_users_by_role(doctype, txt, searchfield, start, page_len, filters):
 def _next_item_code(prefix):
     """Return the next sequential item code for *prefix*.
 
-    Uses LIKE for index-friendliness on large tables.
+    Uses Frappe's row-locked Series allocator.
     Format: <PREFIX><6-digit-seq>
     """
-    prefix_len = len(prefix)
-    expected_len = prefix_len + 6  # fixed: PREFIX + exactly 6 digits
-    result = frappe.db.sql(
-        """
-        SELECT MAX(CAST(SUBSTRING(item_code, %s) AS UNSIGNED)) AS last_num
-        FROM `tabItem`
-        WHERE item_code LIKE %s
-          AND CHAR_LENGTH(item_code) = %s
-        """,
-        (prefix_len + 1, f"{prefix}%", expected_len),
-        as_dict=True,
-    )
-    last_num = result[0].last_num or 0 if result else 0
-    return f"{prefix}{str(last_num + 1).zfill(6)}"
+    from ch_item_master.id_sequences import next_prefixed_code
+
+    return next_prefixed_code("CH-ITEM-CODE", prefix, 6)
 
 
 # ───────────────────────────────────────────────────────────────────────────────

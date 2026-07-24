@@ -4,19 +4,14 @@
 import frappe
 from frappe.model.document import Document
 
+from ch_item_master.id_sequences import next_numeric_id
+
 
 class CHCustomerDevice(Document):
 	def before_insert(self):
-		"""Auto-generate device_id with advisory lock."""
+		"""Auto-generate the atomic customer-device integration ID."""
 		if not self.device_id:
-			frappe.db.sql("SELECT GET_LOCK('ch_customer_device_id', 10)")
-			try:
-				last = frappe.db.sql(
-					"SELECT IFNULL(MAX(device_id), 0) FROM `tabCH Customer Device`"
-				)[0][0] or 0
-				self.device_id = last + 1
-			finally:
-				frappe.db.sql("SELECT RELEASE_LOCK('ch_customer_device_id')")
+			self.device_id = next_numeric_id("customer_device")
 
 	def validate(self):
 		self.set_item_details()

@@ -219,7 +219,7 @@ def _remove_stock_bin_if_any(serial_no, reason=""):
 			"from_bin": from_bin,
 			"to_bin": "Sellable",  # logical exit
 			"moved_at": now_datetime(),
-			"moved_by": frappe.session.user or "Administrator",
+			"moved_by": frappe.session.user,
 			"reason": f"Auto-cleared by Serial No sync — {reason}",
 		}).insert(ignore_permissions=True)
 		frappe.delete_doc("CH Stock Bin", rec, ignore_permissions=True, force=True)

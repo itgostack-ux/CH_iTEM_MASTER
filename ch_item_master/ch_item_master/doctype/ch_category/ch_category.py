@@ -5,6 +5,8 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 
+from ch_item_master.id_sequences import next_numeric_id
+
 from ch_item_master.ch_item_master.exceptions import (
 	CategoryInUseError,
 	DuplicateCategoryError,
@@ -25,16 +27,7 @@ class CHCategory(Document):
 		UNIQUE constraint violation.
 		"""
 		if not self.category_id:
-			lock_name = "ch_category_autoname"
-			try:
-				frappe.db.sql("SELECT GET_LOCK(%s, 10)", lock_name)
-				last_id = frappe.db.sql("""
-					SELECT COALESCE(MAX(category_id), 0)
-					FROM `tabCH Category`
-				""")[0][0]
-				self.category_id = (last_id or 0) + 1
-			finally:
-				frappe.db.sql("SELECT RELEASE_LOCK(%s)", lock_name)
+			self.category_id = next_numeric_id("category")
 
 	def validate(self):
 		if self.category_name:

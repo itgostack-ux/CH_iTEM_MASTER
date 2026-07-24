@@ -233,14 +233,16 @@ class TestItemNatureUniverse(unittest.TestCase):
         self.assertFalse(sc_doc.meta.has_field("serial_required"))
 
         custom_name = "Demo iPhone Display Unit"
-        if not frappe.db.exists("Item", {"item_name": custom_name}):
-            item = frappe.new_doc("Item")
-            item.item_name = custom_name
-            item.item_group = ITEM_GROUP
-            item.ch_sub_category = sc
-            item.ch_category = self.cat
-            item.ch_item_mrp = 1000
-            item.insert(ignore_permissions=True)
+        existing = frappe.db.exists("Item", {"item_name": custom_name})
+        if existing:
+            frappe.delete_doc("Item", existing, force=1, ignore_permissions=True)
+        item = frappe.new_doc("Item")
+        item.item_name = custom_name
+        item.item_group = ITEM_GROUP
+        item.ch_sub_category = sc
+        item.ch_category = self.cat
+        item.ch_item_mrp = 1000
+        item.insert(ignore_permissions=True)
         item = frappe.get_doc("Item", {"item_name": custom_name})
         self.assertEqual(item.has_serial_no, 1, "Asset item remains serial-controlled at Item level")
 

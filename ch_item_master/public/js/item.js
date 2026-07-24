@@ -835,10 +835,6 @@ function _render_ch_status_dashboard(frm) {
  */
 function _render_ch_quick_actions(frm) {
     const approval = frm.doc.ch_approval_status || 'Draft';
-    const roles = frappe.user_roles || [];
-
-    const is_approver = roles.includes('CH Master Approver') ||
-        roles.includes('System Manager');
 
     // ── Approval workflow ──────────────────────────────────────────────────
     if (approval === 'Draft' || approval === 'Rejected') {
@@ -847,14 +843,26 @@ function _render_ch_quick_actions(frm) {
         }, __('CH Actions'));
     }
 
-    if (approval === 'Submitted for Review' && is_approver) {
-        frm.add_custom_button(__('Approve'), function () {
-            _ch_approve(frm);
-        }, __('CH Actions'));
+    if (approval === 'Submitted for Review') {
+        const request_id = (frm.__ch_item_capability_request || 0) + 1;
+        frm.__ch_item_capability_request = request_id;
+        frappe.xcall(
+            'ch_item_master.ch_item_master.tier_c.get_item_ui_capabilities',
+            { item_code: frm.doc.name }
+        ).then((capabilities) => {
+            if (frm.__ch_item_capability_request !== request_id
+                || frm.doc.ch_approval_status !== 'Submitted for Review'
+                || !capabilities?.can_review) {
+                return;
+            }
+            frm.add_custom_button(__('Approve'), function () {
+                _ch_approve(frm);
+            }, __('CH Actions'));
 
-        frm.add_custom_button(__('Reject'), function () {
-            _ch_reject(frm);
-        }, __('CH Actions'));
+            frm.add_custom_button(__('Reject'), function () {
+                _ch_reject(frm);
+            }, __('CH Actions'));
+        });
     }
 
     // ── PLM transition ─────────────────────────────────────────────────────

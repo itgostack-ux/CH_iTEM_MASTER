@@ -5,6 +5,9 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 
+from ch_item_master.config import get_int_setting
+from ch_item_master.id_sequences import next_numeric_id
+
 
 class CHWarrantyPlan(Document):
 	def autoname(self):
@@ -12,8 +15,7 @@ class CHWarrantyPlan(Document):
 		if self.plan_name:
 			self.plan_name = " ".join(self.plan_name.split())
 		if not self.warranty_plan_id:
-			max_id = frappe.db.sql("SELECT IFNULL(MAX(warranty_plan_id), 0) FROM `tabCH Warranty Plan`")[0][0]
-			self.warranty_plan_id = int(max_id) + 1
+			self.warranty_plan_id = next_numeric_id("warranty_plan")
 
 	def validate(self):
 		if self.plan_name:
@@ -151,7 +153,12 @@ class CHWarrantyPlan(Document):
 				row.fulfillment_type = self.fulfillment_type or "Repair Claim"
 
 	def _validate_external_device_settings(self):
-		"""External IMEI plans need an explicit generic device item."""
+		"""External IMEI plans are allowed when checkbox is enabled.
+		
+		The generic device item can be configured on the plan or defaults to
+		a company-level setting. This allows simple configuration without
+		complex category mappings.
+		"""
 		if not self.allow_external_device:
 			return
 
@@ -161,62 +168,40 @@ class CHWarrantyPlan(Document):
 				title=_("Invalid External Device Setup"),
 			)
 
-		if not self.external_device_item:
-			frappe.throw(
-				_("External Device Item is required when Customer-Provided IMEI is allowed."),
-				title=_("Missing External Device Item"),
+		# If a plan-specific generic device item is configured, validate it
+		if self.external_device_item:
+			item = frappe.db.get_value(
+				"Item",
+				self.external_device_item,
+				["disabled", "is_stock_item"],
+				as_dict=True,
 			)
-
-		item = frappe.db.get_value(
-			"Item",
-			self.external_device_item,
-			["disabled", "is_stock_item", "ch_category"],
-			as_dict=True,
-		)
-		if not item:
-			frappe.throw(
-				_("External Device Item {0} does not exist").format(
-					frappe.bold(self.external_device_item)
-				),
-				title=_("Invalid External Device Item"),
-			)
-		if item.disabled:
-			frappe.throw(
-				_("External Device Item {0} is disabled").format(
-					frappe.bold(self.external_device_item)
-				),
-				title=_("Disabled External Device Item"),
-			)
-		if item.is_stock_item:
-			frappe.throw(
-				_("External Device Item {0} must be a non-stock generic item.").format(
-					frappe.bold(self.external_device_item)
-				),
-				title=_("Stock Item Not Allowed"),
-			)
-		if self.external_device_item == self.service_item:
-			frappe.throw(
-				_("External Device Item cannot be the same as the plan Service Item."),
-				title=_("Invalid External Device Setup"),
-			)
-
-		plan_categories = [row.category for row in (self.applicable_categories or []) if row.category]
-		if plan_categories and not item.ch_category:
-			frappe.throw(
-				_("External Device Item {0} has no CH Category, but this plan is category-restricted.").format(
-					frappe.bold(self.external_device_item)
-				),
-				title=_("External Device Category Required"),
-			)
-		if plan_categories and item.ch_category not in plan_categories:
-			frappe.throw(
-				_("External Device Item {0} belongs to {1}, but this plan is restricted to {2}.").format(
-					frappe.bold(self.external_device_item),
-					frappe.bold(item.ch_category),
-					frappe.bold(", ".join(plan_categories)),
-				),
-				title=_("External Device Category Mismatch"),
-			)
+			if not item:
+				frappe.throw(
+					_("External Device Item {0} does not exist").format(
+						frappe.bold(self.external_device_item)
+					),
+					title=_("Invalid External Device Item"),
+				)
+			if item.disabled:
+				frappe.throw(
+					_("External Device Item {0} is disabled").format(
+						frappe.bold(self.external_device_item)
+					),
+					title=_("Disabled External Device Item"),
+				)
+			if item.is_stock_item:
+				frappe.throw(
+					_("External Device Item {0} must be a non-stock (service) item").format(
+						frappe.bold(self.external_device_item)
+					),
+					title=_("Stock Item Not Allowed"),
+				)
+			if self.external_device_item == self.service_item:
+				frappe.throw(
+					_("External Device Item cannot be the same as the plan Service Item."),
+					title=_("Invalid External Device Setup"),
+				)
 
 	def _validate_unique_plan_per_company(self):
 		"""Warn if the same plan_name exists for another company (might be intentional for multi-company)."""
@@ -306,6 +291,23 @@ class CHWarrantyPlan(Document):
 
 		filters = {"status": "Active"}
 		today = getdate(nowdate())
+		candidate_limit = min(
+			get_int_setting("warranty_plan_candidate_limit", 500, minimum=1),
+			2000,
+		)
+		result_limit = min(
+			get_int_setting("warranty_plan_result_limit", 50, minimum=1),
+			candidate_limit,
+		)
+		fields = [
+			"name", "plan_name", "plan_type", "service_item",
+			"price", "pricing_mode", "percentage_value",
+			"duration_months", "attach_level", "coverage_description",
+			"brand", "valid_from", "valid_to", "max_claims",
+			"deductible_amount", "priority", "requires_approval",
+			"company_share_percent", "coverage_type_override",
+			"fulfillment_type",
+		]
 
 		# Company filter: match the specific company OR plans with no company set (global)
 		if company:
@@ -317,30 +319,50 @@ class CHWarrantyPlan(Document):
 					["company", "=", ""],
 					["company", "is", "not set"],
 				],
-				fields=[
-					"name", "plan_name", "plan_type", "service_item",
-					"price", "pricing_mode", "percentage_value",
-					"duration_months", "attach_level", "coverage_description",
-					"brand", "valid_from", "valid_to", "max_claims",
-					"deductible_amount", "priority", "requires_approval",
-					"company_share_percent", "coverage_type_override",
-					"fulfillment_type",
-				],
+				fields=fields,
+				order_by="priority desc, name asc",
+				limit_page_length=candidate_limit,
 			)
 		else:
 			plans = frappe.get_all(
 				"CH Warranty Plan",
 				filters=filters,
-				fields=[
-					"name", "plan_name", "plan_type", "service_item",
-					"price", "pricing_mode", "percentage_value",
-					"duration_months", "attach_level", "coverage_description",
-					"brand", "valid_from", "valid_to", "max_claims",
-					"deductible_amount", "priority", "requires_approval",
-					"company_share_percent", "coverage_type_override",
-					"fulfillment_type",
-				],
+				fields=fields,
+				order_by="priority desc, name asc",
+				limit_page_length=candidate_limit,
 			)
+
+		plan_names = tuple(plan.name for plan in plans)
+		group_match = {}
+		if item_group and plan_names:
+			group_match = {
+				row.parent: bool(row.matches)
+				for row in frappe.db.sql(
+					"""
+						SELECT parent, MAX(item_group = %(item_group)s) AS matches
+						FROM `tabCH Warranty Plan Item Group`
+						WHERE parent IN %(plans)s
+						GROUP BY parent
+					""",
+					{"item_group": item_group, "plans": plan_names},
+					as_dict=True,
+				)
+			}
+		channel_match = {}
+		if channel and plan_names:
+			channel_match = {
+				row.parent: bool(row.matches)
+				for row in frappe.db.sql(
+					"""
+						SELECT parent, MAX(channel = %(channel)s) AS matches
+						FROM `tabCH Warranty Plan Channel`
+						WHERE parent IN %(plans)s
+						GROUP BY parent
+					""",
+					{"channel": channel, "plans": plan_names},
+					as_dict=True,
+				)
+			}
 
 		result = []
 		for plan in plans:
@@ -355,28 +377,15 @@ class CHWarrantyPlan(Document):
 				continue
 
 			# Check item group applicability
-			if item_group:
-				applicable_groups = frappe.get_all(
-					"CH Warranty Plan Item Group",
-					filters={"parent": plan.name},
-					pluck="item_group",
-				)
-				if applicable_groups and item_group not in applicable_groups:
-					continue
+			if item_group and plan.name in group_match and not group_match[plan.name]:
+				continue
 
 			# Check channel applicability
-			if channel:
-				applicable_channels = frappe.get_all(
-					"CH Warranty Plan Channel",
-					filters={"parent": plan.name},
-					pluck="channel",
-				)
-				if applicable_channels and channel not in applicable_channels:
-					continue
+			if channel and plan.name in channel_match and not channel_match[plan.name]:
+				continue
 
 			result.append(plan)
-
-		# IM-15 fix: Sort by priority (highest first) for deterministic rule matching
-		result.sort(key=lambda p: -(p.get("priority") or 0))
+			if len(result) >= result_limit:
+				break
 
 		return result

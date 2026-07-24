@@ -234,13 +234,17 @@
    "fieldname": "approval_channel",
    "fieldtype": "Select",
    "label": "Approval Channel",
-   "options": "\nOTP\nManager PIN\nHO Call\nApp Approval\nEmail Approval\nAuto-Policy"
+   "options": "\nOTP\nManager PIN\nHO Call\nApp Approval\nEmail Approval\nAuto-Policy",
+   "no_copy": 1,
+   "read_only": 1
   },
   {
    "fieldname": "approver",
    "fieldtype": "Link",
    "label": "Approver",
-   "options": "User"
+   "options": "User",
+   "no_copy": 1,
+   "read_only": 1
   },
   {
    "fieldname": "approver_name",
@@ -275,7 +279,11 @@
    "fieldname": "otp_reference",
    "fieldtype": "Link",
    "label": "OTP Reference",
-   "options": "CH OTP Log"
+   "options": "CH OTP Log",
+   "hidden": 1,
+   "no_copy": 1,
+   "read_only": 1,
+   "permlevel": 1
   },
   {
    "fieldname": "resolution_section",
@@ -380,39 +388,77 @@
  "owner": "Administrator",
  "permissions": [
   {
-   "amend": 1,
-   "cancel": 1,
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
    "create": 1,
    "delete": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1,
    "email": 1,
    "export": 1,
+   "import": 1,
    "print": 1,
-   "read": 1,
    "report": 1,
+   "share": 1
+  },
+  {
    "role": "System Manager",
-   "share": 1,
-   "submit": 1,
-   "write": 1
+   "permlevel": 1,
+   "read": 1,
+   "write": 1,
+   "create": 1
   },
   {
-   "create": 1,
-   "read": 1,
-   "report": 1,
    "role": "Sales User",
-   "write": 1
-  },
-  {
+   "read": 1,
+   "write": 1,
    "create": 1,
-   "read": 1,
-   "report": 1,
+   "report": 1
+  },
+  {
    "role": "Sales Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
    "submit": 1,
+   "report": 1
+  },
+  {
+   "role": "Accounts User",
+   "read": 1,
+   "report": 1
+  },
+  {
+   "role": "Store Manager",
+   "read": 1,
    "write": 1
   },
   {
+   "role": "Service Manager",
    "read": 1,
-   "report": 1,
-   "role": "Accounts User"
+   "write": 1
+  },
+  {
+   "role": "CH Store Executive",
+   "read": 1,
+   "write": 1
+  },
+  {
+   "role": "CH Area Sales Manager",
+   "read": 1,
+   "write": 1
+  },
+  {
+   "role": "CH Zonal Sales Manager",
+   "read": 1,
+   "write": 1
+  },
+  {
+   "role": "CH National Head",
+   "read": 1,
+   "write": 1
   }
  ],
  "search_fields": "exception_type,company,reference_name,status",

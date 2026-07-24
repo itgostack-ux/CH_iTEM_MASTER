@@ -8,7 +8,7 @@ Covers:
   #7  POS Profile auto-provisioning for a CH Store.
 
 Runs against real fixture data on ``erpnext.local``:
-  * company = "BestBuy Mobiles Pvt Ltd"
+  * company = "Bestbuy Mobiles Private Limited"
   * zone    = "Chennai Central" (source_warehouse = "Chennai - Hub - BMPL")
   * store   = "GG-ALWARTHIRUNAGAR" (has warehouse, no pos_profile)
 
@@ -26,9 +26,9 @@ from ch_item_master.ch_core import location_hierarchy as lh
 from ch_item_master.ch_core.doctype.ch_store import ch_store as ch_store_mod
 
 
-COMPANY = "BestBuy Mobiles Pvt Ltd"
+COMPANY = "Bestbuy Mobiles Private Limited"
 ZONE = "Chennai Central"
-CITY = "Chennai"
+CITY = "Chennai-33"
 STORE_FOR_POS = "GG-ALWARTHIRUNAGAR"
 HUB_BIN_LABEL = "E2ETest-Sellable-01"
 DUP_STORE_NAME = "E2E Test Duplicate Store"
@@ -81,7 +81,8 @@ def test_pos_profile_autocreate():
 	assert pp_name, f"No pos_profile in result: {result}"
 	assert frappe.db.exists("POS Profile", pp_name), f"POS Profile {pp_name} not persisted"
 
-	# Field checks: company matches, warehouse matches, disabled=1 (seed).
+	# Field checks: company and warehouse always match. A newly created
+	# skeleton is disabled; an existing operator-activated profile is reused.
 	pp = frappe.db.get_value(
 		"POS Profile", pp_name,
 		["company", "warehouse", "disabled"],
@@ -89,7 +90,8 @@ def test_pos_profile_autocreate():
 	)
 	assert pp.company == COMPANY, f"Wrong company: {pp.company}"
 	assert pp.warehouse == store.warehouse, f"Wrong warehouse: {pp.warehouse}"
-	assert pp.disabled == 1, f"POS Profile should be disabled on seed insert, got {pp.disabled}"
+	if result.get("created"):
+		assert pp.disabled == 1, f"POS Profile should be disabled on seed insert, got {pp.disabled}"
 
 	# Link back on CH Store.
 	linked = frappe.db.get_value("CH Store", store_name, "pos_profile")
@@ -100,9 +102,16 @@ def test_pos_profile_autocreate():
 	assert result2.get("pos_profile") == pp_name, "Second call should reuse profile"
 	assert result2.get("created") is False, "Second call should report created=False"
 
-	_log("A. POS Profile auto-create", True,
-	     f"created {pp_name} (disabled=1), idempotent on second call")
-	return {"pos_profile": pp_name, "prior_pp": prior_pp}
+	_log(
+		"A. POS Profile auto-create",
+		True,
+		f"{'created' if result.get('created') else 'reused'} {pp_name}, idempotent on second call",
+	)
+	return {
+		"pos_profile": pp_name,
+		"prior_pp": prior_pp,
+		"created": bool(result.get("created")),
+	}
 
 
 def _cleanup_pos_profile(state):
@@ -116,7 +125,8 @@ def _cleanup_pos_profile(state):
 			"CH Store", STORE_FOR_POS, "pos_profile", prior_pp,
 			update_modified=False,
 		)
-	_delete_pos_profile_if_exists(pp_name)
+	if state.get("created"):
+		_delete_pos_profile_if_exists(pp_name)
 
 
 # ---------------------------------------------------------------------------
@@ -599,21 +609,27 @@ def test_retail_location_integrity():
 
 	tree = lh.get_company_location_tree(COMPANY, warehouse_view="location")
 	zone_buckets = {}
+	city_hubs = {}
 	for company_node in tree:
 		for city in company_node.get("cities") or []:
+			city_hubs[city.get("city")] = {
+				entry.get("warehouse", {}).get("name")
+				for entry in city.get("hubs") or []
+			}
 			for zone in city.get("zones") or []:
-				zone_buckets[zone["zone"]] = zone
+				zone_buckets[zone["zone"]] = (city.get("city"), zone)
 
 	missing_in_tree = []
 	for z in zones:
-		bucket = zone_buckets.get(z.name)
-		if not bucket:
+		entry = zone_buckets.get(z.name)
+		if not entry:
 			missing_in_tree.append(f"{z.name}: no tree bucket")
 			continue
+		city_name, bucket = entry
 		names = {w.get("name") for w in bucket.get("warehouses") or []}
-		if z.source_warehouse not in names:
+		if z.source_warehouse not in names and z.source_warehouse not in city_hubs.get(city_name, set()):
 			missing_in_tree.append(
-				f"{z.name}: source {z.source_warehouse} not rendered in zone"
+				f"{z.name}: source {z.source_warehouse} not rendered in its city or zone"
 			)
 	assert not missing_in_tree, "Source hubs missing from Location Hierarchy tree:\n" + "\n".join(missing_in_tree)
 

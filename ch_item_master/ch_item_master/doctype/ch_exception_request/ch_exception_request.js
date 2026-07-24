@@ -3,10 +3,9 @@
 
 frappe.ui.form.on("CH Exception Request", {
 	setup(frm) {
-		// Approver fields: only show users with the exception-approver role.
 		const approver_query = () => ({
 			query: "ch_item_master.ch_item_master.utils.get_users_by_role",
-			filters: { role: "CH Master Approver" },
+			filters: { assignment: "exception_approver" },
 		});
 		frm.set_query("approver", approver_query);
 		frm.set_query("assigned_approver", approver_query);
@@ -33,62 +32,17 @@ frappe.ui.form.on("CH Exception Request", {
 	},
 
 	refresh(frm) {
-		if (frm.doc.docstatus === 0 && frm.doc.status === "Pending") {
-			frm.add_custom_button(__("Approve"), () => {
-				frappe.prompt(
-					[
-						{
-							fieldname: "resolution_value",
-							fieldtype: "Currency",
-							label: __("Resolution Value"),
-							default: frm.doc.requested_value,
-						},
-						{
-							fieldname: "remarks",
-							fieldtype: "Small Text",
-							label: __("Remarks"),
-						},
-					],
-					(values) => {
-						frappe.xcall(
-							"ch_item_master.ch_item_master.exception_api.approve_exception",
-							{
-								exception_name: frm.doc.name,
-								resolution_value: values.resolution_value,
-								remarks: values.remarks || "",
-							}
-						).then(() => {
-							frappe.show_alert({ message: __("Exception Approved"), indicator: "green" });
-							frm.reload_doc();
-						});
-					},
-					__("Approve Exception")
-				);
-			}).addClass("btn-primary");
-
-			frm.add_custom_button(__("Reject"), () => {
-				frappe.prompt(
-					{
-						fieldname: "remarks",
-						fieldtype: "Small Text",
-						label: __("Reason for Rejection"),
-						reqd: 1,
-					},
-					(values) => {
-						frappe.xcall(
-							"ch_item_master.ch_item_master.exception_api.reject_exception",
-							{
-								exception_name: frm.doc.name,
-								reason: values.remarks,
-							}
-						).then(() => {
-							frappe.show_alert({ message: __("Exception Rejected"), indicator: "red" });
-							frm.reload_doc();
-						});
-					},
-					__("Reject Exception")
-				);
-			}).addClass("btn-danger");
+		if (frm.doc.docstatus === 0 && ["Pending", "Escalated"].includes(frm.doc.status)) {
+			const request_id = (frm.__exception_capability_request || 0) + 1;
+			frm.__exception_capability_request = request_id;
+			frm.call("get_ui_capabilities").then((r) => {
+				if (frm.__exception_capability_request !== request_id
+					|| !["Pending", "Escalated"].includes(frm.doc.status)
+					|| !r.message?.can_review) {
+					return;
+				}
+				add_review_actions(frm, r.message);
+			});
 		}
 
 		// Show status indicators
@@ -103,3 +57,85 @@ frappe.ui.form.on("CH Exception Request", {
 		}
 	},
 });
+
+function add_review_actions(frm, capabilities) {
+	frm.add_custom_button(__("Approve"), () => {
+		const request_approval = (otp_code = "") => {
+			frappe.prompt(
+				[
+					{
+						fieldname: "resolution_value",
+						fieldtype: "Currency",
+						label: __("Resolution Value"),
+						default: frm.doc.requested_value,
+					},
+					{
+						fieldname: "remarks",
+						fieldtype: "Small Text",
+						label: __("Remarks"),
+					},
+				],
+				(values) => {
+					frappe.xcall(
+						"ch_item_master.ch_item_master.exception_api.approve_exception",
+						{
+							exception_name: frm.doc.name,
+							resolution_value: values.resolution_value,
+							remarks: values.remarks || "",
+							otp_code,
+						}
+					).then(() => {
+						frappe.show_alert({ message: __("Exception Approved"), indicator: "green" });
+						frm.reload_doc();
+					});
+				},
+				__("Approve Exception")
+			);
+		};
+
+		if (!capabilities.requires_otp) {
+			request_approval();
+			return;
+		}
+		frappe.xcall(
+			"ch_item_master.ch_item_master.exception_api.request_exception_otp",
+			{ exception_name: frm.doc.name }
+		).then((result) => {
+			frappe.prompt(
+				{
+					fieldname: "otp_code",
+					fieldtype: "Data",
+					label: __("Approval OTP sent to {0}", [result.mobile_no]),
+					reqd: 1,
+				},
+				({ otp_code }) => request_approval(otp_code),
+				__("Verify Approval OTP"),
+				__("Continue")
+			);
+		});
+	}).addClass("btn-primary");
+
+	frm.add_custom_button(__("Reject"), () => {
+		frappe.prompt(
+			{
+				fieldname: "remarks",
+				fieldtype: "Small Text",
+				label: __("Reason for Rejection"),
+				reqd: 1,
+			},
+			(values) => {
+				frappe.xcall(
+					"ch_item_master.ch_item_master.exception_api.reject_exception",
+					{
+						exception_name: frm.doc.name,
+						reason: values.remarks,
+					}
+				).then(() => {
+					frappe.show_alert({ message: __("Exception Rejected"), indicator: "red" });
+					frm.reload_doc();
+				});
+			},
+			__("Reject Exception")
+		);
+	}).addClass("btn-danger");
+}

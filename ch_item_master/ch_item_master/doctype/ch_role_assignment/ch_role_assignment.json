@@ -79,21 +79,22 @@
  "owner": "Administrator",
  "permissions": [
   {
+   "role": "System Manager",
+   "permlevel": 0,
+   "read": 1,
+   "write": 1,
    "create": 1,
    "delete": 1,
    "export": 1,
-   "permlevel": 0,
-   "read": 1,
-   "report": 1,
-   "role": "System Manager",
-   "write": 1
+   "import": 1,
+   "report": 1
   },
   {
-   "export": 1,
+   "role": "CH Master Manager",
    "permlevel": 0,
    "read": 1,
-   "report": 1,
-   "role": "CH Master Manager"
+   "export": 1,
+   "report": 1
   }
  ],
  "sort_field": "valid_to",

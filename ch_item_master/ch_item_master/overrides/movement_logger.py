@@ -182,12 +182,14 @@ def on_stock_entry_cancel(doc, method=None) -> None:
             _snos = [s.strip() for s in (_ci.serial_no or "").split("\n") if s.strip()]
             for _sno in _snos:
                 try:
-                    from ch_item_master.ch_item_master.ch_core.bin_transfer import move_to_bin
-                    move_to_bin(
+                    from ch_erp15.ch_erp15.stock_bin_api import _move_to_bin
+
+                    _move_to_bin(
                         serial_no=_sno,
                         bin_type="Sellable",
-                        warehouse=_ci.s_warehouse or doc.from_warehouse,
-                        remarks=f"Bin reverted — SE {doc.name} cancelled"
+                        reason=f"Bin reverted — SE {doc.name} cancelled",
+                        reference_doctype="Stock Entry",
+                        reference_name=doc.name,
                     )
                 except Exception:
                     frappe.log_error(frappe.get_traceback(), f"Bin revert failed for {_sno} on SE {doc.name} cancel")

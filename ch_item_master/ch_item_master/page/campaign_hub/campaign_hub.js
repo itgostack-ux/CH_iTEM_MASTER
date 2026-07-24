@@ -68,6 +68,7 @@ class CampaignHub {
 	/* ── Render ───────────────────────────────────────────────── */
 
 	_render(data) {
+		this.redemption_thresholds = data.display_thresholds || {};
 		this.$root.empty();
 		this._render_header();
 		this._render_pipeline(data.pipeline || []);
@@ -75,6 +76,14 @@ class CampaignHub {
 		this._render_actions();
 		this._render_intelligence(data.insights || [], data.kpis || {});
 		this._render_tables(data);
+	}
+
+	_redemption_color(rate) {
+		const high = Number(this.redemption_thresholds?.high_redemption_rate);
+		const medium = Number(this.redemption_thresholds?.medium_redemption_rate);
+		if (Number.isFinite(high) && rate >= high) return "#22c55e";
+		if (Number.isFinite(medium) && rate >= medium) return "#f59e0b";
+		return "#ef4444";
 	}
 
 	/* ── Header ───────────────────────────────────────────────── */
@@ -354,7 +363,7 @@ class CampaignHub {
 
 		const rows = items.map((r) => {
 			const rate = parseFloat(r.redemption_rate) || 0;
-			const barColor = rate >= 30 ? "#22c55e" : rate >= 10 ? "#f59e0b" : "#ef4444";
+			const barColor = this._redemption_color(rate);
 			const typeCls = {
 				"Coupon Code": "hub-badge-blue",
 				"Voucher": "hub-badge-purple",
@@ -402,7 +411,7 @@ class CampaignHub {
 
 		const rows = items.map((r) => {
 			const rate = parseFloat(r.redemption_rate) || 0;
-			const barColor = rate >= 30 ? "#22c55e" : rate >= 10 ? "#f59e0b" : "#ef4444";
+			const barColor = this._redemption_color(rate);
 			return `<tr data-name="${r.name}">
 				<td><a href="/app/ch-coupon-campaign/${r.name}">${frappe.utils.escape_html(r.campaign_name || "")}</a></td>
 				<td><span class="hub-badge hub-badge-grey">${r.campaign_type || "–"}</span></td>
@@ -481,14 +490,18 @@ class CampaignHub {
 			return;
 		}
 
-		const rows = items.map((r) => {
-			const typeCls = r.instrument_type === "Coupon" ? "hub-badge-blue" : "hub-badge-purple";
-			return `<tr>
-				<td>${r.posting_date ? frappe.datetime.str_to_user(r.posting_date) : "–"}</td>
-				<td><code style="font-size:12px;background:var(--subtle-fg);padding:2px 6px;border-radius:4px">${frappe.utils.escape_html(r.code_used || "")}</code></td>
-				<td><span class="hub-badge ${typeCls}">${r.instrument_type || "–"}</span></td>
-				<td>${frappe.utils.escape_html(r.campaign_name || "–")}</td>
-				<td>${r.invoice ? `<a href="/app/pos-invoice/${r.invoice}">${r.invoice}</a>` : "–"}</td>
+			const rows = items.map((r) => {
+				const typeCls = r.instrument_type === "Coupon" ? "hub-badge-blue" : "hub-badge-purple";
+				const invoiceRoute = r.invoice_doctype === "Sales Invoice" ? "sales-invoice" : "pos-invoice";
+				const invoiceLink = r.invoice
+					? `<a href="/app/${invoiceRoute}/${encodeURIComponent(r.invoice)}">${frappe.utils.escape_html(r.invoice)}</a>`
+					: "–";
+				return `<tr>
+					<td>${r.posting_date ? frappe.datetime.str_to_user(r.posting_date) : "–"}</td>
+					<td><code style="font-size:12px;background:var(--subtle-fg);padding:2px 6px;border-radius:4px">${frappe.utils.escape_html(r.code_used || "")}</code></td>
+					<td><span class="hub-badge ${typeCls}">${frappe.utils.escape_html(r.instrument_type || "–")}</span></td>
+					<td>${frappe.utils.escape_html(r.campaign_name || "–")}</td>
+					<td>${invoiceLink}</td>
 				<td class="text-right">${frappe.format(r.discount_amount || 0, { fieldtype: "Currency" })}</td>
 			</tr>`;
 		}).join("");
@@ -541,22 +554,21 @@ class CampaignHub {
 				</div>`);
 				return;
 			}
-			let rows = "";
-			if (d.instrument_type === "Coupon") {
-				rows = `
-					<tr><td>${__("Reference")}</td><td><a href="/app/coupon-code/${d.reference}">${d.reference}</a></td></tr>
-					<tr><td>${__("Used / Max")}</td><td>${d.used} / ${d.maximum_use}</td></tr>
-					<tr><td>${__("Valid")}</td><td>${d.valid_from || "–"} → ${d.valid_upto || "–"}</td></tr>`;
-			} else {
-				rows = `
-					<tr><td>${__("Voucher Type")}</td><td><span class="hub-badge hub-badge-purple">${d.voucher_type}</span></td></tr>
-					<tr><td>${__("Status")}</td><td><span class="hub-badge hub-badge-${d.status === "Active" ? "green" : "grey"}">${d.status}</span></td></tr>
-					<tr><td>${__("Balance")}</td><td>${format_currency(d.balance)} / ${format_currency(d.original_amount)}</td></tr>
-					<tr><td>${__("Valid")}</td><td>${d.valid_from || "–"} → ${d.valid_upto || "–"}</td></tr>
-					<tr><td>${__("Issued To")}</td><td>${d.issued_to || __("Bearer")}</td></tr>`;
-			}
-			if (d.campaign) {
-				rows += `<tr><td>${__("Campaign")}</td><td><a href="/app/ch-coupon-campaign/${d.campaign_id}">${frappe.utils.escape_html(d.campaign)}</a></td></tr>`;
+				let rows = "";
+				if (d.instrument_type === "Coupon") {
+					rows = `
+						<tr><td>${__("Reference")}</td><td><a href="/app/coupon-code/${encodeURIComponent(d.reference)}">${frappe.utils.escape_html(d.reference)}</a></td></tr>
+						<tr><td>${__("Used / Max")}</td><td>${d.used} / ${d.maximum_use}</td></tr>
+						<tr><td>${__("Valid")}</td><td>${frappe.utils.escape_html(d.valid_from || "–")} → ${frappe.utils.escape_html(d.valid_upto || "–")}</td></tr>`;
+				} else {
+					rows = `
+						<tr><td>${__("Voucher Type")}</td><td><span class="hub-badge hub-badge-purple">${frappe.utils.escape_html(d.voucher_type || "")}</span></td></tr>
+						<tr><td>${__("Status")}</td><td><span class="hub-badge hub-badge-${d.status === "Active" ? "green" : "grey"}">${frappe.utils.escape_html(d.status || "")}</span></td></tr>
+						<tr><td>${__("Balance")}</td><td>${format_currency(d.balance)} / ${format_currency(d.original_amount)}</td></tr>
+						<tr><td>${__("Valid")}</td><td>${frappe.utils.escape_html(d.valid_from || "–")} → ${frappe.utils.escape_html(d.valid_upto || "–")}</td></tr>`;
+				}
+				if (d.campaign) {
+					rows += `<tr><td>${__("Campaign")}</td><td><a href="/app/ch-coupon-campaign/${encodeURIComponent(d.campaign_id)}">${frappe.utils.escape_html(d.campaign)}</a></td></tr>`;
 			} else {
 				rows += `<tr><td>${__("Campaign")}</td><td><em>${__("Not from a campaign")}</em></td></tr>`;
 			}
@@ -564,7 +576,7 @@ class CampaignHub {
 			$result.html(`
 				<div class="hub-lookup-result-card">
 					<div class="hub-lookup-header">
-						<span class="hub-badge ${d.instrument_type === "Coupon" ? "hub-badge-blue" : "hub-badge-purple"}">${d.instrument_type}</span>
+							<span class="hub-badge ${d.instrument_type === "Coupon" ? "hub-badge-blue" : "hub-badge-purple"}">${frappe.utils.escape_html(d.instrument_type || "")}</span>
 						<code style="font-size:1.1rem;background:var(--subtle-fg);padding:4px 12px;border-radius:6px;font-weight:700">${frappe.utils.escape_html(d.code)}</code>
 					</div>
 					<table class="hub-table" style="margin-top:12px">${rows}</table>

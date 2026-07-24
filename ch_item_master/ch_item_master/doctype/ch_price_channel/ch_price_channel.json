@@ -10,7 +10,9 @@
   "channel_name",
   "description",
   "column_break_01",
-  "disabled"
+  "disabled",
+  "is_buying",
+  "price_list"
  ],
  "fields": [
   {
@@ -81,7 +83,8 @@
    "write": 1,
    "create": 1,
    "delete": 1,
-   "export": 1
+   "export": 1,
+   "import": 1
   },
   {
    "role": "CH Master Manager",
@@ -104,6 +107,18 @@
    "write": 0,
    "create": 0,
    "export": 0
+  },
+  {
+   "role": "CH Price Manager",
+   "read": 1
+  },
+  {
+   "role": "CH Offer Manager",
+   "read": 1
+  },
+  {
+   "role": "CH Warranty Manager",
+   "read": 1
   }
  ],
  "allow_import": 1,

@@ -73,10 +73,6 @@
    "read": 1,
    "write": 1,
    "role": "System Manager"
-  },
-  {
-   "read": 1,
-   "role": "All"
   }
  ],
  "sort_field": "module",

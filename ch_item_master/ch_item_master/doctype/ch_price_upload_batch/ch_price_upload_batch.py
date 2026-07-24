@@ -6,6 +6,14 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import now_datetime, nowdate, getdate
 
+from ch_item_master.security import require_scoped_document_action
+
+
+_PRICE_BATCH_SUBMIT_ROLES = ("CH Price Manager", "CH Master Manager")
+_PRICE_BATCH_REVISE_ROLES = ("CH Price Manager", "CH Master Manager")
+_PRICE_BATCH_OVERRIDE_ROLES = ("CH Master Manager",)
+_PRICE_BATCH_APPLY_ROLES = ("CH Category Head", "CH Price Manager", "CH Master Manager")
+
 
 def _safe_float(val):
 	"""Convert a value to float, stripping commas and whitespace (e.g. '60,000' → 60000.0)."""
@@ -33,10 +41,169 @@ class CHPriceUploadBatch(Document):
 	``Legacy Import`` quarantines the batches side-loaded by raw SQL on
 	2026-07-07; their prices are already live, so they must never re-apply.
 
-	See ``ch_item_master.ch_item_master.price_approval`` for the routing rules.
+		See ``ch_item_master.ch_item_master.price_approval`` for the routing rules.
 	"""
+	_APPROVAL_CONTEXT = object()
+	_PROTECTED_FIELDS = (
+		"status",
+		"submitted_by",
+		"submitted_at",
+		"approved_by",
+		"approved_at",
+		"rejected_by",
+		"rejected_at",
+		"rejection_reason",
+		"applied_count",
+		"skipped_count",
+		"error_count",
+		"applied_at",
+	)
+	_ITEM_GOVERNANCE_FIELDS = (
+		"item_code",
+		"channel",
+		"category",
+		"change_type",
+		"field_label",
+		"old_value",
+		"new_value",
+		"reason",
+		"approval_status",
+		"status",
+		"error_message",
+	)
+	_CATEGORY_GOVERNANCE_FIELDS = (
+		"category",
+		"approver",
+		"routed_via",
+		"status",
+		"row_count",
+		"total_value",
+		"responded_at",
+		"comments",
+	)
+
+	def _authorize_approval_transition(self):
+		self.flags.ch_price_batch_approval_context = self._APPROVAL_CONTEXT
+
+	def _has_approval_context(self):
+		return self.flags.get("ch_price_batch_approval_context") is self._APPROVAL_CONTEXT
+
+	@staticmethod
+	def _rows_signature(rows, fields):
+		return tuple(
+			tuple(row.get(fieldname) for fieldname in fields)
+			for row in (rows or [])
+		)
+
+	def _validate_approval_transition(self):
+		if self._has_approval_context():
+			return
+		before = self.get_doc_before_save() if not self.is_new() else None
+		if before is None:
+			if self.status not in (None, "", "Draft") or any(
+				self.get(fieldname) not in (
+					(None, "", 0) if fieldname in ("applied_count", "skipped_count", "error_count") else (None, "")
+				)
+				for fieldname in self._PROTECTED_FIELDS
+				if fieldname != "status"
+			):
+				frappe.throw(
+					_("Batch approval state is set only by the approval workflow."),
+					frappe.PermissionError,
+				)
+			if self.category_approvals or any(
+				row.approval_status not in (None, "", "Pending")
+				or row.status not in (None, "", "Pending")
+				or row.error_message
+				for row in (self.items or [])
+			):
+				frappe.throw(
+					_("Batch row decisions and outcomes are server-managed."),
+					frappe.PermissionError,
+				)
+			return
+
+		if any(self.get(fieldname) != before.get(fieldname) for fieldname in self._PROTECTED_FIELDS):
+			frappe.throw(
+				_("Batch approval state can only be changed through its workflow actions."),
+				frappe.PermissionError,
+			)
+		if self._rows_signature(
+			self.category_approvals, self._CATEGORY_GOVERNANCE_FIELDS
+		) != self._rows_signature(
+			before.category_approvals, self._CATEGORY_GOVERNANCE_FIELDS
+		):
+			frappe.throw(
+				_("Category routing and decisions are server-managed."),
+				frappe.PermissionError,
+			)
+
+		if before.status == "Draft":
+			for row in self.items or []:
+				if (
+					row.approval_status not in (None, "", "Pending")
+					or row.status not in (None, "", "Pending")
+					or row.error_message
+				):
+					frappe.throw(
+						_("Batch row decisions and outcomes are server-managed."),
+						frappe.PermissionError,
+					)
+		elif self._rows_signature(
+			self.items, self._ITEM_GOVERNANCE_FIELDS
+		) != self._rows_signature(before.items, self._ITEM_GOVERNANCE_FIELDS):
+			frappe.throw(
+				_("Submitted batch rows are immutable. Revise the batch before editing."),
+				frappe.PermissionError,
+			)
+
+	def _require_action(self, role_field, default_roles, action) -> None:
+		require_scoped_document_action(
+			self,
+			role_field,
+			default_roles,
+			action=action,
+			permission_types=("write",),
+			lock=True,
+		)
+
+	@frappe.whitelist()
+	def get_ui_capabilities(self) -> dict:
+		"""Return category actions resolved from the server approval policy."""
+		from ch_item_master.config import has_role_setting
+		from ch_item_master.ch_item_master.price_approval import _is_override
+
+		self.check_permission("read")
+		pending_state = self.status in ("Pending Approval", "Partially Approved")
+		user = frappe.session.user
+		sod_allowed = self.submitted_by != user or has_role_setting(
+			"break_glass_supervisor_roles", ("System Manager",), user=user
+		)
+		can_override = bool(pending_state and sod_allowed and _is_override(user))
+		can_decide = bool(
+			pending_state
+			and sod_allowed
+			and (
+				has_role_setting(
+					"price_batch_approval_roles",
+					("CH Category Head", "CH Price Manager", "CH Master Manager"),
+					user=user,
+				)
+				or can_override
+			)
+		)
+		actionable = [
+			row.category or ""
+			for row in (self.category_approvals or [])
+			if can_decide and row.status == "Pending" and row.approver == user
+		]
+		return {
+			"actionable_categories": actionable,
+			"can_override": can_override,
+		}
 
 	def validate(self):
+		self._validate_approval_transition()
 		if not self.items:
 			frappe.throw(_("No changes to review — the items table is empty."), title=_("Ch Price Upload Batch Error"))
 		self._update_summary()
@@ -123,7 +290,7 @@ class CHPriceUploadBatch(Document):
 
 	# ── Workflow actions (called from JS buttons) ─────────────────────────
 
-	@frappe.whitelist()
+	@frappe.whitelist(methods=["POST"])
 	def submit_for_approval(self) -> None:
 		"""Maker submits the batch; it is split and routed per category.
 
@@ -131,6 +298,12 @@ class CHPriceUploadBatch(Document):
 		owned by that category's manager (or the company head when no manager
 		is mapped), so an approver only ever decides their own rows.
 		"""
+		self._require_action(
+			"price_batch_submit_roles",
+			_PRICE_BATCH_SUBMIT_ROLES,
+			_("submit a price upload batch for approval"),
+		)
+		self._authorize_approval_transition()
 		from ch_item_master.ch_item_master.price_approval import (
 			build_category_approvals,
 			notify_approvers,
@@ -161,7 +334,7 @@ class CHPriceUploadBatch(Document):
 		self.submitted_at = now_datetime()
 		for row in self.items:
 			row.approval_status = "Pending"
-		self.save(ignore_permissions=True)
+		self.save()
 
 		notify_approvers(self)
 
@@ -171,13 +344,19 @@ class CHPriceUploadBatch(Document):
 			indicator="blue",
 		)
 
-	@frappe.whitelist()
+	@frappe.whitelist(methods=["POST"])
 	def revise_batch(self) -> None:
 		"""Allow maker to revise a rejected or partially-applied batch.
 
 		Resets status to Draft, clears per-row statuses, and lets the user
 		edit rows (fix prices, remove bad rows) before resubmitting.
 		"""
+		self._require_action(
+			"price_batch_revise_roles",
+			_PRICE_BATCH_REVISE_ROLES,
+			_("revise a price upload batch"),
+		)
+		self._authorize_approval_transition()
 		if self.status not in ("Rejected", "Partially Applied", "Applying"):
 			frappe.throw(
 				_("Only Rejected, Partially Applied or stuck Applying batches can be revised."),
@@ -202,10 +381,10 @@ class CHPriceUploadBatch(Document):
 		self.rejection_reason = None
 
 		self.status = "Draft"
-		self.save(ignore_permissions=True)
+		self.save()
 		frappe.msgprint(_("Batch reset to Draft — you can now edit and resubmit."), indicator="blue")
 
-	@frappe.whitelist()
+	@frappe.whitelist(methods=["POST"])
 	def approve_and_apply(self) -> None:
 		"""Override path: approve every still-pending category at once.
 
@@ -213,6 +392,12 @@ class CHPriceUploadBatch(Document):
 		``price_approval.decide_category``; this exists so a System Manager can
 		unblock a batch whose category owner is unavailable.
 		"""
+		self._require_action(
+			"price_batch_override_roles",
+			_PRICE_BATCH_OVERRIDE_ROLES,
+			_("approve and apply an entire price upload batch"),
+		)
+		self._authorize_approval_transition()
 		from ch_item_master.ch_item_master.price_approval import _is_override
 		from ch_item_master.ch_item_master.rbac import check_sod
 
@@ -241,13 +426,19 @@ class CHPriceUploadBatch(Document):
 		self.approved_by = frappe.session.user
 		self.approved_at = stamp
 		self.status = "Approved"
-		self.save(ignore_permissions=True)
+		self.save()
 
 		self.apply_approved_categories()
 
-	@frappe.whitelist()
+	@frappe.whitelist(methods=["POST"])
 	def reject_batch(self, reason=None) -> None:
 		"""Override path: reject every still-pending category at once."""
+		self._require_action(
+			"price_batch_override_roles",
+			_PRICE_BATCH_OVERRIDE_ROLES,
+			_("reject an entire price upload batch"),
+		)
+		self._authorize_approval_transition()
 		from ch_item_master.ch_item_master.price_approval import _is_override
 
 		if self.status not in ("Pending Approval", "Partially Approved"):
@@ -282,10 +473,10 @@ class CHPriceUploadBatch(Document):
 		self.rejected_by = frappe.session.user
 		self.rejected_at = now_datetime()
 		self.rejection_reason = reason
-		self.save(ignore_permissions=True)
+		self.save()
 		frappe.msgprint(_("Batch rejected."), indicator="red")
 
-	@frappe.whitelist()
+	@frappe.whitelist(methods=["POST"])
 	def apply_approved_categories(self) -> dict:
 		"""Apply only the rows whose category has been approved.
 
@@ -293,23 +484,35 @@ class CHPriceUploadBatch(Document):
 		without waiting on the slowest approver (SAP partial release). Rows
 		belonging to pending or rejected categories are left untouched.
 		"""
+		self._require_action(
+			"price_batch_apply_roles",
+			_PRICE_BATCH_APPLY_ROLES,
+			_("apply approved price upload categories"),
+		)
+		self._authorize_approval_transition()
+		if self.status not in ("Approved", "Partially Approved", "Partially Applied", "Applying"):
+			frappe.throw(_("This batch has no approved categories ready to apply."))
+		approved_categories = {
+			row.category or ""
+			for row in (self.category_approvals or [])
+			if row.status == "Approved"
+		}
 		pending_rows = [
 			r for r in self.items
-			if r.approval_status == "Approved" and r.status in ("Pending", "Error")
+			if r.approval_status == "Approved"
+			and (r.category or "") in approved_categories
+			and r.status in ("Pending", "Error")
 		]
 		if not pending_rows:
 			return {"applied": 0, "skipped": 0, "errors": 0}
 
 		self.status = "Applying"
-		self.save(ignore_permissions=True)
+		self.save()
 
 		try:
 			result = self._apply_changes(rows=pending_rows)
 		except Exception:
-			frappe.db.commit()
 			frappe.log_error(frappe.get_traceback(), "Price Upload Batch Apply Error")
-			# Leave the batch recoverable rather than stranded in Applying.
-			self.db_set("status", "Partially Applied", update_modified=False)
 			frappe.throw(
 				_("Error while applying changes. Check Error Log for details."),
 				title=_("Ch Price Upload Batch Error"),
@@ -376,8 +579,7 @@ class CHPriceUploadBatch(Document):
 		# ── Write price change logs for applied rows ──────────────────────
 		self._write_change_logs(rows=target_rows)
 
-		self.save(ignore_permissions=True)
-		frappe.db.commit()
+		self.save()
 		return {"applied": applied, "skipped": skipped, "errors": errors}
 
 	def _apply_selling_price(self, item_code, channel, rows):
@@ -423,6 +625,7 @@ class CHPriceUploadBatch(Document):
 					skipped += 1
 
 			if changed:
+				doc._authorize_approval_transition()
 				doc.flags.from_price_batch = True
 				doc.save(ignore_permissions=True)
 		else:
@@ -457,6 +660,7 @@ class CHPriceUploadBatch(Document):
 				return 0, len(rows)
 
 			doc.flags.from_price_batch = True
+			doc._authorize_approval_transition()
 			doc.insert(ignore_permissions=True)
 
 		return applied, skipped

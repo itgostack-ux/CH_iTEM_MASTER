@@ -423,8 +423,8 @@ def test_otp_max_attempts():
         _fail(flow, "max attempts OTP", str(e))
 
 
-def test_otp_already_verified_idempotency():
-    """Second verify call after success should return valid=True (idempotency)."""
+def test_otp_replay_is_rejected():
+    """Second verify call after success must fail closed."""
     flow = "CH OTP Log"
     mobile = "9876543214"
     purpose = "Service Delivery"
@@ -441,17 +441,17 @@ def test_otp_already_verified_idempotency():
             frappe.db.rollback()
             return
 
-        # Second verify (retry scenario) — should return idempotent success
+        # Second verify must not reuse the consumed OTP
         result2 = CHOTPLog.verify_otp(mobile, purpose, otp_code)
         frappe.db.rollback()
 
-        if not result2.get("valid"):
-            _fail(flow, "idempotency second verify", result2.get("message"))
+        if result2.get("valid"):
+            _fail(flow, "OTP replay rejection", "consumed OTP was accepted")
         else:
-            _ok(flow, "already-verified idempotency", result2.get("message", ""))
+            _ok(flow, "OTP replay rejected", result2.get("message", ""))
     except Exception as e:
         frappe.db.rollback()
-        _fail(flow, "OTP idempotency", str(e))
+        _fail(flow, "OTP replay rejection", str(e))
 
 
 def test_otp_rate_limit():
@@ -532,7 +532,7 @@ def run_all():
     test_otp_wrong_code()
     test_otp_expired()
     test_otp_max_attempts()
-    test_otp_already_verified_idempotency()
+    test_otp_replay_is_rejected()
     test_otp_rate_limit()
     test_otp_no_pending_otp()
 

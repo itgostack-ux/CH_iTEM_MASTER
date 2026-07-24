@@ -8,6 +8,11 @@ per-company account exists.
 from urllib.parse import urlparse, urlunparse
 
 import frappe
+import requests
+from frappe import _
+from frappe.utils import cint
+
+from ch_item_master.outbound_security import parse_exact_host_allowlist, validate_allowed_https_url
 
 
 def get_sms_account(company: str | None = None):
@@ -49,16 +54,43 @@ def send_company_sms(numbers, message: str, company: str | None = None, sender_n
         return []
 
     acct = get_sms_account(company)
-    if not acct or not acct.sms_gateway_url:
-        # Global fallback — Frappe SMS Settings.
+    if acct and acct.sms_gateway_url:
+        raw_allowed_hosts = acct.allowed_hosts
+        timeout = max(1, min(cint(acct.gateway_timeout_seconds) or 10, 60))
+    else:
         try:
-            from frappe.core.doctype.sms_settings.sms_settings import send_sms
-            return send_sms(numbers, message, sender_name)
+            acct = frappe.get_cached_doc("SMS Settings")
+            raw_allowed_hosts = frappe.db.get_single_value(
+                "CH Item Master Settings", "sms_fallback_allowed_hosts"
+            )
+            timeout = max(
+                1,
+                min(
+                    cint(
+                        frappe.db.get_single_value(
+                            "CH Item Master Settings", "sms_fallback_timeout_seconds"
+                        )
+                    )
+                    or 10,
+                    60,
+                ),
+            )
         except Exception:
             frappe.log_error(frappe.get_traceback(), "send_company_sms: global SMS fallback failed")
             return []
+        if not acct.sms_gateway_url:
+            return []
 
-    from frappe.core.doctype.sms_settings.sms_settings import send_request
+    try:
+        allowed_hosts = parse_exact_host_allowlist(raw_allowed_hosts, label="SMS Gateway")
+        gateway_url = validate_allowed_https_url(
+            acct.sms_gateway_url,
+            allowed_hosts,
+            label="SMS Gateway",
+        )
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), f"Unsafe SMS gateway configuration for {company}")
+        return []
 
     # Build args + headers from the account's parameter mapping (same model as
     # Frappe SMS Settings: static rows flagged `header` go to headers).
@@ -83,19 +115,45 @@ def send_company_sms(numbers, message: str, company: str | None = None, sender_n
             return None
         return urlunparse((parsed.scheme or "https", parsed.netloc, "/api", "", "", ""))
 
+    def _send_request(url: str) -> int:
+        url = validate_allowed_https_url(url, allowed_hosts, label="SMS Gateway")
+        kwargs = {
+            "headers": headers,
+            "timeout": timeout,
+            "allow_redirects": False,
+            "stream": True,
+        }
+        if use_json:
+            kwargs["json"] = args
+        elif acct.use_post:
+            kwargs["data"] = args
+        else:
+            kwargs["params"] = args
+        response = requests.post(url, **kwargs) if acct.use_post else requests.get(url, **kwargs)
+        try:
+            if 300 <= response.status_code < 400:
+                frappe.throw(_("SMS gateway redirects are not permitted."), frappe.ValidationError)
+            response.raise_for_status()
+            content_length = response.headers.get("Content-Length")
+            if content_length and int(content_length) > 65536:
+                frappe.throw(_("SMS gateway response exceeded the size limit."))
+            return response.status_code
+        finally:
+            response.close()
+
     success = []
     for nbr in numbers:
         if acct.receiver_parameter:
             args[acct.receiver_parameter] = nbr
         try:
-            status = send_request(acct.sms_gateway_url, args, headers, acct.use_post, use_json)
+            status = _send_request(gateway_url)
             if 200 <= int(status) < 300:
                 success.append(nbr)
         except Exception:
             fallback_url = _maybe_api_fallback(acct.sms_gateway_url)
             if fallback_url:
                 try:
-                    status = send_request(fallback_url, args, headers, acct.use_post, use_json)
+                    status = _send_request(fallback_url)
                     if 200 <= int(status) < 300:
                         success.append(nbr)
                         continue

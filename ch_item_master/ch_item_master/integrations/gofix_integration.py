@@ -148,7 +148,7 @@ def _sync_serial_lifecycle(doc):
 
 	# Use the canonical API so lifecycle log child table is populated correctly
 	from ch_item_master.ch_item_master.doctype.ch_serial_lifecycle.ch_serial_lifecycle import (
-		update_lifecycle_status,
+		update_lifecycle_status_for_document as update_lifecycle_status,
 	)
 	update_lifecycle_status(
 		serial_no=serial_no,

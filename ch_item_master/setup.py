@@ -53,6 +53,90 @@ def setup_roles():
         install_custom_docperms()
     except Exception:
         frappe.log_error(title="setup_roles: install_custom_docperms failed", message=frappe.get_traceback())
+    try:
+        from ch_erp15.ch_erp15.default_permissions import seed_default_docperms
+
+        seed_default_docperms({
+            "Customer": {
+                "CH Master Manager": {"read", "write"},
+                "CH Master Approver": {"read", "write"},
+                "CH Warranty Manager": {"read"},
+                "Service Manager": {"read"},
+            },
+            "Company": {
+                "Sales Manager": {"read"},
+                "Marketing Manager": {"read"},
+                "CH Master Manager": {"read"},
+                "CH Price Manager": {"read"},
+                "CH Viewer": {"read"},
+                "Stock Manager": {"read"},
+                "Stock User": {"read"},
+                "Store Manager": {"read"},
+                "Store Executive": {"read"},
+            },
+            "Warehouse": {
+                "CH Master Manager": {"read", "write", "create", "delete"},
+                "Stock Manager": {"read"},
+                "Stock User": {"read"},
+                "Store Manager": {"read"},
+                "Store Executive": {"read"},
+            },
+            "Branch": {
+                "CH Master Manager": {"read", "write", "create", "delete"},
+            },
+            "POS Profile": {
+                "CH Master Manager": {"read", "write", "create"},
+            },
+            "Country": {
+                "CH Master Manager": {"read"},
+            },
+            "Sales Invoice": {
+                "Sales Manager": {"read"},
+                "Marketing Manager": {"read"},
+                "CH Master Manager": {"read"},
+            },
+            "POS Invoice": {
+                "Sales Manager": {"read"},
+                "CH Master Manager": {"read"},
+            },
+            "Coupon Code": {
+                "Sales Manager": {"read"},
+                "CH Master Manager": {"read"},
+            },
+            "Service Request": {
+                "Sales Manager": {"read"},
+                "Marketing Manager": {"read"},
+                "CH Master Manager": {"read"},
+            },
+            "Item": {
+                "CH Master Manager": {"read"},
+                "CH Price Manager": {"read"},
+                "CH Offer Manager": {"read"},
+                "CH Warranty Manager": {"read"},
+                "CH Viewer": {"read"},
+                "Stock User": {"read"},
+                "Service Manager": {"read"},
+                "Sales Manager": {"read"},
+            },
+            "Manufacturer": {
+                "CH Master Manager": {"read"},
+                "CH Price Manager": {"read"},
+                "CH Offer Manager": {"read"},
+                "CH Warranty Manager": {"read"},
+                "CH Viewer": {"read"},
+                "Stock User": {"read"},
+            },
+            "Brand": {
+                "CH Master Manager": {"read"},
+                "CH Price Manager": {"read"},
+                "CH Offer Manager": {"read"},
+                "CH Warranty Manager": {"read"},
+                "CH Viewer": {"read"},
+                "Stock User": {"read"},
+            },
+        })
+    except Exception:
+        frappe.log_error(title="setup_roles: default DocPerm setup failed", message=frappe.get_traceback())
     # Note: do NOT call frappe.db.commit() here — after_install manages the
     # outer transaction; an explicit commit here would cut it short prematurely.
 
@@ -240,20 +324,16 @@ def setup_vas_settings():
 
     if not frappe.db.exists("CH VAS Settings"):
         doc = frappe.new_doc("CH VAS Settings")
-        # Only set company links if they exist on this site
-        if frappe.db.exists("Company", "GoGizmo Retail Pvt Ltd"):
-            doc.gogizmo_company = "GoGizmo Retail Pvt Ltd"
-        if frappe.db.exists("Company", "GoFix Services Pvt Ltd"):
-            doc.gofix_company = "GoFix Services Pvt Ltd"
-        doc.anniversary_threshold_months = 24
-        doc.post_repair_warranty_months = 3
-        doc.paid_repair_fee_percent = 10
-        doc.paid_repair_fee_minimum = 200
-        doc.fee_waiver_roles = "Sales Manager\nCH Warranty Manager\nSystem Manager"
+        default_company = frappe.db.get_single_value("Global Defaults", "default_company")
+        if default_company and frappe.db.exists("Company", default_company):
+            doc.gogizmo_company = default_company
+        if frappe.db.exists("DocType", "GoFix Settings"):
+            gofix_company = frappe.db.get_single_value("GoFix Settings", "operating_company")
+            if gofix_company and frappe.db.exists("Company", gofix_company):
+                doc.gofix_company = gofix_company
         doc.flags.ignore_links = True
         doc.flags.ignore_mandatory = True
         doc.insert(ignore_permissions=True)
-        frappe.db.commit()
         frappe.logger("ch_item_master").info("CH VAS Settings created with defaults")
 
 
@@ -291,6 +371,71 @@ def seed_stock_count_variance_exception_type():
     except Exception:
         frappe.log_error(title="seed Stock Count Variance exception type failed",
                          message=frappe.get_traceback())
+
+
+def seed_external_device_item():
+    """Ensure the 'EXTERNAL-DEVICE' generic item exists and is set as the
+    company-level default for external IMEI VAS plan sales.
+
+    This is a non-stock placeholder — the actual device identity is always
+    captured via the IMEI in the serial_no field. Idempotent.
+    """
+    import frappe
+    from frappe.utils import now
+
+    item_code = "EXTERNAL-DEVICE"
+    if not frappe.db.exists("Item", item_code):
+        try:
+            item_group = (
+                frappe.db.get_value("Item Group", {"name": "Services"}, "name")
+                or frappe.db.get_value("Item Group", {"name": "All Item Groups"}, "name")
+                or "All Item Groups"
+            )
+            now_ts = now()
+            frappe.db.sql("""
+                INSERT INTO `tabItem`
+                    (name, item_code, item_name, item_group, stock_uom,
+                     is_stock_item, is_fixed_asset, has_serial_no,
+                     include_item_in_manufacturing, disabled,
+                     gst_hsn_code, description,
+                     creation, modified, modified_by, owner, docstatus)
+                VALUES
+                    (%s, %s, %s, %s, %s,
+                     0, 0, 0,
+                     0, 0,
+                     %s, %s,
+                     %s, %s, 'Administrator', 'Administrator', 0)
+            """, (
+                item_code, item_code, "External Customer Device", item_group, "Nos",
+                "998717",
+                "Generic placeholder item for customer-provided devices (external IMEI). "
+                "Used on Active VAS Plans when selling warranty/protection plans for devices "
+                "not purchased from GoGizmo. Device identity is always captured in serial_no (IMEI).",
+                now_ts, now_ts,
+            ))
+            frappe.db.commit()
+            frappe.logger("ch_item_master").info("Seeded EXTERNAL-DEVICE item")
+        except Exception:
+            frappe.log_error(title="seed_external_device_item failed", message=frappe.get_traceback())
+            return
+
+    # Backfill ch_default_external_device_item on all companies that don't have it set
+    if not frappe.db.has_column("Company", "ch_default_external_device_item"):
+        return
+
+    companies = frappe.get_all("Company", fields=["name", "ch_default_external_device_item"])
+    for company in companies:
+        if not company.get("ch_default_external_device_item"):
+            try:
+                frappe.db.set_value("Company", company.name, "ch_default_external_device_item", item_code)
+                frappe.logger("ch_item_master").info(
+                    f"Set ch_default_external_device_item=EXTERNAL-DEVICE on company {company.name}"
+                )
+            except Exception:
+                frappe.log_error(
+                    title=f"seed_external_device_item: could not update company {company.name}",
+                    message=frappe.get_traceback(),
+                )
 
 
 def delete_ch_custom_fields():

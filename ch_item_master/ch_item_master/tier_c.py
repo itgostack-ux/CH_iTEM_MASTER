@@ -32,7 +32,28 @@ import frappe
 from frappe import _
 from frappe.utils import now_datetime, today, getdate, flt, cint
 
+from ch_item_master.config import get_int_setting, has_role_setting
 from ch_item_master.ch_item_master.exceptions import ItemNotActiveError
+from ch_item_master.security import ensure_company_access, get_company_scope
+
+
+_VENDOR_EDITABLE_FIELDS = frozenset({
+	"preferred", "active", "source_rank", "allocation_pct",
+	"vendor_item_code", "vendor_item_name", "currency", "standard_price",
+	"price_valid_from", "price_valid_to", "lead_time_days", "min_order_qty",
+	"notes", "price_breaks", "contracts",
+})
+
+
+def _resolve_vendor_company(company: str | None) -> str | None:
+	company_scope = get_company_scope(requested_company=company)
+	if company_scope is None:
+		return company or None
+	if company:
+		return company
+	if len(company_scope) == 1:
+		return company_scope[0]
+	frappe.throw(_("Select one of your assigned companies."), frappe.PermissionError)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -88,6 +109,10 @@ def snapshot_item_version(doc, method=None):
 @frappe.whitelist()
 def get_item_versions(item_code: str) -> list[dict]:
 	"""Return all versions for an Item, newest first."""
+	from ch_item_master.ch_item_master.utils import check_app_permission
+	if not check_app_permission():
+		frappe.throw(_("You do not have access to Item Master history."), frappe.PermissionError)
+	frappe.has_permission("Item", "read", item_code, throw=True)
 	return frappe.get_all(
 		"CH Item Version",
 		filters={"item_code": item_code},
@@ -101,13 +126,9 @@ def get_item_versions(item_code: str) -> list[dict]:
 # 2. Formal Model Approval Gate
 # ─────────────────────────────────────────────────────────────────────────────
 
-_APPROVAL_BYPASS_ROLES = {"CH Master Approver", "System Manager", "Administrator"}
+_DEFAULT_APPROVAL_ROLES = {"CH Master Approver", "System Manager"}
 
 ApprovalError = frappe.ValidationError
-
-
-def _user_roles() -> set[str]:
-	return set(frappe.get_roles(frappe.session.user))
 
 
 def enforce_approval_gate(doc, method=None):
@@ -120,7 +141,7 @@ def enforce_approval_gate(doc, method=None):
 	lifecycle = getattr(doc, "ch_lifecycle_status", None) or "Draft"
 
 	if lifecycle == "Active" and approval != "Approved":
-		if bool(_user_roles() & _APPROVAL_BYPASS_ROLES):
+		if has_role_setting("master_approval_roles", _DEFAULT_APPROVAL_ROLES):
 			frappe.msgprint(
 				_("Approval Warning: item is being set Active without formal approval."),
 				title=_("Approval Gate Bypassed"),
@@ -132,13 +153,36 @@ def enforce_approval_gate(doc, method=None):
 				  "Current approval status: <b>{1}</b>").format(doc.name, approval),
 				title=_("Approval Gate"),
 				exc=ApprovalError,
-			)
+				)
 
 
 @frappe.whitelist()
+def get_item_ui_capabilities(item_code: str) -> dict:
+	"""Return Item form actions resolved from the same server approval policy."""
+	if not item_code or not frappe.db.exists("Item", item_code):
+		frappe.throw(_("Item {0} does not exist.").format(item_code or ""))
+	doc = frappe.get_doc("Item", item_code)
+	doc.check_permission("read")
+
+	can_write = bool(frappe.has_permission("Item", "write", doc=doc, throw=False))
+	can_review = False
+	if can_write and doc.ch_approval_status == "Submitted for Review":
+		from ch_item_master.ch_item_master.rbac import is_effective_approver
+
+		can_review = is_effective_approver()
+		if can_review and doc.get("ch_submitted_by") == frappe.session.user:
+			can_review = has_role_setting(
+				"break_glass_supervisor_roles", ("System Manager",), frappe.session.user
+			)
+	return {"can_review": bool(can_review)}
+
+
+@frappe.whitelist(methods=["POST"])
 def submit_for_approval(item_code: str, remarks: str = "") -> str:
 	"""Transition approval status Draft → Submitted for Review. Records SoD submitter."""
+	frappe.db.get_value("Item", item_code, "name", for_update=True)
 	doc = frappe.get_doc("Item", item_code)
+	doc.check_permission("write")
 	if doc.ch_approval_status not in ("Draft", "Rejected"):
 		frappe.throw(_("Can only submit items in Draft or Rejected state for review."))
 	doc.ch_approval_status = "Submitted for Review"
@@ -152,17 +196,19 @@ def submit_for_approval(item_code: str, remarks: str = "") -> str:
 	if remarks:
 		doc.ch_approval_remarks = remarks
 	doc.flags.ignore_mandatory = True
-	doc.save(ignore_permissions=True)
+	doc.save()
 	return "Submitted for Review"
 
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def approve_item(item_code: str, remarks: str = "") -> str:
 	"""Approve an item that is Submitted for Review. Enforces SoD and delegation."""
 	from ch_item_master.ch_item_master.rbac import check_sod, is_effective_approver
 	if not is_effective_approver():
 		frappe.throw(_("Only CH Master Approver (or a valid delegate) can approve items."))
+	frappe.db.get_value("Item", item_code, "name", for_update=True)
 	doc = frappe.get_doc("Item", item_code)
+	doc.check_permission("write")
 	if doc.ch_approval_status != "Submitted for Review":
 		frappe.throw(_("Item must be in 'Submitted for Review' state to approve."))
 	# SoD: block self-approval
@@ -180,17 +226,19 @@ def approve_item(item_code: str, remarks: str = "") -> str:
 		doc.flags.ignore_plm_transition = True  # approval action skips intermediate PLM steps
 	doc.flags.ignore_lifecycle_transition = True  # role already validated above; allow delegated approvers
 	doc.flags.ignore_mandatory = True
-	doc.save(ignore_permissions=True)
+	doc.save()
 	return "Approved"
 
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def reject_item(item_code: str, remarks: str = "") -> str:
 	"""Reject an item that is Submitted for Review. Enforces SoD and delegation."""
 	from ch_item_master.ch_item_master.rbac import check_sod, is_effective_approver
 	if not is_effective_approver():
 		frappe.throw(_("Only CH Master Approver (or a valid delegate) can reject items."))
+	frappe.db.get_value("Item", item_code, "name", for_update=True)
 	doc = frappe.get_doc("Item", item_code)
+	doc.check_permission("write")
 	if doc.ch_approval_status != "Submitted for Review":
 		frappe.throw(_("Item must be in 'Submitted for Review' state to reject."))
 	# SoD: block self-rejection
@@ -199,7 +247,7 @@ def reject_item(item_code: str, remarks: str = "") -> str:
 	if remarks:
 		doc.ch_approval_remarks = remarks
 	doc.flags.ignore_mandatory = True
-	doc.save(ignore_permissions=True)
+	doc.save()
 	return "Rejected"
 
 
@@ -300,6 +348,8 @@ def get_vendor_info(
 	"""
 	from ch_item_master.ch_item_master.rbac import check_vendor_view_role
 	check_vendor_view_role()
+	frappe.has_permission("Item", "read", item_code, throw=True)
+	company = _resolve_vendor_company(company)
 	filters: dict = {"item_code": item_code, "active": 1}
 	as_of = getdate(as_of_date) if as_of_date else getdate(today())
 	if supplier:
@@ -330,7 +380,7 @@ def get_vendor_info(
 	return rows
 
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def upsert_vendor_info(
 	item_code: str,
 	supplier: str,
@@ -347,6 +397,9 @@ def upsert_vendor_info(
 	# Role gate: CH Vendor Manager or higher required
 	from ch_item_master.ch_item_master.rbac import check_vendor_manager_role
 	check_vendor_manager_role()
+	frappe.has_permission("Item", "read", item_code, throw=True)
+	frappe.has_permission("Supplier", "read", supplier, throw=True)
+	company = _resolve_vendor_company(company)
 	lookup_filters = {"item_code": item_code, "supplier": supplier}
 	if company:
 		lookup_filters["company"] = company
@@ -360,13 +413,28 @@ def upsert_vendor_info(
 		"name",
 	)
 	if existing:
+		frappe.db.get_value("CH Vendor Info Record", existing, "name", for_update=True)
 		doc = frappe.get_doc("CH Vendor Info Record", existing)
+		doc.check_permission("write")
+		changed = False
 		for key, val in kwargs.items():
-			if hasattr(doc, key):
-				setattr(doc, key, val)
-		doc.save(ignore_permissions=True)
+			if key not in _VENDOR_EDITABLE_FIELDS:
+				continue
+			if doc.get(key) != val:
+				doc.set(key, val)
+				changed = True
+		if changed and doc.approval_status == "Approved":
+			doc.approval_status = "Draft"
+			doc.submitted_by = None
+			doc.submitted_on = None
+			doc.approved_by = None
+			doc.approved_on = None
+			doc._authorize_approval_transition()
+		doc.save()
 		return doc.name
 	else:
+		frappe.has_permission("CH Vendor Info Record", "create", throw=True)
+		values = {key: value for key, value in kwargs.items() if key in _VENDOR_EDITABLE_FIELDS}
 		doc = frappe.get_doc({
 			"doctype": "CH Vendor Info Record",
 			"item_code": item_code,
@@ -374,35 +442,42 @@ def upsert_vendor_info(
 			"company": company,
 			"purchase_org": purchase_org,
 			"supplier_site": supplier_site,
-			"approval_status": kwargs.pop("approval_status", "Approved"),
-			**kwargs,
+			"approval_status": "Draft",
+			**values,
 		})
-		doc.insert(ignore_permissions=True)
+		doc.insert()
 		return doc.name
 
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def submit_vendor_info_for_approval(name: str) -> str:
 	"""Submit a vendor info record for approval."""
 	from ch_item_master.ch_item_master.rbac import check_vendor_manager_role
 	check_vendor_manager_role()
+	frappe.db.get_value("CH Vendor Info Record", name, "name", for_update=True)
 	doc = frappe.get_doc("CH Vendor Info Record", name)
+	doc.check_permission("write")
+	_resolve_vendor_company(doc.company)
 	if doc.approval_status not in ("Draft", "Rejected"):
 		frappe.throw(_("Only Draft or Rejected records can be submitted."))
 	doc.approval_status = "Submitted"
 	doc.submitted_by = frappe.session.user
 	doc.submitted_on = now_datetime()
-	doc.save(ignore_permissions=True)
+	doc._authorize_approval_transition()
+	doc.save()
 	return "Submitted"
 
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def approve_vendor_info(name: str, remarks: str = "") -> str:
 	"""Approve a vendor info record (maker-checker with SoD)."""
 	from ch_item_master.ch_item_master.rbac import check_sod, is_effective_approver
 	if not is_effective_approver():
 		frappe.throw(_("Only CH Master Approver (or valid delegate) can approve vendor info."))
+	frappe.db.get_value("CH Vendor Info Record", name, "name", for_update=True)
 	doc = frappe.get_doc("CH Vendor Info Record", name)
+	doc.check_permission("write")
+	_resolve_vendor_company(doc.company)
 	if doc.approval_status != "Submitted":
 		frappe.throw(_("Vendor info must be in Submitted state to approve."))
 	check_sod(submitted_by=doc.submitted_by or "")
@@ -411,7 +486,8 @@ def approve_vendor_info(name: str, remarks: str = "") -> str:
 	doc.approved_on = now_datetime()
 	if remarks:
 		doc.notes = (doc.notes or "") + f"\n[Approval] {remarks}" if doc.notes else f"[Approval] {remarks}"
-	doc.save(ignore_permissions=True)
+	doc._authorize_approval_transition()
+	doc.save()
 	return "Approved"
 
 
@@ -577,7 +653,7 @@ def enforce_plm_on_transaction(doc, method=None):
 	# default PLM='NPI' and then attempts sample Stock/Sales/Purchase entries
 	# against them, which would fail collection. Interactive prod behaviour
 	# is unaffected (frappe.flags.in_test is only True under ``bench run-tests``).
-	if frappe.flags.in_test:
+	if frappe.flags.in_test and not frappe.flags.get("enforce_ch_item_governance"):
 		return
 
 	if not getattr(doc, "items", None):
@@ -633,7 +709,7 @@ def enforce_plm_on_transaction(doc, method=None):
 # 7. Vendor Performance Scoring
 # ─────────────────────────────────────────────────────────────────────────────
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def record_vendor_performance(
 	item_code: str,
 	supplier: str,
@@ -645,6 +721,7 @@ def record_vendor_performance(
 	defect_rate: float = 0.0,
 	risk_level: str = "Low",
 	block_reason: str = "",
+	company: str | None = None,
 ) -> str:
 	"""
 	Record a vendor performance evaluation.
@@ -655,6 +732,22 @@ def record_vendor_performance(
 	"""
 	from ch_item_master.ch_item_master.rbac import check_vendor_manager_role
 	check_vendor_manager_role()
+	frappe.has_permission("CH Vendor Performance", "create", throw=True)
+	frappe.has_permission("Item", "read", item_code, throw=True)
+	frappe.has_permission("Supplier", "read", supplier, throw=True)
+	company = _resolve_vendor_company(company)
+	if not company:
+		frappe.throw(_("Company is required for vendor performance records."), frappe.ValidationError)
+	if risk_level not in {"Low", "Medium", "High", "Critical"}:
+		frappe.throw(_("Invalid vendor risk level."), frappe.ValidationError)
+	for label, value in (
+		(_("OTIF"), otif_pct),
+		(_("On-time delivery"), on_time_delivery_pct),
+		(_("Quality score"), quality_score),
+		(_("Defect rate"), defect_rate),
+	):
+		if not 0 <= flt(value) <= 100:
+			frappe.throw(_("{0} must be between 0 and 100.").format(label), frappe.ValidationError)
 
 	eval_date = evaluation_date or today()
 	auto_block = 1 if risk_level == "Critical" else 0
@@ -663,6 +756,7 @@ def record_vendor_performance(
 		"doctype": "CH Vendor Performance",
 		"item_code": item_code,
 		"supplier": supplier,
+		"company": company,
 		"evaluation_date": eval_date,
 		"evaluation_period": evaluation_period or "",
 		"evaluator": frappe.session.user,
@@ -674,25 +768,22 @@ def record_vendor_performance(
 		"auto_block": auto_block,
 		"block_reason": block_reason,
 	})
-	rec.insert(ignore_permissions=True)
-	frappe.db.commit()
+	rec.insert()
 
 	# Auto-block: deactivate the vendor info record(s) for this item+supplier
 	if auto_block:
-		vir_names = frappe.get_all(
+		vir_names = frappe.get_list(
 			"CH Vendor Info Record",
-			filters={"item_code": item_code, "supplier": supplier, "active": 1},
+			filters={"item_code": item_code, "supplier": supplier, "company": company, "active": 1},
 			pluck="name",
+			limit_page_length=get_int_setting("vendor_query_limit", 200, minimum=1),
 		)
 		for vir_name in vir_names:
-			frappe.db.set_value(
-				"CH Vendor Info Record",
-				vir_name,
-				{"active": 0, "notes": f"[Auto-blocked] {block_reason}"},
-				update_modified=False,
-			)
-		if vir_names:
-			frappe.db.commit()
+			vir = frappe.get_doc("CH Vendor Info Record", vir_name)
+			vir.check_permission("write")
+			vir.active = 0
+			vir.notes = f"[Auto-blocked] {block_reason}"
+			vir.save()
 
 	return rec.name
 
@@ -702,20 +793,29 @@ def get_vendor_performance(
 	item_code: str,
 	supplier: str,
 	limit: int = 5,
+	company: str | None = None,
 ) -> list[dict]:
 	"""Return recent performance evaluations for a vendor, newest first."""
 	from ch_item_master.ch_item_master.rbac import check_vendor_view_role
 	check_vendor_view_role()
-	return frappe.get_all(
+	frappe.has_permission("CH Vendor Performance", "read", throw=True)
+	company = _resolve_vendor_company(company)
+	filters = {"item_code": item_code, "supplier": supplier}
+	if company:
+		filters["company"] = company
+	return frappe.get_list(
 		"CH Vendor Performance",
-		filters={"item_code": item_code, "supplier": supplier},
+		filters=filters,
 		fields=[
-			"name", "evaluation_date", "evaluation_period", "evaluator",
+			"name", "company", "evaluation_date", "evaluation_period", "evaluator",
 			"otif_pct", "on_time_delivery_pct", "quality_score",
 			"defect_rate", "risk_level", "auto_block",
 		],
 		order_by="evaluation_date desc",
-		limit=cint(limit),
+		limit_page_length=min(
+			max(cint(limit), 1),
+			get_int_setting("vendor_query_limit", 200, minimum=1),
+		),
 	)
 
 
@@ -734,6 +834,12 @@ def run_allocation_check(
 	sum to exactly 100%.  Considers all vendors with allocation_pct > 0.
 	Returns {ok: bool, total_pct: float, vendors: list}.
 	"""
+	from ch_item_master.ch_item_master.rbac import check_vendor_view_role
+
+	check_vendor_view_role()
+	frappe.has_permission("Item", "read", item_code, throw=True)
+	frappe.has_permission("CH Vendor Info Record", "read", throw=True)
+	company = _resolve_vendor_company(company)
 	filters: dict = {"item_code": item_code, "active": 1, "approval_status": "Approved"}
 	if company:
 		filters["company"] = company
@@ -745,6 +851,7 @@ def run_allocation_check(
 		filters=filters,
 		fields=["name", "supplier", "allocation_pct", "source_rank"],
 		order_by="source_rank asc",
+		limit_page_length=get_int_setting("vendor_query_limit", 200, minimum=1),
 	)
 	# Only count vendors that have a non-zero allocation set
 	alloc_rows = [r for r in rows if flt(r.allocation_pct) > 0]
@@ -897,4 +1004,3 @@ def get_contract_price(
 					"vendor_record": vir_name,
 				}
 	return None
-

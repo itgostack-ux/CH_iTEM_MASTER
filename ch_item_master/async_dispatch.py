@@ -25,7 +25,7 @@ _CUSTOMER_HOOK = "ch_item_master.ch_customer_master.hooks.on_sales_invoice_submi
 _CUSTOMER_CANCEL_HOOK = "ch_item_master.ch_customer_master.hooks.on_sales_invoice_cancel"
 _SCHEME_RECEIVABLE_HOOK = (
     "ch_item_master.ch_item_master.doctype.ch_scheme_receivable."
-    "ch_scheme_receivable.create_from_pos_invoice"
+    "ch_scheme_receivable._create_from_pos_invoice"
 )
 _SUPPLIER_SCHEME_HOOK = "ch_item_master.supplier_scheme.engine.process_invoice_items"
 

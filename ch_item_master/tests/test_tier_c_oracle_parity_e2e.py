@@ -603,8 +603,12 @@ class TestTierCPLMStateMachine(unittest.TestCase):
 			doctype="Purchase Order",
 			items=[_MockRow(idx=1, item_code=item.name)],
 		)
-		with self.assertRaises(frappe.ValidationError):
-			enforce_plm_on_transaction(po)
+		frappe.flags.enforce_ch_item_governance = True
+		try:
+			with self.assertRaises(frappe.ValidationError):
+				enforce_plm_on_transaction(po)
+		finally:
+			frappe.flags.enforce_ch_item_governance = False
 
 	def test_20_end_of_life_warns_on_sales(self):
 		"""Sales Invoice validate emits a msgprint warning for End of Life items (no hard block)."""

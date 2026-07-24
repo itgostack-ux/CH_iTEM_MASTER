@@ -7,7 +7,8 @@ from frappe.utils import flt, cint
 @frappe.whitelist()
 def get_rule_achievements(scheme):
 	"""Return per-rule achievement totals vs target for the achievement section on the form."""
-	frappe.has_permission("Supplier Scheme Circular", "read", throw=True)
+	scheme_doc = frappe.get_doc("Supplier Scheme Circular", scheme)
+	scheme_doc.check_permission("read")
 
 	rules = frappe.get_all(
 		"Supplier Scheme Rule",
@@ -18,17 +19,27 @@ def get_rule_achievements(scheme):
 	if not rules:
 		return []
 
+	rule_names = tuple({rule.rule_name or rule.name for rule in rules})
+	achievement_rows = frappe.db.sql(
+		"""
+		SELECT
+			rule_name,
+			COALESCE(SUM(CASE WHEN eligible_for_slab = 1 THEN qty ELSE 0 END), 0) AS achieved_qty,
+			COALESCE(SUM(computed_payout), 0) AS estimated_payout
+		FROM `tabScheme Achievement Ledger`
+		WHERE scheme = %(scheme)s
+			AND rule_name IN %(rule_names)s
+			AND is_reversed = 0
+		GROUP BY rule_name
+		""",
+		{"scheme": scheme, "rule_names": rule_names},
+		as_dict=True,
+	)
+	achievement_by_rule = {row.rule_name: row for row in achievement_rows}
+
 	result = []
 	for rule in rules:
-		row = frappe.db.sql("""
-			SELECT
-				COALESCE(SUM(CASE WHEN is_reversed=0 AND eligible_for_slab=1 THEN qty ELSE 0 END), 0) AS achieved_qty,
-				COALESCE(SUM(CASE WHEN is_reversed=0 THEN computed_payout ELSE 0 END), 0) AS estimated_payout
-			FROM `tabScheme Achievement Ledger`
-			WHERE scheme = %s AND rule_name = %s AND is_reversed = 0
-		""", (scheme, rule.rule_name or rule.name), as_dict=True)
-
-		r = row[0] if row else {}
+		r = achievement_by_rule.get(rule.rule_name or rule.name) or {}
 		result.append({
 			"rule_name": rule.rule_name or rule.name,
 			"target_qty": cint(rule.target_qty),

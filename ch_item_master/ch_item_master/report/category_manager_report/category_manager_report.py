@@ -16,8 +16,18 @@ import frappe
 from frappe import _
 from frappe.utils import today
 
+from ch_item_master.config import get_int_setting, require_role_setting
+from ch_item_master.security import get_company_scope
+
 
 def execute(filters=None):
+    require_role_setting(
+        "app_access_roles",
+        ("CH Master Manager", "CH Price Manager", "CH Viewer"),
+        action=_("view the category manager report"),
+    )
+    for doctype in ("CH Model", "Item", "CH Item Price", "CH Item Offer"):
+        frappe.has_permission(doctype, "read", throw=True)
     filters = filters or {}
     columns = get_columns()
     data = get_data(filters)
@@ -50,8 +60,7 @@ def get_columns():
 
 def get_data(filters):
     conditions = ["m.disabled = 0"]
-    values = {}
-    cur_date = today()
+    values = {"current_date": today()}
 
     if filters.get("category"):
         conditions.append("sc.category = %(category)s")
@@ -63,6 +72,8 @@ def get_data(filters):
 
     where = " AND ".join(conditions)
 
+    row_limit = min(get_int_setting("interactive_report_row_limit", 2000, minimum=1), 10000)
+    values["row_limit"] = row_limit + 1
     models = frappe.db.sql("""
         SELECT
             m.name AS model,
@@ -74,15 +85,37 @@ def get_data(filters):
         JOIN `tabCH Sub Category` sc ON sc.name = m.sub_category
         WHERE {where}
         ORDER BY sc.category, m.sub_category, m.model_name
+        LIMIT %(row_limit)s
     """.format(where=where), values, as_dict=True)  # noqa: UP032
 
+    if len(models) > row_limit:
+        frappe.throw(
+            _("Category Manager Report exceeds the configured limit of {0} models. Narrow the filters.").format(
+                row_limit
+            ),
+            frappe.ValidationError,
+        )
+    if not models:
+        return []
+
+    model_names = tuple(row.model for row in models)
+
     # Price/offer filter conditions
-    price_conds = ["p.status = 'Active'"]
-    offer_conds = ["o.status = 'Active'"]
-    if filters.get("company"):
-        price_conds.append("p.company = %(company)s")
-        offer_conds.append("o.company = %(company)s")
-        values["company"] = filters["company"]
+    price_conds = [
+        "p.status = 'Active'",
+        "(p.effective_from IS NULL OR p.effective_from <= %(current_date)s)",
+        "(p.effective_to IS NULL OR p.effective_to >= %(current_date)s)",
+    ]
+    offer_conds = [
+        "o.status = 'Active'",
+        "(o.start_date IS NULL OR o.start_date <= %(current_date)s)",
+        "(o.end_date IS NULL OR o.end_date >= %(current_date)s)",
+    ]
+    company_scope = get_company_scope(requested_company=filters.get("company") or None)
+    if company_scope is not None:
+        values["companies"] = tuple(company_scope or ["__no_company_scope__"])
+        price_conds.append("p.company IN %(companies)s")
+        offer_conds.append("o.company IN %(companies)s")
     if filters.get("channel"):
         price_conds.append("p.channel = %(channel)s")
         offer_conds.append("(o.channel = %(channel)s OR o.channel IS NULL OR o.channel = '')")
@@ -91,63 +124,62 @@ def get_data(filters):
     price_where = " AND ".join(price_conds)
     offer_where = " AND ".join(offer_conds)
 
+    item_counts = frappe.db.sql(
+        """
+        SELECT ch_model AS model, COUNT(*) AS total_items
+        FROM `tabItem`
+        WHERE ch_model IN %(models)s AND has_variants = 0 AND disabled = 0
+        GROUP BY ch_model
+        """,
+        {"models": model_names},
+        as_dict=True,
+    )
+    item_counts_by_model = {row.model: int(row.total_items or 0) for row in item_counts}
+
+    price_data = frappe.db.sql(
+        """
+        SELECT
+            i.ch_model AS model,
+            COUNT(DISTINCT p.item_code) AS priced_items,
+            AVG(p.mrp) AS avg_mrp,
+            AVG(p.selling_price) AS avg_sp
+        FROM `tabItem` i
+        INNER JOIN `tabCH Item Price` p ON p.item_code = i.name
+        WHERE i.ch_model IN %(models)s
+          AND i.has_variants = 0
+          AND i.disabled = 0
+          AND {conditions}
+        GROUP BY i.ch_model
+        """.format(conditions=price_where),
+        {**values, "models": model_names},
+        as_dict=True,
+    )
+    prices_by_model = {row.model: row for row in price_data}
+
+    offer_data = frappe.db.sql(
+        """
+        SELECT i.ch_model AS model, COUNT(*) AS active_offers
+        FROM `tabItem` i
+        INNER JOIN `tabCH Item Offer` o ON o.item_code = i.name
+        WHERE i.ch_model IN %(models)s
+          AND i.has_variants = 0
+          AND i.disabled = 0
+          AND {conditions}
+        GROUP BY i.ch_model
+        """.format(conditions=offer_where),
+        {**values, "models": model_names},
+        as_dict=True,
+    )
+    offers_by_model = {row.model: int(row.active_offers or 0) for row in offer_data}
+
     data = []
     for row in models:
-        # Count items for this model
-        total_items = frappe.db.count("Item", {
-            "ch_model": row.model,
-            "has_variants": 0,
-            "disabled": 0,
-        })
-
-        if total_items == 0:
-            # Check if template exists
-            template_exists = frappe.db.count("Item", {
-                "ch_model": row.model,
-                "has_variants": 1,
-            })
-            total_items = 0
-
-        # Count priced items
-        priced_items = 0
-        avg_mrp = 0
-        avg_sp = 0
-        if total_items > 0:
-            item_codes = frappe.db.get_all("Item", {
-                "ch_model": row.model,
-                "has_variants": 0,
-                "disabled": 0,
-            }, pluck="name")
-
-            if item_codes:
-                values["_items"] = item_codes
-                price_data = frappe.db.sql("""
-                    SELECT
-                        COUNT(DISTINCT p.item_code) as priced,
-                        AVG(p.mrp) as avg_mrp,
-                        AVG(p.selling_price) as avg_sp
-                    FROM `tabCH Item Price` p
-                    WHERE p.item_code IN %(items)s AND {cond}
-                """.format(cond=price_where), {**values, "items": item_codes}, as_dict=True)  # noqa: UP032
-
-                if price_data:
-                    priced_items = price_data[0].priced or 0
-                    avg_mrp = price_data[0].avg_mrp or 0
-                    avg_sp = price_data[0].avg_sp or 0
-
-        # Count offers
-        active_offers = 0
-        if total_items > 0:
-            item_codes = frappe.db.get_all("Item", {
-                "ch_model": row.model,
-                "has_variants": 0,
-                "disabled": 0,
-            }, pluck="name")
-            if item_codes:
-                active_offers = frappe.db.sql("""
-                    SELECT COUNT(*) FROM `tabCH Item Offer` o
-                    WHERE o.item_code IN %(items)s AND {cond}
-                """.format(cond=offer_where), {**values, "items": item_codes})[0][0] or 0  # noqa: UP032
+        total_items = item_counts_by_model.get(row.model, 0)
+        price_row = prices_by_model.get(row.model, {})
+        priced_items = int(price_row.get("priced_items") or 0)
+        avg_mrp = price_row.get("avg_mrp") or 0
+        avg_sp = price_row.get("avg_sp") or 0
+        active_offers = offers_by_model.get(row.model, 0)
 
         unpriced = total_items - priced_items
         coverage = round((priced_items / total_items * 100), 1) if total_items > 0 else 0

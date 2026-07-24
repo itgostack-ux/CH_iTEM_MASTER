@@ -24,6 +24,9 @@ always preserved.
 from __future__ import annotations
 
 import frappe
+from frappe import _
+
+from ch_item_master.config import require_role_setting
 
 
 # ── per-doctype "active" presets ────────────────────────────────────────────
@@ -89,7 +92,6 @@ def apply_active_defaults(doc, method=None):
 
 
 # ── one-shot backfill for records loaded *before* this hook existed ─────────
-@frappe.whitelist()
 def backfill_active_defaults() -> dict:
 	"""Promote stuck Draft / NPI master records to Active.
 
@@ -97,7 +99,11 @@ def backfill_active_defaults() -> dict:
 	never overrides a record someone has explicitly Reviewed / Rejected.
 	Returns a per-doctype count of rows touched.
 	"""
-	frappe.only_for("System Manager")
+	require_role_setting(
+		"data_import_roles",
+		("System Manager", "CH Master Manager"),
+		action=_("backfill imported master data"),
+	)
 
 	results: dict[str, int] = {}
 
@@ -136,5 +142,4 @@ def backfill_active_defaults() -> dict:
 		"tabCH Sub Category", "lifecycle_status", "Active", ("", "Draft")
 	)
 
-	frappe.db.commit()
 	return results

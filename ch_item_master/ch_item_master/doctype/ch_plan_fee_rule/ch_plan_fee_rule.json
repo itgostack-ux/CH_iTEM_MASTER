@@ -5,6 +5,7 @@
  "istable": 1,
  "editable_grid": 1,
  "engine": "InnoDB",
+ "field_order": ["fee_type", "fee_mode", "fee_amount", "fee_percent", "fee_minimum", "fee_maximum", "when_to_collect", "applicable_modes"],
  "fields": [
   {
    "fieldname": "fee_type",

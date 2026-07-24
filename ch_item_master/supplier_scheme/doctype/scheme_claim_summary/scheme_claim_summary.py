@@ -32,7 +32,7 @@ class SchemeClaimSummary(Document):
 		if flt(self.net_claim) < 0:
 			frappe.throw(_("Net Claim cannot be negative"), title=_("Scheme Claim Summary Error"))
 
-	@frappe.whitelist()
+	@frappe.whitelist(methods=["POST"])
 	def lock_claim(self) -> None:
 		"""Lock the claim so no more achievement changes affect it."""
 		if self.claim_status != "Draft":
@@ -40,7 +40,7 @@ class SchemeClaimSummary(Document):
 		self.db_set("claim_status", "Locked")
 		self.reload()
 
-	@frappe.whitelist()
+	@frappe.whitelist(methods=["POST"])
 	def mark_claim_ready(self) -> None:
 		"""Mark as ready for filing with the supplier."""
 		if self.claim_status not in ("Draft", "Locked"):

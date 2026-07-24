@@ -4,14 +4,82 @@
 
 import frappe
 from frappe import _
-from frappe.utils import flt, now_datetime, getdate, add_to_date
+from frappe.utils import add_to_date, flt, getdate, now_datetime, nowdate
+
+from ch_item_master.config import (
+	get_enabled_role_users,
+	get_int_setting,
+	is_privileged_user,
+	require_role_setting,
+)
+from ch_item_master.security import ensure_company_access, get_company_scope
+
+
+_EXCEPTION_SUMMARY_ROLES = ("Store Manager", "Sales Manager", "Service Manager")
+_MAX_EXCEPTION_SUMMARY_DAYS = 366
+
+
+def _approver_mobile(user=None) -> str:
+	"""Resolve the authenticated approver's trusted mobile number."""
+	user = user or frappe.session.user
+	row = frappe.db.get_value("User", user, ["mobile_no", "phone"], as_dict=True) or {}
+	mobile = (row.get("mobile_no") or row.get("phone") or "").strip()
+	if not mobile and frappe.db.exists("DocType", "Employee"):
+		fields = [f for f in ("cell_number", "personal_mobile") if frappe.get_meta("Employee").has_field(f)]
+		if fields:
+			employee = frappe.db.get_value("Employee", {"user_id": user, "status": ("!=", "Left")}, fields, as_dict=True) or {}
+			mobile = next((str(employee.get(field) or "").strip() for field in fields if employee.get(field)), "")
+	if not mobile:
+		frappe.throw(
+			_("Add a mobile number to your User or Employee record before requesting an approval OTP."),
+			frappe.PermissionError,
+		)
+	from ch_item_master.ch_item_master.utils import validate_indian_phone
+
+	return validate_indian_phone(mobile, _("Approver Mobile"))
+
+
+def _trusted_otp_mobile(supplied_mobile=None) -> str:
+	trusted = _approver_mobile(frappe.session.user)
+	if supplied_mobile:
+		from ch_item_master.ch_item_master.utils import validate_indian_phone
+
+		supplied = validate_indian_phone(supplied_mobile, _("Approver Mobile"))
+		if supplied != trusted:
+			frappe.throw(
+				_("The OTP mobile must match the authenticated approver's registered mobile number."),
+				frappe.PermissionError,
+			)
+	return trusted
+
+
+def _assert_exception_scope(company, store_warehouse=None, pos_profile=None) -> None:
+	ensure_company_access(company)
+	if store_warehouse:
+		warehouse_company = frappe.db.get_value("Warehouse", store_warehouse, "company")
+		if not warehouse_company or warehouse_company != company:
+			frappe.throw(_("The selected warehouse does not belong to the exception company."), frappe.PermissionError)
+		try:
+			from ch_erp15.ch_erp15.scope import assert_user_has_store_scope
+		except ImportError:
+			if not is_privileged_user():
+				frappe.throw(_("Store scope cannot be verified."), frappe.PermissionError)
+		else:
+			assert_user_has_store_scope(warehouse=store_warehouse, company=company)
+
+	if pos_profile:
+		profile = frappe.db.get_value("POS Profile", pos_profile, ["company", "warehouse"], as_dict=True)
+		if not profile or profile.company != company:
+			frappe.throw(_("The POS Profile does not belong to the exception company."), frappe.PermissionError)
+		if store_warehouse and profile.warehouse and profile.warehouse != store_warehouse:
+			frappe.throw(_("The POS Profile warehouse does not match the exception warehouse."), frappe.PermissionError)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Core APIs — whitelisted for POS / frontend consumption
 # ─────────────────────────────────────────────────────────────────────────────
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def raise_exception(exception_type, company, reason, requested_value=0,
                     original_value=0, reference_doctype=None, reference_name=None,
                     item_code=None, serial_no=None, store_warehouse=None,
@@ -21,11 +89,24 @@ def raise_exception(exception_type, company, reason, requested_value=0,
 	Returns dict with request name + exception type config (for frontend
 	to decide whether to show OTP dialog, call manager, etc.).
 	"""
+	_assert_exception_scope(company, store_warehouse, pos_profile)
 	etype = frappe.get_cached_doc("CH Exception Type", exception_type)
 	if not etype.enabled:
 		frappe.throw(_("Exception type {0} is disabled").format(exception_type), title=_("API Error"))
 
 	frappe.has_permission("CH Exception Request", "create", throw=True)
+	customer = (customer or "").strip() or None
+	if reference_doctype or reference_name:
+		if not reference_doctype or not reference_name:
+			frappe.throw(_("Reference DocType and document must be provided together."), frappe.ValidationError)
+		reference_doc = frappe.get_doc(reference_doctype, reference_name)
+		reference_doc.check_permission("read")
+		if reference_doc.meta.has_field("company") and reference_doc.get("company") not in (None, "", company):
+			frappe.throw(_("The referenced document belongs to another company."), frappe.PermissionError)
+	if customer:
+		frappe.has_permission("Customer", "read", customer, throw=True)
+	if item_code:
+		frappe.has_permission("Item", "read", item_code, throw=True)
 
 	# ── Customer identity is mandatory for POS-raised exceptions ──────────
 	# Doctrine (Oracle Xstore / SAP CAR-POS / Dynamics 365 Commerce): a
@@ -40,7 +121,6 @@ def raise_exception(exception_type, company, reason, requested_value=0,
 	# possible. The walk-in customer configured on the POS Profile is
 	# treated as "no customer" because it's an anonymous placeholder, not
 	# an identity.
-	customer = (customer or "").strip() or None
 	walk_in_customer = None
 	if pos_profile:
 		walk_in_customer = (
@@ -132,7 +212,8 @@ def raise_exception(exception_type, company, reason, requested_value=0,
 		exc.approval_expiry = add_to_date(
 			now_datetime(), minutes=etype.validity_minutes or 30
 		)
-		exc.insert(ignore_permissions=True)
+		exc._authorize_approval_transition()
+		exc.insert()
 		exc.submit()
 		return {
 			"name": exc.name,
@@ -144,7 +225,8 @@ def raise_exception(exception_type, company, reason, requested_value=0,
 	# Resolves exc.category / exc.approval_role / exc.assigned_approver in place.
 	resolve_exception_approver(exc, etype)
 
-	exc.insert(ignore_permissions=True)
+	exc._authorize_approval_transition()
+	exc.insert()
 
 	# Alert the responsible team, the assigned approver, and their manager
 	# (best-effort; never block the request).
@@ -270,17 +352,8 @@ def _resolve_user_by_scope(role, store):
 
 
 def _users_with_role(role):
-	"""Enabled, real users holding `role` (excludes Administrator/Guest)."""
-	rows = frappe.get_all(
-		"Has Role",
-		filters={"role": role, "parenttype": "User"},
-		pluck="parent",
-	)
-	return [
-		u for u in rows
-		if u not in ("Administrator", "Guest")
-		and frappe.db.get_value("User", u, "enabled")
-	]
+	"""Enabled business users holding `role`."""
+	return get_enabled_role_users((role,))
 
 
 def _apply_delegation(user):
@@ -288,19 +361,28 @@ def _apply_delegation(user):
 	route to the delegate instead (vacation / out-of-office substitution)."""
 	if not user:
 		return user
-	today_d = getdate()
-	for d in frappe.get_all(
-		"CH Approval Delegation",
-		filters={"delegator": user, "active": 1},
-		fields=["delegate", "valid_from", "valid_to"],
-	):
-		if d.valid_from and getdate(d.valid_from) > today_d:
-			continue
-		if d.valid_to and getdate(d.valid_to) < today_d:
-			continue
-		if d.delegate and d.delegate != user:
-			return d.delegate
-	return user
+	row = frappe.db.sql(
+		"""
+			SELECT delegation.`delegate`
+			FROM `tabCH Approval Delegation` delegation
+			INNER JOIN `tabUser` delegate_user
+			  ON delegate_user.`name` = delegation.`delegate`
+			 AND delegate_user.`enabled` = 1
+			 AND delegate_user.`user_type` = 'System User'
+			WHERE delegation.`delegator` = %(user)s
+			  AND delegation.`active` = 1
+			  AND delegation.`delegate` IS NOT NULL
+			  AND delegation.`delegate` != %(user)s
+			  AND (delegation.`valid_from` IS NULL OR delegation.`valid_from` <= %(today)s)
+			  AND (delegation.`valid_to` IS NULL OR delegation.`valid_to` >= %(today)s)
+			ORDER BY COALESCE(delegation.`valid_from`, '1000-01-01') DESC,
+			         delegation.`modified` DESC,
+			         delegation.`name` ASC
+			LIMIT 1
+		""",
+		{"user": user, "today": getdate()},
+	)
+	return row[0][0] if row else user
 
 
 def _manager_role_for(exc):
@@ -457,7 +539,7 @@ def _build_exception_email(exc, heading) -> str:
 	)
 
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def approve_exception(exception_name, approver_user=None, channel=None,
                       otp_code=None, otp_mobile=None,
                       resolution_value=None, remarks=None) -> dict:
@@ -468,16 +550,20 @@ def approve_exception(exception_name, approver_user=None, channel=None,
 	cannot also approve it (System Manager bypass is audited).
 	"""
 	exc = frappe.get_doc("CH Exception Request", exception_name)
+	frappe.has_permission("CH Exception Request", "write", doc=exc, throw=True)
 	if exc.status not in ("Pending", "Escalated"):
 		frappe.throw(_("Exception {0} is already {1}").format(exception_name, exc.status), title=_("API Error"))
-
-	frappe.has_permission("CH Exception Request", "write", throw=True)
 
 	if exc.docstatus == 1:
 		frappe.throw(_("Exception {0} is already submitted").format(exception_name), title=_("API Error"))
 
 	etype = frappe.get_cached_doc("CH Exception Type", exc.exception_type)
-	approver_user = approver_user or frappe.session.user
+	if approver_user and approver_user != frappe.session.user:
+		frappe.throw(
+			_("Approver identity is derived from the authenticated session."),
+			frappe.PermissionError,
+		)
+	approver_user = frappe.session.user
 
 	# SoD enforcement — the requester cannot approve their own exception.
 	from ch_item_master.ch_item_master.rbac import check_sod
@@ -485,7 +571,10 @@ def approve_exception(exception_name, approver_user=None, channel=None,
 
 	# OTP validation
 	otp_ref = None
-	if etype.requires_otp and otp_code and otp_mobile:
+	if etype.requires_otp:
+		if not otp_code:
+			frappe.throw(_("OTP is mandatory for this exception type."), frappe.AuthenticationError)
+		otp_mobile = _trusted_otp_mobile(otp_mobile)
 		from ch_item_master.ch_core.doctype.ch_otp_log.ch_otp_log import CHOTPLog
 		result = CHOTPLog.verify_otp(
 			mobile_no=otp_mobile,
@@ -500,7 +589,7 @@ def approve_exception(exception_name, approver_user=None, channel=None,
 
 	exc.approve(
 		approver=approver_user,
-		channel=channel or ("OTP" if otp_ref else "Manager PIN"),
+		channel="OTP" if otp_ref else (channel or "Manager PIN"),
 		otp_reference=otp_ref,
 		resolution_value=resolution_value,
 		remarks=remarks,
@@ -513,14 +602,13 @@ def approve_exception(exception_name, approver_user=None, channel=None,
 	}
 
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def reject_exception(exception_name, reason=None) -> dict:
 	"""Reject an exception request."""
 	exc = frappe.get_doc("CH Exception Request", exception_name)
+	frappe.has_permission("CH Exception Request", "write", doc=exc, throw=True)
 	if exc.status not in ("Pending", "Escalated"):
 		frappe.throw(_("Exception {0} is already {1}").format(exception_name, exc.status), title=_("API Error"))
-
-	frappe.has_permission("CH Exception Request", "write", throw=True)
 
 	exc.reject(reason=reason)
 	return {"name": exc.name, "status": "Rejected"}
@@ -533,6 +621,7 @@ def check_exception_valid(exception_name) -> dict:
 	Called by POS / other apps before consuming the exception.
 	"""
 	exc = frappe.get_doc("CH Exception Request", exception_name)
+	frappe.has_permission("CH Exception Request", "read", doc=exc, throw=True)
 	valid = exc.is_valid()
 	# Diagnose WHY the exception is not valid so the client can surface an
 	# actionable message instead of a bare "no longer valid". Kept in sync
@@ -567,15 +656,20 @@ def check_exception_valid(exception_name) -> dict:
 	}
 
 
-@frappe.whitelist()
-def request_exception_otp(exception_name, mobile_no) -> dict:
+@frappe.whitelist(methods=["POST"])
+def request_exception_otp(exception_name, mobile_no=None) -> dict:
 	"""Generate an OTP for an exception request approval.
 
 	Uses the exception type as the OTP purpose.
 	"""
 	exc = frappe.get_doc("CH Exception Request", exception_name)
+	frappe.has_permission("CH Exception Request", "write", doc=exc, throw=True)
+	exc._validate_approver(frappe.session.user)
 	if exc.status not in ("Pending", "Escalated"):
 		frappe.throw(_("Exception {0} is already {1}").format(exception_name, exc.status), title=_("API Error"))
+	if not frappe.get_cached_value("CH Exception Type", exc.exception_type, "requires_otp"):
+		frappe.throw(_("This exception type does not require OTP approval."), frappe.ValidationError)
+	mobile_no = _trusted_otp_mobile(mobile_no)
 
 	from ch_item_master.ch_core.doctype.ch_otp_log.ch_otp_log import CHOTPLog
 	otp_code = CHOTPLog.generate_otp(
@@ -591,7 +685,7 @@ def request_exception_otp(exception_name, mobile_no) -> dict:
 		send_otp_email(approver_email, otp_code, exc.exception_type, exception_name)
 	except Exception:
 		frappe.log_error(title="Exception OTP email delivery failed")
-	return {"otp_sent": True, "mobile_no": mobile_no}
+	return {"otp_sent": True, "mobile_no": f"******{mobile_no[-4:]}"}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -658,7 +752,7 @@ def get_pending_exceptions(
 			"item_code", "serial_no", "raised_at", "status", "pos_invoice",
 		],
 		"order_by": "raised_at desc",
-		"limit_page_length": 50,
+		"limit_page_length": min(get_int_setting("exception_query_limit", 50, minimum=1), 500),
 	}
 	if or_filters:
 		query_args["or_filters"] = or_filters
@@ -667,12 +761,55 @@ def get_pending_exceptions(
 
 
 @frappe.whitelist()
-def get_exception_summary(company, from_date=None, to_date=None) -> dict:
+def get_exception_summary(company, from_date=None, to_date=None) -> list:
 	"""Return aggregated exception stats for reporting / dashboard."""
-	if not from_date:
-		from_date = getdate()
-	if not to_date:
-		to_date = getdate()
+	require_role_setting(
+		"exception_approval_roles",
+		_EXCEPTION_SUMMARY_ROLES,
+		action="view exception summaries",
+	)
+	if not is_privileged_user() and not frappe.has_permission(
+		"CH Exception Request",
+		ptype="read",
+		user=frappe.session.user,
+	):
+		frappe.throw(
+			_("You do not have read permission for CH Exception Request."),
+			frappe.PermissionError,
+		)
+
+	company = (company or "").strip()
+	if not company:
+		frappe.throw(_("Company is required."), frappe.ValidationError)
+	get_company_scope(requested_company=company)
+	if not is_privileged_user():
+		try:
+			from ch_erp15.ch_erp15.scope import assert_user_has_store_scope
+		except (ImportError, ModuleNotFoundError):
+			frappe.throw(
+				_("Location scope validation is unavailable. Contact an administrator."),
+				frappe.PermissionError,
+			)
+		assert_user_has_store_scope(
+			company=company,
+			user=frappe.session.user,
+			msg=_("You are not permitted to view exception data for this company."),
+		)
+
+	try:
+		from_date = getdate(from_date or nowdate())
+		to_date = getdate(to_date or nowdate())
+	except (TypeError, ValueError):
+		frappe.throw(_("Enter valid From Date and To Date values."), frappe.ValidationError)
+	if from_date > to_date:
+		frappe.throw(_("From Date cannot be after To Date."), frappe.ValidationError)
+	if (to_date - from_date).days > _MAX_EXCEPTION_SUMMARY_DAYS:
+		frappe.throw(
+			_("The exception summary date range cannot exceed {0} days.").format(
+				_MAX_EXCEPTION_SUMMARY_DAYS
+			),
+			frappe.ValidationError,
+		)
 
 	data = frappe.db.sql("""
 		SELECT
@@ -684,12 +821,17 @@ def get_exception_summary(company, from_date=None, to_date=None) -> dict:
 			    THEN COALESCE(resolution_value, requested_value) ELSE 0 END
 			) as total_approved_value
 		FROM `tabCH Exception Request`
-		WHERE company = %s
-		  AND DATE(raised_at) BETWEEN %s AND %s
+		WHERE company = %(company)s
+		  AND DATE(raised_at) BETWEEN %(from_date)s AND %(to_date)s
 		  AND docstatus != 2
 		GROUP BY exception_type, status
 		ORDER BY exception_type, status
-	""", (company, str(from_date), str(to_date)), as_dict=True)
+		LIMIT 500
+	""", {
+		"company": company,
+		"from_date": from_date,
+		"to_date": to_date,
+	}, as_dict=True)
 
 	return data
 
@@ -714,14 +856,20 @@ def escalate_pending_exceptions():
 		return
 
 	now = now_datetime()
-	candidates = frappe.get_all("CH Exception Request",
+	batch_limit = min(get_int_setting("scheduler_batch_limit", 500, minimum=1), 2000)
+	rows = frappe.get_all("CH Exception Request",
 		filters={"status": ("in", ["Pending", "Escalated"]), "docstatus": 0},
 		fields=["name", "exception_type", "approval_role", "raised_at", "last_escalated_at"],
-		limit=500,
+		order_by="raised_at asc, name asc",
+		limit=batch_limit + 1,
 	)
+	candidates = rows[:batch_limit]
 
 	escalated = 0
-	for row in candidates:
+	failed = 0
+	for index, row in enumerate(candidates):
+		save_point = f"exception_escalation_{index}"
+		frappe.db.savepoint(save_point)
 		try:
 			if not row.approval_role:
 				continue
@@ -748,6 +896,7 @@ def escalate_pending_exceptions():
 			)
 			exc.status = "Escalated"
 			exc.last_escalated_at = now
+			exc._authorize_approval_transition()
 			exc.save(ignore_permissions=True)
 
 			try:
@@ -765,13 +914,18 @@ def escalate_pending_exceptions():
 			)
 			escalated += 1
 		except Exception:
+			frappe.db.rollback(save_point=save_point)
+			failed += 1
 			frappe.log_error(
 				frappe.get_traceback(),
 				f"Exception escalation failed for {row.name}",
 			)
-
-	if escalated:
-		frappe.db.commit()
+	return {
+		"evaluated": len(candidates),
+		"escalated": escalated,
+		"failed": failed,
+		"has_more": len(rows) > batch_limit,
+	}
 
 
 def expire_stale_exceptions():
@@ -780,30 +934,47 @@ def expire_stale_exceptions():
 	Called via scheduler (hourly). An exception that has been pending for
 	more than 24 hours — after exhausting SLA escalation — is auto-expired.
 	"""
-	cutoff = add_to_date(now_datetime(), hours=-24)
-	stale = frappe.get_all("CH Exception Request",
+	expiry_hours = get_int_setting("exception_expiry_hours", 24, minimum=1)
+	cutoff = add_to_date(now_datetime(), hours=-expiry_hours)
+	batch_limit = min(get_int_setting("scheduler_batch_limit", 500, minimum=1), 2000)
+	rows = frappe.get_all("CH Exception Request",
 		filters={
 			"status": ("in", ["Pending", "Escalated"]),
 			"docstatus": 0,
 			"raised_at": ("<=", cutoff),
 		},
 		pluck="name",
-		limit=200,
+		order_by="raised_at asc, name asc",
+		limit=batch_limit + 1,
 	)
+	stale = rows[:batch_limit]
 
-	for name in stale:
+	expired = 0
+	failed = 0
+	for index, name in enumerate(stale):
+		save_point = f"exception_expiry_{index}"
+		frappe.db.savepoint(save_point)
 		try:
 			exc = frappe.get_doc("CH Exception Request", name)
 			exc.status = "Expired"
 			exc.resolved_at = now_datetime()
-			exc.resolution_remarks = "Auto-expired after 24 hours"
+			exc.resolution_remarks = f"Auto-expired after {expiry_hours} hours"
+			exc._authorize_approval_transition()
 			exc.save(ignore_permissions=True)
 			exc.submit()
+			expired += 1
 		except Exception:
-			frappe.log_error(f"Failed to expire exception {name}")
-
-	if stale:
-		frappe.db.commit()
+			frappe.db.rollback(save_point=save_point)
+			failed += 1
+			frappe.log_error(
+				frappe.get_traceback(),
+				f"Failed to expire exception {name}",
+			)
+	return {
+		"expired": expired,
+		"failed": failed,
+		"has_more": len(rows) > batch_limit or bool(failed),
+	}
 
 @frappe.whitelist()
 def get_item_original_value(item_code: str, company: str | None = None) -> float:

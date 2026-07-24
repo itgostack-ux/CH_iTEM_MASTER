@@ -12,44 +12,26 @@ Usage:
 """
 
 import json
-import urllib.parse
 
 import frappe
 from frappe import _
 from frappe.utils import flt
 
-# Allowlisted AI endpoints (SSRF defence — C7)
-ALLOWED_AI_HOSTS = {"api.openai.com"}
+from ch_item_master.config import get_int_setting, is_privileged_user, require_role_setting
+from ch_item_master.outbound_security import parse_exact_host_allowlist, post_json_with_credentials
+from ch_item_master.security import ensure_company_access
 
 
-def _validate_ai_endpoint(url: str) -> None:
-	"""Enforce SSRF defence: only allow OpenAI official API."""
-	if not url:
-		frappe.throw("AI endpoint URL is required")
-	try:
-		parsed = urllib.parse.urlparse(url)
-		hostname = parsed.hostname
-		if hostname not in ALLOWED_AI_HOSTS:
-			frappe.throw(
-				f"AI endpoint '{hostname}' is not whitelisted. "
-				f"Only {', '.join(ALLOWED_AI_HOSTS)} is allowed.",
-				title="SSRF Protection",
-			)
-		if parsed.scheme != "https":
-			frappe.throw(
-				"AI endpoint must use HTTPS",
-				title="Security Requirement",
-			)
-	except ValueError as e:
-		frappe.throw(f"Invalid AI endpoint URL: {e}", title="URL Validation Error")
+def _mapping_row_limit() -> int:
+	return get_int_setting("bulk_imei_limit", 200, minimum=1)
 
 
 # ---------------------------------------------------------------------------
 # PUBLIC API
 # ---------------------------------------------------------------------------
 
-@frappe.whitelist()
-def resolve_scheme_products(brand, schemes_json) -> dict:
+@frappe.whitelist(methods=["POST"])
+def resolve_scheme_products(brand, schemes_json, company=None) -> dict:
 	"""Resolve all product names in extracted scheme data to internal items.
 
 	Args:
@@ -62,10 +44,22 @@ def resolve_scheme_products(brand, schemes_json) -> dict:
 			- stats: {total, resolved, ai_suggested, unresolved}
 			- new_mappings: list of AI-suggested mappings for user review
 	"""
+	require_role_setting(
+		"supplier_scheme_approval_roles",
+		("Purchase Manager", "Scheme Manager"),
+		action=_("resolve supplier product mappings"),
+	)
+	if not company and not is_privileged_user():
+		frappe.throw(_("Company is required for product resolution."), frappe.PermissionError)
+	if company:
+		ensure_company_access(company)
+		frappe.get_doc("Company", company).check_permission("read")
 	if isinstance(schemes_json, str):
 		data = json.loads(schemes_json)
 	else:
 		data = schemes_json
+	if not isinstance(data, dict):
+		frappe.throw(_("Scheme data must be a JSON object."), frappe.ValidationError)
 
 	if not brand:
 		frappe.throw(_("Brand is required for product resolution"), title=_("Validation Error"))
@@ -73,12 +67,32 @@ def resolve_scheme_products(brand, schemes_json) -> dict:
 	schemes = data.get("schemes", [])
 	if not schemes:
 		return {"schemes": [], "stats": {"total": 0}, "new_mappings": []}
+	if not isinstance(schemes, list):
+		frappe.throw(_("Schemes must be a JSON list."), frappe.ValidationError)
 
-	# 1. Build the product catalog for this brand (fetched once)
-	catalog = _build_brand_catalog(brand)
+	row_limit = _mapping_row_limit()
+	product_keys = set()
+	rule_count = 0
+	for scheme in schemes:
+		if not isinstance(scheme, dict) or not isinstance(scheme.get("rules", []), list):
+			frappe.throw(_("Every scheme must contain a rules list."), frappe.ValidationError)
+		rules = scheme.get("rules", [])
+		rule_count += len(rules)
+		if rule_count > row_limit:
+			frappe.throw(
+				_("A maximum of {0} scheme rules can be resolved at once.").format(row_limit),
+				frappe.ValidationError,
+			)
+		for rule_line in rules:
+			if not isinstance(rule_line, dict):
+				frappe.throw(_("Every scheme rule must be a JSON object."), frappe.ValidationError)
+			product_key = _build_product_key(rule_line)
+			if product_key:
+				product_keys.add(product_key)
 
-	# 2. Load existing verified mappings for this brand
-	existing_maps = _load_existing_maps(brand)
+	existing_maps = _load_existing_maps(brand, product_keys, company=company)
+	unmapped_keys = product_keys.difference(existing_maps)
+	catalog = _build_brand_catalog(brand) if unmapped_keys else {"models": [], "items": [], "item_groups": []}
 
 	# 3. Resolve each product line
 	stats = {"total": 0, "resolved": 0, "ai_suggested": 0, "unresolved": 0}
@@ -146,8 +160,8 @@ def resolve_scheme_products(brand, schemes_json) -> dict:
 	}
 
 
-@frappe.whitelist()
-def save_mappings(mappings_json, scheme=None) -> dict:
+@frappe.whitelist(methods=["POST"])
+def save_mappings(mappings_json, scheme=None, company=None) -> dict:
 	"""Save confirmed product mappings to the Scheme Product Map table.
 
 	Args:
@@ -158,26 +172,84 @@ def save_mappings(mappings_json, scheme=None) -> dict:
 	Returns:
 		dict with saved count
 	"""
+	require_role_setting(
+		"supplier_scheme_management_roles",
+		("Accounts Manager", "Purchase Manager", "Scheme Manager"),
+		action=_("save supplier product mappings"),
+	)
 	if isinstance(mappings_json, str):
 		mappings = json.loads(mappings_json)
 	else:
 		mappings = mappings_json
+	if not isinstance(mappings, list):
+		frappe.throw(_("Mappings must be a JSON list."), frappe.ValidationError)
+	row_limit = _mapping_row_limit()
+	if len(mappings) > row_limit:
+		frappe.throw(
+			_("A maximum of {0} mappings can be saved at once.").format(row_limit),
+			frappe.ValidationError,
+		)
+	if scheme:
+		scheme_doc = frappe.get_doc("Supplier Scheme Circular", scheme)
+		scheme_doc.check_permission("read")
+		if company and company != scheme_doc.company:
+			frappe.throw(_("Product map company must match the supplier scheme."), frappe.ValidationError)
+		company = scheme_doc.company
+	if not company and not is_privileged_user():
+		frappe.throw(_("Company is required for product mappings."), frappe.PermissionError)
+	if company:
+		ensure_company_access(company)
+		frappe.get_doc("Company", company).check_permission("read")
+
+	valid_mappings = [
+		mapping
+		for mapping in mappings
+		if isinstance(mapping, dict)
+		and mapping.get("brand")
+		and mapping.get("supplier_product_name")
+	]
+	existing_rows = []
+	if valid_mappings:
+		existing_filters = {
+			"company": company if company else ("is", "not set"),
+			"brand": ("in", sorted({mapping["brand"] for mapping in valid_mappings})),
+			"supplier_product_name": (
+				"in",
+				sorted({mapping["supplier_product_name"] for mapping in valid_mappings}),
+			),
+		}
+		if scheme:
+			existing_filters["scheme"] = scheme
+		existing_rows = frappe.get_all(
+			"Scheme Product Map",
+			filters=existing_filters,
+			fields=["name", "company", "brand", "supplier_product_name", "scheme"],
+			order_by="modified desc",
+			limit_page_length=max(row_limit * 5, row_limit),
+		)
+	existing_by_key = {}
+	for row in existing_rows:
+		key = (row.brand, row.supplier_product_name, row.scheme) if scheme else (
+			row.brand,
+			row.supplier_product_name,
+		)
+		existing_by_key.setdefault(key, row.name)
 
 	saved = 0
 	for m in mappings:
-		if not m.get("brand") or not m.get("supplier_product_name"):
+		if not isinstance(m, dict) or not m.get("brand") or not m.get("supplier_product_name"):
 			continue
 
-		# Prefer scheme-scoped duplicate check, fall back to brand-only
-		dup_filters = {"brand": m["brand"], "supplier_product_name": m["supplier_product_name"]}
-		if scheme:
-			dup_filters["scheme"] = scheme
-
-		# Skip if already exists
-		if frappe.db.exists("Scheme Product Map", dup_filters):
-			# Update existing
-			existing_name = frappe.db.get_value("Scheme Product Map", dup_filters, "name")
+		key = (m["brand"], m["supplier_product_name"], scheme) if scheme else (
+			m["brand"],
+			m["supplier_product_name"],
+		)
+		existing_name = existing_by_key.get(key)
+		if existing_name:
 			doc = frappe.get_doc("Scheme Product Map", existing_name)
+			doc.check_permission("write")
+			if (doc.company or None) != (company or None):
+				frappe.throw(_("Product map belongs to another company."), frappe.PermissionError)
 			doc.match_level = m.get("match_level", doc.match_level)
 			doc.item_code = m.get("item_code", doc.item_code)
 			doc.model = m.get("model", doc.model)
@@ -187,11 +259,12 @@ def save_mappings(mappings_json, scheme=None) -> dict:
 			doc.ai_reasoning = m.get("ai_reasoning", doc.ai_reasoning)
 			if scheme and not doc.scheme:
 				doc.scheme = scheme
-			doc.save(ignore_permissions=True)
+			doc.save()
 			saved += 1
 			continue
 
 		doc = frappe.new_doc("Scheme Product Map")
+		doc.company = company
 		doc.scheme = scheme or ""
 		doc.brand = m["brand"]
 		doc.supplier_product_name = m["supplier_product_name"]
@@ -204,14 +277,16 @@ def save_mappings(mappings_json, scheme=None) -> dict:
 		doc.mapping_source = m.get("mapping_source", "AI Suggested")
 		doc.confidence_score = flt(m.get("confidence_score", 0))
 		doc.ai_reasoning = m.get("ai_reasoning", "")
-		doc.insert(ignore_permissions=True)
+		frappe.has_permission("Scheme Product Map", ptype="create", throw=True)
+		doc.insert()
+		existing_by_key[key] = doc.name
 		saved += 1
 
 	return {"saved": saved}
 
 
 @frappe.whitelist()
-def get_mapping_coverage(brand) -> dict:
+def get_mapping_coverage(brand, company=None) -> dict:
 	"""Get mapping coverage stats for a brand.
 
 	Returns how many unique product names from recent schemes
@@ -219,16 +294,33 @@ def get_mapping_coverage(brand) -> dict:
 	"""
 	if not brand:
 		return {}
+	require_role_setting(
+		"supplier_scheme_management_roles",
+		("Accounts Manager", "Purchase Manager", "Scheme Manager"),
+		action=_("view supplier product mapping coverage"),
+	)
+	if not company and not is_privileged_user():
+		frappe.throw(_("Company is required for mapping coverage."), frappe.PermissionError)
+	if company:
+		ensure_company_access(company)
 
-	total_maps = frappe.db.count("Scheme Product Map", {"brand": brand})
-	verified = frappe.db.count("Scheme Product Map", {
-		"brand": brand,
-		"mapping_source": ["in", ["Verified", "AI Verified"]],
-	})
-	suggested = frappe.db.count("Scheme Product Map", {
-		"brand": brand,
-		"mapping_source": "AI Suggested",
-	})
+	company_condition = "= %(company)s" if company else "IS NULL"
+	row = frappe.db.sql(
+		f"""
+		SELECT
+			COUNT(*) AS total,
+			SUM(mapping_source IN ('Verified', 'AI Verified')) AS verified,
+			SUM(mapping_source = 'AI Suggested') AS suggested
+		FROM `tabScheme Product Map`
+		WHERE brand = %(brand)s
+			AND company {company_condition}
+		""",
+		{"brand": brand, "company": company},
+		as_dict=True,
+	)[0]
+	total_maps = int(row.total or 0)
+	verified = int(row.verified or 0)
+	suggested = int(row.suggested or 0)
 
 	return {
 		"total": total_maps,
@@ -251,34 +343,47 @@ def _build_product_key(rule_line):
 	return series or variant or ""
 
 
-def _load_existing_maps(brand):
+def _load_existing_maps(brand, product_keys=None, company=None):
 	"""Load all Scheme Product Map entries for a brand into a dict keyed by supplier_product_name."""
+	if product_keys is not None and not product_keys:
+		return {}
+	filters = {
+		"brand": brand,
+		"company": company if company else ("is", "not set"),
+	}
+	if product_keys:
+		filters["supplier_product_name"] = ("in", sorted(product_keys))
 	maps = frappe.get_all(
 		"Scheme Product Map",
-		filters={"brand": brand},
+		filters=filters,
 		fields=[
 			"name", "supplier_product_name", "match_level",
 			"item_code", "model", "item_group",
 			"mapping_source", "confidence_score",
 		],
+		order_by="modified asc",
+		limit_page_length=max(_mapping_row_limit() * 5, _mapping_row_limit()),
 	)
-	return {m["supplier_product_name"]: m for m in maps}
+	return {mapping["supplier_product_name"]: mapping for mapping in maps}
 
 
 def _build_brand_catalog(brand):
 	"""Fetch all CH Models and Items for a brand — used as AI context."""
+	catalog_limit = max(_mapping_row_limit(), 500)
 	models = frappe.get_all(
 		"CH Model",
 		filters={"brand": brand, "disabled": 0},
 		fields=["name", "model_name", "sub_category"],
-		limit_page_length=0,
+		order_by="modified desc",
+		limit_page_length=catalog_limit,
 	)
 
 	items = frappe.get_all(
 		"Item",
 		filters={"brand": brand, "disabled": 0},
 		fields=["name", "item_name", "ch_model", "item_group", "ch_display_name"],
-		limit_page_length=500,
+		order_by="modified desc",
+		limit_page_length=catalog_limit,
 	)
 
 	item_groups = list({i["item_group"] for i in items if i.get("item_group")})
@@ -370,19 +475,19 @@ Return ONLY valid JSON:
 }}"""
 
 	try:
-		import requests
-
 		endpoint = ai_settings["endpoint"]
-		# Validate endpoint against SSRF allowlist (C7) — before any HTTP call
-		_validate_ai_endpoint(endpoint)
-
-		resp = requests.post(
+		response = post_json_with_credentials(
 			endpoint,
+			allowed_hosts=parse_exact_host_allowlist(
+				ai_settings["allowed_hosts"],
+				label="Supplier Scheme AI",
+			),
+			label="Supplier Scheme AI",
 			headers={
 				"Authorization": f"Bearer {ai_settings['api_key']}",
 				"Content-Type": "application/json",
 			},
-			json={
+			payload={
 				"model": ai_settings["model"],
 				"messages": [
 					{"role": "system", "content": "You are an expert at matching consumer electronics product names across different naming conventions. Return only valid JSON."},
@@ -393,24 +498,26 @@ Return ONLY valid JSON:
 				"response_format": {"type": "json_object"},
 			},
 			timeout=ai_settings["timeout"],
+			max_response_bytes=ai_settings["max_response_bytes"],
 		)
-		resp.raise_for_status()
 
-		content = resp.json()["choices"][0]["message"]["content"]
+		content = response["choices"][0]["message"]["content"]
 		result = json.loads(content)
 
 		# Validate the AI response — ensure referenced items/models actually exist
 		match_level = result.get("match_level", "")
 		if match_level == "Item":
-			if not result.get("item_code") or not frappe.db.exists("Item", result["item_code"]):
+			valid_items = {item["name"] for item in catalog["items"]}
+			if not result.get("item_code") or result["item_code"] not in valid_items:
 				result["match_level"] = ""
 				result["confidence_score"] = 0
 		elif match_level == "Model":
-			if not result.get("model") or not frappe.db.exists("CH Model", result["model"]):
+			valid_models = {model["name"] for model in catalog["models"]}
+			if not result.get("model") or result["model"] not in valid_models:
 				result["match_level"] = ""
 				result["confidence_score"] = 0
 		elif match_level == "Item Group":
-			if not result.get("item_group") or not frappe.db.exists("Item Group", result["item_group"]):
+			if not result.get("item_group") or result["item_group"] not in catalog["item_groups"]:
 				result["match_level"] = ""
 				result["confidence_score"] = 0
 
@@ -433,8 +540,13 @@ def _get_ai_settings():
 		return {
 			"api_key": api_key,
 			"endpoint": settings.api_endpoint or "https://api.openai.com/v1/chat/completions",
+			"allowed_hosts": settings.get("allowed_api_hosts") or "api.openai.com",
 			"model": settings.comparison_model or "gpt-4o",
 			"timeout": max(settings.timeout_sec or 30, 30),
+			"max_response_bytes": min(
+				get_int_setting("supplier_scheme_ai_response_byte_limit", 1048576, minimum=1024),
+				8388608,
+			),
 		}
 	except frappe.DoesNotExistError:
 		return None

@@ -5,6 +5,7 @@
  "istable": 1,
  "editable_grid": 1,
  "engine": "InnoDB",
+ "field_order": ["item_group"],
  "fields": [
   {
    "fieldname": "item_group",

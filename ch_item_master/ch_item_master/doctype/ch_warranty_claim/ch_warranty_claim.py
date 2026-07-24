@@ -33,10 +33,14 @@ Gate control for GoFix ticket:
     - Processing fee paid/waived/not required
 """
 
+import hashlib
+import hmac
+import secrets
+
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import nowdate, now_datetime, getdate, flt, validate_email_address
+from frappe.utils import add_to_date, nowdate, now_datetime, getdate, flt, validate_email_address
 
 from ch_item_master.ch_item_master.utils import validate_indian_phone
 from ch_item_master.ch_item_master.doctype.ch_vas_settings.ch_vas_settings import (
@@ -45,7 +49,22 @@ from ch_item_master.ch_item_master.doctype.ch_vas_settings.ch_vas_settings impor
 	get_service_company,
 	get_fee_waiver_roles,
 )
-from ch_item_master.security import get_company_filter_value
+from ch_item_master.config import get_int_setting, is_privileged_user
+from ch_item_master.id_sequences import next_numeric_id
+from ch_item_master.security import get_company_filter_value, require_scoped_document_action
+
+
+_WARRANTY_APPROVAL_ROLES = ("CH Warranty Manager", "Service Manager", "Sales Manager")
+_WARRANTY_SERVICE_ROLES = ("CH Warranty Manager", "Service Manager")
+_WARRANTY_QC_ROLES = ("CH Warranty Manager", "Service Manager", "Store Manager", "Stock Manager")
+_WARRANTY_LOGISTICS_ROLES = ("CH Warranty Manager", "Service Manager", "Sales Manager")
+_WARRANTY_FINANCE_ROLES = ("CH Warranty Manager", "Accounts Manager")
+_WARRANTY_MANAGEMENT_ROLES = ("CH Warranty Manager", "Service Manager")
+_WARRANTY_FEE_WAIVER_REQUEST_ROLES = (
+	"CH Warranty Manager",
+	"Service Manager",
+	"Sales Manager",
+)
 
 
 def resolve_lifecycle_name(serial: str | None) -> str | None:
@@ -77,14 +96,135 @@ def resolve_lifecycle_name(serial: str | None) -> str | None:
 
 
 class CHWarrantyClaim(Document):
+	_GOVERNANCE_FIELDS = (
+		"claim_status",
+		"requires_approval",
+		"approval_status",
+		"approved_amount",
+		"approved_by",
+		"approved_at",
+		"rejection_reason",
+		"additional_approval_status",
+		"additional_approval_link_sent_at",
+		"additional_approval_decided_at",
+		"processing_fee_waiver_status",
+		"processing_fee_waiver_requested_by",
+		"processing_fee_waiver_approved_by",
+		"processing_fee_waiver_requested_at",
+		"processing_fee_waiver_decided_at",
+		"delivery_otp",
+		"delivery_otp_sent_at",
+		"delivery_otp_attempts",
+		"delivery_otp_consumed_at",
+		"logistics_status",
+		"pickup_scheduled_at",
+		"picked_up_at",
+		"out_for_delivery_at",
+		"delivered_back_at",
+		"final_qc_result",
+		"final_qc_by",
+		"final_qc_at",
+	)
+
+	def _validate_governance_fields(self):
+		before = self.get_doc_before_save() if not self.is_new() else None
+		if before is None:
+			allowed = {
+				"claim_status": (None, "", "Draft"),
+				"requires_approval": (None, "", 0),
+				"delivery_otp_attempts": (None, "", 0),
+			}
+			for fieldname in self._GOVERNANCE_FIELDS:
+				if self.get(fieldname) not in allowed.get(fieldname, (None, "", 0, 0.0)):
+					frappe.throw(
+						_("Warranty approval and fulfilment evidence is server-managed."),
+						frappe.PermissionError,
+					)
+			return
+		if any(self.get(fieldname) != before.get(fieldname) for fieldname in self._GOVERNANCE_FIELDS):
+			frappe.throw(
+				_("Warranty approval and fulfilment evidence can only be changed through authorized actions."),
+				frappe.PermissionError,
+			)
+
+	def _delivery_otp_attempt_key(self):
+		return frappe.cache.make_key(f"warranty_delivery_otp_attempts:{self.name}")
+
+	def _delivery_otp_digest(self, otp, sent_at):
+		value = f"{self.name}:{sent_at}:{otp}".encode()
+		return hashlib.sha256(value).hexdigest()
+
+	def _issue_delivery_otp(self):
+		otp = f"{secrets.randbelow(900000) + 100000:06d}"
+		sent_at = now_datetime()
+		ttl_seconds = min(
+			get_int_setting("warranty_delivery_otp_ttl_minutes", 15, minimum=1) * 60,
+			86400,
+		)
+		attempt_key = self._delivery_otp_attempt_key()
+		frappe.cache.setex(attempt_key, ttl_seconds, 0)
+		self.db_set({
+			"delivery_otp": self._delivery_otp_digest(otp, sent_at),
+			"delivery_otp_sent_at": sent_at,
+			"delivery_otp_attempts": 0,
+			"delivery_otp_consumed_at": None,
+		})
+		self.flags.delivery_otp_plaintext = otp
+		return otp
+
+	def _verify_delivery_otp(self, otp):
+		otp = (otp or "").strip()
+		if not otp or not self.delivery_otp or not self.delivery_otp_sent_at:
+			frappe.throw(_("A valid delivery OTP is required."), frappe.AuthenticationError)
+		if self.delivery_otp_consumed_at:
+			frappe.throw(_("This delivery OTP has already been used."), frappe.AuthenticationError)
+
+		ttl_minutes = min(
+			get_int_setting("warranty_delivery_otp_ttl_minutes", 15, minimum=1),
+			1440,
+		)
+		if now_datetime() > add_to_date(self.delivery_otp_sent_at, minutes=ttl_minutes):
+			frappe.throw(_("The delivery OTP has expired. Dispatch the device again to issue a new OTP."), frappe.AuthenticationError)
+
+		max_attempts = min(
+			get_int_setting("warranty_delivery_otp_max_attempts", 5, minimum=1),
+			20,
+		)
+		attempt_key = self._delivery_otp_attempt_key()
+		frappe.cache.set(attempt_key, 0, nx=True, ex=ttl_minutes * 60)
+		attempts = int(frappe.cache.incrby(attempt_key, 1))
+		self.delivery_otp_attempts = attempts
+		frappe.db.set_value(
+			self.doctype,
+			self.name,
+			"delivery_otp_attempts",
+			attempts,
+			update_modified=False,
+		)
+		if attempts > max_attempts:
+			frappe.throw(_("Too many delivery OTP attempts. Dispatch the device again."), frappe.AuthenticationError)
+
+		expected = self._delivery_otp_digest(otp, self.delivery_otp_sent_at)
+		if not hmac.compare_digest(expected, self.delivery_otp):
+			frappe.throw(_("Invalid delivery OTP."), frappe.AuthenticationError)
+		frappe.cache.delete(attempt_key)
+	def _require_action(self, role_field, default_roles, action) -> None:
+		require_scoped_document_action(
+			self,
+			role_field,
+			default_roles,
+			action=action,
+			permission_types=("write",),
+			store_field="reported_at_store",
+			lock=True,
+		)
+
 	def autoname(self):
 		if not self.claim_id:
-			max_id = frappe.db.sql(
-				"SELECT IFNULL(MAX(claim_id), 0) FROM `tabCH Warranty Claim`"
-			)[0][0]
-			self.claim_id = int(max_id) + 1
+			self.claim_id = next_numeric_id("warranty_claim")
 
 	def validate(self):
+		self._validate_governance_fields()
 		if self.get("serial_no") and self.get("sold_plan"):
 			_dup = frappe.db.get_value("CH Warranty Claim", {
 				"serial_no": self.serial_no, "sold_plan": self.sold_plan,
@@ -164,13 +304,16 @@ class CHWarrantyClaim(Document):
 
 	# ── Public Actions ───────────────────────────────────────────────────
 
-	@frappe.whitelist()
+	@frappe.whitelist(methods=["POST"])
 	def approve(self, remarks=None, approved_amount=None) -> None:
 		"""GoGizmo Head approves the claim → creates GoFix ticket.
 
 		Supports partial approval: if approved_amount < gogizmo_share,
 		the difference is shifted to customer_share.
 		"""
+		self._require_action(
+			"warranty_claim_approval_roles", _WARRANTY_APPROVAL_ROLES, _("approve a warranty claim")
+		)
 		if self.docstatus != 1:
 			frappe.throw(_("Claim must be submitted before approval."), title=_("Ch Warranty Claim Error"))
 		if self.claim_status not in ("Pending Approval", "Need More Information"):
@@ -267,9 +410,12 @@ class CHWarrantyClaim(Document):
 			)
 		# Walk-in: stays at Approved — device receiving happens next; fee collected at counter
 
-	@frappe.whitelist()
+	@frappe.whitelist(methods=["POST"])
 	def reject(self, reason=None) -> None:
 		"""GoGizmo Head rejects the claim."""
+		self._require_action(
+			"warranty_claim_approval_roles", _WARRANTY_APPROVAL_ROLES, _("reject a warranty claim")
+		)
 		if self.docstatus != 1:
 			frappe.throw(_("Claim must be submitted before rejection."), title=_("Ch Warranty Claim Error"))
 		if self.claim_status not in ("Pending Approval", "Need More Information"):
@@ -294,9 +440,14 @@ class CHWarrantyClaim(Document):
 		self._log("Rejected", old, "Rejected",
 		          reason or f"Rejected by {frappe.session.user}")
 
-	@frappe.whitelist()
+	@frappe.whitelist(methods=["POST"])
 	def need_more_info(self, remarks=None) -> None:
 		"""Claim manager requests additional information or photos."""
+		self._require_action(
+			"warranty_claim_approval_roles",
+			_WARRANTY_APPROVAL_ROLES,
+			_("request more warranty claim information"),
+		)
 		if self.docstatus != 1:
 			frappe.throw(_("Claim must be submitted first."), title=_("Ch Warranty Claim Error"))
 		if self.claim_status not in ("Pending Approval", "Approved"):
@@ -313,11 +464,16 @@ class CHWarrantyClaim(Document):
 		self._log("Need More Information", old, "Need More Information",
 		          remarks or f"More information requested by {frappe.session.user}")
 
-	@frappe.whitelist()
+	@frappe.whitelist(methods=["POST"])
 	def request_additional_approval(self, additional_issue_description=None,
 	                                 additional_cost_covered=0, additional_cost_customer=0,
 	                                 additional_issue_photos=None, remarks=None) -> None:
 		"""Technician/advisor found additional damage — request customer approval."""
+		self._require_action(
+			"warranty_claim_service_roles",
+			_WARRANTY_SERVICE_ROLES,
+			_("request additional warranty claim approval"),
+		)
 		if self.docstatus != 1:
 			frappe.throw(_("Claim must be submitted first."), title=_("Ch Warranty Claim Error"))
 		if self.claim_status not in ("Ticket Created", "In Repair"):
@@ -341,9 +497,14 @@ class CHWarrantyClaim(Document):
 
 		return {"claim_name": self.name, "claim_status": "Additional Approval Pending"}
 
-	@frappe.whitelist()
+	@frappe.whitelist(methods=["POST"])
 	def resolve_additional_approval(self, decision, remarks=None) -> None:
 		"""Record customer's decision on additional damage cost."""
+		self._require_action(
+			"warranty_claim_service_roles",
+			_WARRANTY_SERVICE_ROLES,
+			_("resolve additional warranty claim approval"),
+		)
 		if self.docstatus != 1:
 			frappe.throw(_("Claim must be submitted first."), title=_("Ch Warranty Claim Error"))
 		if self.claim_status != "Additional Approval Pending":
@@ -372,9 +533,12 @@ class CHWarrantyClaim(Document):
 
 		return {"claim_name": self.name, "claim_status": updates["claim_status"]}
 
-	@frappe.whitelist()
+	@frappe.whitelist(methods=["POST"])
 	def perform_final_qc(self, qc_result, qc_remarks=None) -> None:
 		"""Final QC after repair is complete."""
+		self._require_action(
+			"warranty_claim_qc_roles", _WARRANTY_QC_ROLES, _("perform warranty claim final QC")
+		)
 		if self.docstatus != 1:
 			frappe.throw(_("Claim must be submitted first."), title=_("Ch Warranty Claim Error"))
 		if self.claim_status != "Repair Complete":
@@ -400,9 +564,14 @@ class CHWarrantyClaim(Document):
 		          qc_remarks or f"Final QC: {qc_result}")
 		return {"claim_name": self.name, "claim_status": updates["claim_status"]}
 
-	@frappe.whitelist()
+	@frappe.whitelist(methods=["POST"])
 	def mark_repair_complete(self, remarks=None) -> None:
 		"""Called when GoFix completes the repair, or device returned from manufacturer."""
+		self._require_action(
+			"warranty_claim_service_roles",
+			_WARRANTY_SERVICE_ROLES,
+			_("complete a warranty claim repair"),
+		)
 		if (self.get("processing_fee_required") or flt(self.get("processing_fee_amount", 0)) > 0):
 			if self.get("processing_fee_status") not in ("Paid", "Waived", "Not Required"):
 				frappe.throw(
@@ -436,10 +605,15 @@ class CHWarrantyClaim(Document):
 		          remarks or ("Device returned from manufacturer" if old == "Sent to Manufacturer"
 		                      else "Repair completed by GoFix"))
 
-	@frappe.whitelist()
+	@frappe.whitelist(methods=["POST"])
 	def schedule_pickup(self, pickup_address=None, pickup_slot=None,
 	                   pickup_partner=None, pickup_tracking_no=None, remarks=None) -> None:
 		"""Schedule customer pickup for claim device collection."""
+		self._require_action(
+			"warranty_claim_logistics_roles",
+			_WARRANTY_LOGISTICS_ROLES,
+			_("schedule warranty claim pickup"),
+		)
 		if self.docstatus != 1:
 			frappe.throw(_("Claim must be submitted first."), title=_("Ch Warranty Claim Error"))
 		if self.claim_status in ("Closed", "Cancelled", "Rejected"):
@@ -475,14 +649,21 @@ class CHWarrantyClaim(Document):
 			"pickup_scheduled_at": updates["pickup_scheduled_at"],
 		}
 
-	@frappe.whitelist()
+	@frappe.whitelist(methods=["POST"])
 	def mark_picked_up(self, delivery_otp=None, remarks=None) -> None:
 		"""Mark device as picked up from customer location.
 
 		Online/Bot claims require parcel photos before marking picked up.
 		"""
+		self._require_action(
+			"warranty_claim_logistics_roles",
+			_WARRANTY_LOGISTICS_ROLES,
+			_("mark a warranty claim device picked up"),
+		)
 		if self.docstatus != 1:
 			frappe.throw(_("Claim must be submitted first."), title=_("Ch Warranty Claim Error"))
+		if delivery_otp:
+			frappe.throw(_("Delivery OTP is issued only when the repaired device is dispatched."), frappe.ValidationError)
 		if self.claim_status not in ("Pickup Requested", "Pickup Scheduled", "Approved"):
 			frappe.throw(_("Cannot mark picked up — current status: {0}").format(self.claim_status), title=_("Ch Warranty Claim Error"))
 		# Online claims require at least one parcel photo before marking picked up
@@ -497,7 +678,6 @@ class CHWarrantyClaim(Document):
 		old = self.claim_status
 		updates = {
 			"picked_up_at": now_datetime(),
-			"delivery_otp": delivery_otp or self.delivery_otp,
 			"logistics_status": "Picked Up",
 			"claim_status": "Picked Up",
 		}
@@ -523,15 +703,21 @@ class CHWarrantyClaim(Document):
 			"logistics_status": self.logistics_status,
 		}
 
-	@frappe.whitelist()
+	@frappe.whitelist(methods=["POST"])
 	def mark_out_for_delivery(self, pickup_partner=None, pickup_tracking_no=None, remarks=None) -> None:
 		"""Mark repaired device as out for customer delivery."""
+		self._require_action(
+			"warranty_claim_logistics_roles",
+			_WARRANTY_LOGISTICS_ROLES,
+			_("dispatch a warranty claim device"),
+		)
 		if self.docstatus != 1:
 			frappe.throw(_("Claim must be submitted first."), title=_("Ch Warranty Claim Error"))
 		if self.claim_status != "Repair Complete":
 			frappe.throw(_("Cannot mark out for delivery — current status: {0}").format(self.claim_status), title=_("Ch Warranty Claim Error"))
 
 		old = self.claim_status
+		delivery_otp = self._issue_delivery_otp()
 		updates = {
 			"out_for_delivery_at": now_datetime(),
 			"pickup_partner": pickup_partner or self.pickup_partner,
@@ -551,20 +737,29 @@ class CHWarrantyClaim(Document):
 			"claim_name": self.name,
 			"claim_status": "Out for Delivery",
 			"logistics_status": "Out for Delivery",
+			"otp_issued": bool(delivery_otp),
 		}
 
-	@frappe.whitelist()
+	@frappe.whitelist(methods=["POST"])
 	def mark_delivered_back(self, delivery_otp=None, remarks=None) -> None:
 		"""Mark final handover to customer complete."""
+		self._require_action(
+			"warranty_claim_logistics_roles",
+			_WARRANTY_LOGISTICS_ROLES,
+			_("complete warranty claim delivery"),
+		)
 		if self.docstatus != 1:
 			frappe.throw(_("Claim must be submitted first."), title=_("Ch Warranty Claim Error"))
-		if self.claim_status not in ("Out for Delivery", "Repair Complete"):
+		if self.claim_status != "Out for Delivery":
 			frappe.throw(_("Cannot mark delivered — current status: {0}").format(self.claim_status), title=_("Ch Warranty Claim Error"))
 
+		self._verify_delivery_otp(delivery_otp)
 		old = self.claim_status
+		consumed_at = now_datetime()
 		updates = {
-			"delivered_back_at": now_datetime(),
-			"delivery_otp": delivery_otp or self.delivery_otp,
+			"delivered_back_at": consumed_at,
+			"delivery_otp": None,
+			"delivery_otp_consumed_at": consumed_at,
 			"logistics_status": "Delivered",
 			"claim_status": "Delivered",
 		}
@@ -577,8 +772,7 @@ class CHWarrantyClaim(Document):
 			"logistics_status": "Delivered",
 		}
 
-	@frappe.whitelist()
-	@frappe.whitelist()
+	@frappe.whitelist(methods=["POST"])
 	def settle_claim(self, gogizmo_payment_ref=None, customer_payment_ref=None) -> None:
 		"""Record financial settlement between GoGizmo ↔ GoFix and GoGizmo ↔ Customer.
 
@@ -587,6 +781,11 @@ class CHWarrantyClaim(Document):
 		  - customer_share → Customer pays GoGizmo (if any share remains)
 		Both must be paid (or zero) before settlement_status moves to Settled.
 		"""
+		self._require_action(
+			"warranty_claim_finance_roles",
+			_WARRANTY_FINANCE_ROLES,
+			_("settle a warranty claim"),
+		)
 		if self.docstatus != 1:
 			frappe.throw(_("Claim must be submitted."), title=_("Settlement Error"))
 
@@ -630,9 +829,14 @@ class CHWarrantyClaim(Document):
 		)
 		return {"settlement_status": new_status}
 
-	@frappe.whitelist()
+	@frappe.whitelist(methods=["POST"])
 	def close_claim(self, remarks=None) -> None:
 		"""Close the claim after settlement — sets final_outcome."""
+		self._require_action(
+			"warranty_claim_management_roles",
+			_WARRANTY_MANAGEMENT_ROLES,
+			_("close a warranty claim"),
+		)
 		if self.claim_status not in (
 			"Repair Complete", "Approved", "Rejected", "Sent to Manufacturer",
 			"Delivered", "QC Failed", "Final QC Passed", "Payment Received", "Not Repairable"
@@ -762,13 +966,18 @@ class CHWarrantyClaim(Document):
 
 	# ── Device Receiving ─────────────────────────────────────────────────
 
-	@frappe.whitelist()
+	@frappe.whitelist(methods=["POST"])
 	def mark_device_received(self, condition_on_receipt=None, accessories_received=None,
 	                         imei_verified=0, receiving_remarks=None) -> None:
 		"""Record physical receipt of device at store/service center.
 
 		Valid from: Approved (walk-in), Picked Up (after pickup)
 		"""
+		self._require_action(
+			"warranty_claim_logistics_roles",
+			_WARRANTY_LOGISTICS_ROLES,
+			_("receive a warranty claim device"),
+		)
 		if self.docstatus != 1:
 			frappe.throw(_("Claim must be submitted first."), title=_("Ch Warranty Claim Error"))
 		if self.claim_status not in ("Approved", "Picked Up"):
@@ -800,7 +1009,7 @@ class CHWarrantyClaim(Document):
 
 	# ── Intake QC ────────────────────────────────────────────────────────
 
-	@frappe.whitelist()
+	@frappe.whitelist(methods=["POST"])
 	def perform_intake_qc(self, qc_result, qc_remarks=None, qc_result_reason=None,
 	                      qc_checks=None) -> None:
 		"""Perform mandatory intake QC after device receipt.
@@ -811,6 +1020,11 @@ class CHWarrantyClaim(Document):
 			qc_result_reason: Mandatory reason if Failed/Not Repairable
 			qc_checks: list of dicts for QC Checklist rows
 		"""
+		self._require_action(
+			"warranty_claim_qc_roles",
+			_WARRANTY_QC_ROLES,
+			_("perform warranty claim intake QC"),
+		)
 		if self.docstatus != 1:
 			frappe.throw(_("Claim must be submitted first."), title=_("Ch Warranty Claim Error"))
 		if self.claim_status not in ("Device Received", "QC Pending"):
@@ -847,14 +1061,23 @@ class CHWarrantyClaim(Document):
 			import json as _json
 			if isinstance(qc_checks, str):
 				qc_checks = _json.loads(qc_checks)
+			if not isinstance(qc_checks, list):
+				frappe.throw(_("QC checks must be a list."), title=_("Ch Warranty Claim Error"))
+			check_limit = get_int_setting("warranty_qc_check_limit", 100, minimum=1)
+			if len(qc_checks) > check_limit:
+				frappe.throw(
+					_("A maximum of {0} QC checks is allowed.").format(check_limit),
+					title=_("Ch Warranty Claim Error"),
+				)
 			for check in qc_checks:
+				if not isinstance(check, dict):
+					frappe.throw(_("Each QC check must be an object."), title=_("Ch Warranty Claim Error"))
 				self.append("intake_qc_checks", {
 					"check_name": check.get("check_name", ""),
 					"result": check.get("result", ""),
 					"photo": check.get("photo", ""),
 					"remarks": check.get("remarks", ""),
 				})
-			self.save(ignore_permissions=True)
 
 		self._log(f"QC {qc_result}", old, updates["claim_status"],
 		          qc_remarks or f"Intake QC: {qc_result}" + (
@@ -868,12 +1091,17 @@ class CHWarrantyClaim(Document):
 
 	# ── Processing Fee ───────────────────────────────────────────────────
 
-	@frappe.whitelist()
+	@frappe.whitelist(methods=["POST"])
 	def generate_processing_fee(self, fee_amount=None) -> None:
 		"""Calculate and set processing fee AFTER QC passes.
 
 		Fee is mandatory. Only the amount can be overridden.
 		"""
+		self._require_action(
+			"warranty_claim_finance_roles",
+			_WARRANTY_FINANCE_ROLES,
+			_("set a warranty claim processing fee"),
+		)
 		if self.docstatus != 1:
 			frappe.throw(_("Claim must be submitted first."), title=_("Ch Warranty Claim Error"))
 		if self.intake_qc_status != "Passed":
@@ -904,13 +1132,18 @@ class CHWarrantyClaim(Document):
 			"processing_fee_status": updates["processing_fee_status"],
 		}
 
-	@frappe.whitelist()
+	@frappe.whitelist(methods=["POST"])
 	def send_fee_payment_link(self, channel="WhatsApp") -> None:
 		"""Generate and send payment link to customer for processing fee.
 
 		Args:
 			channel: 'WhatsApp' | 'SMS' | 'Email'
 		"""
+		self._require_action(
+			"warranty_claim_finance_roles",
+			_WARRANTY_FINANCE_ROLES,
+			_("send a warranty claim fee payment link"),
+		)
 		if self.docstatus != 1:
 			frappe.throw(_("Claim must be submitted first."), title=_("Ch Warranty Claim Error"))
 		if self.processing_fee_status not in ("Pending", "Link Sent"):
@@ -919,10 +1152,9 @@ class CHWarrantyClaim(Document):
 		if flt(self.processing_fee_amount) <= 0:
 			frappe.throw(_("No processing fee amount set."), title=_("Ch Warranty Claim Error"))
 
-		# Generate payment link URL (can be replaced with actual payment gateway)
-		base_url = frappe.utils.get_url()
-		link_url = (f"{base_url}/api/method/ch_item_master.ch_item_master.warranty_api"
-		            f".pay_processing_fee?claim={self.name}&amount={self.processing_fee_amount}")
+		from ch_item_master.ch_item_master.warranty_api import build_processing_fee_link
+
+		link_url = build_processing_fee_link(self.name)
 
 		updates = {
 			"processing_fee_link_url": link_url,
@@ -973,34 +1205,99 @@ class CHWarrantyClaim(Document):
 			"processing_fee_status": "Link Sent",
 		}
 
-	@frappe.whitelist()
+	@frappe.whitelist(methods=["POST"])
 	def mark_fee_paid(self, paid_amount=None, payment_mode=None,
 	                  payment_ref=None, remarks=None) -> None:
 		"""Record processing fee payment from customer."""
+		self._require_action(
+			"warranty_claim_finance_roles",
+			_WARRANTY_FINANCE_ROLES,
+			_("record a warranty claim processing fee payment"),
+		)
+		return self._mark_fee_paid(paid_amount, payment_mode, payment_ref, remarks)
+
+	def _mark_fee_paid(self, paid_amount=None, payment_mode=None,
+	                  payment_ref=None, remarks=None) -> dict:
 		if self.docstatus != 1:
 			frappe.throw(_("Claim must be submitted first."), title=_("Ch Warranty Claim Error"))
-		if self.processing_fee_status in ("Paid", "Waived", "Not Required"):
+		if self.processing_fee_status in ("Waived", "Not Required"):
 			frappe.throw(_("Fee already settled — status: {0}").format(
 				self.processing_fee_status))
 
-		amount = flt(paid_amount) or flt(self.processing_fee_amount)
+		expected_amount = flt(self.processing_fee_amount, 2)
+		amount = flt(paid_amount, 2) or expected_amount
+		if expected_amount <= 0 or abs(amount - expected_amount) > 0.01:
+			frappe.throw(
+				_("Paid amount must match the processing fee of {0}.").format(expected_amount),
+				frappe.ValidationError,
+			)
+		payment_ref = (payment_ref or "").strip()
+		if self.processing_fee_status == "Paid":
+			if payment_ref and payment_ref == (self.processing_fee_payment_ref or ""):
+				return {
+					"claim_name": self.name,
+					"claim_status": self.claim_status,
+					"processing_fee_status": "Paid",
+					"already_settled": True,
+				}
+			frappe.throw(_("The processing fee is already settled with another payment reference."))
+		if self.processing_fee_status in ("Posting Pending", "Posting Failed"):
+			stored_ref = (self.processing_fee_payment_ref or "").strip()
+			if stored_ref and payment_ref != stored_ref:
+				frappe.throw(_("Retry the accounting post with the original payment reference."))
+			payment_ref = stored_ref or payment_ref
 		old = self.claim_status
 
 		updates = {
-			"processing_fee_status": "Paid",
-			"processing_fee_paid_at": now_datetime(),
+			"processing_fee_status": "Posting Pending",
+			"processing_fee_paid_at": self.processing_fee_paid_at or now_datetime(),
 			"processing_fee_paid_amount": amount,
-			"processing_fee_payment_mode": payment_mode or "",
-			"processing_fee_payment_ref": payment_ref or "",
-			"claim_status": "Fee Paid",
+			"processing_fee_payment_mode": payment_mode or self.processing_fee_payment_mode or "",
+			"processing_fee_payment_ref": payment_ref,
+			"processing_fee_last_posting_at": now_datetime(),
+			"processing_fee_posting_attempts": (self.processing_fee_posting_attempts or 0) + 1,
+			"processing_fee_gl_error": "",
 		}
 		self.db_set(updates)
+		for fieldname, value in updates.items():
+			setattr(self, fieldname, value)
+
+		posting_savepoint = "warranty_processing_fee_gl"
+		frappe.db.savepoint(posting_savepoint)
+		try:
+			journal_entry = self._post_processing_fee_gl(amount, payment_mode, payment_ref)
+		except Exception as exc:
+			frappe.db.rollback(save_point=posting_savepoint)
+			error = str(exc)[:500] or _("Accounting post failed.")
+			self.db_set({
+				"processing_fee_status": "Posting Failed",
+				"processing_fee_gl_error": error,
+			})
+			self.processing_fee_status = "Posting Failed"
+			self.processing_fee_gl_error = error
+			frappe.log_error(
+				frappe.get_traceback(),
+				f"Processing fee GL failed for {self.name}",
+			)
+			return {
+				"claim_name": self.name,
+				"claim_status": self.claim_status,
+				"processing_fee_status": "Posting Failed",
+				"retryable": True,
+			}
+
+		self.db_set({
+			"processing_fee_status": "Paid",
+			"claim_status": "Fee Paid",
+			"processing_fee_journal_entry": journal_entry,
+			"processing_fee_gl_error": "",
+		})
+		self.processing_fee_status = "Paid"
+		self.claim_status = "Fee Paid"
+		self.processing_fee_journal_entry = journal_entry
 
 		self._log("Fee Paid", old, "Fee Paid",
 		          remarks or f"Processing fee ₹{amount} paid via {payment_mode or 'N/A'}")
-
-		# Post GL entry: Dr Cash/Receivable → Cr Processing Fee Revenue
-		self._post_processing_fee_gl(amount, payment_mode, payment_ref)
 
 		return {
 			"claim_name": self.name,
@@ -1009,41 +1306,37 @@ class CHWarrantyClaim(Document):
 		}
 
 	def _post_processing_fee_gl(self, amount: float, payment_mode: str = None,
-	                             payment_ref: str = None) -> None:
+	                             payment_ref: str = None) -> str:
 		"""Create journal entry for processing fee cash receipt.
 
 		Dr Cash / Receivable  →  Cr Processing Fee Revenue
-		Silently skips if accounts are not configured (logs warning).
+		The claim is marked Paid only after this method returns successfully.
 		"""
 		company = self.company or frappe.defaults.get_global_default("company")
 		if not company:
-			return
+			frappe.throw(_("A company is required to post the processing fee."))
+
+		existing = self.get("processing_fee_journal_entry")
+		if existing and frappe.db.exists("Journal Entry", existing):
+			if frappe.db.get_value("Journal Entry", existing, "docstatus") != 1:
+				frappe.throw(_("Processing-fee Journal Entry {0} is not submitted.").format(existing))
+			return existing
 
 		settings = frappe.get_cached_doc("CH VAS Settings")
 		revenue_account = settings.get("processing_fee_revenue_account")
 		if not revenue_account:
-			frappe.log_error(
-				f"Processing fee GL skipped for {self.name}: "
-				"'Processing Fee Revenue Account' not set in CH VAS Settings.",
-				"Warranty Fee GL"
-			)
-			return
+			frappe.throw(_("Processing Fee Revenue Account is not configured in CH VAS Settings."))
 
 		# Debit side: configured receivable account or company default cash account
 		debit_account = settings.get("processing_fee_receivable_account") or \
 			frappe.db.get_value("Company", company, "default_cash_account")
 		if not debit_account:
-			frappe.log_error(
-				f"Processing fee GL skipped for {self.name}: no cash/receivable account found.",
-				"Warranty Fee GL"
-			)
-			return
+			frappe.throw(_("No processing-fee receivable or default cash account is configured."))
 
 		cost_center = frappe.db.get_value("Company", company, "cost_center")
 
-		try:
-			je = frappe.new_doc("Journal Entry")
-			je.update({
+		je = frappe.new_doc("Journal Entry")
+		je.update({
 				"voucher_type": "Journal Entry",
 				"company": company,
 				"posting_date": frappe.utils.today(),
@@ -1068,15 +1361,12 @@ class CHWarrantyClaim(Document):
 						"reference_name": self.name,
 					},
 				],
-			})
-			je.flags.ignore_permissions = True
-			je.flags.ch_system_generated_je = True
-			je.insert(ignore_permissions=True)
-			je.submit()
-			self.db_set("processing_fee_invoice", je.name, update_modified=False)
-		except Exception:
-			frappe.log_error(frappe.get_traceback(),
-			                 f"Processing fee GL failed for {self.name}")
+		})
+		je.flags.ignore_permissions = True
+		je.flags.ch_system_generated_je = True
+		je.insert(ignore_permissions=True)
+		je.submit()
+		return je.name
 
 	# ── Fee notification helpers ──────────────────────────────────────
 
@@ -1192,12 +1482,17 @@ class CHWarrantyClaim(Document):
 				title=f"SMS notification failed for {self.name}",
 			)
 
-	@frappe.whitelist()
+	@frappe.whitelist(methods=["POST"])
 	def waive_processing_fee(self, waiver_reason, waived_amount=None) -> None:
 		"""Request fee waiver — requires manager approval.
 
 		Store executive provides reason; manager role must approve.
 		"""
+		self._require_action(
+			"warranty_claim_fee_waiver_request_roles",
+			_WARRANTY_FEE_WAIVER_REQUEST_ROLES,
+			_("request or approve a warranty claim fee waiver"),
+		)
 		if self.docstatus != 1:
 			frappe.throw(_("Claim must be submitted first."), title=_("Ch Warranty Claim Error"))
 		if self.processing_fee_status in ("Paid", "Waived", "Not Required"):
@@ -1211,10 +1506,10 @@ class CHWarrantyClaim(Document):
 
 		# Check if user has manager role for direct approval
 		waiver_roles = get_fee_waiver_roles()
-		is_manager = frappe.db.exists("Has Role", {
+		is_manager = is_privileged_user() or bool(frappe.db.exists("Has Role", {
 			"parent": frappe.session.user,
 			"role": ["in", waiver_roles],
-		}) if waiver_roles else False
+		})) if waiver_roles else is_privileged_user()
 
 		if is_manager:
 			updates = {
@@ -1256,13 +1551,18 @@ class CHWarrantyClaim(Document):
 
 	# ── Create Repair Ticket (manual trigger with strict gate) ───────
 
-	@frappe.whitelist()
+	@frappe.whitelist(methods=["POST"])
 	def create_repair_ticket(self, remarks=None) -> None:
 		"""Manually trigger GoFix ticket creation with ALL gate checks.
 
 		This is the ONLY way to create a repair ticket. All automated
 		ticket creation has been removed.
 		"""
+		self._require_action(
+			"warranty_claim_service_roles",
+			_WARRANTY_SERVICE_ROLES,
+			_("create a warranty claim repair ticket"),
+		)
 		if self.docstatus != 1:
 			frappe.throw(_("Claim must be submitted first."), title=_("Ch Warranty Claim Error"))
 
@@ -1372,10 +1672,6 @@ class CHWarrantyClaim(Document):
 					self.imei_number = lc.imei_number
 				if not self.customer and lc.customer:
 					self.customer = lc.customer
-
-	def _determine_coverage_type(self):
-		"""Legacy wrapper — calls new engine."""
-		self._run_coverage_decision_engine()
 
 	def _run_coverage_decision_engine(self):
 		"""Coverage Decision Engine — evaluates all entitlements by priority.
@@ -2034,9 +2330,14 @@ class CHWarrantyClaim(Document):
 			alert=True,
 		)
 
-	@frappe.whitelist()
+	@frappe.whitelist(methods=["POST"])
 	def send_to_manufacturer(self, remarks=None) -> None:
 		"""Manually send device to manufacturer (if not auto-routed on submit)."""
+		self._require_action(
+			"warranty_claim_service_roles",
+			_WARRANTY_SERVICE_ROLES,
+			_("send a warranty claim device to its manufacturer"),
+		)
 		if self.docstatus != 1:
 			frappe.throw(_("Claim must be submitted first."), title=_("Ch Warranty Claim Error"))
 		if self.claim_status not in ("Approved", "Pending Approval"):
@@ -2052,7 +2353,7 @@ class CHWarrantyClaim(Document):
 
 		try:
 			from ch_item_master.ch_item_master.doctype.ch_serial_lifecycle.ch_serial_lifecycle import (
-				update_lifecycle_status,
+				update_lifecycle_status_for_document as update_lifecycle_status,
 			)
 			update_lifecycle_status(
 				serial_no=self.serial_no,
@@ -2084,20 +2385,6 @@ class CHWarrantyClaim(Document):
 			"remarks": remarks,
 		})
 
-		# Activity Log for customer-visible tracking
-		try:
-			frappe.get_doc({
-				"doctype": "Activity Log",
-				"subject": f"Warranty Claim {self.name}: {action} ({from_status} → {to_status})",
-				"content": remarks or f"{action}: Status changed from {from_status} to {to_status}",
-				"reference_doctype": "CH Warranty Claim",
-				"reference_name": self.name,
-				"user": frappe.session.user,
-				"status": "Success",
-			}).insert(ignore_permissions=True)
-		except Exception:
-			pass
-
 		# Dual-channel customer notification for important status transitions
 		try:
 			self._notify_customer_status_change(to_status)
@@ -2106,7 +2393,7 @@ class CHWarrantyClaim(Document):
 			                 f"Customer notification failed for claim {self.name} → {to_status}")
 
 		if save:
-			self.save(ignore_permissions=True)
+			self.save()
 
 	def _notify_customer_status_change(self, to_status: str) -> None:
 		"""Send WhatsApp + Email/SMS to customer on important status transitions."""
@@ -2140,7 +2427,7 @@ class CHWarrantyClaim(Document):
 			tracking=self.pickup_tracking_no or "—",
 			fee=flt(self.processing_fee_amount),
 			reason=self.rejection_reason or "—",
-			otp=self.delivery_otp or "—",
+			otp=self.flags.get("delivery_otp_plaintext") or "—",
 		)
 
 		# WhatsApp

@@ -65,7 +65,6 @@ def ensure_loyalty_baseline(
 	"""Repair site-level loyalty baseline for the live default company.
 
 	- force Customer naming to Naming Series
-	- disable seeded `_Test Company` auto-opt-in programs
 	- ensure exactly one live-company auto-opt-in loyalty program exists
 	"""
 	company = company or frappe.defaults.get_global_default("company")
@@ -73,16 +72,6 @@ def ensure_loyalty_baseline(
 		raise frappe.ValidationError("Default company is not configured for this site")
 
 	frappe.defaults.set_global_default("cust_master_name", "Naming Series")
-
-	disabled_programs = []
-	for row in frappe.get_all(
-		"Loyalty Program",
-		fields=["name", "company", "auto_opt_in"],
-		filters={"auto_opt_in": 1},
-	):
-		if (row.company or "").startswith("_Test Company") and row.name.startswith("Test "):
-			frappe.db.set_value("Loyalty Program", row.name, "auto_opt_in", 0, update_modified=False)
-			disabled_programs.append(row.name)
 
 	company_programs = frappe.get_all(
 		"Loyalty Program",
@@ -145,7 +134,7 @@ def ensure_loyalty_baseline(
 	return {
 		"company": company,
 		"naming": frappe.defaults.get_global_default("cust_master_name"),
-		"disabled_test_programs": disabled_programs,
+		"disabled_test_programs": [],
 		"backfilled_customers": backfilled_customers,
 		"program_name": created_program or (company_programs[0]["name"] if len(company_programs) == 1 else None),
 	}
@@ -199,39 +188,48 @@ def ensure_congruence_loyalty_program():
 		frappe.db.set_value("Loyalty Program", name, updates)
 
 	# Heal customers pointing at a now-deleted program → the common default.
-	dangling = frappe.db.sql_list(
+	dangling_count = frappe.db.sql(
 		"""
-		SELECT c.name
+		SELECT COUNT(*)
 		FROM `tabCustomer` c
 		LEFT JOIN `tabLoyalty Program` lp ON lp.name = c.loyalty_program
 		WHERE c.loyalty_program IS NOT NULL AND c.loyalty_program != ''
 		  AND lp.name IS NULL
 		"""
-	)
-	for customer in dangling:
-		frappe.db.set_value("Customer", customer, "loyalty_program", name, update_modified=False)
-
-	# Enrol any real customer that still has no loyalty program.
-	# Test / regression fixtures (customer_group starts with '_Test') are
-	# left untouched so unit tests keep their isolated setups.
-	unenrolled = frappe.db.sql_list(
+	)[0][0]
+	frappe.db.sql(
 		"""
-		SELECT name
+		UPDATE `tabCustomer` c
+		LEFT JOIN `tabLoyalty Program` lp ON lp.name = c.loyalty_program
+		SET c.loyalty_program = %s
+		WHERE c.loyalty_program IS NOT NULL AND c.loyalty_program != ''
+		  AND lp.name IS NULL
+		""",
+		(name,),
+	)
+
+	unenrolled_count = frappe.db.sql(
+		"""
+		SELECT COUNT(*)
 		FROM `tabCustomer`
 		WHERE disabled = 0
 		  AND (loyalty_program IS NULL OR loyalty_program = '')
-		  AND (customer_group IS NULL OR customer_group NOT LIKE '\\_Test%%')
-		  AND (customer_name IS NULL OR customer_name NOT LIKE '\\_Test%%')
 		"""
+	)[0][0]
+	frappe.db.sql(
+		"""
+		UPDATE `tabCustomer`
+		SET loyalty_program = %s
+		WHERE disabled = 0
+		  AND (loyalty_program IS NULL OR loyalty_program = '')
+		""",
+		(name,),
 	)
-	for customer in unenrolled:
-		frappe.db.set_value("Customer", customer, "loyalty_program", name, update_modified=False)
 
-	frappe.db.commit()
 	return {
 		"program": name,
-		"healed_dangling_customers": len(dangling),
-		"backfilled_unenrolled_customers": len(unenrolled),
+		"healed_dangling_customers": dangling_count,
+		"backfilled_unenrolled_customers": unenrolled_count,
 	}
 
 
@@ -334,5 +332,3 @@ def reset_loyalty_expiry_on_purchase(customer: str, posting_date: str) -> None:
 		""",
 		(new_expiry, customer, today()),
 	)
-
-

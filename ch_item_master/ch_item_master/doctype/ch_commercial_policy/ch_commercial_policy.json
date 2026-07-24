@@ -35,7 +35,8 @@
   "slow_moving_days",
   "column_break_tag",
   "dead_stock_days",
-  "eol_auto_markdown_percent"
+  "eol_auto_markdown_percent",
+  "dead_stock_markdown_percent"
  ],
  "fields": [
   {
@@ -234,6 +235,14 @@
    "label": "EOL Auto Markdown %",
    "description": "Suggested markdown % for EOL-tagged items",
    "depends_on": "enable_tag_auto_pricing"
+  },
+  {
+   "default": "30",
+   "depends_on": "enable_tag_auto_pricing",
+   "description": "Markdown percentage applied once per active Dead Stock tag and price record.",
+   "fieldname": "dead_stock_markdown_percent",
+   "fieldtype": "Percent",
+   "label": "Dead Stock Markdown %"
   }
  ],
  "issingle": 1,

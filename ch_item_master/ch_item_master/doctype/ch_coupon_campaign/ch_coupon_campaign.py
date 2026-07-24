@@ -9,6 +9,14 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import cint, flt, getdate, nowdate, now_datetime
 
+from ch_item_master.config import get_int_setting
+from ch_item_master.security import require_scoped_document_action
+
+
+_COUPON_EXPORT_ROLES = ("Sales Manager", "CH Master Manager")
+_COUPON_DISTRIBUTION_ROLES = ("Sales Manager", "CH Master Manager")
+_COUPON_MANAGEMENT_ROLES = ("Sales Manager", "CH Master Manager")
+
 
 class CHCouponCampaign(Document):
 
@@ -52,8 +60,13 @@ class CHCouponCampaign(Document):
 			return
 		if flt(self.face_value) <= 0:
 			frappe.throw(_("Voucher face value must be positive"))
-		if flt(self.face_value) > 500000:
-			frappe.throw(_("Voucher face value cannot exceed ₹5,00,000"))
+		maximum_amount = get_int_setting("voucher_max_amount", 500000, minimum=1)
+		if flt(self.face_value) > maximum_amount:
+			frappe.throw(
+				_("Voucher face value cannot exceed {0}").format(
+					frappe.format_value(maximum_amount, {"fieldtype": "Currency"})
+				)
+			)
 		if cint(self.voucher_quantity) <= 0:
 			frappe.throw(_("Voucher quantity must be at least 1"))
 		if cint(self.voucher_quantity) > 10000:
@@ -251,12 +264,20 @@ class CHCouponCampaign(Document):
 
 	# ── Stats Refresh ────────────────────────────────────────────────────────
 
-	@frappe.whitelist()
+	@frappe.whitelist(methods=["POST"])
 	def refresh_stats(self):
 		"""Recalculate performance metrics from live Coupon Code / CH Voucher data."""
+		require_scoped_document_action(
+			self,
+			"coupon_campaign_management_roles",
+			_COUPON_MANAGEMENT_ROLES,
+			action=_("refresh coupon campaign statistics"),
+			permission_types=("write",),
+			lock=True,
+		)
 		self._refresh_stats_from_db()
 		self.flags.ignore_validate_update_after_submit = True
-		self.save(ignore_permissions=True)
+		self.save()
 
 	def _refresh_stats_from_db(self):
 		total_gen = len(self.codes)
@@ -328,50 +349,110 @@ class CHCouponCampaign(Document):
 	@frappe.whitelist()
 	def export_codes(self):
 		"""Return list of codes for CSV export."""
-		rows = []
-		for row in self.codes:
-			rows.append({
-				"code": row.code,
-				"type": row.instrument_type,
-				"status": row.status,
-				"assigned_to": row.assigned_to or "",
-				"assigned_to_name": row.assigned_to_name or "",
-				"distributed_via": row.distributed_via or "",
-			})
-		return rows
+		require_scoped_document_action(
+			self,
+			"coupon_code_export_roles",
+			_COUPON_EXPORT_ROLES,
+			action=_("export coupon campaign bearer codes"),
+			permission_types=("read", "export"),
+		)
+		if self.docstatus != 1 or self.status == "Cancelled":
+			frappe.throw(_("Codes can only be exported from a submitted campaign."))
+		return frappe.get_all(
+			"CH Campaign Code",
+			filters={"parent": self.name, "parenttype": self.doctype, "parentfield": "codes"},
+			fields=[
+				"code",
+				"instrument_type as type",
+				"status",
+				"assigned_to",
+				"assigned_to_name",
+				"distributed_via",
+			],
+			order_by="idx asc",
+			limit_page_length=get_int_setting("coupon_code_export_limit", 5000, minimum=1),
+		)
 
 	# ── Bulk Distribution ────────────────────────────────────────────────────
 
-	@frappe.whitelist()
+	@frappe.whitelist(methods=["POST"])
 	def mark_distributed(self, channel="Manual"):
 		"""Mark all Generated codes as Distributed."""
+		require_scoped_document_action(
+			self,
+			"coupon_code_distribution_roles",
+			_COUPON_DISTRIBUTION_ROLES,
+			action=_("distribute coupon campaign bearer codes"),
+			permission_types=("write",),
+			lock=True,
+		)
+		if self.docstatus != 1 or self.status != "Active":
+			frappe.throw(_("Codes can only be distributed from an active campaign."))
+		channel = (channel or "Manual").strip()[:140]
 		now = now_datetime()
-		updated = 0
-		for row in self.codes:
-			if row.status == "Generated":
-				row.status = "Distributed"
-				row.distributed_via = channel
-				row.distributed_on = now
-				updated += 1
+		child_filters = {
+			"parent": self.name,
+			"parenttype": self.doctype,
+			"parentfield": "codes",
+			"status": "Generated",
+		}
+		updated = frappe.db.count("CH Campaign Code", filters=child_filters)
 		if updated:
-			self.total_distributed = sum(1 for r in self.codes if r.status == "Distributed")
-			self.flags.ignore_validate_update_after_submit = True
-			self.save(ignore_permissions=True)
+			frappe.db.sql(
+				"""
+				UPDATE `tabCH Campaign Code`
+				SET status = 'Distributed', distributed_via = %s, distributed_on = %s
+				WHERE parent = %s AND parenttype = %s AND parentfield = 'codes'
+				  AND status = 'Generated'
+				""",
+				(channel, now, self.name, self.doctype),
+			)
+			total_distributed = frappe.db.count(
+				"CH Campaign Code",
+				filters={
+					"parent": self.name,
+					"parenttype": self.doctype,
+					"parentfield": "codes",
+					"status": "Distributed",
+				},
+			)
+			self.db_set("total_distributed", total_distributed)
 		return {"updated": updated}
 
 
 # ── Scheduled: Auto-expire campaigns ────────────────────────────────────────
 
 def expire_campaigns():
-	"""Daily scheduled task: expire campaigns past valid_upto."""
-	today = nowdate()
-	campaigns = frappe.get_all(
+	"""Expire one bounded batch of submitted campaigns past valid_upto."""
+	today_date = nowdate()
+	batch_limit = min(get_int_setting("scheduler_batch_limit", 500, minimum=1), 5000)
+	rows = frappe.get_all(
 		"CH Coupon Campaign",
-		filters={"status": ["in", ["Active", "Paused"]], "valid_upto": ["<", today], "docstatus": 1},
+		filters={
+			"status": ["in", ["Active", "Paused"]],
+			"valid_upto": ["<", today_date],
+			"docstatus": 1,
+		},
 		pluck="name",
+		order_by="valid_upto asc, name asc",
+		limit=batch_limit + 1,
 	)
-	for name in campaigns:
-		frappe.db.set_value("CH Coupon Campaign", name, "status", "Expired",
-							update_modified=True)
+	campaigns = rows[:batch_limit]
 	if campaigns:
-		frappe.db.commit()
+		frappe.db.sql(
+			"""
+				UPDATE `tabCH Coupon Campaign`
+				SET `status` = 'Expired', `modified` = %(modified)s, `modified_by` = %(actor)s
+				WHERE `name` IN %(names)s
+				  AND `status` IN ('Active', 'Paused')
+				  AND `valid_upto` < %(today)s
+				  AND `docstatus` = 1
+			""",
+			{
+				"names": tuple(campaigns),
+				"today": today_date,
+				"modified": now_datetime(),
+				"actor": frappe.session.user,
+			},
+		)
+	return {"expired": len(campaigns), "has_more": len(rows) > batch_limit}

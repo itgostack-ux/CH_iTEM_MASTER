@@ -10,6 +10,7 @@
  "title_field": "partner_name",
  "sort_field": "modified",
  "sort_order": "DESC",
+ "field_order": ["partner_name", "partner_type", "status", "commission_model", "default_commission_percent", "column_break_1", "contact_person", "contact_phone", "contact_email", "settlement_cycle", "settlement_reference_prefix", "notes"],
  "fields": [
   {
    "fieldname": "partner_name",

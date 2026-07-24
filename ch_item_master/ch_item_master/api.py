@@ -10,6 +10,7 @@ Endpoints called from client-side JS:
   - get_sub_category_manufacturers (ch_model.js)
   - get_attribute_values           (ch_model.js)
   - search_specs_for_sub_category  (ch_model.js + item.js — supports is_variant filter)
+  - search_ch_models               (ch_ready_reckoner.js + report filters — cascading Model search)
   - get_model_attribute_values     (item.js variant dialogs)
   - get_property_spec_values        (item.js ch_spec_values autocomplete)
   - generate_items_from_model      (ch_model.js — bulk variant generation)
@@ -26,6 +27,7 @@ from itertools import product as cartesian_product
 
 import frappe
 from frappe import _
+from ch_item_master.config import get_int_setting, get_setting, require_role_setting
 
 from ch_item_master.ch_item_master.utils import (
     _get_property_specs,
@@ -48,6 +50,9 @@ def generate_item_name(sub_category, manufacturer=None, brand=None, model=None,
     For variants:  spec_values=[{spec, spec_value}] -> includes specs.
     model_name_override: raw model name text (preview of unsaved models).
     """
+    frappe.has_permission("CH Sub Category", "read", sub_category, throw=True)
+    if model:
+        frappe.has_permission("CH Model", "read", model, throw=True)
     # Decode JSON early so the rest of the function works with a list
     if isinstance(spec_values, str):
         spec_values = json.loads(spec_values) if spec_values else []
@@ -102,7 +107,6 @@ def generate_item_name(sub_category, manufacturer=None, brand=None, model=None,
                      "in_item_name": 1},
             fields=["spec", "name_order"],
             order_by="name_order asc, idx asc",
-            ignore_permissions=True,
         )
         spec_value_map = {
             sv["spec"]: sv["spec_value"]
@@ -249,6 +253,95 @@ def search_specs_for_sub_category(doctype, txt, searchfield, start, page_len, fi
 
 
 # ───────────────────────────────────────────────────────────────────────────────
+# Link-search for CH Model with Category → Sub Category → Model cascade
+# ───────────────────────────────────────────────────────────────────────────────
+
+@frappe.whitelist()
+def search_brands_for_category(doctype, txt, searchfield, start, page_len, filters) -> list:
+    """Link query for Brand restricted by the category hierarchy.
+
+    Brand has no parent link of its own — the cascade is DERIVED from
+    CH Model coverage: only brands that actually have an enabled model
+    under the selected CH Sub Category (or, when only the parent
+    CH Category is chosen, any of its sub-categories) are offered.
+    """
+    if isinstance(filters, str):
+        filters = frappe.parse_json(filters)
+    filters = filters or {}
+
+    conditions = ["m.disabled = 0", "IFNULL(m.brand, '') != ''"]
+    values = {"start": int(start), "page_len": int(page_len)}
+
+    if txt:
+        conditions.append("m.brand LIKE %(txt)s")
+        values["txt"] = f"%{txt}%"
+
+    if filters.get("sub_category"):
+        conditions.append("m.sub_category = %(sub_category)s")
+        values["sub_category"] = filters["sub_category"]
+    elif filters.get("category"):
+        conditions.append("sc.category = %(category)s")
+        values["category"] = filters["category"]
+
+    return frappe.db.sql(
+        """
+        SELECT DISTINCT m.brand
+        FROM `tabCH Model` m
+        LEFT JOIN `tabCH Sub Category` sc ON sc.name = m.sub_category
+        WHERE {where_clause}
+        ORDER BY m.brand ASC
+        LIMIT %(start)s, %(page_len)s
+        """.format(where_clause=" AND ".join(conditions)),  # noqa: UP032
+        values,
+    )
+
+
+@frappe.whitelist()
+def search_ch_models(doctype, txt, searchfield, start, page_len, filters) -> list:
+    """Link query for CH Model that understands the category hierarchy.
+
+    Filters (all optional):
+      sub_category — restrict to models of this CH Sub Category (direct link)
+      category     — restrict via CH Sub Category.category (used when only the
+                     parent Category is selected in a filter chain)
+      brand        — restrict to models of this Brand
+    """
+    if isinstance(filters, str):
+        filters = frappe.parse_json(filters)
+    filters = filters or {}
+
+    conditions = ["m.disabled = 0"]
+    values = {"start": int(start), "page_len": int(page_len)}
+
+    if txt:
+        conditions.append("(m.name LIKE %(txt)s OR m.model_name LIKE %(txt)s)")
+        values["txt"] = f"%{txt}%"
+
+    if filters.get("sub_category"):
+        conditions.append("m.sub_category = %(sub_category)s")
+        values["sub_category"] = filters["sub_category"]
+    elif filters.get("category"):
+        conditions.append("sc.category = %(category)s")
+        values["category"] = filters["category"]
+
+    if filters.get("brand"):
+        conditions.append("m.brand = %(brand)s")
+        values["brand"] = filters["brand"]
+
+    return frappe.db.sql(
+        """
+        SELECT m.name, m.model_name, m.brand
+        FROM `tabCH Model` m
+        LEFT JOIN `tabCH Sub Category` sc ON sc.name = m.sub_category
+        WHERE {where_clause}
+        ORDER BY m.model_name ASC
+        LIMIT %(start)s, %(page_len)s
+        """.format(where_clause=" AND ".join(conditions)),  # noqa: UP032
+        values,
+    )
+
+
+# ───────────────────────────────────────────────────────────────────────────────
 # Model details for Item form auto-fill
 # ───────────────────────────────────────────────────────────────────────────────
 
@@ -320,6 +413,8 @@ def get_model_attribute_values(model) -> dict:
     if not model:
         return {}
 
+    frappe.has_permission("CH Model", "read", model, throw=True)
+
     sub_category = frappe.db.get_value("CH Model", model, "sub_category")
     if not sub_category:
         return {}
@@ -328,7 +423,6 @@ def get_model_attribute_values(model) -> dict:
         "CH Sub Category Spec",
         filters={"parent": sub_category, "parenttype": "CH Sub Category", "is_variant": 1},
         pluck="spec",
-        ignore_permissions=True,
     ))
 
     grouped = _group_model_spec_values(model)
@@ -373,7 +467,7 @@ def get_property_spec_values(model, spec) -> list:
 # Bulk Item Generation from Model
 # ───────────────────────────────────────────────────────────────────────────────
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def generate_items_from_model(model) -> dict:
     """Generate all missing ERPNext Item variants for a CH Model.
 
@@ -388,11 +482,17 @@ def generate_items_from_model(model) -> dict:
     Uses ERPNext's native variant system so all standard variant
     features (BOM copy, pricing rules, etc.) work out of the box.
     """
-    frappe.only_for(["System Manager", "CH Master Manager"])
+    require_role_setting(
+        "data_import_roles",
+        defaults=("System Manager", "CH Master Manager"),
+        action=_("generate item variants"),
+    )
 
     from erpnext.controllers.item_variant import create_variant, get_variant
 
     mdoc = frappe.get_doc("CH Model", model)
+    mdoc.check_permission("read")
+    frappe.has_permission("Item", "create", throw=True)
     if mdoc.disabled:
         frappe.throw(_("Model {0} is disabled. Enable it first.").format(
             frappe.bold(mdoc.model_name)), title=_("Disabled Model"))
@@ -428,9 +528,9 @@ def generate_items_from_model(model) -> dict:
         template.ch_model = model
         template.ch_sub_category = mdoc.sub_category
         template.ch_category = category
-        template.item_group = item_group or "All Item Groups"
+        template.item_group = item_group or get_setting("default_item_group", "All Item Groups")
         template.brand = mdoc.brand
-        template.stock_uom = "Nos"
+        template.stock_uom = get_setting("default_stock_uom", "Nos")
         template.has_variants = 1
         template.variant_based_on = "Item Attribute"
 
@@ -447,9 +547,8 @@ def generate_items_from_model(model) -> dict:
             for val in ps["values"]:
                 template.append("ch_spec_values", {"spec": ps["spec"], "spec_value": val})
 
-        template.insert(ignore_permissions=True)
+        template.insert()
         template_code = template.item_code
-        frappe.db.commit()
 
     # ── 3. Compute cartesian product ────────────────────────────────────────
     # spec_selectors = [{"spec": "Color", "values": ["Black", "White"]},
@@ -461,11 +560,15 @@ def generate_items_from_model(model) -> dict:
     for vl in value_lists:
         total_combos *= len(vl)
 
-    if total_combos > 500:
+    variant_limit = get_int_setting("variant_generation_limit", 500, minimum=1)
+    if total_combos > variant_limit:
         frappe.throw(
-            _("Too many combinations ({0}). Maximum is 500. "
-              "Reduce variation values or create in batches.").format(total_combos),
-            title=_("Too Many Variants"))
+            _(
+                "Too many combinations ({0}). Maximum is {1}. "
+                "Reduce variation values or create in batches."
+            ).format(total_combos, variant_limit),
+            title=_("Too Many Variants"),
+        )
 
     created = 0
     skipped = 0
@@ -482,13 +585,13 @@ def generate_items_from_model(model) -> dict:
 
         try:
             variant = create_variant(template_code, args)
-            variant.insert(ignore_permissions=True)
+            variant.insert()
             created += 1
-        except Exception as e:
-            errors.append(f"{args}: {str(e)}")
+        except Exception:
+            errors.append(f"{args}: creation failed; review the server error log")
             frappe.log_error(
-                f"Error creating variant for model {model}: {args}\n{str(e)}",
-                "Bulk Item Generation Error",
+                frappe.get_traceback(),
+                f"Bulk Item Generation Error: {model}",
             )
 
     return {

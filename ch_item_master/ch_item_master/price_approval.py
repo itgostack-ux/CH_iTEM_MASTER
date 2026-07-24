@@ -35,14 +35,11 @@ import frappe
 from frappe import _
 from frappe.utils import flt, now_datetime
 
+from ch_item_master.config import get_int_setting, has_role_setting
+from ch_item_master.security import get_company_filter_value, require_scoped_document_action
+
 CATEGORY_MANAGER = "Category Manager"
 COMPANY_HEAD = "Company Head"
-
-# Roles allowed to action a price approval at all. Being in this list is not
-# sufficient — the caller must also be the routed approver for the category
-# (or hold an override role).
-APPROVER_ROLES = ("CH Category Head", "CH Price Manager", "CH Master Manager")
-OVERRIDE_ROLES = ("System Manager", "CH Master Manager")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -312,8 +309,11 @@ def _notify_submitter(batch, category, action, actor, reason=None):
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _is_override(user=None):
-	roles = set(frappe.get_roles(user or frappe.session.user))
-	return bool(roles & set(OVERRIDE_ROLES))
+	return has_role_setting(
+		"price_batch_override_roles",
+		("System Manager", "CH Master Manager"),
+		user=user,
+	)
 
 
 def assert_can_action(batch, row, user=None):
@@ -334,8 +334,14 @@ def assert_can_action(batch, row, user=None):
 			title=_("Not Your Category"),
 		)
 
-	roles = set(frappe.get_roles(user))
-	if not roles & set(APPROVER_ROLES + OVERRIDE_ROLES):
+	if not (
+		has_role_setting(
+			"price_batch_approval_roles",
+			("CH Category Head", "CH Price Manager", "CH Master Manager"),
+			user=user,
+		)
+		or _is_override(user)
+	):
 		frappe.throw(
 			_("You do not hold a role permitted to approve price changes."),
 			frappe.PermissionError,
@@ -376,7 +382,7 @@ def _sync_row_approval(batch, category, status):
 			row.approval_status = status
 
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def decide_category(batch_name, category, action, comments=None):
 	"""Approve or reject one category's rows within a batch.
 
@@ -389,6 +395,13 @@ def decide_category(batch_name, category, action, comments=None):
 		frappe.throw(_("A reason is required to reject."), title=_("Reason Required"))
 
 	batch = frappe.get_doc("CH Price Upload Batch", batch_name)
+	require_scoped_document_action(
+		batch,
+		None,
+		action=_("decide a price upload category"),
+		permission_types=("write",),
+		lock=True,
+	)
 	if batch.status not in ("Pending Approval", "Partially Approved"):
 		frappe.throw(
 			_("Batch is {0} — only batches awaiting approval can be actioned.").format(batch.status),
@@ -427,7 +440,8 @@ def decide_category(batch_name, category, action, comments=None):
 		batch.approved_by = frappe.session.user
 		batch.approved_at = now_datetime()
 
-	batch.save(ignore_permissions=True)
+	batch._authorize_approval_transition()
+	batch.save()
 
 	# Close this approver's inbox item once they have nothing left pending.
 	if not any(
@@ -441,8 +455,6 @@ def decide_category(batch_name, category, action, comments=None):
 		applied = batch.apply_approved_categories()
 
 	_notify_submitter(batch, category, decided, frappe.session.user, comments)
-	frappe.db.commit()
-
 	return {
 		"batch": batch.name,
 		"category": category,
@@ -460,23 +472,69 @@ def get_my_pending_approvals(company=None):
 	inbox so both read the same way.
 	"""
 	user = frappe.session.user
-	conds = ["p.status IN ('Pending Approval', 'Partially Approved')", "c.status = 'Pending'"]
-	params = {"user": user}
-	if not _is_override(user):
-		conds.append("c.approver = %(user)s")
-	if company:
-		conds.append("p.company = %(company)s")
-		params["company"] = company
+	override = _is_override(user)
+	if not override and not has_role_setting(
+		"price_batch_approval_roles",
+		("CH Category Head", "CH Price Manager", "CH Master Manager"),
+		user=user,
+	):
+		frappe.throw(
+			_("You do not hold a role permitted to view price approvals."),
+			frappe.PermissionError,
+		)
 
-	return frappe.db.sql(
-		"""
-		SELECT p.name AS batch, p.title, p.company, p.submitted_by, p.submitted_at,
-		       c.category, c.approver, c.routed_via, c.row_count, c.total_value
-		  FROM `tabCH Price Upload Batch` p
-		  JOIN `tabCH Price Approval Category` c ON c.parent = p.name
-		 WHERE {}
-		 ORDER BY p.submitted_at ASC
-		""".format(" AND ".join(conds)),
-		params,
-		as_dict=True,
+	frappe.has_permission("CH Price Upload Batch", "read", throw=True)
+	batch_filters = {
+		"status": ("in", ("Pending Approval", "Partially Approved")),
+	}
+	company_filter = get_company_filter_value(company, user=user)
+	if company_filter is not None:
+		batch_filters["company"] = company_filter
+
+	queue_limit = min(get_int_setting("price_approval_queue_limit", 100, minimum=1), 500)
+	batches = frappe.get_list(
+		"CH Price Upload Batch",
+		filters=batch_filters,
+		fields=["name", "title", "company", "submitted_by", "submitted_at"],
+		order_by="submitted_at asc, name asc",
+		limit_page_length=queue_limit,
 	)
+	if not batches:
+		return []
+
+	batch_by_name = {batch.name: batch for batch in batches}
+	approval_filters = {
+		"parent": ("in", tuple(batch_by_name)),
+		"parenttype": "CH Price Upload Batch",
+		"status": "Pending",
+	}
+	if not override:
+		approval_filters["approver"] = user
+	approvals = frappe.get_all(
+		"CH Price Approval Category",
+		filters=approval_filters,
+		fields=[
+			"parent", "category", "approver", "routed_via", "row_count", "total_value",
+		],
+		order_by="parent asc, idx asc",
+		limit_page_length=queue_limit,
+	)
+
+	result = []
+	for approval in approvals:
+		batch = batch_by_name.get(approval.parent)
+		if not batch:
+			continue
+		result.append(frappe._dict({
+			"batch": batch.name,
+			"title": batch.title,
+			"company": batch.company,
+			"submitted_by": batch.submitted_by,
+			"submitted_at": batch.submitted_at,
+			"category": approval.category,
+			"approver": approval.approver,
+			"routed_via": approval.routed_via,
+			"row_count": approval.row_count,
+			"total_value": approval.total_value,
+		}))
+	return result

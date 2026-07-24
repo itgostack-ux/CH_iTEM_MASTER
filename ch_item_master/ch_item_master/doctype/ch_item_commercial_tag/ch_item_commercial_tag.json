@@ -8,6 +8,7 @@
  "engine": "InnoDB",
  "field_order": [
   "naming_series",
+  "company",
   "item_code",
   "item_name",
   "tag",

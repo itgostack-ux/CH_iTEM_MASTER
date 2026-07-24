@@ -7,6 +7,7 @@
  "istable": 1,
  "editable_grid": 1,
  "track_changes": 1,
+ "field_order": ["benefit_code", "benefit_name", "benefit_type", "fulfillment_type", "covered", "column_break_limits", "entitlement_basis", "unit_limit", "value_limit", "coverage_percent", "deductible_amount", "column_break_controls", "issue_type", "reset_period", "requires_partner_approval", "partner_reference_required", "applicable_modes", "terms"],
  "fields": [
   {
    "fieldname": "benefit_code",

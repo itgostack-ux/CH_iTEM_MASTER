@@ -16,8 +16,11 @@ import json
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import nowdate, now_datetime, getdate, add_months, flt
+from frappe.utils import add_months, cint, flt, getdate, now_datetime, nowdate
 
+from ch_item_master.config import get_int_setting, is_privileged_user, require_role_setting
+from ch_item_master.id_sequences import next_numeric_id
+from ch_item_master.security import ensure_company_access
 from ch_item_master.ch_item_master.utils import validate_indian_phone
 
 from ch_item_master.ch_item_master.exceptions import (
@@ -38,23 +41,214 @@ class ActiveVASPlans(Document):
 
 	def autoname(self):
 		"""Auto-generate the active plan integration ID if not set."""
-		if not self.sold_plan_id:
-			max_id = frappe.db.sql(
-				"SELECT IFNULL(MAX(sold_plan_id), 0) FROM `tabActive VAS Plans`"
-			)[0][0]
-			self.sold_plan_id = int(max_id) + 1
+		self.sold_plan_id = next_numeric_id("active_vas_plan")
 
 	def validate(self):
+		if self._is_issuance():
+			self._bind_issuance_to_source()
 		if self.customer_phone:
 			self.customer_phone = validate_indian_phone(self.customer_phone, "Customer Phone")
 		self._validate_dates()
-		self._validate_plan_active()
 		self._set_plan_snapshot()
 		self._validate_category()
 		self._validate_duplicate()
 		self._auto_compute_end_date()
 		self._set_sold_by()
-		self._validate_source_document()
+
+	def before_update_after_submit(self):
+		previous = self.get_doc_before_save()
+		if not previous:
+			return
+		protected = (
+			"company",
+			"warranty_plan",
+			"customer",
+			"item_code",
+			"serial_no",
+			"is_external_device",
+			"external_device_source",
+			"start_date",
+			"end_date",
+			"sales_invoice",
+			"sales_order",
+			"status",
+			"claims_used",
+			"total_claimed_value",
+			"plan_price",
+			"device_purchase_price",
+			"max_coverage_value",
+			"custom_deferred_revenue_je",
+			"revenue_recognized_amount",
+			"revenue_last_recognized_on",
+			"plan_snapshot_json",
+			"benefit_snapshot_json",
+		)
+		if any(previous.get(fieldname) != self.get(fieldname) for fieldname in protected):
+			frappe.throw(
+				_("Submitted VAS plan lifecycle and accounting fields are system-managed."),
+				frappe.PermissionError,
+			)
+
+	def _is_issuance(self):
+		previous = self.get_doc_before_save()
+		return self.is_new() or self.docstatus == 0 or bool(previous and previous.docstatus == 0)
+
+	def _bind_issuance_to_source(self):
+		plan = frappe.get_cached_doc("CH Warranty Plan", self.warranty_plan)
+		if plan.status != "Active":
+			frappe.throw(
+				_("Warranty Plan {0} is {1}. Only Active plans can be issued.").format(
+					frappe.bold(plan.name), plan.status
+				),
+				title=_("Inactive Plan"),
+			)
+		if plan.company and self.company != plan.company:
+			frappe.throw(_("The VAS plan and issued plan must belong to the same company."))
+		ensure_company_access(self.company)
+
+		customer = frappe.db.get_value(
+			"Customer",
+			self.customer,
+			["customer_name", "mobile_no", "ch_membership_id"],
+			as_dict=True,
+		)
+		if not customer:
+			frappe.throw(_("Customer {0} does not exist.").format(self.customer))
+		item = frappe.db.get_value(
+			"Item",
+			self.item_code,
+			["item_name", "brand", "has_serial_no"],
+			as_dict=True,
+		)
+		if not item:
+			frappe.throw(_("Item {0} does not exist.").format(self.item_code))
+
+		source, plan_price, device_price = self._validate_commercial_source(plan, item)
+		if self.docstatus == 1 and not source:
+			frappe.throw(
+				_("A submitted Sales Invoice or Sales Order is required before activating a VAS plan."),
+				frappe.ValidationError,
+			)
+
+		if cint(self.is_external_device):
+			if not cint(plan.get("allow_external_device")):
+				frappe.throw(_("This warranty plan does not allow external customer devices."))
+			# item_code is a generic placeholder (EXTERNAL-DEVICE or plan-specific override);
+			# device identity is always in serial_no (IMEI). No strict plan.external_device_item check.
+			if not (self.serial_no or "").strip() or not (self.external_device_source or "").strip():
+				frappe.throw(_("External devices require an IMEI and a capture source."))
+		else:
+			self.external_device_source = ""
+			if cint(item.has_serial_no) and not (self.serial_no or "").strip():
+				frappe.throw(_("A serial number or IMEI is required for this device."))
+
+		sale_date = None
+		if source:
+			sale_date = source.get("posting_date") or source.get("transaction_date")
+		coverage_start = getdate(sale_date or nowdate())
+		if cint(plan.get("starts_after_base_warranty")):
+			base_expiry = None
+			if self.serial_no:
+				base_expiry = frappe.db.get_value(
+					"CH Customer Device", {"serial_no": self.serial_no}, "base_warranty_expiry"
+				)
+			if not base_expiry:
+				from ch_item_master.ch_item_master.warranty_api import get_base_warranty_expiry
+
+				base_expiry = get_base_warranty_expiry(self.item_code, coverage_start)
+			if base_expiry and getdate(base_expiry) >= coverage_start:
+				coverage_start = frappe.utils.add_days(base_expiry, 1)
+
+		self.customer_name = customer.customer_name
+		self.customer_phone = customer.mobile_no
+		self.membership_id = customer.ch_membership_id
+		self.item_name = item.item_name
+		self.brand = item.brand
+		self.status = "Active"
+		self.start_date = coverage_start
+		self.end_date = add_months(coverage_start, cint(plan.duration_months))
+		self.duration_months = cint(plan.duration_months)
+		self.max_claims = cint(plan.max_claims)
+		self.claims_used = 0
+		self.deductible_amount = flt(plan.deductible_amount)
+		self.claims_per_year = cint(plan.claims_per_year)
+		self.fulfillment_type = plan.fulfillment_type or "Repair Claim"
+		self.plan_price = flt(plan_price)
+		self.device_purchase_price = flt(device_price)
+		self.max_coverage_value = flt(device_price) if flt(device_price) > 0 else 0
+		self.total_claimed_value = 0
+		self.custom_deferred_revenue_je = None
+		self.revenue_recognized_amount = 0
+		self.revenue_last_recognized_on = None
+		self.plan_title = plan.plan_name
+		self.plan_type = plan.plan_type
+		self.plan_snapshot_json = None
+		self.benefit_snapshot_json = None
+		self.sold_by = frappe.session.user
+
+	def _validate_commercial_source(self, plan, item):
+		sources = [("Sales Invoice", self.sales_invoice), ("Sales Order", self.sales_order)]
+		sources = [(doctype, name) for doctype, name in sources if name]
+		if not sources:
+			return None, 0, 0
+		if len(sources) != 1:
+			frappe.throw(_("Link exactly one commercial source: Sales Invoice or Sales Order."))
+
+		doctype, name = sources[0]
+		source = frappe.get_doc(doctype, name)
+		source.check_permission("read")
+		if source.docstatus != 1:
+			frappe.throw(_("{0} {1} must be submitted.").format(doctype, name))
+		if source.company != self.company or source.customer != self.customer:
+			frappe.throw(_("The commercial source company and customer must match the VAS plan."))
+
+		service_item = plan.get("service_item")
+		plan_rows = [
+			row
+			for row in source.get("items") or []
+			if row.get("custom_warranty_plan") == plan.name
+			or (service_item and row.item_code == service_item)
+		]
+		device_rows = [row for row in source.get("items") or [] if row.item_code == self.item_code]
+		if not plan_rows and flt(plan.price) > 0:
+			frappe.throw(_("The commercial source does not contain the selected warranty plan."))
+
+		def unit_base_rate(row):
+			return flt(
+				row.get("base_net_rate")
+				or row.get("base_rate")
+				or row.get("net_rate")
+				or row.get("rate")
+			)
+
+		plan_prices = {round(unit_base_rate(row), 2) for row in plan_rows}
+		if len(plan_prices) > 1:
+			frappe.throw(_("The commercial source has ambiguous prices for this warranty plan."))
+		plan_price = next(iter(plan_prices), 0)
+
+		if not cint(self.is_external_device):
+			if not device_rows:
+				frappe.throw(_("The commercial source does not contain the covered device item."))
+			serial_no = (self.serial_no or "").strip()
+			if serial_no:
+				matching_rows = [
+					row
+					for row in device_rows
+					if serial_no in {
+						part.strip()
+						for part in (row.get("serial_no") or "").replace(",", "\n").splitlines()
+						if part.strip()
+					}
+				]
+				if not matching_rows:
+					frappe.throw(_("The covered serial number is not present on the commercial source."))
+				device_rows = matching_rows
+
+		device_prices = {round(unit_base_rate(row), 2) for row in device_rows}
+		if len(device_prices) > 1:
+			frappe.throw(_("The commercial source has ambiguous prices for the covered device."))
+		device_price = next(iter(device_prices), 0)
+		return source, plan_price, device_price
 
 	def on_submit(self):
 		self._sync_to_serial_lifecycle()
@@ -89,19 +283,6 @@ class ActiveVASPlans(Document):
 					),
 					title=_("Invalid Coverage Period"),
 				)
-
-	def _validate_plan_active(self):
-		"""Ensure the linked warranty plan is Active."""
-		if not self.warranty_plan:
-			return
-		plan_status = frappe.db.get_value("CH Warranty Plan", self.warranty_plan, "status")
-		if plan_status != "Active":
-			frappe.throw(
-				_("Warranty Plan {0} is {1}. Only Active plans can be issued.").format(
-					frappe.bold(self.warranty_plan), plan_status
-				),
-				title=_("Inactive Plan"),
-			)
 
 	def _set_plan_snapshot(self):
 		"""Capture immutable plan terms at sale time.
@@ -258,33 +439,6 @@ class ActiveVASPlans(Document):
 		"""Set sold_by to current user if not already set."""
 		if not self.sold_by:
 			self.sold_by = frappe.session.user
-
-	def _validate_source_document(self):
-		"""Every active plan must trace back to a commercial source.
-
-		Market-standard (Croma / Reliance Digital): a care/VAS plan must originate
-		from a sale (Sales Invoice / Sales Order) or be an explicit external-device
-		intake. This prevents orphan plans with no commercial backing from showing
-		up as Active in Customer 360. Skip the check while the row is still a Draft
-		so back-office staff can stage a plan before linking the document.
-		"""
-		if self.docstatus == 0:
-			return
-
-		has_source = any([
-			(self.get("sales_invoice") or "").strip(),
-			(self.get("sales_order") or "").strip(),
-			(self.get("external_device_source") or "").strip(),
-		])
-		if not has_source:
-			frappe.throw(
-				_(
-					"An Active VAS Plan must be linked to a source document before submission: "
-					"a Sales Invoice, a Sales Order, or an External Device Source. "
-					"Set one of these fields to record where this plan was sold."
-				),
-				title=_("Missing Source Document"),
-			)
 
 	def _send_welcome_notification(self):
 		"""Send a welcome message to the customer after plan activation.
@@ -495,7 +649,7 @@ class ActiveVASPlans(Document):
 
 	# ── Public methods ───────────────────────────────────────────────────────
 
-	def recognize_revenue_up_to(self, as_of_date=None):
+	def recognize_revenue_up_to(self, as_of_date=None, row_locked=False):
 		"""Post straight-line revenue recognition JEs up to as_of_date.
 
 		ASC 606 / IFRS 15 pattern used by SAP RA, Oracle Revenue Management,
@@ -518,6 +672,17 @@ class ActiveVASPlans(Document):
 		    dict: {"delta": <amount posted>, "je": <JE name or None>,
 		           "recognized_total": <cumulative>}
 		"""
+		if self.name and not row_locked:
+			locked_name = frappe.db.get_value(
+				"Active VAS Plans", self.name, "name", for_update=True
+			)
+			if not locked_name:
+				frappe.throw(
+					_("Active VAS Plan {0} no longer exists.").format(self.name),
+					frappe.DoesNotExistError,
+				)
+			self.reload()
+
 		as_of = getdate(as_of_date or nowdate())
 		start = getdate(self.start_date) if self.start_date else None
 		end = getdate(self.end_date) if self.end_date else None
@@ -545,44 +710,64 @@ class ActiveVASPlans(Document):
 
 		deferred_acct, revenue_acct = self._resolve_recognition_accounts()
 		if not deferred_acct or not revenue_acct:
-			frappe.log_error(
-				f"Active VAS Plans {self.name}: cannot recognise revenue \u2014 "
-				f"deferred account {deferred_acct!r} / revenue account {revenue_acct!r} "
-				f"unresolved. Check plan overrides and Company defaults.",
-				"VAS Revenue Recognition Misconfigured",
+			frappe.throw(
+				_("Revenue recognition accounts are not configured for {0}.").format(
+					self.company
+				),
+				frappe.ValidationError,
 			)
-			return {"delta": 0, "je": None, "recognized_total": already_recognized}
 
-		try:
-			je = frappe.new_doc("Journal Entry")
-			je.posting_date = as_of
-			je.company = self.company
-			je.user_remark = (
-				f"VAS Revenue Recognition \u2014 {self.name} \u2014 "
-				f"earned {earned_to_date}/{total} through {as_of}"
+		for account in (deferred_acct, revenue_acct):
+			account_company, is_group, disabled = frappe.db.get_value(
+				"Account", account, ["company", "is_group", "disabled"]
+			) or (None, None, None)
+			if account_company != self.company or is_group or disabled:
+				frappe.throw(
+					_("Account {0} is not an active ledger account for {1}.").format(
+						account, self.company
+					),
+					frappe.ValidationError,
+				)
+
+		reference_key = f"VAS Revenue Recognition | {self.name} | {as_of}"
+		if frappe.db.get_value(
+			"Journal Entry",
+			{"company": self.company, "docstatus": 1, "user_remark": reference_key},
+			"name",
+		):
+			frappe.throw(
+				_("A revenue recognition entry already exists for {0} on {1}. Reconcile the plan before retrying.").format(
+					self.name, as_of
+				),
+				frappe.ValidationError,
 			)
-			je.flags.ch_system_generated_je = True
-			je.append("accounts", {
-				"account": deferred_acct,
-				"debit_in_account_currency": delta,
-			})
-			je.append("accounts", {
-				"account": revenue_acct,
-				"credit_in_account_currency": delta,
-			})
-			je.flags.ignore_permissions = True
-			je.insert()
-			je.submit()
-		except Exception:
-			frappe.log_error(
-				frappe.get_traceback(),
-				f"VAS Revenue Recognition JE failed for {self.name}",
-			)
-			return {"delta": 0, "je": None, "recognized_total": already_recognized}
+
+		je = frappe.new_doc("Journal Entry")
+		je.posting_date = as_of
+		je.company = self.company
+		je.user_remark = reference_key
+		je.flags.ch_system_generated_je = True
+		je.append("accounts", {
+			"account": deferred_acct,
+			"debit_in_account_currency": delta,
+		})
+		je.append("accounts", {
+			"account": revenue_acct,
+			"credit_in_account_currency": delta,
+		})
+		je.insert()
+		je.submit()
 
 		new_total = already_recognized + delta
-		self.db_set("revenue_recognized_amount", new_total)
-		self.db_set("revenue_last_recognized_on", as_of)
+		self.revenue_recognized_amount = new_total
+		self.revenue_last_recognized_on = as_of
+		self.db_set(
+			{
+				"revenue_recognized_amount": new_total,
+				"revenue_last_recognized_on": as_of,
+			},
+			update_modified=True,
+		)
 		return {"delta": delta, "je": je.name, "recognized_total": new_total}
 
 	def _reverse_deferred_revenue_on_cancel(self):
@@ -684,6 +869,11 @@ class ActiveVASPlans(Document):
 			WarrantyExpiredError: If plan has expired.
 			MaxClaimsReachedError: If max_claims limit reached or per-year limit exceeded.
 		"""
+		if not self.name or not frappe.db.get_value(
+			"Active VAS Plans", self.name, "name", for_update=True
+		):
+			frappe.throw(_("Active VAS Plan does not exist."), frappe.DoesNotExistError)
+		self.reload()
 		today = getdate(nowdate())
 
 		# ── Idempotency guard ────────────────────────────────────────────
@@ -836,6 +1026,283 @@ class ActiveVASPlans(Document):
 
 # ── Whitelisted API ────────────────────────────────────────────────────────
 
+_VAS_VIEW_ROLES = (
+	"CH Warranty Manager",
+	"Service Manager",
+	"Sales Manager",
+	"Sales User",
+)
+_VAS_FINANCE_ROLES = ("Accounts Manager", "CH Warranty Manager")
+
+
+def _require_named_permission(doctype, name, permission_type="read"):
+	if not frappe.has_permission(
+		doctype,
+		ptype=permission_type,
+		doc=name,
+		user=frappe.session.user,
+		throw=False,
+	):
+		frappe.throw(
+			_("You do not have {0} permission for {1} {2}.").format(
+				permission_type, doctype, name
+			),
+			frappe.PermissionError,
+		)
+
+
+def _resolve_serial_location(serial_no, plan=None, require_named_reads=False):
+	serial_no = (serial_no or "").strip()
+	lifecycle_name = None
+	if serial_no:
+		for filters in (
+			{"serial_no": serial_no},
+			{"imei_number": serial_no},
+			{"imei_number_2": serial_no},
+		):
+			lifecycle_name = frappe.db.get_value("CH Serial Lifecycle", filters, "name")
+			if lifecycle_name:
+				break
+
+	lifecycle = None
+	if lifecycle_name:
+		if require_named_reads:
+			_require_named_permission("CH Serial Lifecycle", lifecycle_name)
+		lifecycle = frappe.db.get_value(
+			"CH Serial Lifecycle",
+			lifecycle_name,
+			["serial_no", "current_company", "current_warehouse", "current_store"],
+			as_dict=True,
+		)
+
+	serial_name = None
+	if serial_no and frappe.db.exists("Serial No", serial_no):
+		serial_name = serial_no
+	elif lifecycle and lifecycle.get("serial_no") and frappe.db.exists(
+		"Serial No", lifecycle.get("serial_no")
+	):
+		serial_name = lifecycle.get("serial_no")
+
+	serial_warehouse = None
+	if serial_name:
+		if require_named_reads:
+			_require_named_permission("Serial No", serial_name)
+		serial_warehouse = frappe.db.get_value("Serial No", serial_name, "warehouse")
+
+	company = lifecycle.get("current_company") if lifecycle else None
+	warehouse = lifecycle.get("current_warehouse") if lifecycle else None
+	store = lifecycle.get("current_store") if lifecycle else None
+	if warehouse and serial_warehouse and warehouse != serial_warehouse:
+		frappe.throw(
+			_("Serial {0} has conflicting warehouse references.").format(serial_no),
+			frappe.ValidationError,
+		)
+	warehouse = warehouse or serial_warehouse
+
+	if plan and plan.get("sales_invoice"):
+		invoice_name = plan.get("sales_invoice")
+		if require_named_reads:
+			_require_named_permission("Sales Invoice", invoice_name)
+		invoice = frappe.db.get_value(
+			"Sales Invoice",
+			invoice_name,
+			["company", "customer", "docstatus", "set_warehouse", "pos_profile"],
+			as_dict=True,
+		)
+		if not invoice or invoice.docstatus != 1:
+			frappe.throw(
+				_("Sales Invoice {0} is not submitted.").format(invoice_name),
+				frappe.ValidationError,
+			)
+		if invoice.company != plan.get("company") or (
+			plan.get("customer") and invoice.customer != plan.get("customer")
+		):
+			frappe.throw(
+				_("Sales Invoice {0} does not belong to this VAS plan.").format(
+					invoice_name
+				),
+				frappe.ValidationError,
+			)
+		company = company or invoice.company
+		invoice_warehouse = invoice.set_warehouse
+		if not invoice_warehouse and invoice.pos_profile:
+			invoice_warehouse = frappe.db.get_value(
+				"POS Profile", invoice.pos_profile, "warehouse"
+			)
+		if not invoice_warehouse:
+			invoice_rows = frappe.get_all(
+				"Sales Invoice Item",
+				filters={"parent": invoice_name, "item_code": plan.get("item_code")},
+				fields=["warehouse", "serial_no"],
+				limit_page_length=100,
+			)
+			matching_rows = [
+				row for row in invoice_rows
+				if not serial_no
+				or serial_no in {
+					value.strip()
+					for value in (row.get("serial_no") or "").replace(",", "\n").splitlines()
+					if value.strip()
+				}
+			]
+			warehouses = {row.get("warehouse") for row in matching_rows if row.get("warehouse")}
+			if len(warehouses) == 1:
+				invoice_warehouse = next(iter(warehouses))
+		if warehouse and invoice_warehouse and warehouse != invoice_warehouse:
+			frappe.throw(
+				_("The VAS plan and its Sales Invoice reference different warehouses."),
+				frappe.ValidationError,
+			)
+		warehouse = warehouse or invoice_warehouse
+
+	if warehouse:
+		if require_named_reads:
+			_require_named_permission("Warehouse", warehouse)
+		warehouse_company = frappe.db.get_value(
+			"Warehouse", warehouse, ["company", "disabled"], as_dict=True
+		)
+		if not warehouse_company or warehouse_company.disabled:
+			frappe.throw(_("Warehouse {0} is not active.").format(warehouse), frappe.ValidationError)
+		if company and warehouse_company.company != company:
+			frappe.throw(
+				_("Warehouse {0} belongs to a different company.").format(warehouse),
+				frappe.ValidationError,
+			)
+		company = company or warehouse_company.company
+
+	store_rows = []
+	if store:
+		store_rows = frappe.get_all(
+			"CH Store",
+			filters={"name": store, "disabled": 0},
+			fields=["name", "company", "warehouse"],
+			limit_page_length=2,
+		)
+	elif warehouse:
+		store_rows = frappe.get_all(
+			"CH Store",
+			filters={"warehouse": warehouse, "disabled": 0},
+			fields=["name", "company", "warehouse"],
+			limit_page_length=2,
+		)
+		if len(store_rows) > 1:
+			frappe.throw(
+				_("Warehouse {0} maps to more than one active store.").format(warehouse),
+				frappe.ValidationError,
+			)
+	if store and not store_rows:
+		frappe.throw(
+			_("Store {0} is not active or does not exist.").format(store),
+			frappe.ValidationError,
+		)
+	if store_rows:
+		store_row = store_rows[0]
+		store = store_row.name
+		if require_named_reads:
+			_require_named_permission("CH Store", store)
+		if (company and store_row.company != company) or (
+			warehouse and store_row.warehouse != warehouse
+		):
+			frappe.throw(
+				_("Store {0} is inconsistent with the serial location.").format(store),
+				frappe.ValidationError,
+			)
+		company = company or store_row.company
+		warehouse = warehouse or store_row.warehouse
+
+	if plan and company and plan.get("company") != company:
+		frappe.throw(
+			_("The VAS plan company does not match the serial location."),
+			frappe.ValidationError,
+		)
+
+	return {
+		"serial_name": serial_name,
+		"lifecycle_name": lifecycle_name,
+		"company": company,
+		"warehouse": warehouse,
+		"store": store,
+	}
+
+
+def _assert_exact_serial_scope(anchor, action):
+	company = anchor.get("company")
+	warehouse = anchor.get("warehouse")
+	store = anchor.get("store")
+	if not company:
+		frappe.throw(
+			_("The serial company cannot be resolved for {0}.").format(action),
+			frappe.PermissionError,
+		)
+	ensure_company_access(company)
+	if is_privileged_user():
+		return
+	if not warehouse:
+		frappe.throw(
+			_("The serial warehouse cannot be resolved for {0}.").format(action),
+			frappe.PermissionError,
+		)
+	try:
+		from ch_erp15.ch_erp15.scope import assert_user_has_store_scope
+	except (ImportError, ModuleNotFoundError):
+		frappe.throw(_("Store scope validation is unavailable."), frappe.PermissionError)
+	assert_user_has_store_scope(
+		store=store,
+		warehouse=warehouse,
+		company=company,
+		msg=_("You are not permitted to access this serial's location."),
+	)
+
+
+def _load_authorized_active_plans(serial_no, company=None):
+	serial_no = (serial_no or "").strip()
+	company = (company or "").strip() or None
+	if not serial_no or len(serial_no) > 140:
+		frappe.throw(_("Provide a valid serial number."), frappe.ValidationError)
+	require_role_setting(
+		"warranty_dashboard_roles",
+		_VAS_VIEW_ROLES,
+		action=_("view warranty coverage"),
+	)
+	frappe.has_permission("Active VAS Plans", "read", throw=True)
+
+	limit = min(get_int_setting("warranty_dashboard_device_limit", 100, minimum=1), 500)
+	filters = {"serial_no": serial_no, "status": "Active", "docstatus": 1}
+	if company:
+		filters["company"] = company
+	plan_names = frappe.get_all(
+		"Active VAS Plans",
+		filters=filters,
+		pluck="name",
+		order_by="end_date desc",
+		limit_page_length=limit,
+	)
+	plans = []
+	for name in plan_names:
+		_require_named_permission("Active VAS Plans", name)
+		plans.append(frappe.get_doc("Active VAS Plans", name))
+
+	companies = {doc.company for doc in plans if doc.company}
+	if company and companies and companies != {company}:
+		frappe.throw(_("The requested company does not match the VAS plan."), frappe.PermissionError)
+	if not company and len(companies) > 1:
+		frappe.throw(
+			_("This serial has active plans in more than one company. Select a company."),
+			frappe.ValidationError,
+		)
+
+	anchor_plan = plans[0] if plans else None
+	anchor = _resolve_serial_location(
+		serial_no,
+		plan=anchor_plan,
+		require_named_reads=True,
+	)
+	if company and anchor.get("company") and anchor["company"] != company:
+		frappe.throw(_("The requested company does not match the serial location."), frappe.PermissionError)
+	if plans or anchor.get("serial_name") or anchor.get("lifecycle_name"):
+		_assert_exact_serial_scope(anchor, _("view warranty coverage"))
+	return plans
+
 @frappe.whitelist()
 def get_active_plans_for_serial(serial_no, company=None) -> dict:
 	"""Get all active active VAS plans for a serial number.
@@ -845,25 +1312,14 @@ def get_active_plans_for_serial(serial_no, company=None) -> dict:
 	Returns:
 		list[dict]: Active active VAS plans with plan details.
 	"""
-	filters = {
-		"serial_no": serial_no,
-		"status": "Active",
-		"docstatus": 1,
-	}
-	if company:
-		filters["company"] = company
-
-	plans = frappe.get_all(
-		"Active VAS Plans",
-		filters=filters,
-		fields=[
-			"name", "warranty_plan", "plan_title", "plan_type",
-			"start_date", "end_date", "claims_used", "max_claims",
-			"deductible_amount", "customer", "customer_name",
-			"item_code", "item_name", "brand",
-		],
-		order_by="end_date desc",
+	plan_docs = _load_authorized_active_plans(serial_no, company)
+	fields = (
+		"name", "warranty_plan", "plan_title", "plan_type",
+		"start_date", "end_date", "claims_used", "max_claims",
+		"deductible_amount", "customer", "customer_name",
+		"item_code", "item_name", "brand",
 	)
+	plans = [frappe._dict({field: doc.get(field) for field in fields}) for doc in plan_docs]
 
 	# Annotate with validity status
 	today = getdate(nowdate())
@@ -933,20 +1389,62 @@ def recognize_vas_revenue_monthly(as_of_date=None):
 	Recognition use for service contracts and extended warranties.
 	"""
 	as_of = getdate(as_of_date or nowdate())
+	batch_limit = min(get_int_setting("scheduler_batch_limit", 500, minimum=1), 5000)
+	cursor_key = f"ch_item_master:vas_revenue_cursor:{as_of}"
+	cursor = frappe.cache.get_value(cursor_key) or ""
 
-	plans = frappe.get_all(
-		"Active VAS Plans",
-		filters={
-			"docstatus": 1,
-			"status": ("in", ["Active", "Claimed", "Expired"]),
-			"start_date": ("<=", as_of),
-			"plan_price": (">", 0),
-		},
-		pluck="name",
-	)
+	def due_plans(after_name=""):
+		return frappe.db.sql(
+			"""
+				SELECT name
+				FROM `tabActive VAS Plans`
+				WHERE docstatus = 1
+				  AND status IN ('Active', 'Claimed', 'Expired')
+				  AND start_date < %(as_of)s
+				  AND plan_price > 0
+				  AND IFNULL(revenue_recognized_amount, 0) < plan_price
+				  AND (
+					revenue_last_recognized_on IS NULL
+					OR revenue_last_recognized_on < %(as_of)s
+				  )
+				  AND name > %(after_name)s
+				ORDER BY name ASC
+				LIMIT %(fetch_limit)s
+			""",
+			{
+				"as_of": as_of,
+				"after_name": after_name,
+				"fetch_limit": batch_limit + 1,
+			},
+			pluck=True,
+		)
 
-	summary = {"processed": 0, "posted": 0, "skipped": 0, "total_recognized": 0.0}
-	for plan_name in plans:
+	plans = due_plans(cursor)
+	if not plans and cursor:
+		plans = due_plans()
+	if not plans:
+		frappe.cache.delete_value(cursor_key)
+		return {
+			"processed": 0,
+			"posted": 0,
+			"skipped": 0,
+			"failed": 0,
+			"total_recognized": 0.0,
+			"has_more": False,
+		}
+
+	work = plans[:batch_limit]
+	summary = {
+		"processed": 0,
+		"posted": 0,
+		"skipped": 0,
+		"failed": 0,
+		"total_recognized": 0.0,
+		"has_more": len(plans) > batch_limit,
+	}
+	for index, plan_name in enumerate(work):
+		save_point = f"vas_revenue_plan_{index}"
+		frappe.db.savepoint(save_point=save_point)
 		try:
 			plan = frappe.get_doc("Active VAS Plans", plan_name)
 			result = plan.recognize_revenue_up_to(as_of)
@@ -957,21 +1455,52 @@ def recognize_vas_revenue_monthly(as_of_date=None):
 			else:
 				summary["skipped"] += 1
 		except Exception:
+			frappe.db.rollback(save_point=save_point)
+			summary["failed"] += 1
 			frappe.log_error(
 				frappe.get_traceback(),
 				f"VAS monthly revenue recognition failed for {plan_name}",
 			)
 
+	if summary["has_more"]:
+		frappe.cache.set_value(cursor_key, work[-1])
+	else:
+		frappe.cache.delete_value(cursor_key)
 	frappe.logger("vas_revenue").info(
 		f"recognize_vas_revenue_monthly: {summary}"
 	)
 	return summary
 
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def recognize_revenue_now(sold_plan):
 	"""Manual trigger for finance to recognise revenue on a single plan
 	up to today (useful for period-end catch-up).
 	"""
+	sold_plan = (sold_plan or "").strip()
+	if not sold_plan or len(sold_plan) > 140:
+		frappe.throw(_("Provide a valid Active VAS Plan."), frappe.ValidationError)
+	require_role_setting(
+		"vas_finance_roles",
+		_VAS_FINANCE_ROLES,
+		action=_("recognize VAS revenue"),
+	)
+	locked_name = frappe.db.get_value(
+		"Active VAS Plans", sold_plan, "name", for_update=True
+	)
+	if not locked_name:
+		frappe.throw(
+			_("Active VAS Plan {0} does not exist.").format(sold_plan),
+			frappe.DoesNotExistError,
+		)
 	doc = frappe.get_doc("Active VAS Plans", sold_plan)
-	return doc.recognize_revenue_up_to(nowdate())
+	_require_named_permission("Active VAS Plans", doc.name, "write")
+	frappe.has_permission("Journal Entry", "create", throw=True)
+	frappe.has_permission("Journal Entry", "submit", throw=True)
+	if doc.docstatus != 1:
+		frappe.throw(_("Only submitted VAS plans can recognize revenue."), frappe.ValidationError)
+	if doc.status in ("Cancelled", "Void"):
+		frappe.throw(_("Revenue cannot be recognized for a closed VAS plan."), frappe.ValidationError)
+	anchor = _resolve_serial_location(doc.serial_no, plan=doc)
+	_assert_exact_serial_scope(anchor, _("recognize VAS revenue"))
+	return doc.recognize_revenue_up_to(nowdate(), row_locked=True)

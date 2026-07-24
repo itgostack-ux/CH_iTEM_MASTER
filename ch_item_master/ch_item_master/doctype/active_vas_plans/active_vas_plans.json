@@ -12,6 +12,9 @@
  "editable_grid": 1,
  "track_changes": 1,
  "title_field": "plan_title",
+ "field_order": [
+  "naming_series", "sold_plan_id", "company", "warranty_plan", "plan_title", "plan_type", "column_break_basic", "customer", "customer_name", "customer_phone", "membership_id", "status", "section_device", "item_code", "item_name", "column_break_device", "serial_no", "is_external_device", "external_device_source", "brand", "section_coverage", "start_date", "end_date", "duration_months", "column_break_coverage", "max_claims", "claims_used", "deductible_amount", "section_transaction", "sales_invoice", "sales_order", "column_break_transaction", "sold_by", "plan_price", "custom_deferred_revenue_je", "revenue_recognized_amount", "revenue_last_recognized_on", "section_snapshot", "fulfillment_type", "plan_snapshot_json", "benefit_snapshot_json", "section_value_cap", "device_purchase_price", "max_coverage_value", "column_break_value_cap", "total_claimed_value", "claims_per_year", "section_notes", "remarks", "amended_from"
+ ],
  "search_fields": "customer,serial_no,warranty_plan,item_code",
  "sort_field": "modified",
  "sort_order": "DESC",
@@ -61,6 +64,7 @@
    "label": "Plan Title",
    "fetch_from": "warranty_plan.plan_name",
    "read_only": 1,
+   "permlevel": 1,
    "in_list_view": 1,
    "description": "Auto-fetched from the linked Warranty Plan."
   },
@@ -69,6 +73,8 @@
    "fieldtype": "Data",
    "label": "Plan Type",
    "fetch_from": "warranty_plan.plan_type",
+   "read_only": 1,
+   "permlevel": 1,
    "read_only": 1,
    "in_standard_filter": 1,
    "search_index": 1
@@ -92,7 +98,8 @@
    "fieldtype": "Data",
    "label": "Customer Name",
    "fetch_from": "customer.customer_name",
-   "read_only": 1
+   "read_only": 1,
+   "permlevel": 1
   },
   {
    "fieldname": "customer_phone",
@@ -101,7 +108,8 @@
    "options": "Phone",
    "fetch_from": "customer.mobile_no",
    "fetch_if_empty": 1,
-   "read_only": 1
+   "read_only": 1,
+   "permlevel": 1
   },
   {
    "fieldname": "membership_id",
@@ -109,6 +117,7 @@
    "label": "Membership ID",
    "fetch_from": "customer.ch_membership_id",
    "read_only": 1,
+   "permlevel": 1,
    "in_list_view": 1,
    "description": "Customer's membership ID for reference"
   },
@@ -121,6 +130,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "read_only": 1,
+   "permlevel": 1,
    "no_copy": 1,
    "description": "Active = warranty in effect. Expired = past end_date. Claimed = max claims reached. Void = manually voided.",
    "search_index": 1
@@ -145,7 +155,8 @@
    "fieldtype": "Data",
    "label": "Item Name",
    "fetch_from": "item_code.item_name",
-   "read_only": 1
+   "read_only": 1,
+   "permlevel": 1
   },
   {
    "fieldname": "column_break_device",
@@ -183,7 +194,8 @@
    "label": "Brand",
    "options": "Brand",
    "fetch_from": "item_code.brand",
-   "read_only": 1
+   "read_only": 1,
+   "permlevel": 1
   },
   {
    "fieldname": "section_coverage",
@@ -195,6 +207,8 @@
    "fieldtype": "Date",
    "label": "Start Date",
    "reqd": 1,
+   "read_only": 1,
+   "permlevel": 1,
    "description": "When the coverage begins (typically sale date)."
   },
   {
@@ -202,6 +216,8 @@
    "fieldtype": "Date",
    "label": "End Date",
    "reqd": 1,
+   "read_only": 1,
+   "permlevel": 1,
    "description": "When the coverage expires."
   },
   {
@@ -209,7 +225,8 @@
    "fieldtype": "Int",
    "label": "Duration (Months)",
    "fetch_from": "warranty_plan.duration_months",
-   "read_only": 1
+   "read_only": 1,
+   "permlevel": 1
   },
   {
    "fieldname": "column_break_coverage",
@@ -220,6 +237,7 @@
    "fieldtype": "Int",
    "label": "Max Claims",
    "read_only": 1,
+   "permlevel": 1,
    "description": "Snapshot from plan master at purchase time. 0 = unlimited."
   },
   {
@@ -228,6 +246,7 @@
    "label": "Claims Used",
    "default": "0",
    "read_only": 1,
+   "permlevel": 1,
    "description": "Number of warranty claims consumed against this plan."
   },
   {
@@ -235,6 +254,7 @@
    "fieldtype": "Currency",
    "label": "Deductible per Claim",
    "read_only": 1,
+   "permlevel": 1,
    "description": "Snapshot from plan master at purchase time."
   },
   {
@@ -266,6 +286,7 @@
    "label": "Sold By",
    "options": "User",
    "read_only": 1,
+   "permlevel": 1,
    "description": "User who sold/issued this plan."
   },
   {
@@ -273,6 +294,7 @@
    "fieldtype": "Currency",
    "label": "Plan Price",
    "read_only": 1,
+   "permlevel": 1,
    "description": "Actual price charged to the customer for this plan."
   },
   {
@@ -281,6 +303,7 @@
    "label": "Deferred Revenue Journal Entry",
    "options": "Journal Entry",
    "read_only": 1,
+   "permlevel": 1,
    "no_copy": 1,
    "hidden": 1,
    "description": "System-created journal entry that moved VAS revenue to deferred revenue."
@@ -291,6 +314,8 @@
    "label": "Revenue Recognized (Cumulative)",
    "default": "0",
    "read_only": 1,
+   "permlevel": 1,
+   "allow_on_submit": 1,
    "no_copy": 1,
    "description": "ASC 606 straight-line: running total of revenue recognised from the deferred balance. Updated by the monthly recognition scheduler."
   },
@@ -299,6 +324,8 @@
    "fieldtype": "Date",
    "label": "Last Recognition Posting",
    "read_only": 1,
+   "permlevel": 1,
+   "allow_on_submit": 1,
    "no_copy": 1,
    "hidden": 1,
    "description": "Period-end date of the most recent recognition JE posted for this plan."
@@ -315,6 +342,7 @@
    "fieldtype": "Data",
    "label": "Fulfillment Type",
    "read_only": 1,
+   "permlevel": 1,
    "in_standard_filter": 1,
    "description": "Snapshot of the operational fulfillment flow from the plan master."
   },
@@ -324,6 +352,7 @@
    "label": "Plan Snapshot JSON",
    "options": "JSON",
    "read_only": 1,
+   "permlevel": 1,
    "description": "Immutable sale-time snapshot of commercial, coverage, fee, and fulfillment terms."
   },
   {
@@ -332,6 +361,7 @@
    "label": "Benefit Snapshot JSON",
    "options": "JSON",
    "read_only": 1,
+   "permlevel": 1,
    "description": "Immutable sale-time snapshot of configured VAS benefit rules."
   },
   {
@@ -343,12 +373,16 @@
    "fieldname": "device_purchase_price",
    "fieldtype": "Currency",
    "label": "Device Purchase Price",
+   "read_only": 1,
+   "permlevel": 1,
    "description": "Original device sale price at plan purchase time. Used as ceiling for total claim value."
   },
   {
    "fieldname": "max_coverage_value",
    "fieldtype": "Currency",
    "label": "Max Coverage Value",
+   "read_only": 1,
+   "permlevel": 1,
    "description": "Maximum total claim value this plan will cover. 0 = no value cap (count-based only). Typically set to device_purchase_price."
   },
   {
@@ -361,6 +395,7 @@
    "label": "Total Claimed Value",
    "default": "0",
    "read_only": 1,
+   "permlevel": 1,
    "description": "Running total of claim costs charged against this plan."
   },
   {
@@ -368,6 +403,7 @@
    "fieldtype": "Int",
    "label": "Claims Per Year",
    "read_only": 1,
+   "permlevel": 1,
    "description": "Snapshot from plan master. Annual claim limit (anniversary-based)."
   },
   {
@@ -406,6 +442,13 @@
    "share": 1
   },
   {
+   "role": "System Manager",
+   "permlevel": 1,
+   "read": 1,
+   "write": 1,
+   "create": 1
+  },
+  {
    "role": "CH Warranty Manager",
    "read": 1,
    "write": 1,
@@ -416,12 +459,22 @@
    "export": 1
   },
   {
+   "role": "CH Warranty Manager",
+   "permlevel": 1,
+   "read": 1
+  },
+  {
    "role": "CH Master Manager",
    "read": 1,
    "write": 1,
    "create": 1,
    "submit": 1,
    "export": 1
+  },
+  {
+   "role": "CH Master Manager",
+   "permlevel": 1,
+   "read": 1
   },
   {
    "role": "Sales User",
@@ -432,14 +485,47 @@
    "export": 1
   },
   {
+   "role": "Sales User",
+   "permlevel": 1,
+   "read": 1
+  },
+  {
    "role": "CH Viewer",
    "read": 1,
    "export": 1
   },
   {
+   "role": "CH Viewer",
+   "permlevel": 1,
+   "read": 1
+  },
+  {
    "role": "Stock User",
    "read": 1,
    "export": 1
+  },
+  {
+   "role": "Stock User",
+   "permlevel": 1,
+   "read": 1
+  },
+  {
+   "role": "Service Manager",
+   "read": 1
+  },
+  {
+   "role": "Service Manager",
+   "permlevel": 1,
+   "read": 1
+  },
+  {
+   "role": "Sales Manager",
+   "read": 1
+  },
+  {
+   "role": "Sales Manager",
+   "permlevel": 1,
+   "read": 1
   }
  ],
  "links": [

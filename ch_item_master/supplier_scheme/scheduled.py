@@ -3,7 +3,12 @@
 import frappe
 from frappe import _
 from frappe.utils import getdate, nowdate, add_days
-from frappe.utils import validate_email_address
+
+from ch_item_master.config import get_enabled_role_emails, get_int_setting, get_role_setting
+
+
+def _scheduler_batch_limit() -> int:
+	return min(get_int_setting("supplier_scheme_scheduler_batch_limit", 200, minimum=1), 2000)
 
 
 def auto_close_expired_schemes():
@@ -17,14 +22,32 @@ def auto_close_expired_schemes():
 			"valid_to": ("<", today),
 		},
 		pluck="name",
+		order_by="valid_to asc, name asc",
+		limit=_scheduler_batch_limit(),
 	)
 
-	for scheme_name in expired:
-		frappe.db.set_value("Supplier Scheme Circular", scheme_name, "status", "Closed")
-		frappe.logger("supplier_scheme").info(f"Auto-closed expired scheme {scheme_name}")
-
 	if expired:
-		frappe.db.commit()
+		placeholders = ", ".join(["%s"] * len(expired))
+		frappe.db.sql(
+			f"""
+				UPDATE `tabSupplier Scheme Circular`
+				SET `status` = 'Closed', `modified` = %s, `modified_by` = %s
+				WHERE `name` IN ({placeholders})
+				  AND `docstatus` = 1
+				  AND `status` = 'Active'
+				  AND `valid_to` < %s
+			""",
+			(
+				frappe.utils.now(),
+				frappe.session.user,
+				*expired,
+				today,
+			),
+		)
+		frappe.logger("supplier_scheme").info(
+			f"Auto-closed {len(expired)} expired supplier schemes"
+		)
+	return {"closed": len(expired), "has_more": len(expired) == _scheduler_batch_limit()}
 
 
 def send_expiry_claim_reminders():
@@ -35,8 +58,9 @@ def send_expiry_claim_reminders():
 	today = nowdate()
 	window_end = add_days(today, 15)
 
+	batch_limit = _scheduler_batch_limit()
 	expiring = frappe.db.sql("""
-		SELECT name, scheme_name, brand, valid_to,
+		SELECT name, scheme_name, brand, company, valid_to,
 		       DATEDIFF(valid_to, %(today)s) as days_left,
 		       COALESCE(last_expiry_reminder, '2000-01-01') as last_reminder
 		FROM `tabSupplier Scheme Circular`
@@ -46,48 +70,43 @@ def send_expiry_claim_reminders():
 		  AND (total_claim_amount IS NULL OR total_claim_amount = 0)
 		  AND (last_expiry_reminder IS NULL
 		       OR last_expiry_reminder < DATE_SUB(CURDATE(), INTERVAL 7 DAY))
-	""", {"today": today, "window_end": window_end}, as_dict=True)
+		ORDER BY valid_to ASC, name ASC
+		LIMIT %(batch_limit)s
+	""", {"today": today, "window_end": window_end, "batch_limit": batch_limit}, as_dict=True)
 
 	if not expiring:
 		return
 
-	# Get approver/manager emails
-	manager_emails = frappe.db.sql("""
-		SELECT DISTINCT u.email
-		FROM `tabUser` u
-		JOIN `tabHas Role` hr ON hr.parent = u.name
-		WHERE hr.role IN ('Purchase Manager','Scheme Manager','System Manager')
-		  AND u.enabled = 1 AND u.email != ''
-	""", as_list=True)
-
-	if not manager_emails:
-		return
-
-	recipients = []
-	for row in manager_emails:
-		email = validate_email_address(row[0]) if row and row[0] else ""
-		if email:
-			recipients.append(email)
-
-	if not recipients:
-		frappe.logger("supplier_scheme").warning(
-			"Expiry reminder skipped: no valid manager emails found"
-		)
-		return
-
-	rows_html = "".join(
-		f"<tr>"
-		f"<td style='padding:6px 12px'><a href='{frappe.utils.get_url_to_form("Supplier Scheme Circular", s.name)}'>{s.name}</a></td>"
-		f"<td style='padding:6px 12px'>{s.scheme_name or ''}</td>"
-		f"<td style='padding:6px 12px'>{s.brand or ''}</td>"
-		f"<td style='padding:6px 12px;font-weight:bold;color:#ef4444'>{s.days_left} days</td>"
-		f"</tr>"
-		for s in expiring
+	manager_roles = get_role_setting(
+		"supplier_scheme_approval_roles",
+		("Purchase Manager", "Scheme Manager", "System Manager"),
 	)
+	by_company = {}
+	for scheme in expiring:
+		if scheme.company:
+			by_company.setdefault(scheme.company, []).append(scheme)
 
-	active_schemes_url = f"{frappe.utils.get_url()}/app/supplier-scheme-circular?status=Active"
+	sent_names = []
+	total_recipients = 0
+	for company, schemes in by_company.items():
+		recipients = get_enabled_role_emails(manager_roles, company=company)
+		if not recipients:
+			frappe.logger("supplier_scheme").warning(
+				f"Expiry reminder skipped for {company}: no scoped manager emails found"
+			)
+			continue
 
-	body = _("""
+		rows_html = "".join(
+			f"<tr>"
+			f"<td style='padding:6px 12px'><a href='{frappe.utils.get_url_to_form('Supplier Scheme Circular', s.name)}'>{s.name}</a></td>"
+			f"<td style='padding:6px 12px'>{s.scheme_name or ''}</td>"
+			f"<td style='padding:6px 12px'>{s.brand or ''}</td>"
+			f"<td style='padding:6px 12px;font-weight:bold;color:#ef4444'>{s.days_left} days</td>"
+			f"</tr>"
+			for s in schemes
+		)
+		active_schemes_url = f"{frappe.utils.get_url()}/app/supplier-scheme-circular?status=Active&company={frappe.utils.quoted(company)}"
+		body = _("""
 		<div style='font-family:Segoe UI,Arial,sans-serif;max-width:760px;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden'>
 		<div style='background:#0f172a;color:#ffffff;padding:12px 16px;font-weight:600'>Congruence Holdings — Supplier Scheme Alert</div>
 		<div style='padding:16px'>
@@ -106,30 +125,39 @@ def send_expiry_claim_reminders():
 		</table>
 		<p style='margin-top:16px'><a href='{active_schemes_url}' style='background:#0b57d0;color:#ffffff;text-decoration:none;padding:10px 14px;border-radius:6px;display:inline-block;font-weight:600'>Open Active Schemes</a></p>
 		</div></div>
-	""").format(rows=rows_html)
+		""").format(rows=rows_html)
 
-	try:
-		frappe.sendmail(
-			recipients=recipients,
-			subject=_("⚠ {count} Scheme(s) Expiring Soon With No Claims").format(count=len(expiring)),
-			message=body,
-			delayed=True,
-		)
-	except Exception:
-		frappe.log_error(
-			frappe.get_traceback(),
-			"Supplier Scheme: expiry reminder send failed",
-		)
-		return
+		try:
+			frappe.sendmail(
+				recipients=recipients,
+				subject=_("⚠ {count} Scheme(s) Expiring Soon With No Claims").format(count=len(schemes)),
+				message=body,
+				delayed=True,
+			)
+		except Exception:
+			frappe.log_error(
+				frappe.get_traceback(),
+				f"Supplier Scheme: expiry reminder send failed for {company}",
+			)
+			continue
+		sent_names.extend(scheme.name for scheme in schemes)
+		total_recipients += len(recipients)
 
-	# Mark last_expiry_reminder to prevent duplicate emails
-	for s in expiring:
-		frappe.db.set_value(
-			"Supplier Scheme Circular", s.name,
-			"last_expiry_reminder", today,
-			update_modified=False,
+	if sent_names:
+		placeholders = ", ".join(["%s"] * len(sent_names))
+		frappe.db.sql(
+			f"""
+				UPDATE `tabSupplier Scheme Circular`
+				SET `last_expiry_reminder` = %s
+				WHERE `name` IN ({placeholders})
+			""",
+			(today, *sent_names),
 		)
-	frappe.db.commit()
-	frappe.logger("supplier_scheme").info(
-		f"Sent expiry reminders for {len(expiring)} schemes to {len(recipients)} managers"
-	)
+		frappe.logger("supplier_scheme").info(
+			f"Sent expiry reminders for {len(sent_names)} schemes to {total_recipients} scoped managers"
+		)
+	return {
+		"reminded": len(sent_names),
+		"recipients": total_recipients,
+		"has_more": len(expiring) == batch_limit,
+	}

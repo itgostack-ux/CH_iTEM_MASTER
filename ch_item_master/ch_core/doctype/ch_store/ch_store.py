@@ -2,26 +2,27 @@ import re
 
 import frappe
 from frappe.model.document import Document
+from frappe.utils import cint
 
+from ch_item_master.id_sequences import next_numeric_id, next_scoped_number
+from ch_item_master.security import require_scoped_document_action
 from ch_item_master.ch_item_master.utils import validate_indian_phone
 
 
-# Brand-prefix conventions. Gogizmo (BestBuy Mobiles retail) has always used
-# ``GG-<SLUG>`` and downstream code (POS, WhatsApp, reports) treats that
-# prefix as the canonical store-locator handle. GoFix stores follow the same
-# shape with a ``GF-`` prefix so front-line staff and customers can instantly
-# tell the two brands apart.
+_LOCATION_MANAGER_ROLES = ("CH Master Manager",)
+
+
+# Brand-prefix conventions use the prefix configured on Company.
 #
 # Prefix source (priority order):
 #   1. ``Company.store_code_prefix`` — the generic 2-char brand tag any
 #      company can set (owned by the ``gofix`` app but usable by any brand).
-#   2. ``Company.gofix_enabled = 1`` — legacy fallback. Kept so a mid-migrate
-#      site that has the flag but not the new field still gets ``GF-``.
+#   2. ``Company.gofix_enabled = 1`` — legacy fallback to the Company's own
+#      abbreviation when the prefix field is not installed or populated.
 #
 # Anything else falls back to the deterministic
 # ``STO-<ABBR>-<CITY>-####`` form.
-_GOFIX_STORE_PREFIX = "GF-"
-_LEGACY_GOFIX_PREFIX = "GF"
+_STORE_CODE_ALLOCATION_ATTEMPTS = 1000
 
 
 def _slugify_store_name(store_name: str) -> str:
@@ -75,7 +76,7 @@ class CHStore(Document):
             row = frappe.db.get_value(
                 "Company",
                 self.company,
-                ["store_code_prefix", "gofix_enabled"],
+                ["store_code_prefix", "gofix_enabled", "abbr"],
                 as_dict=True,
             )
         except Exception:
@@ -86,7 +87,7 @@ class CHStore(Document):
         if prefix:
             return prefix
         if row.get("gofix_enabled"):
-            return _LEGACY_GOFIX_PREFIX
+            return re.sub(r"[^A-Za-z0-9]", "", row.get("abbr") or "").upper() or None
         return None
 
     def _generate_prefixed_store_code(self, prefix: str) -> str:
@@ -97,14 +98,12 @@ class CHStore(Document):
             # produce a bare "<PREFIX>-" name.
             return self._generate_store_code()
         base = f"{prefix}-{slug}"
-        if not frappe.db.exists("CH Store", base):
-            return base
-        # Collision — append a numeric suffix. Two stores in the same city
-        # can legitimately share a name (e.g. two Tambaram outlets).
-        seq = 2
-        while frappe.db.exists("CH Store", f"{base}-{seq}"):
-            seq += 1
-        return f"{base}-{seq}"
+        for _ in range(_STORE_CODE_ALLOCATION_ATTEMPTS):
+            sequence = next_scoped_number("CH-STORE-CODE-BRAND", base)
+            candidate = base if sequence == 1 else f"{base}-{sequence}"
+            if not frappe.db.exists("CH Store", candidate):
+                return candidate
+        frappe.throw(frappe._("Could not allocate a unique store code. Please retry."))
 
     def _generate_store_code(self):
         company_abbr = (
@@ -119,28 +118,17 @@ class CHStore(Document):
             prefix_parts.append(city_short)
         prefix = "-".join(prefix_parts) + "-"
 
-        last = frappe.db.sql(
-            "SELECT store_code FROM `tabCH Store` WHERE store_code LIKE %s ORDER BY creation DESC LIMIT 1",
-            (prefix + "%",),
-        )
-        next_seq = 1
-        if last and last[0][0]:
-            try:
-                next_seq = int(last[0][0].rsplit("-", 1)[-1]) + 1
-            except ValueError:
-                next_seq = 1
-        return f"{prefix}{next_seq:04d}"
+        for _ in range(_STORE_CODE_ALLOCATION_ATTEMPTS):
+            sequence = next_scoped_number("CH-STORE-CODE-STANDARD", prefix)
+            candidate = f"{prefix}{sequence:04d}"
+            if not frappe.db.exists("CH Store", candidate):
+                return candidate
+        frappe.throw(frappe._("Could not allocate a unique store code. Please retry."))
 
     def before_insert(self):
-        """Auto-assign sequential integer ID using advisory lock."""
-        frappe.db.sql("SELECT GET_LOCK('ch_store_id', 10)")
-        try:
-            last = frappe.db.sql(
-                "SELECT MAX(store_id) FROM `tabCH Store`"
-            )[0][0] or 0
-            self.store_id = last + 1
-        finally:
-            frappe.db.sql("SELECT RELEASE_LOCK('ch_store_id')")
+        """Auto-assign the atomic sequential integration ID."""
+        if not self.store_id:
+            self.store_id = next_numeric_id("store")
 
     def validate(self):
         if self.store_code:
@@ -229,11 +217,89 @@ class CHStore(Document):
             ensure_store_pos_profile(self)
 
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def create_pos_profile_for_store(store):
-    """Idempotent whitelisted wrapper — invoked from the CH Store form button."""
+    """Provision a scoped store's disabled POS Profile with standard permissions."""
     doc = frappe.get_doc("CH Store", store)
-    return ensure_store_pos_profile(doc, force=True)
+    require_scoped_document_action(
+        doc,
+        "location_manager_roles",
+        _LOCATION_MANAGER_ROLES,
+        action=frappe._("create a POS Profile for a store"),
+        permission_types=("write",),
+        company_field="company",
+        store_field="name",
+        lock=True,
+    )
+    return _create_store_pos_profile_with_permissions(doc)
+
+
+def _create_store_pos_profile_with_permissions(store):
+    if not store.company or not store.warehouse:
+        frappe.throw(
+            frappe._("Company and a sellable Warehouse are required before creating a POS Profile."),
+            frappe.ValidationError,
+        )
+
+    company = frappe.get_doc("Company", store.company)
+    company.check_permission("read")
+    warehouse = frappe.get_doc("Warehouse", store.warehouse)
+    warehouse.check_permission("read")
+    if warehouse.company != store.company:
+        frappe.throw(frappe._("Store warehouse belongs to another company."), frappe.ValidationError)
+    if warehouse.is_group:
+        frappe.throw(frappe._("A group Warehouse cannot be used by a POS Profile."), frappe.ValidationError)
+    if warehouse.get("disabled"):
+        frappe.throw(frappe._("The store warehouse is disabled."), frappe.ValidationError)
+
+    candidate_names = [name for name in (store.pos_profile, f"POS - {store.store_code}") if name]
+    for profile_name in dict.fromkeys(candidate_names):
+        if not frappe.db.exists("POS Profile", profile_name):
+            continue
+        profile = frappe.get_doc("POS Profile", profile_name)
+        profile.check_permission("read")
+        if profile.company != store.company or profile.warehouse != store.warehouse:
+            frappe.throw(
+                frappe._("Existing POS Profile company and warehouse must match the store."),
+                frappe.ValidationError,
+            )
+        if store.pos_profile != profile.name:
+            store.pos_profile = profile.name
+            store.save()
+        return {
+            "pos_profile": profile.name,
+            "created": False,
+            "disabled": bool(profile.disabled),
+        }
+
+    if not frappe.has_permission("POS Profile", ptype="create", print_logs=False):
+        frappe.throw(
+            frappe._("You do not have create permission for POS Profile."),
+            frappe.PermissionError,
+        )
+    profile = frappe.new_doc("POS Profile")
+    profile.name = f"POS - {store.store_code}"
+    profile.company = store.company
+    profile.warehouse = store.warehouse
+    profile.currency = company.default_currency
+    profile.disabled = 1
+    for fieldname, value in (
+        ("cost_center", company.cost_center),
+        ("income_account", company.default_income_account),
+        ("expense_account", company.default_expense_account),
+        ("write_off_account", company.write_off_account),
+    ):
+        if value:
+            profile.set(fieldname, value)
+
+    profile.flags.ignore_validate = True
+    profile.flags.ignore_mandatory = True
+    profile.insert()
+    profile.check_permission("read")
+
+    store.pos_profile = profile.name
+    store.save()
+    return {"pos_profile": profile.name, "created": True, "disabled": True}
 
 
 def backfill_store_pos_profiles():
@@ -295,6 +361,10 @@ def ensure_store_pos_profile(store, force=False):
         or ``None`` when nothing was provisioned (missing prerequisites,
         best-effort skip on error).
     """
+    if cint(store.get("is_hub")):
+        # Hubs / distribution centres are not cashier locations — never
+        # provision a POS Profile for them.
+        return None
     if not store.warehouse or not store.company:
         return None
 
@@ -350,7 +420,7 @@ def ensure_store_pos_profile(store, force=False):
         # user's Save will exercise full validation once modes are added.
         pp.flags.ignore_validate = True
         pp.flags.ignore_mandatory = True
-        pp.insert(ignore_permissions=True)
+        pp.insert()
 
         frappe.db.set_value(
             "CH Store", store.name, "pos_profile", pp.name, update_modified=False,
@@ -417,6 +487,12 @@ def ensure_store_bins(store):
 
     Idempotent.
     """
+    if cint(store.get("is_hub")):
+        # Hubs / distribution centres keep their own warehouse hierarchy
+        # (hub bins under the city group — see ch_core.warehouse_geo).
+        # Never re-parent the hub warehouse under a retail Store Group or
+        # create Damaged / Demo / Buyback retail bins for it.
+        return
     if not store.warehouse or not store.company:
         return
 
@@ -503,7 +579,7 @@ def ensure_store_bins(store):
         wh.ch_location_type = "Store Bin"
         wh.ch_bin_type = bin_type
         try:
-            wh.insert(ignore_permissions=True)
+            wh.insert()
         except frappe.DuplicateEntryError:
             # Another save raced us; safe to skip.
             continue

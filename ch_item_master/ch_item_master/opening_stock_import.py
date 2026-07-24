@@ -95,14 +95,14 @@ def get_template() -> dict:
 		],
 		"example_rows": [
 			{
-				"company": "BestBuy Mobiles Pvt Ltd",
-				"store": "STO-BMPL-CHENNA-0004",
+				"company": "<Company>",
+				"store": "<CH Store>",
 				"bin_type": "Sellable",
 				"warehouse": "",
-				"item_code": "IP000001-BLA-256GB",
+				"item_code": "<Item Code>",
 				"qty": "1",
-				"valuation_rate": "62000",
-				"serial_no": "356002001000001",
+				"valuation_rate": "<Valuation Rate>",
+				"serial_no": "<Serial / IMEI>",
 				"batch_no": "",
 				"allow_zero_valuation_rate": "0",
 			}

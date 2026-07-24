@@ -14,36 +14,12 @@ Usage:
     )
 """
 
-import frappe
-import requests
-from frappe.utils import now_datetime
-import urllib.parse
 import re
 
-# Allowlisted WhatsApp gateway hosts (SSRF defence — C8)
-ALLOWED_WHATSAPP_HOSTS = {"server.gallabox.com"}
+import frappe
+from frappe.utils import cint
 
-
-def _validate_whatsapp_url(url: str) -> None:
-    """Enforce SSRF defence: only allow Gallabox official server."""
-    if not url:
-        frappe.throw("WhatsApp base URL is required")
-    try:
-        parsed = urllib.parse.urlparse(url)
-        hostname = parsed.hostname
-        if hostname not in ALLOWED_WHATSAPP_HOSTS:
-            frappe.throw(
-                f"WhatsApp endpoint '{hostname}' is not whitelisted. "
-                f"Only {', '.join(ALLOWED_WHATSAPP_HOSTS)} is allowed.",
-                title="SSRF Protection",
-            )
-        if parsed.scheme != "https":
-            frappe.throw(
-                "WhatsApp endpoint must use HTTPS",
-                title="Security Requirement",
-            )
-    except ValueError as e:
-        frappe.throw(f"Invalid WhatsApp URL: {e}", title="URL Validation Error")
+from ch_item_master.outbound_security import parse_exact_host_allowlist, post_json_with_credentials
 
 
 def _redact_otp_from_body_values(body_values: dict | None) -> dict | None:
@@ -108,11 +84,6 @@ def _resolve_company(company, ref_doctype, ref_name):
         except Exception:
             pass
     return None
-
-
-def _get_settings(company: str | None = None):
-    """Backward-compatible alias — resolves per-company then global single."""
-    return get_whatsapp_settings(company)
 
 
 def get_template(company: str | None, event: str | None):
@@ -282,9 +253,15 @@ def _send_now(
     api_key = settings.get_password("api_key") or ""
     api_secret = settings.get_password("api_secret") or ""
     base_url = settings.base_url or "https://server.gallabox.com/devapi/messages/whatsapp"
-
-    # Validate base_url against SSRF allowlist (C8) — before any HTTP call
-    _validate_whatsapp_url(base_url)
+    allowed_hosts = parse_exact_host_allowlist(
+        settings.get("allowed_hosts") or "server.gallabox.com",
+        label="WhatsApp Gateway",
+    )
+    timeout = max(1, min(cint(settings.get("gateway_timeout_seconds")) or 30, 60))
+    max_response_bytes = max(
+        1024,
+        min(cint(settings.get("gateway_response_max_bytes")) or 65536, 1048576),
+    )
 
     log_doc = frappe.get_doc({
         "doctype": "CH WhatsApp Log",
@@ -303,18 +280,19 @@ def _send_now(
     frappe.db.commit()
 
     try:
-        resp = requests.post(
+        resp_json = post_json_with_credentials(
             base_url,
-            json=payload,
+            allowed_hosts=allowed_hosts,
+            label="WhatsApp Gateway",
+            payload=payload,
             headers={
                 "apiKey": api_key,
                 "apiSecret": api_secret,
                 "Content-Type": "application/json",
             },
-            timeout=30,
+            timeout=timeout,
+            max_response_bytes=max_response_bytes,
         )
-        resp.raise_for_status()
-        resp_json = resp.json()
         log_doc.db_set("status", "Sent", update_modified=True)
         log_doc.db_set("gallabox_response", json.dumps(resp_json), update_modified=False)
         msg_id = _extract_message_id(resp_json)

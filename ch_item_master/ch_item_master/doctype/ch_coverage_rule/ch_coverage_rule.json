@@ -5,6 +5,7 @@
  "istable": 1,
  "editable_grid": 1,
  "engine": "InnoDB",
+ "field_order": ["issue_type", "covered", "coverage_percent", "max_claim_per_issue", "deductible_override", "company_share_percent"],
  "fields": [
   {
    "fieldname": "issue_type",

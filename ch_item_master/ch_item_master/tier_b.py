@@ -21,6 +21,7 @@ import frappe
 from frappe import _
 from frappe.utils import flt, today, getdate, add_days
 
+from ch_item_master.config import get_int_setting, has_role_setting
 from ch_item_master.ch_item_master.exceptions import ItemNotActiveError
 
 
@@ -28,13 +29,9 @@ from ch_item_master.ch_item_master.exceptions import ItemNotActiveError
 # MSP Enforcement
 # ─────────────────────────────────────────────────────────────────────────────
 
-_MSP_BYPASS_ROLES = {"CH Master Approver", "System Manager", "Administrator"}
+_DEFAULT_APPROVAL_ROLES = {"CH Master Approver", "System Manager"}
 
 MSPViolation = frappe.ValidationError
-
-
-def _user_roles() -> set[str]:
-	return set(frappe.get_roles(frappe.session.user))
 
 
 def enforce_msp(doc, method=None):
@@ -45,7 +42,7 @@ def enforce_msp(doc, method=None):
 	"""
 	if not getattr(doc, "items", None):
 		return
-	is_approver = bool(_user_roles() & _MSP_BYPASS_ROLES)
+	is_approver = has_role_setting("master_approval_roles", _DEFAULT_APPROVAL_ROLES)
 	violations = []
 
 	for row in doc.items:
@@ -98,9 +95,30 @@ def enforce_expiry(doc, method=None):
 		return
 
 	today_date = getdate(today())
-	warn_threshold = add_days(today_date, 7)
+	warning_days = get_int_setting("expiry_warning_days", 7)
+	warn_threshold = add_days(today_date, warning_days)
 	errors = []
 	warnings = []
+	item_codes = {row.item_code for row in doc.items if row.item_code}
+	batch_names = {getattr(row, "batch_no", None) for row in doc.items if getattr(row, "batch_no", None)}
+	item_rows = (
+		frappe.get_all(
+			"Item",
+			filters={"name": ["in", list(item_codes)]},
+			fields=["name", "has_batch_no", "ch_enforce_expiry"],
+		)
+		if item_codes
+		else []
+	)
+	batch_rows = (
+		frappe.get_all(
+			"Batch", filters={"name": ["in", list(batch_names)]}, fields=["name", "expiry_date"]
+		)
+		if batch_names
+		else []
+	)
+	items_by_name = {row.name: row for row in item_rows}
+	batches_by_name = {row.name: row for row in batch_rows}
 
 	for row in doc.items:
 		item_code = row.item_code
@@ -108,12 +126,13 @@ def enforce_expiry(doc, method=None):
 		if not item_code or not batch_no:
 			continue
 
-		has_expiry = frappe.db.get_value("Item", item_code, "has_batch_no") and \
-			frappe.db.get_value("Item", item_code, "ch_enforce_expiry")
+		item = items_by_name.get(item_code)
+		has_expiry = item and item.has_batch_no and item.ch_enforce_expiry
 		if not has_expiry:
 			continue
 
-		expiry_date = frappe.db.get_value("Batch", batch_no, "expiry_date")
+		batch = batches_by_name.get(batch_no)
+		expiry_date = batch.expiry_date if batch else None
 		if not expiry_date:
 			continue
 
@@ -126,8 +145,8 @@ def enforce_expiry(doc, method=None):
 			)
 		elif expiry_date <= warn_threshold:
 			warnings.append(
-				_("Row {0}: Batch <b>{1}</b> for item <b>{2}</b> expires on {3} (within 7 days)").format(
-					row.idx, batch_no, item_code, expiry_date
+				_("Row {0}: Batch <b>{1}</b> for item <b>{2}</b> expires on {3} (within {4} days)").format(
+					row.idx, batch_no, item_code, expiry_date, warning_days
 				)
 			)
 
@@ -273,11 +292,19 @@ def get_completeness_score(item_code: str) -> dict:
 		breakdown.append({"field": field, "label": label, "filled": filled, "weight": weight})
 
 	pct = round((score / total_weight) * 100, 1)
+	grade_a_min = get_int_setting("item_quality_grade_a_min", 90)
+	grade_b_min = get_int_setting("item_quality_grade_b_min", 70)
+	grade_c_min = get_int_setting("item_quality_grade_c_min", 50)
 	return {
 		"item_code": item_code,
 		"score": pct,
 		"filled_weight": score,
 		"total_weight": total_weight,
 		"breakdown": breakdown,
-		"grade": "A" if pct >= 90 else "B" if pct >= 70 else "C" if pct >= 50 else "D",
+		"grade": (
+			"A" if pct >= grade_a_min
+			else "B" if pct >= grade_b_min
+			else "C" if pct >= grade_c_min
+			else "D"
+		),
 	}

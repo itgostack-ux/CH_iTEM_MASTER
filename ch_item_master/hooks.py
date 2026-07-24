@@ -53,6 +53,7 @@ after_migrate = [
 	"ch_item_master.setup.sync_workspace",
 	"ch_item_master.setup.setup_vas_settings",
 	"ch_item_master.setup.seed_stock_count_variance_exception_type",
+	"ch_item_master.setup.seed_external_device_item",
 	"ch_item_master.ch_core.location_hierarchy.backfill_location_hierarchy",
 	"ch_item_master.ch_core.location_hierarchy.backfill_store_bins",
 	"ch_item_master.ch_core.location_hierarchy.backfill_zone_hubs",
@@ -116,6 +117,15 @@ permission_query_conditions = {
 	"CH Customer Device": "ch_item_master.security.get_customer_device_query",
 	"CH Warranty Plan": "ch_item_master.security.get_warranty_plan_query",
 	"CH Exception Request": "ch_item_master.security.get_exception_request_query",
+	"CH Price Upload Batch": "ch_item_master.security.get_price_upload_batch_query",
+	"CH Scheme Receivable": "ch_item_master.security.get_scheme_receivable_query",
+	"Scheme Document Upload": "ch_item_master.security.get_scheme_document_upload_query",
+	"Supplier Scheme Circular": "ch_item_master.security.get_supplier_scheme_circular_query",
+	"Scheme Product Map": "ch_item_master.security.get_scheme_product_map_query",
+	"CH Vendor Info Record": "ch_item_master.security.get_vendor_info_record_query",
+	"CH Vendor Performance": "ch_item_master.security.get_vendor_performance_query",
+	"CH Serial Lifecycle": "ch_item_master.security.get_serial_lifecycle_query",
+	"CH Item Version": "ch_item_master.security.get_item_version_query",
 }
 
 has_permission = {
@@ -124,6 +134,15 @@ has_permission = {
 	"CH Customer Device": "ch_item_master.security.has_customer_device_permission",
 	"CH Warranty Plan": "ch_item_master.security.has_warranty_plan_permission",
 	"CH Exception Request": "ch_item_master.security.has_exception_request_permission",
+	"CH Price Upload Batch": "ch_item_master.security.has_price_upload_batch_permission",
+	"CH Scheme Receivable": "ch_item_master.security.has_scheme_receivable_permission",
+	"Scheme Document Upload": "ch_item_master.security.has_scheme_document_upload_permission",
+	"Supplier Scheme Circular": "ch_item_master.security.has_supplier_scheme_circular_permission",
+	"Scheme Product Map": "ch_item_master.security.has_scheme_product_map_permission",
+	"CH Vendor Info Record": "ch_item_master.security.has_vendor_info_record_permission",
+	"CH Vendor Performance": "ch_item_master.security.has_vendor_performance_permission",
+	"CH Serial Lifecycle": "ch_item_master.security.has_serial_lifecycle_permission",
+	"CH Item Version": "ch_item_master.security.has_item_version_permission",
 }
 
 # Document Events

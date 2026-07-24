@@ -6,6 +6,8 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import now_datetime
 
+from ch_item_master.id_sequences import next_numeric_id
+
 from ch_item_master.ch_item_master.exceptions import (
 	DuplicateManufacturerError,
 	DuplicateSpecError,
@@ -55,16 +57,7 @@ class CHSubCategory(Document):
 		UNIQUE constraint violation.
 		"""
 		if not self.sub_category_id:
-			lock_name = "ch_sub_category_autoname"
-			try:
-				frappe.db.sql("SELECT GET_LOCK(%s, 10)", lock_name)
-				last_id = frappe.db.sql("""
-					SELECT COALESCE(MAX(sub_category_id), 0)
-					FROM `tabCH Sub Category`
-				""")[0][0]
-				self.sub_category_id = (last_id or 0) + 1
-			finally:
-				frappe.db.sql("SELECT RELEASE_LOCK(%s)", lock_name)
+			self.sub_category_id = next_numeric_id("sub_category")
 
 	def validate(self):
 		if self.sub_category_name:
@@ -646,7 +639,13 @@ class CHSubCategory(Document):
 		from frappe.utils import nowdate
 
 		item_codes = frappe.db.sql_list(
-			"SELECT name FROM `tabItem` WHERE ch_sub_category = %s",
+			"""
+			SELECT name
+			FROM `tabItem`
+			WHERE ch_sub_category = %s
+			ORDER BY name
+			FOR UPDATE
+			""",
 			self.name,
 		)
 		if not item_codes:
@@ -820,4 +819,3 @@ class CHSubCategory(Document):
 			if frappe.db.exists(doctype, {"item_code": ("in", items), "docstatus": 1}):
 				return True
 		return False
-

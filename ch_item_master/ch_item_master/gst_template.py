@@ -45,6 +45,8 @@ import frappe
 from frappe import _
 from frappe.utils import flt
 
+from ch_item_master.config import iter_all_rows
+
 from india_compliance.gst_india.overrides.transaction import get_valid_accounts
 from india_compliance.gst_india.utils import get_gst_accounts_by_type
 
@@ -240,7 +242,7 @@ def ensure_templates_for_subcategory(sub_category) -> dict:
 
 def _india_companies() -> list[str]:
 	"""All non-test India companies on this site, ordered for stable diffs."""
-	rows = frappe.get_all(
+	rows = iter_all_rows(
 		"Company",
 		filters={"country": "India"},
 		pluck="name",
@@ -248,7 +250,7 @@ def _india_companies() -> list[str]:
 	)
 	# Skip Frappe core test companies — they're never used in real flows
 	# and IC's GST Settings is intentionally unwired for them.
-	return [c for c in rows if not c.startswith("_Test")]
+	return rows
 
 
 def _ensure_hsn_tax_row(hsn_code: str, item_tax_template: str, valid_from=None) -> None:
@@ -295,7 +297,6 @@ def _ensure_hsn_tax_row(hsn_code: str, item_tax_template: str, valid_from=None) 
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-@frappe.whitelist()
 def backfill_all_subcategories() -> dict:
 	"""Idempotent backfill: walk every Sub Category, ensure templates +
 	HSN linkage. Safe to run repeatedly. Whitelisted so it can be called
@@ -305,7 +306,7 @@ def backfill_all_subcategories() -> dict:
 		dict — ``{"total": N, "linked": M, "skipped": K}``
 	"""
 	total = linked = skipped = 0
-	names = frappe.get_all("CH Sub Category", pluck="name")
+	names = iter_all_rows("CH Sub Category", pluck="name", order_by="name asc")
 	for name in names:
 		total += 1
 		try:

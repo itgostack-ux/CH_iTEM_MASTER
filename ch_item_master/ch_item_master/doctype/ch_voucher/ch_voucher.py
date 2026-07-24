@@ -7,6 +7,10 @@ from frappe.model.document import Document
 from frappe.utils import nowdate, now_datetime, getdate, flt, random_string
 
 from ch_item_master.ch_item_master.utils import validate_indian_phone
+from ch_item_master.security import require_scoped_document_action
+
+
+_VOUCHER_MANAGEMENT_ROLES = ("CH Master Manager", "CH Price Manager")
 
 
 class CHVoucher(Document):
@@ -65,9 +69,17 @@ class CHVoucher(Document):
 		self.status = "Cancelled"
 		self.db_set("status", "Cancelled")
 
-	@frappe.whitelist()
+	@frappe.whitelist(methods=["POST"])
 	def activate(self) -> None:
 		"""Activate a draft voucher (legacy — now use Submit instead)."""
+		require_scoped_document_action(
+			self,
+			"voucher_management_roles",
+			_VOUCHER_MANAGEMENT_ROLES,
+			action=_("activate a voucher"),
+			permission_types=("write", "submit"),
+			lock=True,
+		)
 		if self.status not in ("Draft",):
 			frappe.throw(_("Only Draft vouchers can be activated"), title=_("Ch Voucher Error"))
 		if self.docstatus == 0:
@@ -77,13 +89,24 @@ class CHVoucher(Document):
 			self.save()
 		frappe.msgprint(_("Voucher {0} activated").format(self.voucher_code), indicator="green")
 
-	@frappe.whitelist()
+	@frappe.whitelist(methods=["POST"])
 	def cancel_voucher(self) -> None:
 		"""Cancel a voucher (forfeits remaining balance)."""
+		require_scoped_document_action(
+			self,
+			"voucher_management_roles",
+			_VOUCHER_MANAGEMENT_ROLES,
+			action=_("cancel a voucher"),
+			permission_types=("write", "cancel"),
+			lock=True,
+		)
 		if self.status in ("Fully Used", "Cancelled"):
 			frappe.throw(_("Cannot cancel a {0} voucher").format(self.status), title=_("Ch Voucher Error"))
-		self.status = "Cancelled"
-		self.save()
+		if self.docstatus == 1:
+			self.cancel()
+		else:
+			self.status = "Cancelled"
+			self.save()
 
 	def _generate_unique_code(self):
 		"""Generate a unique 12-char alphanumeric voucher code."""

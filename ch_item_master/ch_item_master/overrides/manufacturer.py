@@ -9,6 +9,8 @@ Adds auto-increment logic for manufacturer_id and mandatory full_name.
 import frappe
 from frappe import _
 
+from ch_item_master.id_sequences import next_numeric_id
+
 
 def before_insert(doc, method=None):
 	"""Auto-generate manufacturer_id if not set, with advisory lock for concurrency."""
@@ -18,16 +20,7 @@ def before_insert(doc, method=None):
 	if doc.full_name:
 		doc.full_name = " ".join(doc.full_name.split())
 	if not doc.manufacturer_id:
-		lock_name = "ch_manufacturer_autoname"
-		frappe.db.sql("SELECT GET_LOCK(%s, 10)", lock_name)
-		try:
-			max_id = frappe.db.sql("""
-				SELECT IFNULL(MAX(manufacturer_id), 0) 
-				FROM `tabManufacturer`
-			""")[0][0]
-			doc.manufacturer_id = int(max_id) + 1
-		finally:
-			frappe.db.sql("SELECT RELEASE_LOCK(%s)", lock_name)
+		doc.manufacturer_id = next_numeric_id("manufacturer")
 
 
 def before_save(doc, method=None):

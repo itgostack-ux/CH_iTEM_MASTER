@@ -131,26 +131,35 @@ function _setup_action_buttons(frm) {
 		}, __("Actions")).addClass("btn-primary");
 	}
 
-	// ── Perform Intake QC (Device Received / QC Pending) ──
-	// #25 — Hide for any GoGizmo* role; intake QC must only be performed
-	// by store/operations staff, not GoGizmo desk users.
-	const _is_gogizmo_user = (frappe.user_roles || []).some((r) => /^GoGizmo/i.test(r));
-	if (!_is_gogizmo_user && ["Device Received", "QC Pending"].includes(s)) {
-		frm.add_custom_button(__("Perform Intake QC"), () => {
-			frappe.prompt(
-				[
-					{ fieldtype: "Select", fieldname: "qc_result", label: __("QC Result"),
-					  options: "\nPassed\nFailed\nNot Repairable", reqd: 1 },
-					{ fieldtype: "Small Text", fieldname: "qc_remarks", label: __("QC Remarks") },
-					{ fieldtype: "Small Text", fieldname: "qc_result_reason", label: __("Reason (if failed)") },
-				],
-				(values) => {
-					frm.call("perform_intake_qc", values).then(() => frm.reload_doc());
-				},
-				__("Intake QC")
-			);
-		}, __("Actions")).addClass("btn-primary");
-	}
+		// ── Perform Intake QC (Device Received / QC Pending) ──
+		if (["Device Received", "QC Pending"].includes(s)) {
+			const request_id = (frm.__claim_capability_request || 0) + 1;
+			frm.__claim_capability_request = request_id;
+			frappe.xcall(
+				"ch_item_master.ch_item_master.warranty_api.get_claim_ui_capabilities",
+				{ claim_name: frm.doc.name }
+			).then((capabilities) => {
+				if (frm.__claim_capability_request !== request_id
+					|| !["Device Received", "QC Pending"].includes(frm.doc.claim_status)
+					|| !capabilities?.can_perform_intake_qc) {
+					return;
+				}
+				frm.add_custom_button(__("Perform Intake QC"), () => {
+					frappe.prompt(
+						[
+							{ fieldtype: "Select", fieldname: "qc_result", label: __("QC Result"),
+							  options: "\nPassed\nFailed\nNot Repairable", reqd: 1 },
+							{ fieldtype: "Small Text", fieldname: "qc_remarks", label: __("QC Remarks") },
+							{ fieldtype: "Small Text", fieldname: "qc_result_reason", label: __("Reason (if failed)") },
+						],
+						(values) => {
+							frm.call("perform_intake_qc", values).then(() => frm.reload_doc());
+						},
+						__("Intake QC")
+					);
+				}, __("Actions")).addClass("btn-primary");
+			});
+		}
 
 	// ── Generate Processing Fee (QC Passed, fee not yet set) ──
 	if (s === "QC Passed" && !frm.doc.processing_fee_amount) {

@@ -8,6 +8,9 @@
  "istable": 0,
  "editable_grid": 1,
  "track_changes": 1,
+ "field_order": [
+  "section_companies", "gogizmo_company", "column_break_companies", "gofix_company", "section_coverage", "anniversary_threshold_months", "column_break_coverage", "post_repair_warranty_months", "section_paid_repair", "paid_repair_fee_percent", "paid_repair_fee_minimum", "column_break_paid_repair", "paid_repair_fee_maximum", "section_approval", "fee_waiver_roles", "column_break_approval", "auto_approve_threshold", "claim_notification_roles", "claim_response_sla_hours", "section_voucher", "vas_voucher_amount", "vas_voucher_validity_days", "column_break_voucher", "vas_voucher_item_group", "vas_voucher_channel", "section_payment_gateway", "payment_gateway_provider", "payment_gateway_merchant_id", "column_break_payment_gateway", "payment_gateway_api_key", "payment_gateway_webhook_secret", "processing_fee_link_secret", "processing_fee_link_ttl_hours", "razorpay_allowed_hosts", "razorpay_order_api_url", "cashfree_allowed_hosts", "cashfree_order_api_url", "gateway_timeout_seconds", "gateway_response_max_bytes", "payment_currency", "section_gl_accounts", "processing_fee_revenue_account", "col_break_gl", "processing_fee_receivable_account"
+ ],
  "fields": [
   {
    "fieldname": "section_companies",
@@ -114,6 +117,20 @@
    "description": "Claims with GoGizmo share <= this amount are auto-approved without manager review. 0 = always require approval per plan rules."
   },
   {
+   "fieldname": "claim_notification_roles",
+   "fieldtype": "Small Text",
+   "label": "Claim Notification Roles",
+   "default": "CH Warranty Manager\nSystem Manager",
+   "description": "Users holding one of these roles receive new online warranty claim notifications. Enter one role per line."
+  },
+  {
+   "fieldname": "claim_response_sla_hours",
+   "fieldtype": "Int",
+   "label": "Online Claim Response SLA (Hours)",
+   "default": "24",
+   "description": "Response time shown to customers after an online claim is registered."
+  },
+  {
    "fieldname": "section_voucher",
    "fieldtype": "Section Break",
    "label": "VAS Voucher Configuration",
@@ -188,6 +205,74 @@
    "description": "Used to verify HMAC signature on gateway callbacks."
   },
   {
+   "description": "Dedicated HMAC secret for customer processing-fee links. Payment links fail closed when this is empty.",
+   "fieldname": "processing_fee_link_secret",
+   "fieldtype": "Password",
+   "label": "Processing Fee Link Secret"
+  },
+  {
+   "default": "72",
+   "description": "Hours after which a processing-fee link expires.",
+   "fieldname": "processing_fee_link_ttl_hours",
+   "fieldtype": "Int",
+   "label": "Processing Fee Link Validity (Hours)",
+   "reqd": 1
+  },
+  {
+   "default": "api.razorpay.com",
+   "description": "Exact HTTPS hostnames permitted for Razorpay order creation, one per line.",
+   "fieldname": "razorpay_allowed_hosts",
+   "fieldtype": "Small Text",
+   "label": "Razorpay Allowed Hosts",
+   "reqd": 1
+  },
+  {
+   "default": "https://api.razorpay.com/v1/orders",
+   "fieldname": "razorpay_order_api_url",
+   "fieldtype": "Data",
+   "label": "Razorpay Order API URL",
+   "reqd": 1
+  },
+  {
+   "default": "api.cashfree.com\nsandbox.cashfree.com",
+   "description": "Exact HTTPS hostnames permitted for Cashfree order creation, one per line.",
+   "fieldname": "cashfree_allowed_hosts",
+   "fieldtype": "Small Text",
+   "label": "Cashfree Allowed Hosts",
+   "reqd": 1
+  },
+  {
+   "default": "https://api.cashfree.com/pg/orders",
+   "fieldname": "cashfree_order_api_url",
+   "fieldtype": "Data",
+   "label": "Cashfree Order API URL",
+   "reqd": 1
+  },
+  {
+   "default": "10",
+   "fieldname": "gateway_timeout_seconds",
+   "fieldtype": "Int",
+   "label": "Gateway Timeout (Seconds)",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "65536",
+   "description": "Maximum response body accepted from a payment gateway.",
+   "fieldname": "gateway_response_max_bytes",
+   "fieldtype": "Int",
+   "label": "Gateway Response Maximum Bytes",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "INR",
+   "fieldname": "payment_currency",
+   "fieldtype": "Link",
+   "label": "Payment Currency",
+   "options": "Currency"
+  },
+  {
    "fieldname": "section_gl_accounts",
    "fieldtype": "Section Break",
    "label": "GL Accounts",
@@ -222,8 +307,8 @@
   {
    "role": "CH Warranty Manager",
    "read": 1,
-   "write": 1,
-   "create": 1
+   "write": 0,
+   "create": 0
   },
   {
    "role": "CH Master Manager",

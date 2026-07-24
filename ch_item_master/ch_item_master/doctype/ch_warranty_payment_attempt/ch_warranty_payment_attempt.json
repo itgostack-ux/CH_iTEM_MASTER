@@ -1,0 +1,147 @@
+{
+ "actions": [],
+ "autoname": "CH-WPA-.YYYY.-.#####",
+ "creation": "2026-07-22 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "warranty_claim",
+  "provider",
+  "merchant_request_id",
+  "provider_order_id",
+  "provider_payment_id",
+  "amount",
+  "currency",
+  "status",
+  "payment_session_id",
+  "created_at",
+  "settled_at",
+  "provider_payload",
+  "last_error"
+ ],
+ "fields": [
+  {
+   "fieldname": "warranty_claim",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Warranty Claim",
+   "options": "CH Warranty Claim",
+   "reqd": 1
+  },
+  {
+   "fieldname": "provider",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Provider",
+   "reqd": 1
+  },
+  {
+   "fieldname": "merchant_request_id",
+   "fieldtype": "Data",
+   "label": "Merchant Request ID",
+   "read_only": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "provider_order_id",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Provider Order ID",
+   "read_only": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "provider_payment_id",
+   "fieldtype": "Data",
+   "label": "Provider Payment ID",
+   "read_only": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "amount",
+   "fieldtype": "Currency",
+   "label": "Amount",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "currency",
+   "fieldtype": "Link",
+   "label": "Currency",
+   "options": "Currency",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "default": "Created",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "Created\nPending\nCaptured\nSettled\nFailed",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "payment_session_id",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Payment Session ID",
+   "read_only": 1
+  },
+  {
+   "fieldname": "created_at",
+   "fieldtype": "Datetime",
+   "label": "Created At",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "settled_at",
+   "fieldtype": "Datetime",
+   "label": "Settled At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "provider_payload",
+   "fieldtype": "Long Text",
+   "hidden": 1,
+   "label": "Provider Payload",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_error",
+   "fieldtype": "Small Text",
+   "hidden": 1,
+   "label": "Last Error",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-07-22 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "CH Item Master",
+ "name": "CH Warranty Payment Attempt",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "read": 1,
+   "report": 1,
+   "role": "System Manager"
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "role": "CH Warranty Manager"
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "role": "Accounts Manager"
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

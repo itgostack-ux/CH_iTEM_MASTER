@@ -9,6 +9,7 @@
  "track_changes": 1,
  "sort_field": "modified",
  "sort_order": "DESC",
+ "field_order": ["naming_series", "posting_date", "company", "partner", "column_break_1", "sales_invoice", "sold_plan", "warranty_plan", "commission_base_amount", "commission_rate", "commission_amount", "settlement_status", "settlement_reference", "settlement_file", "notes"],
  "fields": [
   {
    "fieldname": "naming_series",

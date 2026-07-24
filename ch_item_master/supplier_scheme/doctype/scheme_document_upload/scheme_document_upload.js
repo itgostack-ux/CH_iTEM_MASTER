@@ -8,6 +8,9 @@ function sdu_extract_scheme(frm) {
 		.then((r) => {
 			frappe.dom.unfreeze();
 			frm.reload_doc();
+			if (!r || !r.success) {
+				throw new Error((r && r.error) || __("AI extraction failed"));
+			}
 			frappe.show_alert({
 				message: __("Extracted {0} scheme part(s). Click 'Resolve Products' to map to your Item Master.", [r.schemes_count]),
 				indicator: "green",
@@ -47,7 +50,7 @@ function sdu_resolve_products(frm) {
 	frappe.dom.freeze(__("Resolving products against Item Master..."));
 	frappe.xcall(
 		"ch_item_master.supplier_scheme.product_mapper.resolve_scheme_products",
-		{ brand: brand, schemes_json: JSON.stringify(data) }
+		{ brand: brand, schemes_json: JSON.stringify(data), company: frm.doc.company }
 	)
 		.then((result) => {
 			frappe.dom.unfreeze();
@@ -202,7 +205,7 @@ function _show_mapping_review_dialog(frm, result, brand) {
 				frappe.dom.freeze(__("Saving {0} mapping(s)...", [confirmed.length]));
 				frappe.xcall(
 					"ch_item_master.supplier_scheme.product_mapper.save_mappings",
-					{ mappings_json: JSON.stringify(confirmed) }
+					{ mappings_json: JSON.stringify(confirmed), company: frm.doc.company }
 				)
 					.then((r) => {
 						frappe.dom.unfreeze();
@@ -383,7 +386,9 @@ function sdu_show_review_dialog(frm) {
 
 				// Filter schemes
 				const selected_data = Object.assign({}, data);
-				selected_data.schemes = checked.map(idx => data.schemes[idx]);
+				selected_data.schemes = checked.map((idx) => Object.assign(
+					{}, data.schemes[idx], { _source_part: idx + 1 }
+				));
 
 				dialog.hide();
 				frappe.dom.freeze(__("Creating {0} scheme(s)...", [selected_data.schemes.length]));

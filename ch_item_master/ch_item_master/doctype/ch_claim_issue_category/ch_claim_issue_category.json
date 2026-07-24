@@ -5,6 +5,7 @@
  "istable": 1,
  "editable_grid": 1,
  "engine": "InnoDB",
+ "field_order": ["issue_category"],
  "fields": [
   {
    "fieldname": "issue_category",

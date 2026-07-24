@@ -8,9 +8,14 @@
   "section_api",
   "api_key",
   "api_secret",
+  "webhook_secret",
+  "webhook_verify_token",
   "column_break_api",
   "channel_id",
   "base_url",
+  "allowed_hosts",
+  "gateway_timeout_seconds",
+  "gateway_response_max_bytes",
   "section_gofix_templates",
   "gofix_device_received",
   "gofix_repair_completed",
@@ -52,6 +57,20 @@
    "mandatory_depends_on": "eval:doc.enabled"
   },
   {
+   "description": "Shared secret used to verify the provider's SHA-256 HMAC signature over the raw webhook body.",
+   "fieldname": "webhook_secret",
+   "fieldtype": "Password",
+   "label": "Webhook Secret",
+   "mandatory_depends_on": "eval:doc.enabled"
+  },
+  {
+   "description": "Token used only for the provider's GET webhook challenge handshake.",
+   "fieldname": "webhook_verify_token",
+   "fieldtype": "Password",
+   "label": "Webhook Verify Token",
+   "mandatory_depends_on": "eval:doc.enabled"
+  },
+  {
    "fieldname": "column_break_api",
    "fieldtype": "Column Break"
   },
@@ -65,7 +84,32 @@
    "default": "https://server.gallabox.com/devapi/messages/whatsapp",
    "fieldname": "base_url",
    "fieldtype": "Data",
-   "label": "Base URL"
+   "label": "Base URL",
+   "description": "Must use HTTPS and an exact hostname listed below."
+  },
+  {
+   "default": "server.gallabox.com",
+   "description": "Exact public HTTPS hostnames permitted for WhatsApp delivery, one per line.",
+   "fieldname": "allowed_hosts",
+   "fieldtype": "Small Text",
+   "label": "Allowed Gateway Hosts",
+   "reqd": 1
+  },
+  {
+   "default": "30",
+   "fieldname": "gateway_timeout_seconds",
+   "fieldtype": "Int",
+   "label": "Gateway Timeout (Seconds)",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "65536",
+   "fieldname": "gateway_response_max_bytes",
+   "fieldtype": "Int",
+   "label": "Gateway Response Maximum Bytes",
+   "non_negative": 1,
+   "reqd": 1
   },
   {
    "fieldname": "section_gofix_templates",

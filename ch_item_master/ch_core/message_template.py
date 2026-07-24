@@ -10,7 +10,7 @@ Typical use:
 
     msg = render_template(
         code="OTP",
-        vars={"OTP": "123456", "MIN": "5", "CompanyName": "BestBuy"},
+        vars={"OTP": "123456", "MIN": "5", "CompanyName": "Example Company"},
         channel="SMS",
         company=current_company,
     )

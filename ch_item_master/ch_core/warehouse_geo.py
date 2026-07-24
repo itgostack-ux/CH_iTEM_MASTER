@@ -165,8 +165,7 @@ def _ensure_group(name: str, *, company: str, parent: str | None, location_type:
 	wh.ch_city = city or None
 	wh.ch_zone = zone or None
 	wh.ch_location_type = location_type
-	wh.flags.ignore_permissions = True
-	wh.insert(ignore_permissions=True)
+	wh.insert()
 	return wh.name
 
 
@@ -370,8 +369,7 @@ def _ensure_leaf(
 		wh.ch_bin_type = bin_type
 	if store:
 		wh.ch_store = store
-	wh.flags.ignore_permissions = True
-	wh.insert(ignore_permissions=True)
+	wh.insert()
 	return wh.name
 
 
@@ -526,14 +524,10 @@ def restructure_store_tree(store_name: str) -> dict:
 			# as the canonical Sellable leaf and leave the current one alone.
 			result["skipped"] = f"target_leaf_already_exists:{target_leaf}"
 		else:
-			# NOTE: ``frappe.rename_doc`` (top-level) is a thin whitelisted
-			# wrapper that does NOT accept ``ignore_permissions``. Call the
-			# internal model helper directly so we can rename even when the
-			# running user lacks an explicit Warehouse write permission row.
 			_rename_doc(
 				"Warehouse", current_leaf, target_leaf,
 				force=False, merge=False,
-				ignore_permissions=True, show_alert=False,
+				show_alert=False,
 			)
 			# rename_doc cascades CH Store.warehouse via the Link field, so
 			# `store.warehouse` is now `target_leaf`.
@@ -663,5 +657,4 @@ def restructure_all_stores() -> dict:
 		except Exception:
 			stats["errors"] += 1
 			frappe.log_error(frappe.get_traceback(), f"restructure_store_tree: {name}")
-	frappe.db.commit()
 	return stats

@@ -1,0 +1,1436 @@
+{
+ "actions": [],
+ "creation": "2026-07-22 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "access_section",
+  "app_access_roles",
+  "user_directory_roles",
+  "assignable_user_roles",
+  "category_manager_assignment_roles",
+  "exception_assignment_roles",
+  "user_lookup_page_limit",
+  "notification_recipient_limit",
+  "sms_fallback_allowed_hosts",
+  "sms_fallback_timeout_seconds",
+  "scheduler_section",
+  "scheduler_batch_limit",
+  "commercial_scheduler_batch_limit",
+  "commercial_alert_item_limit",
+  "exception_expiry_hours",
+  "exception_query_limit",
+  "role_expiry_batch_limit",
+  "master_approval_roles",
+  "price_approval_roles",
+  "price_view_roles",
+  "default_sales_price_channel",
+  "price_history_limit",
+  "interactive_report_row_limit",
+  "interactive_report_related_row_limit",
+  "pos_override_notification_roles",
+  "ready_reckoner_page_limit",
+  "ready_reckoner_batch_item_limit",
+  "ready_reckoner_upload_row_limit",
+  "ready_reckoner_related_row_limit",
+  "ready_reckoner_export_limit",
+  "ready_reckoner_clone_limit",
+  "offer_approval_roles",
+  "price_batch_approval_roles",
+  "price_batch_override_roles",
+  "price_batch_submit_roles",
+  "price_batch_revise_roles",
+  "price_batch_apply_roles",
+  "price_approval_queue_limit",
+  "exception_approval_roles",
+  "exception_override_roles",
+  "exception_ggr_companies",
+  "exception_gfs_companies",
+  "exception_delivery_note_creation_roles",
+  "exception_delivery_note_item_limit",
+  "exception_request_amount_limit",
+  "exception_request_reason_limit",
+  "company_scope_bypass_roles",
+  "location_view_roles",
+  "location_manager_roles",
+  "warehouse_picker_roles",
+  "location_tree_row_limit",
+  "location_query_limit",
+  "bin_view_roles",
+  "bin_transfer_roles",
+  "bin_query_limit",
+  "bin_transfer_quantity_limit",
+  "supplier_scheme_approval_roles",
+  "supplier_scheme_submit_roles",
+  "supplier_scheme_management_roles",
+  "supplier_scheme_link_limit",
+  "supplier_scheme_ai_payload_char_limit",
+  "supplier_scheme_ai_response_byte_limit",
+  "supplier_scheme_scheduler_batch_limit",
+  "scheme_receivable_settlement_roles",
+  "scheme_receivable_write_off_roles",
+  "scheme_receivable_action_amount_limit",
+  "scheme_receivable_reason_limit",
+  "scheme_receivable_reference_limit",
+  "scheme_dunning_interval_days",
+  "vas_finance_roles",
+  "warranty_claim_intake_roles",
+  "warranty_claim_approval_roles",
+  "warranty_claim_service_roles",
+  "warranty_claim_qc_roles",
+  "warranty_qc_check_limit",
+  "warranty_claim_logistics_roles",
+  "warranty_delivery_otp_ttl_minutes",
+  "warranty_delivery_otp_max_attempts",
+  "warranty_logistics_queue_limit",
+  "warranty_claim_finance_roles",
+  "warranty_claim_management_roles",
+  "warranty_claim_fee_waiver_request_roles",
+  "warranty_dashboard_roles",
+  "warranty_dashboard_device_limit",
+  "warranty_plan_candidate_limit",
+  "warranty_plan_result_limit",
+  "vas_dashboard_roles",
+  "customer_dashboard_roles",
+  "customer_360_roles",
+  "customer_360_device_limit",
+  "customer_360_lifecycle_log_limit",
+  "customer_360_related_row_limit",
+  "voucher_management_roles",
+  "voucher_issue_roles",
+  "voucher_redemption_roles",
+  "voucher_refund_roles",
+  "voucher_topup_roles",
+  "voucher_view_roles",
+  "voucher_source_doctypes",
+  "voucher_reference_doctypes",
+  "voucher_redemption_reference_required",
+  "voucher_topup_reference_required",
+  "voucher_list_limit",
+  "coupon_code_export_roles",
+  "coupon_code_export_limit",
+  "coupon_code_distribution_roles",
+  "coupon_campaign_management_roles",
+  "plm_manager_roles",
+  "vendor_manager_roles",
+  "vendor_view_roles",
+  "vendor_query_limit",
+  "gtin_editor_roles",
+  "mrp_planner_roles",
+  "sensitive_field_roles",
+  "break_glass_supervisor_roles",
+  "data_import_roles",
+  "default_stock_uom",
+  "default_item_group",
+  "variant_generation_limit",
+  "bulk_imei_roles",
+  "bulk_imei_target_statuses",
+  "bulk_imei_limit",
+  "business_thresholds_section",
+  "item_price_expiry_critical_days",
+  "item_price_expiry_warning_days",
+  "item_no_price_critical_count",
+  "item_price_spread_percent",
+  "item_partial_model_variant_count",
+  "item_stale_price_days",
+  "imei_unsold_stale_days",
+  "imei_service_stale_days",
+  "voucher_max_amount",
+  "offer_high_amount_warning",
+  "vas_low_voucher_utilization_percent",
+  "item_quality_grade_a_min",
+  "item_quality_grade_b_min",
+  "item_quality_grade_c_min",
+  "customer_active_window_days",
+  "customer_vip_purchase_amount",
+  "customer_vip_transaction_count",
+  "customer_regular_transaction_count",
+  "customer_dormant_months",
+  "customer_churn_months",
+  "customer_churn_max_transactions",
+  "customer_loyalty_expiry_alert_days",
+  "customer_warranty_expiry_alert_days",
+  "customer_dormancy_insight_percent",
+  "customer_churn_insight_percent",
+  "customer_revenue_concentration_percent",
+  "customer_referral_target_percent",
+  "customer_conversion_target_percent",
+  "customer_unsubscribed_value_amount",
+  "customer_recent_activity_days",
+  "coupon_default_window_days",
+  "coupon_expiring_soon_days",
+  "coupon_low_redemption_percent",
+  "coupon_low_redemption_min_age_days",
+  "coupon_urgent_expiry_days",
+  "coupon_high_redemption_percent",
+  "coupon_medium_redemption_percent",
+  "coupon_high_redemption_min_count",
+  "inventory_section",
+  "asset_serial_kind",
+  "expiry_warning_days",
+  "break_glass_sla_hours",
+  "break_glass_hard_limit_hours",
+  "break_glass_monitor_batch_limit"
+ ],
+ "fields": [
+  {
+   "fieldname": "access_section",
+   "fieldtype": "Section Break",
+   "label": "Access and Approval"
+  },
+  {
+   "default": "System Manager\nCH Master Manager\nCH Price Manager\nCH Offer Manager\nCH Warranty Manager\nCH Viewer\nStock User",
+   "fieldname": "app_access_roles",
+   "fieldtype": "Small Text",
+   "label": "App Access Roles"
+  },
+  {
+   "default": "CH Master Manager\nCH Master Approver\nSystem Manager",
+   "description": "Roles allowed to search eligible users for item-governance assignments.",
+   "fieldname": "user_directory_roles",
+   "fieldtype": "Small Text",
+   "label": "User Directory Roles"
+  },
+  {
+   "default": "CH Category Head\nCH Master Approver",
+   "description": "Only users holding one of these roles can be returned by governance user searches.",
+   "fieldname": "assignable_user_roles",
+   "fieldtype": "Small Text",
+   "label": "Assignable User Roles"
+  },
+  {
+   "default": "CH Category Head",
+   "description": "Roles whose active users may be assigned as category managers.",
+   "fieldname": "category_manager_assignment_roles",
+   "fieldtype": "Small Text",
+   "label": "Category Manager Assignment Roles"
+  },
+  {
+   "default": "CH Master Approver",
+   "description": "Roles whose active users may be assigned or delegated exception approvals.",
+   "fieldname": "exception_assignment_roles",
+   "fieldtype": "Small Text",
+   "label": "Exception Assignment Roles"
+  },
+  {
+   "default": "50",
+   "fieldname": "user_lookup_page_limit",
+   "fieldtype": "Int",
+   "label": "User Lookup Page Limit",
+   "reqd": 1
+  },
+  {
+   "default": "100",
+   "description": "Maximum enabled, scoped business users or emails returned for one operational notification.",
+   "fieldname": "notification_recipient_limit",
+   "fieldtype": "Int",
+   "label": "Notification Recipient Limit",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "description": "Exact public HTTPS hostnames permitted when the global Frappe SMS Settings gateway is used, one per line. Leave empty to disable the global fallback.",
+   "fieldname": "sms_fallback_allowed_hosts",
+   "fieldtype": "Small Text",
+   "label": "Global SMS Allowed Hosts"
+  },
+  {
+   "default": "10",
+   "fieldname": "sms_fallback_timeout_seconds",
+   "fieldtype": "Int",
+   "label": "Global SMS Timeout (Seconds)",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "scheduler_section",
+   "fieldtype": "Section Break",
+   "label": "Scheduler Controls"
+  },
+  {
+   "default": "500",
+   "description": "Maximum records selected from any lifecycle, loyalty, voucher, campaign, warranty-plan, or exception dataset by one scheduler run.",
+   "fieldname": "scheduler_batch_limit",
+   "fieldtype": "Int",
+   "label": "Scheduler Batch Limit",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "500",
+   "description": "Maximum commercial price, tag, or parity rows evaluated by one scheduler run.",
+   "fieldname": "commercial_scheduler_batch_limit",
+   "fieldtype": "Int",
+   "label": "Commercial Scheduler Batch Limit",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "20",
+   "description": "Maximum divergent items included in one channel-parity alert.",
+   "fieldname": "commercial_alert_item_limit",
+   "fieldtype": "Int",
+   "label": "Commercial Alert Item Limit",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "24",
+   "description": "Hours after which an unresolved pending or escalated exception is expired.",
+   "fieldname": "exception_expiry_hours",
+   "fieldtype": "Int",
+   "label": "Exception Expiry (Hours)",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "50",
+   "description": "Maximum exception requests returned by one interactive pending-exception query.",
+   "fieldname": "exception_query_limit",
+   "fieldtype": "Int",
+   "label": "Exception Query Limit",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "500",
+   "description": "Maximum expired role assignments processed by one scheduler run.",
+   "fieldname": "role_expiry_batch_limit",
+   "fieldtype": "Int",
+   "label": "Role Expiry Batch Limit",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "CH Master Approver\nCH Master Manager\nSystem Manager",
+   "fieldname": "master_approval_roles",
+   "fieldtype": "Small Text",
+   "label": "Master Approval Roles"
+  },
+  {
+   "default": "CH Price Manager\nCH Master Approver\nCH Master Manager\nSystem Manager",
+   "fieldname": "price_approval_roles",
+   "fieldtype": "Small Text",
+   "label": "Price Approval Roles"
+  },
+  {
+   "default": "CH Viewer\nCH Price Manager\nCH Master Manager",
+   "description": "Roles allowed to query commercial prices, subject to named read permission and company scope.",
+   "fieldname": "price_view_roles",
+   "fieldtype": "Small Text",
+   "label": "Commercial Price View Roles"
+  },
+  {
+   "default": "POS",
+   "fieldname": "default_sales_price_channel",
+   "fieldtype": "Link",
+   "label": "Default Sales Price Channel",
+   "options": "CH Price Channel"
+  },
+  {
+   "default": "100",
+   "fieldname": "price_history_limit",
+   "fieldtype": "Int",
+   "label": "Commercial Price History Limit",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "2000",
+   "description": "Maximum result rows returned by one custom interactive report.",
+   "fieldname": "interactive_report_row_limit",
+   "fieldtype": "Int",
+   "label": "Interactive Report Row Limit",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "10000",
+   "description": "Maximum related item, specification, price, or offer rows loaded while building one custom report.",
+   "fieldname": "interactive_report_related_row_limit",
+   "fieldtype": "Int",
+   "label": "Interactive Report Related Row Limit",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "CH Master Manager",
+   "description": "Business roles that receive consolidated POS override threshold alerts.",
+   "fieldname": "pos_override_notification_roles",
+   "fieldtype": "Small Text",
+   "label": "POS Override Notification Roles"
+  },
+  {
+   "default": "200",
+   "fieldname": "ready_reckoner_page_limit",
+   "fieldtype": "Int",
+   "label": "Ready Reckoner Page Limit",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "500",
+   "fieldname": "ready_reckoner_batch_item_limit",
+   "fieldtype": "Int",
+   "label": "Ready Reckoner Batch Item Limit",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "5000",
+   "fieldname": "ready_reckoner_upload_row_limit",
+   "fieldtype": "Int",
+   "label": "Ready Reckoner Upload Row Limit",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "10000",
+   "description": "Maximum related price, offer, tag, channel, or buyback rows loaded by one Ready Reckoner request.",
+   "fieldname": "ready_reckoner_related_row_limit",
+   "fieldtype": "Int",
+   "label": "Ready Reckoner Related Row Limit",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "5000",
+   "fieldname": "ready_reckoner_export_limit",
+   "fieldtype": "Int",
+   "label": "Ready Reckoner Export Row Limit",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "200",
+   "fieldname": "ready_reckoner_clone_limit",
+   "fieldtype": "Int",
+   "label": "Ready Reckoner Clone Record Limit",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "CH Offer Manager\nCH Master Approver\nCH Master Manager\nSystem Manager",
+   "fieldname": "offer_approval_roles",
+   "fieldtype": "Small Text",
+   "label": "Offer Approval Roles"
+  },
+  {
+   "default": "CH Category Head\nCH Price Manager\nCH Master Manager",
+   "fieldname": "price_batch_approval_roles",
+   "fieldtype": "Small Text",
+   "label": "Price Batch Approval Roles"
+  },
+  {
+   "default": "System Manager\nCH Master Manager",
+   "fieldname": "price_batch_override_roles",
+   "fieldtype": "Small Text",
+   "label": "Price Batch Override Roles"
+  },
+  {
+   "default": "CH Price Manager\nCH Master Manager",
+   "description": "Roles allowed to submit price batches. Named write permission and company scope are also required.",
+   "fieldname": "price_batch_submit_roles",
+   "fieldtype": "Small Text",
+   "label": "Price Batch Submit Roles"
+  },
+  {
+   "default": "CH Price Manager\nCH Master Manager",
+   "description": "Roles allowed to revise rejected or partially applied price batches. Named write permission and company scope are also required.",
+   "fieldname": "price_batch_revise_roles",
+   "fieldtype": "Small Text",
+   "label": "Price Batch Revise Roles"
+  },
+  {
+   "default": "CH Category Head\nCH Price Manager\nCH Master Manager",
+   "description": "Roles allowed to apply already-approved price categories. Named write permission and company scope are also required.",
+   "fieldname": "price_batch_apply_roles",
+   "fieldtype": "Small Text",
+   "label": "Price Batch Apply Roles"
+  },
+  {
+   "default": "100",
+   "description": "Maximum pending price approval categories returned by the approval queue.",
+   "fieldname": "price_approval_queue_limit",
+   "fieldtype": "Int",
+   "label": "Price Approval Queue Limit",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "Store Manager\nSales Manager\nService Manager\nSystem Manager",
+   "fieldname": "exception_approval_roles",
+   "fieldtype": "Small Text",
+   "label": "Exception Approval Roles"
+  },
+  {
+   "default": "System Manager",
+   "fieldname": "exception_override_roles",
+   "fieldtype": "Small Text",
+   "label": "Exception Override Roles"
+  },
+  {
+   "description": "Exact Company names governed by the Applicable to GGR flag on exception types, one per line.",
+   "fieldname": "exception_ggr_companies",
+   "fieldtype": "Small Text",
+   "label": "Exception GGR Companies"
+  },
+  {
+   "description": "Exact Company names governed by the Applicable to GFS flag on exception types, one per line.",
+   "fieldname": "exception_gfs_companies",
+   "fieldtype": "Small Text",
+   "label": "Exception GFS Companies"
+  },
+  {
+   "default": "Sales User\nSales Manager",
+   "description": "Roles allowed to create exception requests from delivery notes. Named document permissions and scope are also required.",
+   "fieldname": "exception_delivery_note_creation_roles",
+   "fieldtype": "Small Text",
+   "label": "Exception Delivery Note Creation Roles"
+  },
+  {
+   "default": "50",
+   "fieldname": "exception_delivery_note_item_limit",
+   "fieldtype": "Int",
+   "label": "Exception Delivery Note Item Limit",
+   "reqd": 1
+  },
+  {
+   "default": "10000000",
+   "fieldname": "exception_request_amount_limit",
+   "fieldtype": "Int",
+   "label": "Exception Request Amount Limit",
+   "reqd": 1
+  },
+  {
+   "default": "1000",
+   "fieldname": "exception_request_reason_limit",
+   "fieldtype": "Int",
+   "label": "Exception Request Reason Limit",
+   "reqd": 1
+  },
+  {
+   "default": "System Manager",
+   "fieldname": "company_scope_bypass_roles",
+   "fieldtype": "Small Text",
+   "label": "Company Scope Bypass Roles"
+  },
+  {
+   "default": "CH Master Manager\nStock Manager\nStock User\nStore Manager\nStore Executive",
+   "description": "Roles allowed to view the location hierarchy. Named read permissions and CH User Scope are also required.",
+   "fieldname": "location_view_roles",
+   "fieldtype": "Small Text",
+   "label": "Location Hierarchy View Roles"
+  },
+  {
+   "default": "System Manager\nCH Master Manager",
+   "description": "Roles allowed to create, change, assign, or delete location masters. Named document permissions and CH User Scope are also required.",
+   "fieldname": "location_manager_roles",
+   "fieldtype": "Small Text",
+   "label": "Location Manager Roles"
+  },
+  {
+   "default": "CH Master Manager\nStock Manager\nStock User\nStore Manager\nStore Executive\nAccounts Manager\nAccounts User\nSales Manager\nSales User\nPurchase Manager\nPurchase User",
+   "description": "Roles allowed to search scoped store and hub warehouses from report filters. Named read permissions are also required.",
+   "fieldname": "warehouse_picker_roles",
+   "fieldtype": "Small Text",
+   "label": "Warehouse Report Picker Roles"
+  },
+  {
+   "default": "2000",
+   "fieldname": "location_tree_row_limit",
+   "fieldtype": "Int",
+   "label": "Location Tree Row Limit",
+   "reqd": 1
+  },
+  {
+   "default": "100",
+   "fieldname": "location_query_limit",
+   "fieldtype": "Int",
+   "label": "Location Link Query Limit",
+   "reqd": 1
+  },
+  {
+   "default": "Stock Manager\nStock User\nStore Manager\nStore Executive",
+   "description": "Roles allowed to view bin inventory within their assigned store scope. Named document read permissions are also required.",
+   "fieldname": "bin_view_roles",
+   "fieldtype": "Small Text",
+   "label": "Bin Inventory View Roles"
+  },
+  {
+   "default": "Stock Manager\nStock User\nStore Manager",
+   "description": "Roles allowed to perform intra-store bin transfers. Standard Stock Entry create and submit permissions are also required.",
+   "fieldname": "bin_transfer_roles",
+   "fieldtype": "Small Text",
+   "label": "Bin Transfer Roles"
+  },
+  {
+   "default": "200",
+   "fieldname": "bin_query_limit",
+   "fieldtype": "Int",
+   "label": "Bin Query Row Limit",
+   "reqd": 1
+  },
+  {
+   "default": "1000",
+   "fieldname": "bin_transfer_quantity_limit",
+   "fieldtype": "Int",
+   "label": "Bin Transfer Quantity Limit",
+   "reqd": 1
+  },
+  {
+   "default": "Purchase Manager\nScheme Manager\nSystem Manager",
+   "fieldname": "supplier_scheme_approval_roles",
+   "fieldtype": "Small Text",
+   "label": "Supplier Scheme Approval Roles"
+  },
+  {
+   "default": "Accounts User\nAccounts Manager\nPurchase Manager\nScheme Manager",
+   "description": "Roles allowed to submit supplier schemes for review. Named write permission is also required.",
+   "fieldname": "supplier_scheme_submit_roles",
+   "fieldtype": "Small Text",
+   "label": "Supplier Scheme Submit Roles"
+  },
+  {
+   "default": "Accounts User\nAccounts Manager",
+   "description": "Roles allowed to recompute, link, generate claims for, or close supplier schemes. Named write permission is also required.",
+   "fieldname": "supplier_scheme_management_roles",
+   "fieldtype": "Small Text",
+   "label": "Supplier Scheme Management Roles"
+  },
+  {
+   "default": "200",
+   "fieldname": "supplier_scheme_link_limit",
+   "fieldtype": "Int",
+   "label": "Supplier Scheme Link Limit",
+   "reqd": 1
+  },
+  {
+   "default": "8000",
+   "description": "Maximum serialized characters accepted from supplier-scheme AI extraction or review payloads.",
+   "fieldname": "supplier_scheme_ai_payload_char_limit",
+   "fieldtype": "Int",
+   "label": "Supplier Scheme AI Payload Character Limit",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "1048576",
+   "description": "Maximum JSON response body accepted from the supplier-scheme AI service.",
+   "fieldname": "supplier_scheme_ai_response_byte_limit",
+   "fieldtype": "Int",
+   "label": "Supplier Scheme AI Response Byte Limit",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "200",
+   "description": "Maximum supplier schemes closed or evaluated for reminders by one scheduler run.",
+   "fieldname": "supplier_scheme_scheduler_batch_limit",
+   "fieldtype": "Int",
+   "label": "Supplier Scheme Scheduler Batch Limit",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "Accounts User\nAccounts Manager",
+   "description": "Roles allowed to record supplier scheme receivable settlements.",
+   "fieldname": "scheme_receivable_settlement_roles",
+   "fieldtype": "Small Text",
+   "label": "Scheme Receivable Settlement Roles"
+  },
+  {
+   "default": "Accounts Manager",
+   "description": "Roles allowed to write off supplier scheme receivables.",
+   "fieldname": "scheme_receivable_write_off_roles",
+   "fieldtype": "Small Text",
+   "label": "Scheme Receivable Write-Off Roles"
+  },
+  {
+   "default": "10000000",
+   "fieldname": "scheme_receivable_action_amount_limit",
+   "fieldtype": "Int",
+   "label": "Scheme Receivable Action Amount Limit",
+   "reqd": 1
+  },
+  {
+   "default": "1000",
+   "fieldname": "scheme_receivable_reason_limit",
+   "fieldtype": "Int",
+   "label": "Scheme Receivable Reason Limit",
+   "reqd": 1
+  },
+  {
+   "default": "140",
+   "fieldname": "scheme_receivable_reference_limit",
+   "fieldtype": "Int",
+   "label": "Scheme Receivable Reference Limit",
+   "reqd": 1
+  },
+  {
+   "default": "7",
+   "fieldname": "scheme_dunning_interval_days",
+   "fieldtype": "Int",
+   "label": "Scheme Dunning Interval (Days)",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "Accounts Manager\nCH Warranty Manager",
+   "description": "Roles allowed to reconcile or mutate VAS commission settlement state.",
+   "fieldname": "vas_finance_roles",
+   "fieldtype": "Small Text",
+   "label": "VAS Finance Roles"
+  },
+  {
+   "default": "CH Warranty Manager\nService Manager\nSales Manager\nSales User",
+   "description": "Roles allowed to create Online/Bot warranty claims. Standard DocType create permission and company scope are also required.",
+   "fieldname": "warranty_claim_intake_roles",
+   "fieldtype": "Small Text",
+   "label": "Warranty Claim Intake Roles"
+  },
+  {
+   "default": "CH Warranty Manager\nService Manager\nSales Manager",
+   "description": "Roles allowed to approve, reject, or request more information on warranty claims. Named write permission and company/store scope are also required.",
+   "fieldname": "warranty_claim_approval_roles",
+   "fieldtype": "Small Text",
+   "label": "Warranty Claim Approval Roles"
+  },
+  {
+   "default": "CH Warranty Manager\nService Manager",
+   "description": "Roles allowed to control warranty repair and manufacturer lifecycle actions. Named write permission and company/store scope are also required.",
+   "fieldname": "warranty_claim_service_roles",
+   "fieldtype": "Small Text",
+   "label": "Warranty Claim Service Roles"
+  },
+  {
+   "default": "CH Warranty Manager\nService Manager\nStore Manager\nStock Manager",
+   "description": "Roles allowed to perform warranty intake QC. Standard write permission and company/store scope are also required.",
+   "fieldname": "warranty_claim_qc_roles",
+   "fieldtype": "Small Text",
+   "label": "Warranty Claim QC Roles"
+  },
+  {
+   "default": "100",
+   "description": "Maximum checklist rows accepted in one warranty intake QC action.",
+   "fieldname": "warranty_qc_check_limit",
+   "fieldtype": "Int",
+   "label": "Warranty QC Check Limit",
+   "reqd": 1
+  },
+  {
+   "default": "CH Warranty Manager\nService Manager\nSales Manager",
+   "description": "Roles allowed to receive, dispatch, and update warranty claim logistics. Named write permission and company/store scope are also required.",
+   "fieldname": "warranty_claim_logistics_roles",
+   "fieldtype": "Small Text",
+   "label": "Warranty Claim Logistics Roles"
+  },
+  {
+   "default": "15",
+   "description": "Minutes before a server-issued warranty delivery OTP expires.",
+   "fieldname": "warranty_delivery_otp_ttl_minutes",
+   "fieldtype": "Int",
+   "label": "Warranty Delivery OTP Validity (Minutes)",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "5",
+   "description": "Maximum failed verification attempts before a warranty delivery OTP is invalidated.",
+   "fieldname": "warranty_delivery_otp_max_attempts",
+   "fieldtype": "Int",
+   "label": "Warranty Delivery OTP Maximum Attempts",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "200",
+   "description": "Maximum scoped warranty claims returned by the logistics queue.",
+   "fieldname": "warranty_logistics_queue_limit",
+   "fieldtype": "Int",
+   "label": "Warranty Logistics Queue Limit",
+   "reqd": 1
+  },
+  {
+   "default": "CH Warranty Manager\nAccounts Manager",
+   "description": "Roles allowed to set, collect, and settle warranty claim fees. Named write permission and company/store scope are also required.",
+   "fieldname": "warranty_claim_finance_roles",
+   "fieldtype": "Small Text",
+   "label": "Warranty Claim Finance Roles"
+  },
+  {
+   "default": "CH Warranty Manager\nService Manager",
+   "description": "Roles allowed to close warranty claims. Named write permission and company/store scope are also required.",
+   "fieldname": "warranty_claim_management_roles",
+   "fieldtype": "Small Text",
+   "label": "Warranty Claim Management Roles"
+  },
+  {
+   "default": "CH Warranty Manager\nService Manager\nSales Manager",
+   "description": "Roles allowed to request fee waivers. Direct approval still requires a configured CH VAS fee-waiver role.",
+   "fieldname": "warranty_claim_fee_waiver_request_roles",
+   "fieldtype": "Small Text",
+   "label": "Warranty Fee Waiver Request Roles"
+  },
+  {
+   "default": "CH Warranty Manager\nService Manager\nSales Manager\nSales User",
+   "description": "Roles allowed to open scoped warranty dashboards. Named read permission and company/store scope are also required.",
+   "fieldname": "warranty_dashboard_roles",
+   "fieldtype": "Small Text",
+   "label": "Warranty Dashboard Roles"
+  },
+  {
+   "default": "100",
+   "description": "Maximum scoped device and plan records returned by customer warranty dashboards.",
+   "fieldname": "warranty_dashboard_device_limit",
+   "fieldtype": "Int",
+   "label": "Warranty Dashboard Device Limit",
+   "reqd": 1
+  },
+  {
+   "default": "500",
+   "description": "Maximum active warranty plans evaluated by one applicability request.",
+   "fieldname": "warranty_plan_candidate_limit",
+   "fieldtype": "Int",
+   "label": "Warranty Plan Candidate Limit",
+   "reqd": 1
+  },
+  {
+   "default": "50",
+   "description": "Maximum applicable warranty plans returned to a transaction screen.",
+   "fieldname": "warranty_plan_result_limit",
+   "fieldtype": "Int",
+   "label": "Warranty Plan Result Limit",
+   "reqd": 1
+  },
+  {
+   "default": "CH Warranty Manager\nService Manager\nSales Manager",
+   "description": "Roles allowed to open the VAS dashboard. Named read permission and complete selected-company store scope are also required.",
+   "fieldname": "vas_dashboard_roles",
+   "fieldtype": "Small Text",
+   "label": "VAS Dashboard Roles"
+  },
+  {
+   "default": "Sales Manager\nMarketing Manager\nCH Master Manager",
+   "description": "Roles allowed to open customer dashboards. Named read permission and selected-company scope are also required.",
+   "fieldname": "customer_dashboard_roles",
+   "fieldtype": "Small Text",
+   "label": "Customer Dashboard Roles"
+  },
+  {
+   "default": "Sales Manager\nService Manager\nCH Master Manager",
+   "description": "Roles allowed to view Customer 360. Named read permission and a scoped customer relationship are also required.",
+   "fieldname": "customer_360_roles",
+   "fieldtype": "Small Text",
+   "label": "Customer 360 Roles"
+  },
+  {
+   "default": "100",
+   "description": "Maximum customer devices returned by one Customer 360 request.",
+   "fieldname": "customer_360_device_limit",
+   "fieldtype": "Int",
+   "label": "Customer 360 Device Limit",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "20",
+   "description": "Maximum serial lifecycle events returned per device in Customer 360.",
+   "fieldname": "customer_360_lifecycle_log_limit",
+   "fieldtype": "Int",
+   "label": "Customer 360 Lifecycle Log Limit",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "5000",
+   "description": "Maximum related VAS and lifecycle rows loaded by one Customer 360 request.",
+   "fieldname": "customer_360_related_row_limit",
+   "fieldtype": "Int",
+   "label": "Customer 360 Related Row Limit",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "CH Master Manager\nCH Price Manager",
+   "description": "Roles allowed to activate or cancel vouchers. Named write and submit/cancel permission plus company scope are also required.",
+   "fieldname": "voucher_management_roles",
+   "fieldtype": "Small Text",
+   "label": "Voucher Management Roles"
+  },
+  {
+   "default": "CH Master Manager\nCH Price Manager\nSales Manager",
+   "description": "Roles allowed to issue vouchers. Create and submit permission, company scope, and valid source references are also required.",
+   "fieldname": "voucher_issue_roles",
+   "fieldtype": "Small Text",
+   "label": "Voucher Issue Roles"
+  },
+  {
+   "default": "Sales User\nSales Manager\nCH Price Manager",
+   "description": "Roles allowed to validate and redeem vouchers. Named permission, company/store scope, and transaction reference integrity are enforced.",
+   "fieldname": "voucher_redemption_roles",
+   "fieldtype": "Small Text",
+   "label": "Voucher Redemption Roles"
+  },
+  {
+   "default": "Sales Manager\nCH Price Manager",
+   "description": "Roles allowed to restore balances against verified prior redemptions.",
+   "fieldname": "voucher_refund_roles",
+   "fieldtype": "Small Text",
+   "label": "Voucher Refund Roles"
+  },
+  {
+   "default": "Sales Manager\nCH Price Manager",
+   "description": "Roles allowed to top up vouchers against verified payment or transaction references.",
+   "fieldname": "voucher_topup_roles",
+   "fieldtype": "Small Text",
+   "label": "Voucher Top-Up Roles"
+  },
+  {
+   "default": "Sales User\nSales Manager\nCH Price Manager\nCH Viewer",
+   "description": "Roles allowed to view voucher balances or scoped customer voucher lists.",
+   "fieldname": "voucher_view_roles",
+   "fieldtype": "Small Text",
+   "label": "Voucher View Roles"
+  },
+  {
+   "default": "Sales Invoice\nPOS Invoice\nDelivery Note\nPayment Entry\nCH Coupon Campaign\nActive VAS Plans",
+   "description": "DocTypes accepted as issuance sources. Referenced records must exist and match the voucher company.",
+   "fieldname": "voucher_source_doctypes",
+   "fieldtype": "Small Text",
+   "label": "Voucher Source DocTypes"
+  },
+  {
+   "default": "Sales Invoice\nPOS Invoice\nDelivery Note\nPayment Entry",
+   "description": "DocTypes accepted for redemption and top-up transaction references.",
+   "fieldname": "voucher_reference_doctypes",
+   "fieldtype": "Small Text",
+   "label": "Voucher Reference DocTypes"
+  },
+  {
+   "default": "1",
+   "description": "Require a submitted business transaction before non-privileged users can redeem a voucher.",
+   "fieldname": "voucher_redemption_reference_required",
+   "fieldtype": "Check",
+   "label": "Voucher Redemption Reference Required"
+  },
+  {
+   "default": "1",
+   "description": "Require a submitted payment or transaction before non-privileged users can top up a voucher.",
+   "fieldname": "voucher_topup_reference_required",
+   "fieldtype": "Check",
+   "label": "Voucher Top-Up Reference Required"
+  },
+  {
+   "default": "200",
+   "fieldname": "voucher_list_limit",
+   "fieldtype": "Int",
+   "label": "Voucher List Limit",
+   "reqd": 1
+  },
+  {
+   "default": "Sales Manager\nCH Master Manager",
+   "description": "Roles allowed to export bearer coupon and voucher codes. Named export permission and company scope are also required.",
+   "fieldname": "coupon_code_export_roles",
+   "fieldtype": "Small Text",
+   "label": "Coupon Code Export Roles"
+  },
+  {
+   "default": "5000",
+   "fieldname": "coupon_code_export_limit",
+   "fieldtype": "Int",
+   "label": "Coupon Code Export Limit",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "Sales Manager\nCH Master Manager",
+   "description": "Roles allowed to mark campaign bearer codes as distributed. Named write permission and company scope are also required.",
+   "fieldname": "coupon_code_distribution_roles",
+   "fieldtype": "Small Text",
+   "label": "Coupon Code Distribution Roles"
+  },
+  {
+   "default": "Sales Manager\nCH Master Manager",
+   "description": "Roles allowed to run campaign management refresh actions. Named write permission and company scope are also required.",
+   "fieldname": "coupon_campaign_management_roles",
+   "fieldtype": "Small Text",
+   "label": "Coupon Campaign Management Roles"
+  },
+  {
+   "default": "CH PLM Manager\nCH Master Approver\nCH Master Manager\nSystem Manager",
+   "fieldname": "plm_manager_roles",
+   "fieldtype": "Small Text",
+   "label": "PLM Manager Roles"
+  },
+  {
+   "default": "CH Vendor Manager\nCH Master Manager\nSystem Manager",
+   "fieldname": "vendor_manager_roles",
+   "fieldtype": "Small Text",
+   "label": "Vendor Manager Roles"
+  },
+  {
+   "default": "CH Vendor Manager\nCH Master Manager\nCH Master Approver\nCH Viewer\nSystem Manager",
+   "fieldname": "vendor_view_roles",
+   "fieldtype": "Small Text",
+   "label": "Vendor View Roles"
+  },
+  {
+   "default": "200",
+   "fieldname": "vendor_query_limit",
+   "fieldtype": "Int",
+   "label": "Vendor Query Row Limit",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "CH GTIN Editor\nCH Master Manager\nCH Master Approver\nSystem Manager",
+   "fieldname": "gtin_editor_roles",
+   "fieldtype": "Small Text",
+   "label": "GTIN Editor Roles"
+  },
+  {
+   "default": "CH MRP Planner\nCH Master Manager\nSystem Manager",
+   "fieldname": "mrp_planner_roles",
+   "fieldtype": "Small Text",
+   "label": "MRP Planner Roles"
+  },
+  {
+   "default": "System Manager\nCH Price Manager\nCH Master Approver\nCH Master Manager\nCH GTIN Editor",
+   "fieldname": "sensitive_field_roles",
+   "fieldtype": "Small Text",
+   "label": "Sensitive Field Roles"
+  },
+  {
+   "default": "System Manager",
+   "fieldname": "break_glass_supervisor_roles",
+   "fieldtype": "Small Text",
+   "label": "Break-Glass Supervisor Roles"
+  },
+  {
+   "default": "System Manager\nCH Master Manager",
+   "fieldname": "data_import_roles",
+   "fieldtype": "Small Text",
+   "label": "Data Import Roles"
+  },
+  {
+   "default": "Nos",
+   "fieldname": "default_stock_uom",
+   "fieldtype": "Link",
+   "label": "Default Stock UOM",
+   "options": "UOM",
+   "reqd": 1
+  },
+  {
+   "default": "All Item Groups",
+   "fieldname": "default_item_group",
+   "fieldtype": "Link",
+   "label": "Default Item Group",
+   "options": "Item Group",
+   "reqd": 1
+  },
+  {
+   "default": "500",
+   "fieldname": "variant_generation_limit",
+   "fieldtype": "Int",
+   "label": "Variant Generation Limit",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "System Manager\nStock Manager\nCH Master Manager",
+   "fieldname": "bulk_imei_roles",
+   "fieldtype": "Small Text",
+   "label": "Bulk IMEI Roles"
+  },
+  {
+   "default": "Scrapped\nLost\nIn Stock",
+   "fieldname": "bulk_imei_target_statuses",
+   "fieldtype": "Small Text",
+   "label": "Bulk IMEI Target Statuses",
+   "reqd": 1
+  },
+  {
+   "default": "200",
+   "description": "Maximum serial lifecycle rows accepted by one bulk status update.",
+   "fieldname": "bulk_imei_limit",
+   "fieldtype": "Int",
+   "label": "Bulk IMEI Row Limit",
+   "reqd": 1
+  },
+  {
+   "fieldname": "business_thresholds_section",
+   "fieldtype": "Section Break",
+   "label": "Business Thresholds"
+  },
+  {
+   "default": "3",
+   "fieldname": "item_price_expiry_critical_days",
+   "fieldtype": "Int",
+   "label": "Critical Price Expiry Window (Days)",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "7",
+   "fieldname": "item_price_expiry_warning_days",
+   "fieldtype": "Int",
+   "label": "Price Expiry Warning Window (Days)",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "10",
+   "fieldname": "item_no_price_critical_count",
+   "fieldtype": "Int",
+   "label": "No-Price Critical Item Count",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "20",
+   "fieldname": "item_price_spread_percent",
+   "fieldtype": "Int",
+   "label": "High Price Spread (%)",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "3",
+   "fieldname": "item_partial_model_variant_count",
+   "fieldtype": "Int",
+   "label": "Partial Model Variant Count",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "90",
+   "fieldname": "item_stale_price_days",
+   "fieldtype": "Int",
+   "label": "Stale Price Age (Days)",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "90",
+   "fieldname": "imei_unsold_stale_days",
+   "fieldtype": "Int",
+   "label": "Unsold Serial Stale Age (Days)",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "30",
+   "fieldname": "imei_service_stale_days",
+   "fieldtype": "Int",
+   "label": "In-Service Serial Stale Age (Days)",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "500000",
+   "fieldname": "voucher_max_amount",
+   "fieldtype": "Currency",
+   "label": "Maximum Voucher Amount",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "500000",
+   "fieldname": "offer_high_amount_warning",
+   "fieldtype": "Currency",
+   "label": "High Offer Amount Warning",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "30",
+   "fieldname": "vas_low_voucher_utilization_percent",
+   "fieldtype": "Int",
+   "label": "Low VAS Voucher Utilization (%)",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "90",
+   "fieldname": "item_quality_grade_a_min",
+   "fieldtype": "Int",
+   "label": "Item Quality Grade A Minimum",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "70",
+   "fieldname": "item_quality_grade_b_min",
+   "fieldtype": "Int",
+   "label": "Item Quality Grade B Minimum",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "50",
+   "fieldname": "item_quality_grade_c_min",
+   "fieldtype": "Int",
+   "label": "Item Quality Grade C Minimum",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "90",
+   "fieldname": "customer_active_window_days",
+   "fieldtype": "Int",
+   "label": "Active Customer Window (Days)",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "200000",
+   "fieldname": "customer_vip_purchase_amount",
+   "fieldtype": "Currency",
+   "label": "VIP Purchase Amount",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "10",
+   "fieldname": "customer_vip_transaction_count",
+   "fieldtype": "Int",
+   "label": "VIP Transaction Count",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "3",
+   "fieldname": "customer_regular_transaction_count",
+   "fieldtype": "Int",
+   "label": "Regular Customer Transaction Count",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "6",
+   "fieldname": "customer_dormant_months",
+   "fieldtype": "Int",
+   "label": "Customer Dormancy (Months)",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "12",
+   "fieldname": "customer_churn_months",
+   "fieldtype": "Int",
+   "label": "Customer Churn Age (Months)",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "customer_churn_max_transactions",
+   "fieldtype": "Int",
+   "label": "Churn Maximum Transactions",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "30",
+   "fieldname": "customer_loyalty_expiry_alert_days",
+   "fieldtype": "Int",
+   "label": "Loyalty Expiry Alert (Days)",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "30",
+   "fieldname": "customer_warranty_expiry_alert_days",
+   "fieldtype": "Int",
+   "label": "Warranty Expiry Alert (Days)",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "25",
+   "fieldname": "customer_dormancy_insight_percent",
+   "fieldtype": "Int",
+   "label": "High Dormancy Insight (%)",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "10",
+   "fieldname": "customer_churn_insight_percent",
+   "fieldtype": "Int",
+   "label": "High Churn Insight (%)",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "50",
+   "fieldname": "customer_revenue_concentration_percent",
+   "fieldtype": "Int",
+   "label": "Revenue Concentration Insight (%)",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "5",
+   "fieldname": "customer_referral_target_percent",
+   "fieldtype": "Int",
+   "label": "Referral Target (%)",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "30",
+   "fieldname": "customer_conversion_target_percent",
+   "fieldtype": "Int",
+   "label": "New-to-Regular Conversion Target (%)",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "50000",
+   "fieldname": "customer_unsubscribed_value_amount",
+   "fieldtype": "Currency",
+   "label": "High-Value Unsubscribed Purchase Amount",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "7",
+   "fieldname": "customer_recent_activity_days",
+   "fieldtype": "Int",
+   "label": "Recent Customer Activity (Days)",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "30",
+   "fieldname": "coupon_default_window_days",
+   "fieldtype": "Int",
+   "label": "Campaign Hub Default Window (Days)",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "7",
+   "fieldname": "coupon_expiring_soon_days",
+   "fieldtype": "Int",
+   "label": "Campaign Expiring Soon (Days)",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "5",
+   "fieldname": "coupon_low_redemption_percent",
+   "fieldtype": "Int",
+   "label": "Low Campaign Redemption (%)",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "7",
+   "fieldname": "coupon_low_redemption_min_age_days",
+   "fieldtype": "Int",
+   "label": "Low Redemption Minimum Campaign Age (Days)",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "3",
+   "fieldname": "coupon_urgent_expiry_days",
+   "fieldtype": "Int",
+   "label": "Urgent Campaign Expiry (Days)",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "30",
+   "fieldname": "coupon_high_redemption_percent",
+   "fieldtype": "Int",
+   "label": "High Campaign Redemption (%)",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "10",
+   "fieldname": "coupon_medium_redemption_percent",
+   "fieldtype": "Int",
+   "label": "Medium Campaign Redemption (%)",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "default": "5",
+   "fieldname": "coupon_high_redemption_min_count",
+   "fieldtype": "Int",
+   "label": "High Campaign Minimum Redemptions",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "inventory_section",
+   "fieldtype": "Section Break",
+   "label": "Inventory Controls"
+  },
+  {
+   "default": "Barcode",
+   "fieldname": "asset_serial_kind",
+   "fieldtype": "Select",
+   "label": "Asset Serial Number Kind",
+   "options": "IMEI\nBarcode",
+   "reqd": 1
+  },
+  {
+   "default": "7",
+   "fieldname": "expiry_warning_days",
+   "fieldtype": "Int",
+   "label": "Batch Expiry Warning Days",
+   "reqd": 1
+  },
+  {
+   "default": "4",
+   "fieldname": "break_glass_sla_hours",
+   "fieldtype": "Int",
+   "label": "Break-Glass SLA (Hours)",
+   "reqd": 1
+  },
+  {
+   "default": "24",
+   "fieldname": "break_glass_hard_limit_hours",
+   "fieldtype": "Int",
+   "label": "Break-Glass Hard Limit (Hours)",
+   "reqd": 1
+  },
+  {
+   "default": "200",
+   "description": "Maximum open break-glass sessions evaluated by one scheduler run.",
+   "fieldname": "break_glass_monitor_batch_limit",
+   "fieldtype": "Int",
+   "label": "Break Glass Monitor Batch Limit",
+   "non_negative": 1,
+   "reqd": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "issingle": 1,
+ "modified": "2026-07-22 00:00:00.000000",
+ "module": "CH Item Master",
+ "name": "CH Item Master Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "read": 1,
+   "role": "System Manager",
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "CH Master Manager",
+   "write": 0
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

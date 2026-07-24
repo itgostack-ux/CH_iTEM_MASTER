@@ -3,7 +3,7 @@
 """Stores by Location
 
 A pivot of CH Store records joined with CH City and CH State so users can
-quickly answer questions like "which cities is BestBuy in?" or "how many
+quickly answer questions like "which cities does this company operate in?" or "how many
 GoFix stores are in Karnataka?". The report intentionally stays a thin
 read view — all the relationships already exist on CH Store; we just
 surface them in one screen.

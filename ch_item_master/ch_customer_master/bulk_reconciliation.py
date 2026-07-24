@@ -121,24 +121,49 @@ def _enqueue_reconciliation(data_import: str, *, enqueue_after_commit=False):
 		)
 
 
-def _chunks(values: list[str], size: int) -> Iterator[list[str]]:
-	for offset in range(0, len(values), size):
-		yield values[offset:offset + size]
-
-
-def _successful_invoice_names(data_import: str) -> list[str]:
-	names = frappe.get_all(
-		"Data Import Log",
-		filters={
-			"data_import": data_import,
-			"success": 1,
-			"docname": ("is", "set"),
-		},
-		pluck="docname",
-		order_by="log_index",
-		limit_page_length=0,
-	)
-	return list(dict.fromkeys(names))
+def _successful_invoice_names(
+	data_import: str,
+	page_size: int = INVOICE_BATCH_SIZE,
+) -> Iterator[list[str]]:
+	"""Yield deterministic, distinct invoice-name pages without loading the import."""
+	cursor_index = -1
+	cursor_name = ""
+	while True:
+		rows = frappe.db.sql(
+			"""
+				SELECT grouped.docname, grouped.first_log_index, grouped.first_log_name
+				FROM (
+					SELECT docname,
+					       MIN(COALESCE(log_index, 0)) AS first_log_index,
+					       MIN(name) AS first_log_name
+					FROM `tabData Import Log`
+					WHERE data_import = %(data_import)s
+					  AND success = 1
+					  AND docname IS NOT NULL
+					  AND docname != ''
+					GROUP BY docname
+				) grouped
+				WHERE grouped.first_log_index > %(cursor_index)s
+				   OR (
+					grouped.first_log_index = %(cursor_index)s
+					AND grouped.first_log_name > %(cursor_name)s
+				   )
+				ORDER BY grouped.first_log_index ASC, grouped.first_log_name ASC
+				LIMIT %(page_size)s
+			""",
+			{
+				"data_import": data_import,
+				"cursor_index": cursor_index,
+				"cursor_name": cursor_name,
+				"page_size": max(int(page_size or INVOICE_BATCH_SIZE), 1),
+			},
+			as_dict=True,
+		)
+		if not rows:
+			return
+		yield [row.docname for row in rows]
+		cursor_index = rows[-1].first_log_index
+		cursor_name = rows[-1].first_log_name
 
 
 def _load_submitted_invoices(names: list[str]):
@@ -258,7 +283,7 @@ def _insert_missing_sales_visits(invoices: Iterable) -> int:
 		if not invoice.customer or invoice.name in existing:
 			continue
 		next_indexes[invoice.customer] = next_indexes.get(invoice.customer, 0) + 1
-		owner = invoice.owner or "Administrator"
+		owner = invoice.owner or frappe.session.user
 		values.append(
 			(
 				_visit_name("Sales Invoice", invoice.name),
@@ -299,12 +324,13 @@ def reconcile_historical_sales_import(data_import: str) -> dict[str, int]:
 		_update_activity_summary,
 	)
 
-	invoice_names = _successful_invoice_names(data_import)
 	affected_customers: set[str] = set()
+	successful_logs = 0
 	historic_invoices = 0
 	visits_inserted = 0
 
-	for name_batch in _chunks(invoice_names, INVOICE_BATCH_SIZE):
+	for name_batch in _successful_invoice_names(data_import):
+		successful_logs += len(name_batch)
 		invoices = [
 			invoice
 			for invoice in _load_submitted_invoices(name_batch)
@@ -326,7 +352,7 @@ def reconcile_historical_sales_import(data_import: str) -> dict[str, int]:
 
 	frappe.db.commit()
 	return {
-		"successful_logs": len(invoice_names),
+		"successful_logs": successful_logs,
 		"historic_invoices": historic_invoices,
 		"visits_inserted": visits_inserted,
 		"customers_reconciled": len(affected_customers),

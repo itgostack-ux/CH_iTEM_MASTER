@@ -1,5 +1,6 @@
 """Regression tests for bulk-safe historic Sales Invoice customer activity."""
 
+import inspect
 from unittest.mock import call, patch
 
 import frappe
@@ -229,7 +230,7 @@ class TestHistoricSalesCustomerActivity(IntegrationTestCase):
 			patch.object(
 				bulk_reconciliation,
 				"_successful_invoice_names",
-				return_value=["INV-1", "INV-2", "INV-3"],
+				return_value=iter([["INV-1", "INV-2", "INV-3"]]),
 			),
 			patch.object(
 				bulk_reconciliation,
@@ -264,6 +265,12 @@ class TestHistoricSalesCustomerActivity(IntegrationTestCase):
 		)
 		self.assertEqual(result["historic_invoices"], 3)
 		self.assertEqual(result["customers_reconciled"], 2)
+
+	def test_successful_import_logs_are_streamed_in_bounded_pages(self):
+		source = inspect.getsource(bulk_reconciliation._successful_invoice_names)
+		self.assertIn("LIMIT %(page_size)s", source)
+		self.assertIn("first_log_index", source)
+		self.assertNotIn("limit_page_length=0", source)
 
 	def test_data_import_after_job_uses_long_reconciliation(self):
 		row = frappe._dict(

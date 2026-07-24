@@ -6,19 +6,15 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import cint, getdate, today
 
+from ch_item_master.config import get_int_setting
+from ch_item_master.id_sequences import next_numeric_id
+
 
 class CHLoyaltyTransaction(Document):
 	def before_insert(self):
-		"""Auto-generate loyalty_txn_id with advisory lock."""
+		"""Auto-generate the atomic loyalty transaction integration ID."""
 		if not self.loyalty_txn_id:
-			frappe.db.sql("SELECT GET_LOCK('ch_loyalty_txn_id', 10)")
-			try:
-				last = frappe.db.sql(
-					"SELECT IFNULL(MAX(loyalty_txn_id), 0) FROM `tabCH Loyalty Transaction`"
-				)[0][0] or 0
-				self.loyalty_txn_id = last + 1
-			finally:
-				frappe.db.sql("SELECT RELEASE_LOCK('ch_loyalty_txn_id')")
+			self.loyalty_txn_id = next_numeric_id("loyalty_transaction")
 
 	def validate(self):
 		self.validate_points()
@@ -86,35 +82,89 @@ def get_loyalty_balance(customer, exclude=None):
 
 
 def expire_loyalty_points():
-	"""Scheduled task: expire points past their expiry date."""
-	expired = frappe.get_all(
+	"""Expire a locked, bounded batch and create retry-safe debit entries."""
+	batch_limit = min(get_int_setting("scheduler_batch_limit", 500, minimum=1), 5000)
+	rows = frappe.db.sql(
+		"""
+			SELECT `name`, `customer`, `company`, `points`
+			FROM `tabCH Loyalty Transaction`
+			WHERE `docstatus` = 1
+			  AND `is_expired` = 0
+			  AND `expiry_date` IS NOT NULL
+			  AND `expiry_date` <= %(today)s
+			  AND `transaction_type` IN ('Earn', 'Referral Bonus', 'Sign Up Bonus', 'Service Bonus')
+			ORDER BY `expiry_date` ASC, `name` ASC
+			LIMIT %(fetch_limit)s
+			FOR UPDATE
+		""",
+		{"today": today(), "fetch_limit": batch_limit + 1},
+		as_dict=True,
+	)
+	entries = rows[:batch_limit]
+	if not entries:
+		return {"expired": 0, "failed": 0, "has_more": False}
+
+	names = tuple(entry.name for entry in entries)
+	existing_expiry_refs = set(frappe.get_all(
 		"CH Loyalty Transaction",
 		filters={
 			"docstatus": 1,
-			"is_expired": 0,
-			"expiry_date": ("<=", today()),
-			"expiry_date": ("is", "set"),
-			"transaction_type": ("in", ["Earn", "Referral Bonus", "Sign Up Bonus", "Service Bonus"]),
+			"transaction_type": "Expire",
+			"reference_doctype": "CH Loyalty Transaction",
+			"reference_name": ("in", names),
 		},
-		fields=["name", "customer", "points"],
-	)
-
-	for entry in expired:
-		frappe.db.set_value("CH Loyalty Transaction", entry.name, "is_expired", 1)
-		# Create an expiry debit entry
-		doc = frappe.get_doc(
-			{
-				"doctype": "CH Loyalty Transaction",
-				"customer": entry.customer,
-				"company": frappe.db.get_value("CH Loyalty Transaction", entry.name, "company"),
-				"transaction_type": "Expire",
-				"points": -abs(entry.points),
-				"reference_doctype": "CH Loyalty Transaction",
-				"reference_name": entry.name,
-				"remarks": f"Auto-expired points from {entry.name}",
-			}
+		pluck="reference_name",
+		limit=len(names),
+	))
+	if existing_expiry_refs:
+		frappe.db.sql(
+			"""
+				UPDATE `tabCH Loyalty Transaction`
+				SET `is_expired` = 1
+				WHERE `name` IN %(names)s AND `is_expired` = 0
+			""",
+			{"names": tuple(existing_expiry_refs)},
 		)
-		doc.insert(ignore_permissions=True)
-		doc.submit()
 
-	frappe.db.commit()
+	to_create = [entry for entry in entries if entry.name not in existing_expiry_refs]
+	successful = len(existing_expiry_refs)
+	failed = 0
+	if to_create:
+		for index, entry in enumerate(to_create, start=1):
+			save_point = f"loyalty_expiry_{index}"
+			frappe.db.savepoint(save_point)
+			try:
+				frappe.db.sql(
+					"""
+						UPDATE `tabCH Loyalty Transaction`
+						SET `is_expired` = 1
+						WHERE `name` = %s AND `is_expired` = 0
+					""",
+					(entry.name,),
+				)
+				doc = frappe.get_doc({
+					"doctype": "CH Loyalty Transaction",
+					"customer": entry.customer,
+					"company": entry.company,
+					"transaction_type": "Expire",
+					"points": -abs(entry.points),
+					"reference_doctype": "CH Loyalty Transaction",
+					"reference_name": entry.name,
+					"remarks": f"Auto-expired points from {entry.name}",
+				})
+				doc.insert(ignore_permissions=True)
+				doc.submit()
+				successful += 1
+			except Exception:
+				frappe.db.rollback(save_point=save_point)
+				failed += 1
+				frappe.log_error(
+					frappe.get_traceback(),
+					f"Loyalty expiry failed for {entry.name}",
+				)
+
+	return {
+		"expired": successful,
+		"failed": failed,
+		"has_more": len(rows) > batch_limit or bool(failed),
+	}

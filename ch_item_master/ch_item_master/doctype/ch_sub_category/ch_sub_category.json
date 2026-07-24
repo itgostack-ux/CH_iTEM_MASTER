@@ -17,6 +17,7 @@
   "prefix",
   "disabled",
   "lifecycle_status",
+  "status",
   "item_nature_section",
   "item_nature",
   "item_nature_help",
@@ -476,6 +477,18 @@
    "write": 0,
    "create": 0,
    "export": 1
+  },
+  {
+   "role": "CH Price Manager",
+   "read": 1
+  },
+  {
+   "role": "CH Offer Manager",
+   "read": 1
+  },
+  {
+   "role": "CH Warranty Manager",
+   "read": 1
   }
  ],
  "allow_import": 1,

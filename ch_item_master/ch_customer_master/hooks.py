@@ -12,6 +12,8 @@ import hashlib
 import frappe
 from frappe.utils import cint, flt, getdate, today
 
+from ch_item_master.config import get_int_setting
+
 
 def on_sales_invoice_submit(doc, method=None):
 	"""When a Sales Invoice is submitted:
@@ -112,12 +114,14 @@ def _log_store_visit(customer, company, visit_type, reference_doctype=None,
 			if existing:
 				return False
 
-		# Determine next idx for the child table
-		next_idx = (frappe.db.sql(
-			"""SELECT IFNULL(MAX(idx), 0) + 1 FROM `tabCH Customer Store Visit`
-			WHERE parent = %s AND parenttype = 'Customer' AND parentfield = 'ch_stores_visited'""",
-			customer,
-		) or [[1]])[0][0]
+		frappe.db.sql("SELECT name FROM `tabCustomer` WHERE name = %s FOR UPDATE", (customer,))
+		last_row = frappe.db.sql(
+			"""SELECT idx FROM `tabCH Customer Store Visit`
+			WHERE parent = %s AND parenttype = 'Customer' AND parentfield = 'ch_stores_visited'
+			ORDER BY idx DESC LIMIT 1""",
+			(customer,),
+		)
+		next_idx = cint(last_row[0][0]) + 1 if last_row else 1
 
 		child = frappe.get_doc({
 			"doctype": "CH Customer Store Visit",
@@ -308,15 +312,21 @@ def _classify_customer_segment(customer, total_purchases, total_services):
 
 	segment = "New"
 	total_txns = total_services + (1 if total_purchases > 0 else 0)
+	vip_purchase_amount = get_int_setting("customer_vip_purchase_amount", 200000)
+	vip_transaction_count = get_int_setting("customer_vip_transaction_count", 10)
+	regular_transaction_count = get_int_setting("customer_regular_transaction_count", 3)
+	dormant_months = get_int_setting("customer_dormant_months", 6)
+	churn_months = get_int_setting("customer_churn_months", 12)
+	churn_max_transactions = get_int_setting("customer_churn_max_transactions", 1)
 
-	if total_purchases >= 200000 or total_txns >= 10:
+	if total_purchases >= vip_purchase_amount or total_txns >= vip_transaction_count:
 		segment = "VIP"
-	elif total_txns >= 3:
+	elif total_txns >= regular_transaction_count:
 		segment = "Regular"
-	elif last_visit and getdate(last_visit) < getdate(add_months(today(), -6)):
+	elif last_visit and getdate(last_visit) < getdate(add_months(today(), -dormant_months)):
 		segment = "Dormant"
-	elif customer_since and getdate(customer_since) < getdate(add_months(today(), -12)):
-		if total_txns <= 1:
+	elif customer_since and getdate(customer_since) < getdate(add_months(today(), -churn_months)):
+		if total_txns <= churn_max_transactions:
 			segment = "Churned"
 
 	frappe.db.set_value("Customer", customer, "ch_customer_segment", segment, update_modified=False)

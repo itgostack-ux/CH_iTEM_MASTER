@@ -12,9 +12,9 @@
  *   - 6 status bucket tabs with live counts
  *   - IMEI / Non-IMEI / All toggle
  *   - Searchable table (item code, brand, IMEI partial, last 6-digit search)
- *   - Aging badges (>90d unsold, >30d in service)
+ *   - Configurable aging badges for unsold and in-service devices
  *   - Click row → drill-through dialog with full unified timeline
- *   - Bulk actions: Mark Scrapped / Lost / In Stock (Stock Manager+ only)
+ *   - Configurable bulk status actions with per-record scope enforcement
  *   - CSV export
  *
  * Backend: ch_item_master.ch_item_master.page.imei_tracker.imei_tracker_api
@@ -44,6 +44,21 @@ ch_item_master.imei_tracker.View = class IMEITrackerView {
 		this.page_start = 0;
 		this.page_length = 200;
 		this.api_base = "ch_item_master.ch_item_master.page.imei_tracker.imei_tracker_api";
+		this.can_bulk_update = false;
+		this.unsold_stale_days = null;
+		this.service_stale_days = null;
+		this.initialize();
+	}
+
+	async initialize() {
+		try {
+			const capabilities = await frappe.xcall(`${this.api_base}.get_ui_capabilities`);
+			this.can_bulk_update = Boolean(capabilities?.can_bulk_update);
+			this.unsold_stale_days = Number(capabilities?.unsold_stale_days);
+			this.service_stale_days = Number(capabilities?.service_stale_days);
+		} catch (error) {
+			this.can_bulk_update = false;
+		}
 
 		// IMPORTANT ORDER: filters first (they prepend a `.page-form` div to
 		// page.body). Layout must APPEND to page.body — never replace it,
@@ -57,6 +72,12 @@ ch_item_master.imei_tracker.View = class IMEITrackerView {
 	// ── Layout ────────────────────────────────────────────────────────────────
 	setup_layout() {
 		const $body = $(this.page.body);
+		const unsoldLabel = Number.isFinite(this.unsold_stale_days)
+			? __("Unsold >{0}d", [this.unsold_stale_days])
+			: __("Unsold stale");
+		const serviceLabel = Number.isFinite(this.service_stale_days)
+			? __("Service >{0}d", [this.service_stale_days])
+			: __("Service stale");
 		// Append (do NOT use .html()) — page.body also hosts the .page-form
 		// element where the cascade filters live, and replacing innerHTML
 		// would destroy them.
@@ -75,10 +96,10 @@ ch_item_master.imei_tracker.View = class IMEITrackerView {
 					</div>
 					<div class="imei-aging-group btn-group btn-group-sm">
 						<button type="button" class="btn btn-default" data-aging="unsold_90">
-							${__("Unsold >90d")}
+							${unsoldLabel}
 						</button>
 						<button type="button" class="btn btn-default" data-aging="in_service_30">
-							${__("Service >30d")}
+							${serviceLabel}
 						</button>
 						<button type="button" class="btn btn-default" data-aging="">${__("Clear")}</button>
 					</div>
@@ -88,13 +109,13 @@ ch_item_master.imei_tracker.View = class IMEITrackerView {
 
 				<div class="imei-bucket-tabs"></div>
 
-				<div class="imei-bulk-bar" style="display:none">
+				${this.can_bulk_update ? `<div class="imei-bulk-bar" style="display:none">
 					<span class="bulk-count"></span>
 					<button class="btn btn-xs btn-warning bulk-act" data-action="In Stock">${__("Mark In Stock")}</button>
 					<button class="btn btn-xs btn-danger bulk-act"  data-action="Scrapped">${__("Mark Scrapped")}</button>
 					<button class="btn btn-xs btn-danger bulk-act"  data-action="Lost">${__("Mark Lost")}</button>
 					<button class="btn btn-xs btn-default bulk-clear">${__("Clear Selection")}</button>
-				</div>
+				</div>` : ""}
 
 				<div class="imei-table-wrap">
 					<div class="imei-table-status text-muted small"></div>
@@ -200,7 +221,6 @@ ch_item_master.imei_tracker.View = class IMEITrackerView {
 	setup_actions() {
 		this.page.set_primary_action(__("Refresh"), () => this.refresh(), "refresh");
 		this.page.add_menu_item(__("Export CSV"), () => this.export_csv());
-		this.page.add_menu_item(__("Backfill IMEI Flag"), () => this.run_backfill());
 		this.page.add_menu_item(__("Open Lifecycle List"), () => {
 			frappe.set_route("List", "CH Serial Lifecycle");
 		});
@@ -307,7 +327,7 @@ ch_item_master.imei_tracker.View = class IMEITrackerView {
 		$status.text(__("Showing {0} of {1} records", [rows.length, this.data.total_rows || 0]));
 
 		const $bulk = $(this.page.body).find(".imei-bulk-bar");
-		if (this.selected_serials.size) {
+		if (this.can_bulk_update && this.selected_serials.size) {
 			$bulk.show().find(".bulk-count").text(__("{0} selected", [this.selected_serials.size]));
 		} else {
 			$bulk.hide();
@@ -320,7 +340,7 @@ ch_item_master.imei_tracker.View = class IMEITrackerView {
 		}
 
 		const headers = [
-			{ k: "_chk",   l: "" },
+			...(this.can_bulk_update ? [{ k: "_chk", l: "" }] : []),
 			{ k: "_type",  l: __("Type") },
 			{ k: "key",    l: __("IMEI / Serial") },
 			{ k: "item",   l: __("Item") },
@@ -348,7 +368,7 @@ ch_item_master.imei_tracker.View = class IMEITrackerView {
 			const status_class = (r.lifecycle_status || "").toLowerCase().replace(/\s+/g, "-");
 			html += `
 				<tr data-serial="${frappe.utils.escape_html(r.serial_no)}" class="${sel ? "selected" : ""}">
-					<td><input type="checkbox" class="row-chk" ${sel ? "checked" : ""}/></td>
+					${this.can_bulk_update ? `<td><input type="checkbox" class="row-chk" ${sel ? "checked" : ""}/></td>` : ""}
 					<td>${_kind_badge(r.serial_kind || (r.is_imei ? "IMEI" : "Barcode"))}</td>
 					<td><b>${frappe.utils.escape_html(key || "")}</b>${aging_html}</td>
 					<td>${frappe.utils.escape_html(r.item_name || r.item_code || "")}</td>
@@ -556,22 +576,6 @@ ch_item_master.imei_tracker.View = class IMEITrackerView {
 			});
 	}
 
-	// ── Maintenance: backfill ch_is_imei ─────────────────────────────────────
-	run_backfill() {
-		frappe.confirm(
-			__("Recompute the IMEI flag for ALL existing Serial No records? This is safe to re-run."),
-			() => {
-				frappe.xcall(`${this.api_base}.backfill_is_imei_flag`).then((res) => {
-					frappe.msgprint({
-						title: __("Backfill Complete"),
-						indicator: "green",
-						message: `<pre>${frappe.utils.escape_html(JSON.stringify(res.counts, null, 2))}</pre>`,
-					});
-					this.refresh();
-				});
-			}
-		);
-	}
 };
 
 // Helper: base64 → Blob
