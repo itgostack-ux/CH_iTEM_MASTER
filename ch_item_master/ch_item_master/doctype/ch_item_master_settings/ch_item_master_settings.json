@@ -1,6 +1,6 @@
 {
  "actions": [],
- "creation": "2026-07-22 00:00:00.000000",
+ "creation": "2026-07-22 00:00:00",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -216,6 +216,7 @@
    "default": "50",
    "fieldname": "user_lookup_page_limit",
    "fieldtype": "Int",
+   "in_list_view": 1,
    "label": "User Lookup Page Limit",
    "reqd": 1
   },
@@ -224,6 +225,7 @@
    "description": "Maximum enabled, scoped business users or emails returned for one operational notification.",
    "fieldname": "notification_recipient_limit",
    "fieldtype": "Int",
+   "in_list_view": 1,
    "label": "Notification Recipient Limit",
    "non_negative": 1,
    "reqd": 1
@@ -238,6 +240,7 @@
    "default": "10",
    "fieldname": "sms_fallback_timeout_seconds",
    "fieldtype": "Int",
+   "in_list_view": 1,
    "label": "Global SMS Timeout (Seconds)",
    "non_negative": 1,
    "reqd": 1
@@ -252,6 +255,7 @@
    "description": "Maximum records selected from any lifecycle, loyalty, voucher, campaign, warranty-plan, or exception dataset by one scheduler run.",
    "fieldname": "scheduler_batch_limit",
    "fieldtype": "Int",
+   "in_list_view": 1,
    "label": "Scheduler Batch Limit",
    "non_negative": 1,
    "reqd": 1
@@ -321,7 +325,6 @@
    "label": "Commercial Price View Roles"
   },
   {
-   "default": "POS",
    "fieldname": "default_sales_price_channel",
    "fieldtype": "Link",
    "label": "Default Sales Price Channel",
@@ -1014,7 +1017,6 @@
    "label": "Data Import Roles"
   },
   {
-   "default": "Nos",
    "fieldname": "default_stock_uom",
    "fieldtype": "Link",
    "label": "Default Stock UOM",
@@ -1022,7 +1024,6 @@
    "reqd": 1
   },
   {
-   "default": "All Item Groups",
    "fieldname": "default_item_group",
    "fieldtype": "Link",
    "label": "Default Item Group",
@@ -1411,9 +1412,10 @@
    "reqd": 1
   }
  ],
- "index_web_pages_for_search": 0,
  "issingle": 1,
- "modified": "2026-07-22 00:00:00.000000",
+ "links": [],
+ "modified": "2026-07-25 10:19:15.971309",
+ "modified_by": "Administrator",
  "module": "CH Item Master",
  "name": "CH Item Master Settings",
  "owner": "Administrator",
@@ -1426,10 +1428,10 @@
   },
   {
    "read": 1,
-   "role": "CH Master Manager",
-   "write": 0
+   "role": "CH Master Manager"
   }
  ],
+ "row_format": "Dynamic",
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": []
