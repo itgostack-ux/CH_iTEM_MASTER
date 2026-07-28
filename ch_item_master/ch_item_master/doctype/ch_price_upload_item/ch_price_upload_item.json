@@ -57,7 +57,7 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Type",
-   "options": "Selling Price\nBuyback Price\nTag",
+   "options": "Selling Price\nBuyback Price\nTag\nItem MRP",
    "reqd": 1,
    "columns": 1
   },

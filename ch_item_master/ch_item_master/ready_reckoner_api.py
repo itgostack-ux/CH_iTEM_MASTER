@@ -130,7 +130,7 @@ _READY_RECKONER_ITEM_FILTER_COLUMNS = frozenset({
 })
 
 
-def _count_ready_reckoner_items(item_filters, item_search=None):
+def _count_ready_reckoner_items(item_filters, item_search=None, group_mode=False):
     clauses = []
     values = {}
     for fieldname, value in item_filters.items():
@@ -142,6 +142,11 @@ def _count_ready_reckoner_items(item_filters, item_search=None):
         clauses.append("(`name` LIKE %(item_search)s OR `item_name` LIKE %(item_search)s)")
         values["item_search"] = f"%{item_search}%"
     where_clause = " AND ".join(clauses) or "1 = 1"
+    if group_mode:
+        return int(frappe.db.sql(
+            f"SELECT COUNT(DISTINCT COALESCE(NULLIF(`variant_of`, ''), `name`)) FROM `tabItem` WHERE {where_clause}",
+            values,
+        )[0][0] or 0)
     return int(frappe.db.sql(
         f"SELECT COUNT(*) FROM `tabItem` WHERE {where_clause}",
         values,
@@ -225,6 +230,7 @@ def get_ready_reckoner_data(
             "ch_sub_category",
             "ch_model",
             "ch_item_mrp",
+            "variant_of",
         ],
         limit_start=offset,
         limit_page_length=page_length,
@@ -247,51 +253,70 @@ def get_ready_reckoner_data(
         non_price_map = _get_non_price_specs(
             {item.get("ch_sub_category") for item in items if item.get("ch_sub_category")}
         )
+        # Only fetch variant attributes when at least one sub-category has non-price specs
+        variant_attrs: dict = {}
         if non_price_map:
-            # Fetch variant attributes for all items in one query
             va_rows = frappe.db.sql("""
                 SELECT parent, attribute, attribute_value
                 FROM `tabItem Variant Attribute`
                 WHERE parent IN %(items)s AND attribute_value IS NOT NULL
             """, {"items": item_codes}, as_dict=True)
-
-            variant_attrs: dict = {}
             for va in va_rows:
                 variant_attrs.setdefault(va.parent, {})[va.attribute] = va.attribute_value
 
-            # Group items by price-group key
-            groups: dict = {}
-            for item in items:
+        # Group items per-item: use spec-based key when the item's sub-category
+        # has non-price specs configured; otherwise fall back to variant_of.
+        groups: dict = {}
+        for item in items:
+            sub_cat = item.get("ch_sub_category") or ""
+            if non_price_map.get(sub_cat):
                 key = _build_price_group_key(item, variant_attrs, non_price_map)
-                if key not in groups:
-                    groups[key] = {"representative": item, "members": []}
-                groups[key]["members"].append(item["item_code"])
+            else:
+                # Fall back to ERPNext variant-template grouping
+                key = item.get("variant_of") or item["item_code"]
+            if key not in groups:
+                groups[key] = {"representative": item, "members": []}
+            groups[key]["members"].append(item["item_code"])
 
-            # Build grouped items list: representative + variant_count
-            grouped_items = []
-            for key, grp in groups.items():
-                row = dict(grp["representative"])
-                row["variant_count"] = len(grp["members"])
-                row["variant_item_codes"] = grp["members"]
+        # Fetch template item names in one batch for clean display labels
+        template_codes = [
+            k for k, grp in groups.items()
+            if k != grp["representative"]["item_code"]
+            and not non_price_map.get(grp["representative"].get("ch_sub_category") or "")
+        ]
+        template_name_map: dict = {}
+        if template_codes:
+            t_rows = frappe.get_all(
+                "Item",
+                filters={"name": ("in", template_codes)},
+                fields=["name", "item_name"],
+                limit=len(template_codes) + 1,
+            )
+            template_name_map = {r["name"]: r["item_name"] for r in t_rows}
 
-                # Strip non-price spec values from the display name
-                sub_cat = row.get("ch_sub_category") or ""
-                np_specs = non_price_map.get(sub_cat, set())
-                if np_specs and row.get("item_name"):
-                    attrs_for_item = variant_attrs.get(row["item_code"], {})
-                    for spec_name in np_specs:
-                        val = attrs_for_item.get(spec_name, "")
-                        if val and val in row["item_name"]:
-                            row["item_name"] = row["item_name"].replace(val, "").strip()
-                    # Clean up any double spaces left after stripping
-                    row["item_name"] = re.sub(r"\s{2,}", " ", row["item_name"]).strip()
+        grouped_items = []
+        for key, grp in groups.items():
+            row = dict(grp["representative"])
+            row["variant_count"] = len(grp["members"])
+            row["variant_item_codes"] = grp["members"]
 
-                grouped_items.append(row)
+            sub_cat = row.get("ch_sub_category") or ""
+            np_specs = non_price_map.get(sub_cat, set())
+            if np_specs and row.get("item_name"):
+                # Strip non-price spec values from the display name (spec-based path)
+                attrs_for_item = variant_attrs.get(row["item_code"], {})
+                for spec_name in np_specs:
+                    val = attrs_for_item.get(spec_name, "")
+                    if val and val in row["item_name"]:
+                        row["item_name"] = row["item_name"].replace(val, "").strip()
+                row["item_name"] = re.sub(r"\s{2,}", " ", row["item_name"]).strip()
+            elif key in template_name_map:
+                # Use the template item's name for variant_of grouped rows
+                row["item_name"] = template_name_map[key]
 
-            # all_item_codes stays the same — we need prices for any member
-        else:
-            for item in items:
-                item["variant_count"] = 1
+            grouped_items.append(row)
+
+        all_item_codes = list(item_codes)  # prices needed for all fetched items
     else:
         for item in items:
             item["variant_count"] = 1
@@ -486,7 +511,7 @@ def get_ready_reckoner_data(
 
         rows.append(row)
 
-    total = _count_ready_reckoner_items(item_filters, item_search)
+    total = _count_ready_reckoner_items(item_filters, item_search, group_mode=bool(group_mode))
 
     return {
         "items": rows,
@@ -1359,7 +1384,24 @@ def create_inline_price_change_batch(
         "mrp": "MRP",
         "mop": "MOP",
         "selling_price": "Selling Price",
+        "item_mrp": "Item MRP",
     }
+
+    # Pre-fetch current item MRPs for item_mrp changes (single DB call)
+    mrp_item_codes = {
+        (row or {}).get("item_code", "").strip()
+        for row in parsed_changes
+        if isinstance(row, dict) and (row.get("field") or "").strip() == "item_mrp"
+    } & requested_items
+    current_item_mrps: dict = {}
+    if mrp_item_codes:
+        for r in frappe.get_all(
+            "Item",
+            filters={"name": ("in", list(mrp_item_codes))},
+            fields=["name", "ch_item_mrp"],
+            limit=len(mrp_item_codes) + 1,
+        ):
+            current_item_mrps[r["name"]] = flt(r.get("ch_item_mrp") or 0)
 
     batch_items = []
     seen_changes = set()
@@ -1369,7 +1411,11 @@ def create_inline_price_change_batch(
         channel = (row.get("channel") or "").strip()
         field = (row.get("field") or "").strip()
 
-        if not item_code or not channel or field not in field_label_map:
+        if not item_code or field not in field_label_map:
+            continue
+
+        # item_mrp changes have no channel; selling price changes require one
+        if field != "item_mrp" and not channel:
             continue
 
         change_key = (item_code, channel, field)
@@ -1380,9 +1426,30 @@ def create_inline_price_change_batch(
             )
         seen_changes.add(change_key)
 
+        new_val = float(row.get("new_value") or 0)
+
+        if field == "item_mrp":
+            old_val = current_item_mrps.get(item_code, 0)
+            if old_val == new_val:
+                continue
+            if new_val < 0:
+                frappe.throw(
+                    _("{0}: Item MRP cannot be negative.").format(item_code),
+                    title=_("Invalid Price"),
+                )
+            batch_items.append({
+                "item_code": item_code,
+                "channel": "",
+                "change_type": "Item MRP",
+                "field_label": "Item MRP",
+                "old_value": str(old_val),
+                "new_value": str(new_val),
+                "reason": (reason or "").strip(),
+            })
+            continue
+
         current = current_prices.get((item_code, channel))
         old_val = float((current or {}).get(field) or 0)
-        new_val = float(row.get("new_value") or 0)
         if old_val == new_val:
             continue
 

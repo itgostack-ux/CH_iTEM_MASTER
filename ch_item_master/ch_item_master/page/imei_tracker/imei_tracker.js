@@ -485,7 +485,7 @@ ch_item_master.imei_tracker.View = class IMEITrackerView {
 						<tr><th>${__("Lifecycle")}</th><td>${frappe.utils.escape_html(lc.lifecycle_status || "")}</td></tr>
 						<tr><th>${__("Sub-Status")}</th><td>${frappe.utils.escape_html(lc.sub_status || "")}</td></tr>
 						<tr><th>${__("Condition")}</th><td>${frappe.utils.escape_html(lc.stock_condition || "")}</td></tr>
-						<tr><th>${__("Warehouse")}</th><td>${frappe.utils.escape_html(lc.current_warehouse || "")}</td></tr>
+						<tr><th>${__("Warehouse")}</th><td>${window.ch_wh_label_html ? ch_wh_label_html(lc.current_warehouse) : frappe.utils.escape_html(lc.current_warehouse || "")}</td></tr>
 						<tr><th>${__("Warranty")}</th><td>${frappe.utils.escape_html(lc.warranty_status || "")}</td></tr>
 					</table>
 				</div>

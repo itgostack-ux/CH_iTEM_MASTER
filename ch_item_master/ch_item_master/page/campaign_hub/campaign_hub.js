@@ -50,19 +50,13 @@ class CampaignHub {
 
 	refresh() {
 		const company = this.company_field?.get_value() || "";
-		this.$root.html(`<div class="hub-loading"><i class="fa fa-spinner fa-spin"></i> ${__("Loading Campaign Hub…")}</div>`);
-		frappe.xcall(
-			"ch_item_master.ch_item_master.coupon_campaign_api.get_campaign_hub_data",
-			{ company }
-		).then((data) => this._render(data))
-		 .catch(() => {
-			this.$root.html(`<div class="hub-loading text-danger">${__("Failed to load data.")}</div>`);
-		 });
+		return ch_erp15.hub_refresh.run(this,
+			() => frappe.xcall("ch_item_master.ch_item_master.coupon_campaign_api.get_campaign_hub_data", { company }),
+			(data) => this._render(data), { label: "Campaign Hub" });
 	}
 
 	_start_auto_refresh() {
-		this._timer = setInterval(() => this.refresh(), 60000);
-		$(this.page.parent).on("remove", () => clearInterval(this._timer));
+		ch_erp15.hub_refresh.start(this, 60000);
 	}
 
 	/* ── Render ───────────────────────────────────────────────── */

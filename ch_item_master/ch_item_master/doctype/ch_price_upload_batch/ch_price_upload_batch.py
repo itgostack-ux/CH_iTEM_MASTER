@@ -212,8 +212,9 @@ class CHPriceUploadBatch(Document):
 		selling = sum(1 for r in self.items if r.change_type == "Selling Price")
 		buyback = sum(1 for r in self.items if r.change_type == "Buyback Price")
 		tags = sum(1 for r in self.items if r.change_type == "Tag")
+		item_mrp = sum(1 for r in self.items if r.change_type == "Item MRP")
 		self.total_changes = len(self.items)
-		self.selling_price_changes = selling
+		self.selling_price_changes = selling + item_mrp
 		self.buyback_price_changes = buyback
 		self.tag_changes = tags
 
@@ -552,6 +553,10 @@ class CHPriceUploadBatch(Document):
 					a, s = self._apply_tags(item_code, rows)
 					applied += a
 					skipped += s
+				elif change_type == "Item MRP":
+					a, s = self._apply_item_mrp(item_code, rows)
+					applied += a
+					skipped += s
 			except Exception as e:
 				errors += len(rows)
 				for row in rows:
@@ -581,6 +586,26 @@ class CHPriceUploadBatch(Document):
 
 		self.save()
 		return {"applied": applied, "skipped": skipped, "errors": errors}
+
+	def _apply_item_mrp(self, item_code, rows):
+		"""Apply Item MRP changes directly to Item.ch_item_mrp."""
+		applied = 0
+		skipped = 0
+		for row in rows:
+			new_val = _safe_float(row.new_value)
+			cur_val = _safe_float(frappe.db.get_value("Item", item_code, "ch_item_mrp") or 0)
+			if cur_val == new_val:
+				row.status = "Skipped"
+				row.error_message = f"No change — Item MRP is already {cur_val}"
+				skipped += 1
+				continue
+			item_doc = frappe.get_doc("Item", item_code)
+			item_doc.ch_item_mrp = new_val
+			item_doc.flags.from_price_batch = True
+			item_doc.save(ignore_permissions=True)
+			row.status = "Applied"
+			applied += 1
+		return applied, skipped
 
 	def _apply_selling_price(self, item_code, channel, rows):
 		"""Apply selling price changes to CH Item Price."""
@@ -828,6 +853,8 @@ class CHPriceUploadBatch(Document):
 				field_name = row.channel  # stores the DB field name
 			elif row.change_type == "Tag":
 				field_name = "tag"
+			elif row.change_type == "Item MRP":
+				field_name = "ch_item_mrp"
 
 			log = frappe.new_doc("CH Price Change Log")
 			log.item_code = row.item_code

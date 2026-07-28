@@ -563,20 +563,24 @@ function _render_table($wrap, state) {
     const esc = frappe.utils.escape_html;
     items.forEach(row => {
         const item_name = esc(row.item_name || '');
-        const item_mrp_val = row.item_mrp != null ? Number(row.item_mrp) : (row.ch_item_mrp != null ? Number(row.ch_item_mrp) : 0);
+        const item_mrp_base = row.item_mrp != null ? Number(row.item_mrp) : (row.ch_item_mrp != null ? Number(row.ch_item_mrp) : 0);
+        const mrp_pending = _get_pending_change(state, row.item_code, '__item_mrp__', '');
+        const item_mrp_val = mrp_pending ? mrp_pending.new_value : item_mrp_base;
         const item_mrp_fmt = item_mrp_val > 0
             ? frappe.format(item_mrp_val, { fieldtype: 'Currency' })
             : '<span style="color:var(--border-color)">— set MRP</span>';
+        const mrp_pending_cls = mrp_pending ? ' pending-change' : '';
+        const mrp_pending_tag = mrp_pending ? `<span class="pending-pill">Pending</span>` : '';
         rows += `<tr data-item="${esc(row.item_code)}" data-variant-count="${row.variant_count || 1}">
             <td class="item-code">${esc(row.item_code)}</td>
             <td class="item-name" title="${item_name}">${item_name}${row.variant_count > 1 ? ` <span class="badge badge-info" style="font-size:9px;vertical-align:middle">${row.variant_count} colors</span>` : ''}</td>
             <td style="font-size:11px">${esc((row.ch_sub_category||'').split('-').pop())}</td>
             <td style="font-size:11px">${esc(row.brand||'')}</td>
-            <td class="price-cell item-mrp-cell ${item_mrp_val > 0 ? 'has-value' : 'no-value'}"
+            <td class="price-cell item-mrp-cell ${item_mrp_val > 0 ? 'has-value' : 'no-value'}${mrp_pending_cls}"
                 data-field="item_mrp" data-item="${esc(row.item_code)}"
-                data-base-value="${item_mrp_val}"
+                data-base-value="${item_mrp_base}"
                 style="background:var(--yellow-50,#fffbeb);font-weight:600;text-align:right;cursor:pointer;"
-                title="Click to update MRP for this item">${item_mrp_fmt}<span class="edit-hint">✎</span></td>`;
+                title="Click to update MRP for this item">${item_mrp_fmt}${mrp_pending_tag}<span class="edit-hint">✎</span></td>`;
 
         channels.forEach(ch => {
             if (buying_set.has(ch)) {
@@ -686,14 +690,18 @@ function _buyback_price_cell(val, ch, field, item_code, bname, status) {
             </td>`;
 }
 
-// ─── Item-level MRP inline editor (direct save, no batch) ────────────────────
+// ─── Item-level MRP inline editor (queued for approval like price changes) ───
 function _activate_item_mrp_editor($cell, $wrap, state) {
     if ($cell.hasClass('inline-editing')) return;
 
     const item_code    = $cell.data('item');
     const base_value   = Number($cell.data('base-value') || 0);
     const original_html = $cell.html();
-    const input_value  = base_value > 0 ? String(base_value) : '';
+
+    // Show pending value if one is already queued
+    const pending = _get_pending_change(state, item_code, '__item_mrp__', '');
+    const edit_value = pending ? pending.new_value : base_value;
+    const input_value = edit_value > 0 ? String(edit_value) : '';
 
     $cell.addClass('inline-editing').html(
         `<input type="number" step="0.01" min="0" class="chpb-inline-input"
@@ -722,36 +730,21 @@ function _activate_item_mrp_editor($cell, $wrap, state) {
         }
         if (new_val === base_value) { restore(); return; }
 
-        $cell.addClass('is-saving');
-        frappe.call({
-            method: 'ch_item_master.ch_item_master.ready_reckoner_api.update_item_mrp',
-            args: { item_code, mrp: new_val },
-            callback(r) {
-                $cell.removeClass('is-saving inline-editing');
-                const res = r.message || {};
-                if (res.changed) {
-                    // Update the cell in-place so page doesn't need full reload
-                    const fmt = new_val > 0
-                        ? frappe.format(new_val, { fieldtype: 'Currency' })
-                        : '<span style="color:var(--border-color)">— set MRP</span>';
-                    $cell.attr('data-base-value', new_val)
-                         .html(`${fmt}<span class="edit-hint">✎</span>`)
-                         .toggleClass('has-value', new_val > 0)
-                         .toggleClass('no-value', new_val <= 0);
-                    $cell.addClass('saved-flash');
-                    frappe.show_alert({
-                        message: __('MRP updated for {0}', [item_code]),
-                        indicator: 'green',
-                    }, 3);
-                } else {
-                    restore();
-                }
-            },
-            error() {
-                $cell.removeClass('is-saving');
-                restore();
-            },
+        // Queue as pending change — same maker/checker path as price changes
+        _set_pending_change(state, {
+            item_code,
+            channel: '__item_mrp__',
+            field: 'item_mrp',
+            old_value: base_value,
+            new_value: new_val,
         });
+        restore();
+        _render_table($wrap, state);
+        _update_stats($wrap, state);
+        frappe.show_alert({
+            message: __('MRP change queued for {0}. Click "Send Changes for Approval" when ready.', [item_code]),
+            indicator: 'blue',
+        }, 4);
     };
 
     $input.on('keydown', function (e) {
@@ -886,7 +879,10 @@ function _submit_pending_changes($wrap, state) {
         return;
     }
 
-    const requires_reason = pending_rows.some((row) => Number(row.old_value || 0) > 0);
+    // MRP changes and price changes share the same batch — backend handles both
+    const requires_reason = pending_rows.some(
+        (row) => Number(row.old_value || 0) > 0
+    );
     const fields = [
         {
             fieldname: 'reason',
@@ -928,15 +924,15 @@ function _submit_pending_changes($wrap, state) {
 }
 
 function _update_stats($wrap, state) {
-    const { total, page, page_length, items } = {
+    const { total, page, page_length } = {
         total: state.data.total,
         page: state.page,
         page_length: state.page_length,
-        items: state.data.items,
     };
     const from = (page - 1) * page_length + 1;
     const to   = Math.min(page * page_length, total);
-    $wrap.find('#chpb-count').text(`Showing ${from}–${to} of ${total} items`);
+    const label = state.group_by_price_specs ? 'groups' : 'items';
+    $wrap.find('#chpb-count').text(`Showing ${from}–${to} of ${total} ${label}`);
     $wrap.find('#chpb-page-info').text(`Page ${page} / ${Math.ceil(total / page_length) || 1}`);
 }
 
