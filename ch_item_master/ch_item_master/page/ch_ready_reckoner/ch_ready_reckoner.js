@@ -573,7 +573,7 @@ function _render_table($wrap, state) {
         const mrp_pending_tag = mrp_pending ? `<span class="pending-pill">Pending</span>` : '';
         rows += `<tr data-item="${esc(row.item_code)}" data-variant-count="${row.variant_count || 1}">
             <td class="item-code">${esc(row.item_code)}</td>
-            <td class="item-name" title="${item_name}">${item_name}${row.variant_count > 1 ? ` <span class="badge badge-info" style="font-size:9px;vertical-align:middle">${row.variant_count} colors</span>` : ''}</td>
+            <td class="item-name" title="${item_name}">${item_name}${row.variant_count > 1 ? ` <span class="badge badge-info" style="font-size:9px;vertical-align:middle">${row.variant_count} ${esc((row.collapsed_specs || []).join(' / ') || 'variants')}</span>` : ''}</td>
             <td style="font-size:11px">${esc((row.ch_sub_category||'').split('-').pop())}</td>
             <td style="font-size:11px">${esc(row.brand||'')}</td>
             <td class="price-cell item-mrp-cell ${item_mrp_val > 0 ? 'has-value' : 'no-value'}${mrp_pending_cls}"
@@ -1073,7 +1073,7 @@ function _buyback_price_dialog(item_code, on_success, existing_data) {
     // If we have existing data, pre-fill; otherwise fetch from API
     const _show = (data) => {
         const bb = data || {};
-        const bb_has_data = !!(bb.current_market_price || bb.vendor_price || bb.a_grade_iw_0_3 || bb.scrap_iw_0_3 || bb.phone_dead_iw_0_3);
+        const bb_has_data = !!(bb.current_market_price || bb.vendor_price || bb.a_grade_iw_0_3 || bb.scrap_price || bb.phone_dead_price);
         const fields = [
             { fieldtype: 'Section Break', label: 'Reference Prices' },
             { fieldtype: 'Currency', fieldname: 'current_market_price', label: 'Current Market Price',
@@ -1089,10 +1089,6 @@ function _buyback_price_dialog(item_code, on_success, existing_data) {
             { fieldtype: 'Currency', fieldname: 'b_grade_iw_0_3', label: 'B Grade', default: bb.b_grade_iw_0_3 || 0 },
             { fieldtype: 'Column Break' },
             { fieldtype: 'Currency', fieldname: 'c_grade_iw_0_3', label: 'C Grade', default: bb.c_grade_iw_0_3 || 0 },
-            { fieldtype: 'Column Break' },
-            { fieldtype: 'Currency', fieldname: 'scrap_iw_0_3', label: 'Scrap Price', default: bb.scrap_iw_0_3 || 0 },
-            { fieldtype: 'Column Break' },
-            { fieldtype: 'Currency', fieldname: 'phone_dead_iw_0_3', label: 'Phone Dead', default: bb.phone_dead_iw_0_3 || 0 },
 
             // ─── IW 4-6 Months ───────────────────────────────────────
             { fieldtype: 'Section Break', label: 'IW 4-6 Months (In Warranty)' },
@@ -1103,10 +1099,6 @@ function _buyback_price_dialog(item_code, on_success, existing_data) {
             { fieldtype: 'Currency', fieldname: 'c_grade_iw_0_6', label: 'C Grade', default: bb.c_grade_iw_0_6 || 0 },
             { fieldtype: 'Column Break' },
             { fieldtype: 'Currency', fieldname: 'd_grade_iw_0_6', label: 'D Grade', default: bb.d_grade_iw_0_6 || 0 },
-            { fieldtype: 'Column Break' },
-            { fieldtype: 'Currency', fieldname: 'scrap_iw_0_6', label: 'Scrap Price', default: bb.scrap_iw_0_6 || 0 },
-            { fieldtype: 'Column Break' },
-            { fieldtype: 'Currency', fieldname: 'phone_dead_iw_0_6', label: 'Phone Dead', default: bb.phone_dead_iw_0_6 || 0 },
 
             // ─── IW 6-11 Months ──────────────────────────────────────
             { fieldtype: 'Section Break', label: 'IW 6-11 Months (In Warranty)' },
@@ -1117,10 +1109,6 @@ function _buyback_price_dialog(item_code, on_success, existing_data) {
             { fieldtype: 'Currency', fieldname: 'c_grade_iw_6_11', label: 'C Grade', default: bb.c_grade_iw_6_11 || 0 },
             { fieldtype: 'Column Break' },
             { fieldtype: 'Currency', fieldname: 'd_grade_iw_6_11', label: 'D Grade', default: bb.d_grade_iw_6_11 || 0 },
-            { fieldtype: 'Column Break' },
-            { fieldtype: 'Currency', fieldname: 'scrap_iw_6_11', label: 'Scrap Price', default: bb.scrap_iw_6_11 || 0 },
-            { fieldtype: 'Column Break' },
-            { fieldtype: 'Currency', fieldname: 'phone_dead_iw_6_11', label: 'Phone Dead', default: bb.phone_dead_iw_6_11 || 0 },
 
             // ─── OOW 11+ Months ──────────────────────────────────────
             { fieldtype: 'Section Break', label: 'OOW 11+ Months (Out of Warranty)' },
@@ -1131,10 +1119,15 @@ function _buyback_price_dialog(item_code, on_success, existing_data) {
             { fieldtype: 'Currency', fieldname: 'c_grade_oow_11', label: 'C Grade', default: bb.c_grade_oow_11 || 0 },
             { fieldtype: 'Column Break' },
             { fieldtype: 'Currency', fieldname: 'd_grade_oow_11', label: 'D Grade', default: bb.d_grade_oow_11 || 0 },
+
+            // ─── Salvage — one price each, any age / warranty ────────
+            // A dead or scrap handset is worth its salvage value regardless of
+            // device age or warranty status, so these are NOT per-band.
+            { fieldtype: 'Section Break', label: 'Salvage Prices',
+            description: 'Used whenever the device is graded Scrap or flagged Phone Dead — applies to any age and warranty status.' },
+            { fieldtype: 'Currency', fieldname: 'scrap_price', label: 'Scrap Price', default: bb.scrap_price || 0 },
             { fieldtype: 'Column Break' },
-            { fieldtype: 'Currency', fieldname: 'scrap_oow_11', label: 'Scrap Price', default: bb.scrap_oow_11 || 0 },
-            { fieldtype: 'Column Break' },
-            { fieldtype: 'Currency', fieldname: 'phone_dead_oow_11', label: 'Phone Dead', default: bb.phone_dead_oow_11 || 0 },
+            { fieldtype: 'Currency', fieldname: 'phone_dead_price', label: 'Phone Dead', default: bb.phone_dead_price || 0 },
 
             { fieldtype: 'Section Break' },
             { fieldtype: 'Small Text', fieldname: 'reason', label: 'Reason for Change',
@@ -1162,32 +1155,28 @@ function _buyback_price_dialog(item_code, on_success, existing_data) {
                         a_grade_iw_0_3: vals.a_grade_iw_0_3 || 0,
                         b_grade_iw_0_3: vals.b_grade_iw_0_3 || 0,
                         c_grade_iw_0_3: vals.c_grade_iw_0_3 || 0,
-                        scrap_iw_0_3: vals.scrap_iw_0_3 || 0,
-                        phone_dead_iw_0_3: vals.phone_dead_iw_0_3 || 0,
 
                         // IW 4-6
                         a_grade_iw_0_6: vals.a_grade_iw_0_6 || 0,
                         b_grade_iw_0_6: vals.b_grade_iw_0_6 || 0,
                         c_grade_iw_0_6: vals.c_grade_iw_0_6 || 0,
                         d_grade_iw_0_6: vals.d_grade_iw_0_6 || 0,
-                        scrap_iw_0_6: vals.scrap_iw_0_6 || 0,
-                        phone_dead_iw_0_6: vals.phone_dead_iw_0_6 || 0,
 
                         // IW 6-11
                         a_grade_iw_6_11: vals.a_grade_iw_6_11 || 0,
                         b_grade_iw_6_11: vals.b_grade_iw_6_11 || 0,
                         c_grade_iw_6_11: vals.c_grade_iw_6_11 || 0,
                         d_grade_iw_6_11: vals.d_grade_iw_6_11 || 0,
-                        scrap_iw_6_11: vals.scrap_iw_6_11 || 0,
-                        phone_dead_iw_6_11: vals.phone_dead_iw_6_11 || 0,
 
                         // OOW 11+
                         a_grade_oow_11: vals.a_grade_oow_11 || 0,
                         b_grade_oow_11: vals.b_grade_oow_11 || 0,
                         c_grade_oow_11: vals.c_grade_oow_11 || 0,
                         d_grade_oow_11: vals.d_grade_oow_11 || 0,
-                        scrap_oow_11: vals.scrap_oow_11 || 0,
-                        phone_dead_oow_11: vals.phone_dead_oow_11 || 0,
+
+                        // Salvage — flat, not per warranty band
+                        scrap_price: vals.scrap_price || 0,
+                        phone_dead_price: vals.phone_dead_price || 0,
                     },
                     callback(r) {
                         d.hide();
@@ -1529,7 +1518,10 @@ function _pval(label, val) {
 
 // ─── Excel export ─────────────────────────────────────────────────────────────
 function chpb_export(state) {
-    const args = { ...state.filters };
+    // Mirror what the grid is showing. state.group_by_price_specs lives outside
+    // state.filters, so spreading filters alone silently exported an ungrouped
+    // sheet even while the grid was grouped.
+    const args = { ...state.filters, group_by_price_specs: state.group_by_price_specs ? 1 : 0 };
     const url = `/api/method/ch_item_master.ch_item_master.ready_reckoner_api.export_ready_reckoner?`
         + Object.entries(args).filter(([, v]) => v).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&');
     window.open(url, '_blank');

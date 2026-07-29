@@ -20,6 +20,14 @@ from ch_item_master.config import get_bounded_rows, get_int_setting, require_rol
 from ch_item_master.security import get_company_scope
 
 
+# Grouped-export round-trip columns. Written by export_ready_reckoner when
+# Group Variants is on, read back by upload_ready_reckoner_prices so one price
+# row updates every variant in the group.
+_GROUP_MEMBERS_HEADER = "Variant Item Codes"
+_GROUP_COUNT_HEADER = "Variant Count"
+_GROUP_MEMBER_SEPARATOR = ", "
+
+
 def _require_reckoner_access():
     require_role_setting(
         "app_access_roles",
@@ -93,27 +101,60 @@ def _get_non_price_specs(sub_categories):
 def _build_price_group_key(item, variant_attributes, non_price_specs_map):
     """Build a grouping key for an item based on price-affecting variant attributes.
 
-    Items that share the same key differ only in non-price specs (like Color) and should
-    be displayed as a single row in the Ready Reckoner.
+    Items that share the same key differ ONLY in specs configured with
+    ``affects_price = 0`` on the CH Sub Category, so they legitimately carry one
+    price and belong on one Ready Reckoner row.
 
-    Returns: (model, price_spec_1_value, price_spec_2_value, ...)
+    The sub-category configuration is the single authority here. A spec left at
+    ``affects_price = 1`` keeps its variants apart no matter what — collapsing
+    them would show one price for units that are priced differently, which is
+    exactly the defect this key exists to prevent. In particular there is NO
+    fallback to ERPNext's ``variant_of`` template: a template groups every
+    variant of a model together (all colours AND all storage tiers), which
+    silently ignores the whole affects_price contract.
+
+    Returns a string key: item_code when nothing may be collapsed, otherwise
+    model + the price-affecting attribute values.
     """
     sub_cat = item.get("ch_sub_category") or ""
     model = item.get("ch_model") or ""
     non_price_specs = non_price_specs_map.get(sub_cat, set())
 
     if not non_price_specs:
-        # No non-price specs defined — each item is its own group
+        # Every variant spec affects price — each item is its own group.
         return item["item_code"]
 
-    # Get variant attributes for this item, keep only price-affecting ones
+    # Keep only price-affecting attributes in the key, so items differing solely
+    # in a non-price spec collapse together.
     attrs = variant_attributes.get(item["item_code"], {})
     price_parts = []
+    collapsible = False
     for attr_name in sorted(attrs.keys()):
-        if attr_name not in non_price_specs:
+        if attr_name in non_price_specs:
+            collapsible = True
+        else:
             price_parts.append(f"{attr_name}={attrs[attr_name]}")
 
-    return f"{model}||{'|'.join(price_parts)}" if price_parts else model or item["item_code"]
+    if not collapsible:
+        # Item carries none of the non-price specs (e.g. a non-variant SKU that
+        # happens to sit in a configured sub-category) — never merge it with a
+        # neighbour just because their price-affecting attributes coincide.
+        return item["item_code"]
+
+    return f"{sub_cat}||{model}||{'|'.join(price_parts)}"
+
+
+def _collapsed_spec_names(item, variant_attributes, non_price_specs_map):
+    """Non-price specs actually present on this item — what a group collapses.
+
+    Drives the grid badge so it reads "17 Colour" rather than a hardcoded
+    "17 colors" that lies whenever some other spec was the collapsed one.
+    """
+    non_price_specs = non_price_specs_map.get(item.get("ch_sub_category") or "", set())
+    if not non_price_specs:
+        return []
+    attrs = variant_attributes.get(item["item_code"], {})
+    return sorted(name for name in attrs if name in non_price_specs)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -130,7 +171,7 @@ _READY_RECKONER_ITEM_FILTER_COLUMNS = frozenset({
 })
 
 
-def _count_ready_reckoner_items(item_filters, item_search=None, group_mode=False):
+def _count_ready_reckoner_items(item_filters, item_search=None):
     clauses = []
     values = {}
     for fieldname, value in item_filters.items():
@@ -142,11 +183,6 @@ def _count_ready_reckoner_items(item_filters, item_search=None, group_mode=False
         clauses.append("(`name` LIKE %(item_search)s OR `item_name` LIKE %(item_search)s)")
         values["item_search"] = f"%{item_search}%"
     where_clause = " AND ".join(clauses) or "1 = 1"
-    if group_mode:
-        return int(frappe.db.sql(
-            f"SELECT COUNT(DISTINCT COALESCE(NULLIF(`variant_of`, ''), `name`)) FROM `tabItem` WHERE {where_clause}",
-            values,
-        )[0][0] or 0)
     return int(frappe.db.sql(
         f"SELECT COUNT(*) FROM `tabItem` WHERE {where_clause}",
         values,
@@ -210,32 +246,59 @@ def get_ready_reckoner_data(
         # handled with OR clause below
         pass
 
-    items = frappe.get_all(
-        "Item",
-        filters=item_filters,
-        or_filters=(
-            [
-                ["name", "like", f"%{item_search}%"],
-                ["item_name", "like", f"%{item_search}%"],
-            ]
-            if item_search
-            else None
-        ),
-        fields=[
-            "name as item_code",
-            "item_name",
-            "item_group",
-            "brand",
-            "ch_category",
-            "ch_sub_category",
-            "ch_model",
-            "ch_item_mrp",
-            "variant_of",
-        ],
-        limit_start=offset,
-        limit_page_length=page_length,
-        order_by="item_name asc",
+    group_mode = int(group_by_price_specs)
+
+    _item_fields = [
+        "name as item_code",
+        "item_name",
+        "item_group",
+        "brand",
+        "ch_category",
+        "ch_sub_category",
+        "ch_model",
+        "ch_item_mrp",
+        "variant_of",
+    ]
+    _or_filters = (
+        [
+            ["name", "like", f"%{item_search}%"],
+            ["item_name", "like", f"%{item_search}%"],
+        ]
+        if item_search
+        else None
     )
+
+    # Grouping must see the WHOLE filtered set before paginating. Paginating
+    # first splits a group across the page boundary, so the same group renders
+    # twice with two wrong member counts, and the footer total (counted by yet
+    # another rule) never matches the rows drawn.
+    if group_mode:
+        scan_limit = get_int_setting("ready_reckoner_group_scan_limit", 20000, minimum=1)
+        items = frappe.get_all(
+            "Item",
+            filters=item_filters,
+            or_filters=_or_filters,
+            fields=_item_fields,
+            limit_page_length=scan_limit + 1,
+            order_by="item_name asc",
+        )
+        if len(items) > scan_limit:
+            frappe.throw(
+                _("Grouping needs to read every matching item at once and this "
+                  "selection exceeds {0}. Narrow it with a category, brand or "
+                  "model filter, or turn Group Variants off.").format(scan_limit),
+                title=_("Selection Too Large to Group"),
+            )
+    else:
+        items = frappe.get_all(
+            "Item",
+            filters=item_filters,
+            or_filters=_or_filters,
+            fields=_item_fields,
+            limit_start=offset,
+            limit_page_length=page_length,
+            order_by="item_name asc",
+        )
 
     if not items:
         return {"items": [], "channels": [], "total": 0}
@@ -245,9 +308,8 @@ def get_ready_reckoner_data(
     # ── 1b. Group by price-affecting specs (optional) ────────────────────────
     # When enabled, items differing only in non-price specs (e.g. Color for
     # phones) are collapsed into a single representative row.
-    group_mode = int(group_by_price_specs)
     grouped_items = items  # default: no grouping
-    all_item_codes = list(item_codes)  # all codes for price/offer lookups
+    group_total = None
 
     if group_mode:
         non_price_map = _get_non_price_specs(
@@ -264,59 +326,49 @@ def get_ready_reckoner_data(
             for va in va_rows:
                 variant_attrs.setdefault(va.parent, {})[va.attribute] = va.attribute_value
 
-        # Group items per-item: use spec-based key when the item's sub-category
-        # has non-price specs configured; otherwise fall back to variant_of.
+        # One rule, no exceptions: the sub-category's affects_price flags decide
+        # what may share a row. Items in a sub-category with no non-price spec
+        # each key to their own item_code and therefore stay separate.
         groups: dict = {}
         for item in items:
-            sub_cat = item.get("ch_sub_category") or ""
-            if non_price_map.get(sub_cat):
-                key = _build_price_group_key(item, variant_attrs, non_price_map)
-            else:
-                # Fall back to ERPNext variant-template grouping
-                key = item.get("variant_of") or item["item_code"]
+            key = _build_price_group_key(item, variant_attrs, non_price_map)
             if key not in groups:
                 groups[key] = {"representative": item, "members": []}
             groups[key]["members"].append(item["item_code"])
 
-        # Fetch template item names in one batch for clean display labels
-        template_codes = [
-            k for k, grp in groups.items()
-            if k != grp["representative"]["item_code"]
-            and not non_price_map.get(grp["representative"].get("ch_sub_category") or "")
-        ]
-        template_name_map: dict = {}
-        if template_codes:
-            t_rows = frappe.get_all(
-                "Item",
-                filters={"name": ("in", template_codes)},
-                fields=["name", "item_name"],
-                limit=len(template_codes) + 1,
-            )
-            template_name_map = {r["name"]: r["item_name"] for r in t_rows}
+        # Groups are ordered by their representative, which is the first item in
+        # the item_name-sorted scan — so paging over groups stays stable.
+        ordered_keys = list(groups.keys())
+        group_total = len(ordered_keys)
+        page_keys = ordered_keys[offset:offset + page_length]
 
         grouped_items = []
-        for key, grp in groups.items():
+        for key in page_keys:
+            grp = groups[key]
             row = dict(grp["representative"])
             row["variant_count"] = len(grp["members"])
             row["variant_item_codes"] = grp["members"]
+            row["collapsed_specs"] = _collapsed_spec_names(
+                grp["representative"], variant_attrs, non_price_map
+            )
 
-            sub_cat = row.get("ch_sub_category") or ""
-            np_specs = non_price_map.get(sub_cat, set())
+            np_specs = non_price_map.get(row.get("ch_sub_category") or "", set())
             if np_specs and row.get("item_name"):
-                # Strip non-price spec values from the display name (spec-based path)
+                # Strip the collapsed spec's value out of the label — the row no
+                # longer represents one colour, so "… Gold" would be misleading.
                 attrs_for_item = variant_attrs.get(row["item_code"], {})
                 for spec_name in np_specs:
                     val = attrs_for_item.get(spec_name, "")
                     if val and val in row["item_name"]:
                         row["item_name"] = row["item_name"].replace(val, "").strip()
                 row["item_name"] = re.sub(r"\s{2,}", " ", row["item_name"]).strip()
-            elif key in template_name_map:
-                # Use the template item's name for variant_of grouped rows
-                row["item_name"] = template_name_map[key]
 
             grouped_items.append(row)
 
-        all_item_codes = list(item_codes)  # prices needed for all fetched items
+        # Grouping had to scan the whole filtered set, but prices and offers are
+        # only needed for the members actually rendered on this page — without
+        # this the lookups would balloon to the entire scan.
+        item_codes = [code for key in page_keys for code in groups[key]["members"]]
     else:
         for item in items:
             item["variant_count"] = 1
@@ -506,12 +558,23 @@ def get_ready_reckoner_data(
             all_tags.update(tag_index.get(mc, []))
         row["tags"] = ", ".join(sorted(all_tags))
 
-        # Clean up internal field before sending to frontend
-        row.pop("variant_item_codes", None)
+        # Group membership stays on the payload: export_ready_reckoner writes it
+        # into the "Variant Item Codes" column so an edited group price can be
+        # fanned back out to every member on upload. Stripping it here silently
+        # reduced a grouped export to its representative variant.
+        row.setdefault("variant_item_codes", member_codes)
 
         rows.append(row)
 
-    total = _count_ready_reckoner_items(item_filters, item_search, group_mode=bool(group_mode))
+    # In group mode the count comes from the grouping pass itself. Counting it
+    # separately in SQL cannot reproduce the affects_price rule (it depends on
+    # per-item variant attributes), which is how the footer previously reported
+    # a group total the grid could never draw.
+    total = (
+        group_total
+        if group_total is not None
+        else _count_ready_reckoner_items(item_filters, item_search)
+    )
 
     return {
         "items": rows,
@@ -984,9 +1047,17 @@ def get_sibling_items(item_code) -> dict:
 def export_ready_reckoner(
     category=None, sub_category=None, brand=None,
     model=None, channel=None, as_of_date=None, company=None,
+    group_by_price_specs=0,
 ) -> None:
-    """Export CH Ready Reckoner as Excel file."""
+    """Export CH Ready Reckoner as Excel file.
+
+    With ``group_by_price_specs=1`` the sheet mirrors what the grid shows: one
+    row per price group instead of one per variant. The group's member item
+    codes ride along in a dedicated column so the upload can fan a single
+    edited price back out to every variant in that group.
+    """
     _require_reckoner_access()
+    group_mode = int(group_by_price_specs or 0)
 
     max_export_rows = get_int_setting("ready_reckoner_export_limit", 5000, minimum=1)
     page_length = min(
@@ -1009,6 +1080,7 @@ def export_ready_reckoner(
             company=company,
             page_length=page_length,
             page=page,
+            group_by_price_specs=group_mode,
         )
         total = data.get("total", 0)
         channels = data.get("channels", channels)
@@ -1062,7 +1134,12 @@ def export_ready_reckoner(
         "Bank Offer", "Brand Offer", "Tags",
     ]
 
-    headers = base_headers + price_headers + extra_headers
+    # Grouped sheets carry the group's membership so a single edited price can
+    # be fanned back out on upload. Item Code stays the representative variant
+    # so the file is still readable, and the count is informational only.
+    group_headers = [_GROUP_COUNT_HEADER, _GROUP_MEMBERS_HEADER] if group_mode else []
+
+    headers = base_headers + group_headers + price_headers + extra_headers
 
     xlsx_rows = [headers]
     for r in rows_data:
@@ -1070,6 +1147,9 @@ def export_ready_reckoner(
             r.get("item_code"), r.get("item_name"), r.get("item_group"),
             r.get("brand"), r.get("ch_category"), r.get("ch_sub_category"), r.get("ch_model"),
         ]
+        if group_mode:
+            members = r.get("variant_item_codes") or [r.get("item_code")]
+            row += [len(members), _GROUP_MEMBER_SEPARATOR.join(str(m) for m in members)]
         for ch in channels:
             if ch in buying_channels:
                 bpm = buyback_export_index.get(r.get("item_code"), {})
@@ -1105,28 +1185,25 @@ def export_ready_reckoner(
 # Buyback / Selling batch creation from Ready Reckoner dialogs
 # ─────────────────────────────────────────────────────────────────────────────
 
+# Grade prices vary by warranty band; salvage prices do not — a scrap or dead
+# handset is worth the same whatever its age, so scrap_price / phone_dead_price
+# are single fields listed once at the end.
 BUYBACK_GRADE_FIELDS = [
     "a_grade_iw_0_3", "b_grade_iw_0_3", "c_grade_iw_0_3",
-    "scrap_iw_0_3", "phone_dead_iw_0_3",
     "a_grade_iw_0_6", "b_grade_iw_0_6", "c_grade_iw_0_6", "d_grade_iw_0_6",
-    "scrap_iw_0_6", "phone_dead_iw_0_6",
     "a_grade_iw_6_11", "b_grade_iw_6_11", "c_grade_iw_6_11", "d_grade_iw_6_11",
-    "scrap_iw_6_11", "phone_dead_iw_6_11",
     "a_grade_oow_11", "b_grade_oow_11", "c_grade_oow_11", "d_grade_oow_11",
-    "scrap_oow_11", "phone_dead_oow_11",
+    "scrap_price", "phone_dead_price",
 ]
 
 _BUYBACK_FIELD_LABELS = {
     "current_market_price": "Market Price",
     "vendor_price": "Vendor Price",
     "a_grade_iw_0_3": "A IW 0-3", "b_grade_iw_0_3": "B IW 0-3", "c_grade_iw_0_3": "C IW 0-3",
-    "scrap_iw_0_3": "Scrap IW 0-3", "phone_dead_iw_0_3": "Phone Dead IW 0-3",
     "a_grade_iw_0_6": "A IW 4-6", "b_grade_iw_0_6": "B IW 4-6", "c_grade_iw_0_6": "C IW 4-6", "d_grade_iw_0_6": "D IW 4-6",
-    "scrap_iw_0_6": "Scrap IW 4-6", "phone_dead_iw_0_6": "Phone Dead IW 4-6",
     "a_grade_iw_6_11": "A IW 6-11", "b_grade_iw_6_11": "B IW 6-11", "c_grade_iw_6_11": "C IW 6-11", "d_grade_iw_6_11": "D IW 6-11",
-    "scrap_iw_6_11": "Scrap IW 6-11", "phone_dead_iw_6_11": "Phone Dead IW 6-11",
     "a_grade_oow_11": "A OOW 11+", "b_grade_oow_11": "B OOW 11+", "c_grade_oow_11": "C OOW 11+", "d_grade_oow_11": "D OOW 11+",
-    "scrap_oow_11": "Scrap OOW 11+", "phone_dead_oow_11": "Phone Dead OOW 11+",
+    "scrap_price": "Scrap Price", "phone_dead_price": "Phone Dead",
 }
 
 
@@ -1647,6 +1724,13 @@ def upload_ready_reckoner_prices(file_url, effective_from=None, company=None, re
     if _TAG_HEADER in headers:
         tags_idx = headers.index(_TAG_HEADER)
 
+    # Grouped export round-trip: one sheet row stands for a whole price group,
+    # so every edited value must be applied to each member variant. Absent this
+    # column the sheet is per-variant and each row targets its own item only.
+    group_members_idx = (
+        headers.index(_GROUP_MEMBERS_HEADER) if _GROUP_MEMBERS_HEADER in headers else None
+    )
+
     # ── Parse header columns to determine channel → field mappings ────────
     related_row_limit = get_int_setting("ready_reckoner_related_row_limit", 10000, minimum=1)
     buying_channel_set = set(get_bounded_rows(
@@ -1691,12 +1775,26 @@ def upload_ready_reckoner_prices(file_url, effective_from=None, company=None, re
             frappe.ValidationError,
         )
 
+    def _row_targets(row):
+        """Item codes a sheet row writes to: the group's members, else itself."""
+        if not row or len(row) <= item_code_idx:
+            return []
+        own = str(row[item_code_idx] or "").strip()
+        if group_members_idx is not None and len(row) > group_members_idx:
+            blob = str(row[group_members_idx] or "").strip()
+            if blob:
+                members = [m.strip() for m in blob.split(",") if m and m.strip()]
+                if members:
+                    # Keep the representative even if it was edited out of the
+                    # membership list, so its own price is never silently skipped.
+                    if own and own not in members:
+                        members.append(own)
+                    return list(dict.fromkeys(members))
+        return [own] if own else []
+
     item_codes_in_file = set()
     for row in all_rows:
-        if row and len(row) > item_code_idx:
-            ic = str(row[item_code_idx] or "").strip()
-            if ic:
-                item_codes_in_file.add(ic)
+        item_codes_in_file.update(_row_targets(row))
 
     if not item_codes_in_file:
         frappe.throw(_("No item codes found in the file."), title=_("API Error"))
@@ -1769,100 +1867,101 @@ def upload_ready_reckoner_prices(file_url, effective_from=None, company=None, re
     total_rows = 0
 
     for row_num, row in enumerate(all_rows, start=2):
-        if not row or len(row) <= item_code_idx:
-            continue
-
-        item_code = str(row[item_code_idx] or "").strip()
-        if not item_code:
+        targets = _row_targets(row)
+        if not targets:
             continue
         total_rows += 1
 
-        # ── Selling & Buyback price columns ───────────────────────────────
-        for col_idx, mapping in col_map.items():
-            if col_idx >= len(row):
-                continue
-            raw_val = row[col_idx]
-            if raw_val is None or str(raw_val).strip() == "" or str(raw_val).strip() == "—":
-                continue
+        # A grouped row fans out to every member variant: the group carries one
+        # price, so each member is compared against it individually and any that
+        # differ land in the draft batch for the approver to see.
+        for item_code in targets:
+            # ── Selling & Buyback price columns ───────────────────────────────
+            for col_idx, mapping in col_map.items():
+                if col_idx >= len(row):
+                    continue
+                raw_val = row[col_idx]
+                if raw_val is None or str(raw_val).strip() == "" or str(raw_val).strip() == "—":
+                    continue
 
-            try:
-                new_val = float(str(raw_val).replace(",", "").strip())
-            except (ValueError, TypeError):
-                parse_errors.append(
-                    f"Row {row_num}, col '{headers[col_idx]}': invalid number '{raw_val}'"
-                )
-                continue
+                try:
+                    new_val = float(str(raw_val).replace(",", "").strip())
+                except (ValueError, TypeError):
+                    parse_errors.append(
+                        f"Row {row_num}, col '{headers[col_idx]}': invalid number '{raw_val}'"
+                    )
+                    continue
 
-            ch = mapping["channel"]
-            field = mapping["field"]
-            label = mapping["label"]
+                ch = mapping["channel"]
+                field = mapping["field"]
+                label = mapping["label"]
 
-            if mapping["type"] == "selling":
-                existing = selling_price_index.get((item_code, ch))
-                old_val = float(existing.get(field) or 0) if existing else 0.0
-                if old_val != new_val:
+                if mapping["type"] == "selling":
+                    existing = selling_price_index.get((item_code, ch))
+                    old_val = float(existing.get(field) or 0) if existing else 0.0
+                    if old_val != new_val:
+                        batch_items.append({
+                            "item_code": item_code,
+                            "channel": ch,
+                            "change_type": "Selling Price",
+                            "field_label": label,
+                            "old_value": str(old_val),
+                            "new_value": str(new_val),
+                            "reason": reason or "",
+                        })
+                else:
+                    existing = buyback_price_index.get(item_code)
+                    old_val = float(existing.get(field) or 0) if existing else 0.0
+                    if old_val != new_val:
+                        batch_items.append({
+                            "item_code": item_code,
+                            "channel": field,  # store DB field name for buyback apply
+                            "change_type": "Buyback Price",
+                            "field_label": label,
+                            "old_value": str(old_val),
+                            "new_value": str(new_val),
+                            "reason": reason or "",
+                        })
+
+            # ── Tags column ───────────────────────────────────────────────────
+            if tags_idx is not None and len(row) > tags_idx:
+                raw_tags = str(row[tags_idx] or "").strip()
+                new_tags = set()
+                if raw_tags:
+                    for t in raw_tags.split(","):
+                        t = t.strip().upper()
+                        if t in _VALID_TAGS:
+                            new_tags.add(t)
+                        elif t:
+                            parse_errors.append(
+                                f"Row {row_num}: Unknown tag '{t}' — valid: {', '.join(sorted(_VALID_TAGS))}"
+                            )
+
+                old_tags = tag_index.get(item_code, set())
+
+                # Tags to add
+                for tag in sorted(new_tags - old_tags):
                     batch_items.append({
                         "item_code": item_code,
-                        "channel": ch,
-                        "change_type": "Selling Price",
-                        "field_label": label,
-                        "old_value": str(old_val),
-                        "new_value": str(new_val),
+                        "channel": "",
+                        "change_type": "Tag",
+                        "field_label": "Add Tag",
+                        "old_value": "",
+                        "new_value": tag,
                         "reason": reason or "",
                     })
-            else:
-                existing = buyback_price_index.get(item_code)
-                old_val = float(existing.get(field) or 0) if existing else 0.0
-                if old_val != new_val:
+
+                # Tags to remove
+                for tag in sorted(old_tags - new_tags):
                     batch_items.append({
                         "item_code": item_code,
-                        "channel": field,  # store DB field name for buyback apply
-                        "change_type": "Buyback Price",
-                        "field_label": label,
-                        "old_value": str(old_val),
-                        "new_value": str(new_val),
+                        "channel": "",
+                        "change_type": "Tag",
+                        "field_label": "Remove Tag",
+                        "old_value": tag,
+                        "new_value": "",
                         "reason": reason or "",
                     })
-
-        # ── Tags column ───────────────────────────────────────────────────
-        if tags_idx is not None and len(row) > tags_idx:
-            raw_tags = str(row[tags_idx] or "").strip()
-            new_tags = set()
-            if raw_tags:
-                for t in raw_tags.split(","):
-                    t = t.strip().upper()
-                    if t in _VALID_TAGS:
-                        new_tags.add(t)
-                    elif t:
-                        parse_errors.append(
-                            f"Row {row_num}: Unknown tag '{t}' — valid: {', '.join(sorted(_VALID_TAGS))}"
-                        )
-
-            old_tags = tag_index.get(item_code, set())
-
-            # Tags to add
-            for tag in sorted(new_tags - old_tags):
-                batch_items.append({
-                    "item_code": item_code,
-                    "channel": "",
-                    "change_type": "Tag",
-                    "field_label": "Add Tag",
-                    "old_value": "",
-                    "new_value": tag,
-                    "reason": reason or "",
-                })
-
-            # Tags to remove
-            for tag in sorted(old_tags - new_tags):
-                batch_items.append({
-                    "item_code": item_code,
-                    "channel": "",
-                    "change_type": "Tag",
-                    "field_label": "Remove Tag",
-                    "old_value": tag,
-                    "new_value": "",
-                    "reason": reason or "",
-                })
 
     if not batch_items:
         msg = _("No changes detected — all values match the current database.")
