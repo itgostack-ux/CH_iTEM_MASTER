@@ -471,18 +471,12 @@ def get_ready_reckoner_data(
     # ── 5b. Fetch Buyback Price Master data for buying channels ───────────
     buyback_index: dict = {}
     if buying_channels and item_codes:
+        # Derived from BUYBACK_GRADE_FIELDS so the column set can never drift
+        # from the doctype the way the old hand-listed copies did.
         _bpm_fields = [
             "item_code", "name as buyback_name",
             "current_market_price", "vendor_price",
-            "a_grade_iw_0_3", "b_grade_iw_0_3", "c_grade_iw_0_3",
-            "scrap_iw_0_3", "phone_dead_iw_0_3",
-            "a_grade_iw_0_6", "b_grade_iw_0_6", "c_grade_iw_0_6", "d_grade_iw_0_6",
-            "scrap_iw_0_6", "phone_dead_iw_0_6",
-            "a_grade_iw_6_11", "b_grade_iw_6_11", "c_grade_iw_6_11", "d_grade_iw_6_11",
-            "scrap_iw_6_11", "phone_dead_iw_6_11",
-            "a_grade_oow_11", "b_grade_oow_11", "c_grade_oow_11", "d_grade_oow_11",
-            "scrap_oow_11", "phone_dead_oow_11",
-        ]
+        ] + list(BUYBACK_GRADE_FIELDS)
         bpm_records = get_bounded_rows(
             "Buyback Price Master",
             filters={"item_code": ("in", item_codes), "is_active": 1},
@@ -735,15 +729,7 @@ def get_item_price_detail(item_code, company=None) -> dict:
         filters={"item_code": item_code, "is_active": 1},
         fields=[
             "name", "item_code", "current_market_price", "vendor_price",
-            "a_grade_iw_0_3", "b_grade_iw_0_3", "c_grade_iw_0_3",
-            "scrap_iw_0_3", "phone_dead_iw_0_3",
-            "a_grade_iw_0_6", "b_grade_iw_0_6", "c_grade_iw_0_6", "d_grade_iw_0_6",
-            "scrap_iw_0_6", "phone_dead_iw_0_6",
-            "a_grade_iw_6_11", "b_grade_iw_6_11", "c_grade_iw_6_11", "d_grade_iw_6_11",
-            "scrap_iw_6_11", "phone_dead_iw_6_11",
-            "a_grade_oow_11", "b_grade_oow_11", "c_grade_oow_11", "d_grade_oow_11",
-            "scrap_oow_11", "phone_dead_oow_11",
-        ],
+        ] + list(BUYBACK_GRADE_FIELDS),
         limit=1,
     )
     if bpm_list:
@@ -1648,29 +1634,24 @@ _SELLING_HEADER_MAP = {
 _BUYBACK_HEADER_MAP = {
     "Market Price": "current_market_price",
     "Vendor Price": "vendor_price",
+    # Salvage — one column each, no warranty band.
+    "Scrap Price": "scrap_price",
+    "Phone Dead": "phone_dead_price",
     "A IW 0-3": "a_grade_iw_0_3",
     "B IW 0-3": "b_grade_iw_0_3",
     "C IW 0-3": "c_grade_iw_0_3",
-    "Scrap IW 0-3": "scrap_iw_0_3",                  
-    "Phone Dead IW 0-3": "phone_dead_iw_0_3",        
     "A IW 4-6": "a_grade_iw_0_6",
     "B IW 4-6": "b_grade_iw_0_6",
     "C IW 4-6": "c_grade_iw_0_6",
     "D IW 4-6": "d_grade_iw_0_6",
-    "Scrap IW 4-6": "scrap_iw_0_6",                  
-    "Phone Dead IW 4-6": "phone_dead_iw_0_6",        
     "A IW 6-11": "a_grade_iw_6_11",
     "B IW 6-11": "b_grade_iw_6_11",
     "C IW 6-11": "c_grade_iw_6_11",
     "D IW 6-11": "d_grade_iw_6_11",
-    "Scrap IW 6-11": "scrap_iw_6_11",                
-    "Phone Dead IW 6-11": "phone_dead_iw_6_11",      
     "A OOW 11+": "a_grade_oow_11",
     "B OOW 11+": "b_grade_oow_11",
     "C OOW 11+": "c_grade_oow_11",
     "D OOW 11+": "d_grade_oow_11",
-    "Scrap OOW 11+": "scrap_oow_11",                 
-    "Phone Dead OOW 11+": "phone_dead_oow_11",       
 }
 
 
@@ -1866,9 +1847,75 @@ def upload_ready_reckoner_prices(file_url, effective_from=None, company=None, re
     parse_errors = []
     total_rows = 0
 
+    def _current_price_value(item_code, mapping):
+        """Current value used to decide whether a sheet cell was edited."""
+        if mapping["type"] == "selling":
+            existing = selling_price_index.get((item_code, mapping["channel"]))
+        else:
+            existing = buyback_price_index.get(item_code)
+        return float(existing.get(mapping["field"]) or 0) if existing else 0.0
+
+    def _exported_group_price_value(targets, mapping):
+        """Reproduce the grouped export's first-priced-member fallback."""
+        for item_code in targets:
+            if mapping["type"] == "selling":
+                existing = selling_price_index.get((item_code, mapping["channel"]))
+            else:
+                existing = buyback_price_index.get(item_code)
+            if existing:
+                return float(existing.get(mapping["field"]) or 0)
+        return 0.0
+
     for row_num, row in enumerate(all_rows, start=2):
         targets = _row_targets(row)
         if not targets:
+            continue
+
+        # Detect edits against the representative Item Code first. A grouped
+        # export contains current snapshot values for every row; comparing those
+        # values directly with every member variant falsely turns pre-existing
+        # within-group differences into hundreds of changes. Only cells changed
+        # on the representative row are eligible to fan out to group members.
+        representative = str(row[item_code_idx] or "").strip()
+        price_edits = []
+        for col_idx, mapping in col_map.items():
+            if col_idx >= len(row):
+                continue
+            raw_val = row[col_idx]
+            if raw_val is None or str(raw_val).strip() in ("", "—"):
+                continue
+            try:
+                new_val = float(str(raw_val).replace(",", "").strip())
+            except (ValueError, TypeError):
+                parse_errors.append(
+                    f"Row {row_num}, col '{headers[col_idx]}': invalid number '{raw_val}'"
+                )
+                continue
+            if _exported_group_price_value(targets, mapping) != new_val:
+                price_edits.append((mapping, new_val))
+
+        # Blank Tags means no tag instruction. This is consistent with blank
+        # price cells and prevents an untouched exported row from removing all
+        # existing tags. Explicit non-blank tag lists still add/remove by diff.
+        tags_supplied = False
+        new_tags = set()
+        if tags_idx is not None and len(row) > tags_idx:
+            raw_tags = str(row[tags_idx] or "").strip()
+            tags_supplied = bool(raw_tags and raw_tags != "—")
+            if tags_supplied:
+                for tag_value in raw_tags.split(","):
+                    tag_value = tag_value.strip().upper()
+                    if tag_value in _VALID_TAGS:
+                        new_tags.add(tag_value)
+                    elif tag_value:
+                        parse_errors.append(
+                            f"Row {row_num}: Unknown tag '{tag_value}' — valid: {', '.join(sorted(_VALID_TAGS))}"
+                        )
+
+        representative_tag_change = (
+            tags_supplied and new_tags != tag_index.get(representative, set())
+        )
+        if not price_edits and not representative_tag_change:
             continue
         total_rows += 1
 
@@ -1877,66 +1924,37 @@ def upload_ready_reckoner_prices(file_url, effective_from=None, company=None, re
         # differ land in the draft batch for the approver to see.
         for item_code in targets:
             # ── Selling & Buyback price columns ───────────────────────────────
-            for col_idx, mapping in col_map.items():
-                if col_idx >= len(row):
-                    continue
-                raw_val = row[col_idx]
-                if raw_val is None or str(raw_val).strip() == "" or str(raw_val).strip() == "—":
-                    continue
-
-                try:
-                    new_val = float(str(raw_val).replace(",", "").strip())
-                except (ValueError, TypeError):
-                    parse_errors.append(
-                        f"Row {row_num}, col '{headers[col_idx]}': invalid number '{raw_val}'"
-                    )
-                    continue
-
+            for mapping, new_val in price_edits:
                 ch = mapping["channel"]
                 field = mapping["field"]
                 label = mapping["label"]
 
+                old_val = _current_price_value(item_code, mapping)
+                if old_val == new_val:
+                    continue
                 if mapping["type"] == "selling":
-                    existing = selling_price_index.get((item_code, ch))
-                    old_val = float(existing.get(field) or 0) if existing else 0.0
-                    if old_val != new_val:
-                        batch_items.append({
-                            "item_code": item_code,
-                            "channel": ch,
-                            "change_type": "Selling Price",
-                            "field_label": label,
-                            "old_value": str(old_val),
-                            "new_value": str(new_val),
-                            "reason": reason or "",
-                        })
+                    batch_items.append({
+                        "item_code": item_code,
+                        "channel": ch,
+                        "change_type": "Selling Price",
+                        "field_label": label,
+                        "old_value": str(old_val),
+                        "new_value": str(new_val),
+                        "reason": reason or "",
+                    })
                 else:
-                    existing = buyback_price_index.get(item_code)
-                    old_val = float(existing.get(field) or 0) if existing else 0.0
-                    if old_val != new_val:
-                        batch_items.append({
-                            "item_code": item_code,
-                            "channel": field,  # store DB field name for buyback apply
-                            "change_type": "Buyback Price",
-                            "field_label": label,
-                            "old_value": str(old_val),
-                            "new_value": str(new_val),
-                            "reason": reason or "",
-                        })
+                    batch_items.append({
+                        "item_code": item_code,
+                        "channel": field,  # store DB field name for buyback apply
+                        "change_type": "Buyback Price",
+                        "field_label": label,
+                        "old_value": str(old_val),
+                        "new_value": str(new_val),
+                        "reason": reason or "",
+                    })
 
             # ── Tags column ───────────────────────────────────────────────────
-            if tags_idx is not None and len(row) > tags_idx:
-                raw_tags = str(row[tags_idx] or "").strip()
-                new_tags = set()
-                if raw_tags:
-                    for t in raw_tags.split(","):
-                        t = t.strip().upper()
-                        if t in _VALID_TAGS:
-                            new_tags.add(t)
-                        elif t:
-                            parse_errors.append(
-                                f"Row {row_num}: Unknown tag '{t}' — valid: {', '.join(sorted(_VALID_TAGS))}"
-                            )
-
+            if tags_supplied:
                 old_tags = tag_index.get(item_code, set())
 
                 # Tags to add
@@ -1972,7 +1990,7 @@ def upload_ready_reckoner_prices(file_url, effective_from=None, company=None, re
 
     # ── Create the batch document ─────────────────────────────────────────
     batch = frappe.new_doc("CH Price Upload Batch")
-    batch.title = f"Price Upload — {total_rows} items, {len(batch_items)} changes"
+    batch.title = f"Price Upload — {total_rows} edited rows, {len(batch_items)} changes"
     batch.upload_file = file_url
     batch.uploaded_by = frappe.session.user
     batch.upload_date = nowdate()
