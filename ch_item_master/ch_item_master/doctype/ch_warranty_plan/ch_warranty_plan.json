@@ -13,7 +13,7 @@
  "title_field": "plan_name",
  "search_fields": "plan_name,plan_type,service_item,brand",
  "field_order": [
-  "naming_series", "warranty_plan_id", "company", "plan_name", "plan_type", "coverage_scope", "purchase_window_hours", "column_break_basic", "service_item", "status", "brand", "section_validity", "valid_from", "valid_to", "section_coverage", "duration_months", "starts_after_base_warranty", "coverage_description", "column_break_coverage", "max_claims", "claims_per_year", "deductible_amount", "is_inhouse", "section_pricing", "price", "pricing_mode", "percentage_value", "column_break_pricing", "cost_to_company", "deferred_revenue_account", "revenue_account", "warranty_expense_account", "section_applicability", "applicable_item_groups", "applicable_categories", "column_break_applicability", "attach_level", "applicable_channels", "sellable_section", "is_sellable", "partner", "auto_attach", "column_break_sellable", "min_device_price", "max_device_price", "external_device_section", "allow_external_device", "section_vas_benefits", "fulfillment_type", "benefit_rules", "section_notes", "terms_and_conditions", "internal_notes", "section_claim_behaviour", "coverage_type_override", "priority", "column_break_claim_behaviour", "requires_approval", "company_share_percent", "post_repair_warranty_months", "section_fee_rules", "fee_rules", "section_coverage_rules", "coverage_rules"
+  "naming_series", "warranty_plan_id", "company", "plan_name", "plan_type", "coverage_scope", "purchase_window_hours", "column_break_basic", "service_item", "status", "brand", "section_validity", "valid_from", "valid_to", "section_coverage", "duration_months", "starts_after_base_warranty", "coverage_description", "column_break_coverage", "max_claims", "claims_per_year", "deductible_amount", "is_inhouse", "section_pricing", "price", "pricing_mode", "percentage_value", "column_break_pricing", "cost_to_company", "deferred_revenue_account", "revenue_account", "warranty_expense_account", "section_applicability", "applicable_item_groups", "applicable_categories", "applicable_sub_categories", "column_break_applicability", "attach_level", "applicable_channels", "sellable_section", "is_sellable", "partner", "auto_attach", "column_break_sellable", "min_device_price", "max_device_price", "external_device_section", "coverage_availability", "allow_external_device", "external_device_price", "allow_zero_external_price", "section_vas_benefits", "fulfillment_type", "benefit_rules", "section_notes", "terms_and_conditions", "internal_notes", "section_claim_behaviour", "coverage_type_override", "priority", "column_break_claim_behaviour", "requires_approval", "company_share_percent", "post_repair_warranty_months", "section_fee_rules", "fee_rules", "section_coverage_rules", "coverage_rules"
  ],
  "sort_field": "modified",
  "sort_order": "DESC",
@@ -268,6 +268,13 @@
    "description": "CH Categories this plan applies to (e.g. Mobiles, Laptops). Leave blank = all categories."
   },
   {
+   "fieldname": "applicable_sub_categories",
+   "fieldtype": "Table MultiSelect",
+   "label": "Applicable Sub Categories",
+   "options": "CH Warranty Plan Sub Category",
+   "description": "Device sub-categories covered by this plan. Leave blank = all sub-categories. External IMEI sales require a device model when this is configured."
+  },
+  {
    "fieldname": "column_break_applicability",
    "fieldtype": "Column Break"
   },
@@ -338,19 +345,47 @@
    "description": "Controls whether POS can sell this plan against a customer-provided IMEI that is not attached to GoGizmo stock or a device sold on the same bill."
   },
   {
+   "fieldname": "coverage_availability",
+   "fieldtype": "Select",
+   "label": "Coverage Availability",
+   "options": "In-Store Only\nExternal Only\nBoth",
+   "default": "In-Store Only",
+   "reqd": 1,
+   "description": "Choose whether the plan covers devices sold/in inventory, customer-provided devices, or both."
+  },
+  {
    "fieldname": "allow_external_device",
    "fieldtype": "Check",
    "label": "Allow Customer-Provided IMEI",
    "default": "0",
-   "description": "If enabled, POS may sell this VAS/protection plan for an IMEI not found in our Serial No / customer device records. A generic device item (plan-specific or company-level default) will be used."
+   "hidden": 1,
+   "read_only": 1,
+   "description": "Compatibility flag derived from Coverage Availability."
+  },
+  {
+   "fieldname": "external_device_price",
+   "fieldtype": "Currency",
+   "label": "External Device Price",
+   "depends_on": "eval:doc.coverage_availability === 'External Only' || doc.coverage_availability === 'Both'",
+   "mandatory_depends_on": "eval:doc.coverage_availability === 'External Only' || doc.coverage_availability === 'Both'",
+   "description": "Fixed price charged for customer-provided devices. Percentage-of-device-price is not permitted because the external purchase value is not authoritative."
+  },
+  {
+   "fieldname": "allow_zero_external_price",
+   "fieldtype": "Check",
+   "label": "Allow ₹0 External Sale",
+   "default": "0",
+   "depends_on": "eval:(doc.coverage_availability === 'External Only' || doc.coverage_availability === 'Both') && doc.external_device_price == 0",
+   "description": "Explicitly authorizes free external-device activation. Prevents a missing price from silently becoming a ₹0 sale."
   },
   {
    "fieldname": "external_device_item",
    "fieldtype": "Link",
    "label": "Generic Device Item (Optional)",
    "options": "Item",
+   "hidden": 1,
    "depends_on": "eval:doc.allow_external_device",
-   "description": "Optional non-stock generic item for this plan's external devices. If not set, a company-level default generic item will be used at POS time. Only set this if you need a plan-specific generic device item; leave blank to use the global default."
+   "description": "Legacy override. External device sales use the company-level EXTERNAL-DEVICE placeholder."
   },
   {
    "fieldname": "section_vas_benefits",

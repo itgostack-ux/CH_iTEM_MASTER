@@ -309,7 +309,7 @@ def get_applicable_plans(item_code=None, item_group=None, channel=None,
 # ── VAS Category Validation ─────────────────────────────────────────────────
 
 @frappe.whitelist()
-def validate_vas_category(serial_no, warranty_plan) -> dict:
+def validate_vas_category(serial_no, warranty_plan, external_item_code=None) -> dict:
 	"""Validate that a VAS plan's category restriction matches the device's category.
 
 	Used by POS when manual IMEI is entered to ensure laptop plans aren't sold for phones, etc.
@@ -320,35 +320,85 @@ def validate_vas_category(serial_no, warranty_plan) -> dict:
 	if not serial_no or not warranty_plan:
 		return {"valid": False, "message": _("Serial number and warranty plan are required")}
 
-	# Look up item from Serial No
+	plan = frappe.db.get_value(
+		"CH Warranty Plan",
+		warranty_plan,
+		["status", "is_sellable", "allow_external_device"],
+		as_dict=True,
+	)
+	if not plan or plan.status != "Active" or not plan.is_sellable:
+		return {"valid": False, "message": _("The selected VAS plan is not active and sellable")}
+
+	plan_sub_categories = frappe.get_all(
+		"CH Warranty Plan Sub Category",
+		filters={"parent": warranty_plan},
+		pluck="sub_category",
+	)
+
+	# Look up item from Serial No. For a customer-provided IMEI that is not in
+	# inventory, the declared model supplies the category/sub-category identity.
 	item_code = frappe.db.get_value("Serial No", serial_no, "item_code")
 	if not item_code:
-		# Serial not found — check if plan allows external device
-		plan = frappe.db.get_value(
-			"CH Warranty Plan",
-			warranty_plan,
-			["allow_external_device"],
-			as_dict=True,
-		)
-		if plan and plan.allow_external_device:
+		if not plan.allow_external_device:
+			return {
+				"valid": False,
+				"item_code": None,
+				"category": None,
+				"external_device": False,
+				"message": _("This plan cannot be sold for an IMEI not found in GoGizmo inventory."),
+			}
+
+		external_item_code = (external_item_code or "").strip()
+		if plan_sub_categories and not external_item_code:
+			return {
+				"valid": False,
+				"external_device": True,
+				"requires_external_item": True,
+				"message": _("Select the customer's device model. This plan is restricted by sub-category."),
+			}
+		if external_item_code:
+			declared_item = frappe.db.get_value(
+				"Item", external_item_code,
+				["name", "disabled", "ch_category", "ch_sub_category"],
+				as_dict=True,
+			)
+			if not declared_item or declared_item.disabled:
+				return {"valid": False, "message": _("Select an active device model")}
+			if plan_sub_categories and declared_item.ch_sub_category not in plan_sub_categories:
+				return {
+					"valid": False,
+					"item_code": declared_item.name,
+					"sub_category": declared_item.ch_sub_category,
+					"message": _("This plan is for {0}, but the selected model belongs to {1}").format(
+						", ".join(plan_sub_categories), declared_item.ch_sub_category or _("no sub-category")
+					),
+				}
 			return {
 				"valid": True,
 				"item_code": None,
-				"category": None,
+				"external_item_code": declared_item.name,
+				"category": declared_item.ch_category,
+				"sub_category": declared_item.ch_sub_category,
 				"external_device": True,
 				"message": _("Serial not found in system. This plan permits customer-provided IMEI."),
 			}
-		
 		return {
-			"valid": False,
+			"valid": True,
 			"item_code": None,
 			"category": None,
-			"external_device": False,
-			"message": _("This plan cannot be sold for an IMEI not found in GoGizmo inventory."),
+			"sub_category": None,
+			"external_device": True,
+			"message": _("Customer-provided IMEI accepted; this plan has no sub-category restriction."),
 		}
 
 	# Get category of the item
 	category = frappe.db.get_value("Item", item_code, "ch_category")
+	sub_category = frappe.db.get_value("Item", item_code, "ch_sub_category")
+	if plan_sub_categories and sub_category not in plan_sub_categories:
+		return {"valid": False, "item_code": item_code, "category": category,
+		        "sub_category": sub_category,
+		        "message": _("This plan is for {0} only, but the device is {1}").format(
+		            ", ".join(plan_sub_categories), sub_category or _("not classified"))}
 
 	# Get plan's applicable categories
 	plan_categories = frappe.get_all(

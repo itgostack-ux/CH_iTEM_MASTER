@@ -20,7 +20,7 @@ class CHCustomerDevice(Document):
 
 	def set_item_details(self):
 		"""Auto-populate item details from serial / item."""
-		if self.serial_no:
+		if self.serial_no and frappe.db.exists("Serial No", self.serial_no):
 			serial_doc = frappe.get_cached_doc("Serial No", self.serial_no)
 			if not self.item_code:
 				self.item_code = serial_doc.item_code

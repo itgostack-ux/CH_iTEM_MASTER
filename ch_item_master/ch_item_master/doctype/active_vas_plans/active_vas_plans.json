@@ -13,7 +13,7 @@
  "track_changes": 1,
  "title_field": "plan_title",
  "field_order": [
-  "naming_series", "sold_plan_id", "company", "warranty_plan", "plan_title", "plan_type", "column_break_basic", "customer", "customer_name", "customer_phone", "membership_id", "status", "section_device", "item_code", "item_name", "column_break_device", "serial_no", "is_external_device", "external_device_source", "brand", "section_coverage", "start_date", "end_date", "duration_months", "column_break_coverage", "max_claims", "claims_used", "deductible_amount", "section_transaction", "sales_invoice", "sales_order", "column_break_transaction", "sold_by", "plan_price", "custom_deferred_revenue_je", "revenue_recognized_amount", "revenue_last_recognized_on", "section_snapshot", "fulfillment_type", "plan_snapshot_json", "benefit_snapshot_json", "section_value_cap", "device_purchase_price", "max_coverage_value", "column_break_value_cap", "total_claimed_value", "claims_per_year", "section_notes", "remarks", "amended_from"
+  "naming_series", "sold_plan_id", "company", "warranty_plan", "plan_title", "plan_type", "column_break_basic", "customer", "customer_name", "customer_phone", "membership_id", "status", "section_device", "item_code", "item_name", "column_break_device", "serial_no", "is_external_device", "external_device_source", "external_device_model_item", "external_device_sub_category", "brand", "section_coverage", "start_date", "end_date", "duration_months", "column_break_coverage", "max_claims", "claims_used", "deductible_amount", "section_transaction", "sales_invoice", "sales_order", "column_break_transaction", "sold_by", "plan_price", "custom_deferred_revenue_je", "revenue_recognized_amount", "revenue_last_recognized_on", "section_snapshot", "fulfillment_type", "plan_snapshot_json", "benefit_snapshot_json", "section_value_cap", "device_purchase_price", "max_coverage_value", "column_break_value_cap", "total_claimed_value", "claims_per_year", "section_notes", "remarks", "amended_from"
  ],
  "search_fields": "customer,serial_no,warranty_plan,item_code",
  "sort_field": "modified",
@@ -187,6 +187,23 @@
    "read_only": 1,
    "depends_on": "eval:doc.is_external_device",
    "description": "How the external IMEI was captured, e.g. POS Customer-Provided IMEI."
+  },
+  {
+   "fieldname": "external_device_model_item",
+   "fieldtype": "Link",
+   "label": "External Device Model",
+   "options": "Item",
+   "read_only": 1,
+   "depends_on": "eval:doc.is_external_device",
+   "description": "Actual model declared for a customer-provided IMEI. Blank is allowed only when the plan has no sub-category restriction."
+  },
+  {
+   "fieldname": "external_device_sub_category",
+   "fieldtype": "Link",
+   "label": "External Device Sub Category",
+   "options": "CH Sub Category",
+   "read_only": 1,
+   "depends_on": "eval:doc.is_external_device"
   },
   {
    "fieldname": "brand",

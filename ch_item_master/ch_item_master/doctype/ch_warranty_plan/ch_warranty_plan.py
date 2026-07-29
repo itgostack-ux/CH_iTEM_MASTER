@@ -20,17 +20,24 @@ class CHWarrantyPlan(Document):
 	def validate(self):
 		if self.plan_name:
 			self.plan_name = " ".join(self.plan_name.split())
+		self._validate_external_device_settings()
 		self._validate_pricing()
 		self._validate_service_item()
 		self._validate_duration()
 		self._validate_deductible()
 		self._validate_validity_dates()
-		self._validate_external_device_settings()
 		self._validate_benefit_rules()
 		self._validate_unique_plan_per_company()
 
 	def _validate_pricing(self):
 		"""Ensure pricing fields are consistent."""
+		if self.coverage_availability == "External Only":
+			if self.pricing_mode == "Percentage of Device Price":
+				frappe.throw(
+					_("External-only plans cannot use Percentage of Device Price. Configure the fixed External Device Price."),
+					title=_("Invalid External Pricing"),
+				)
+			return
 		if self.pricing_mode == "Fixed":
 			if (self.price or 0) <= 0:
 				frappe.throw(
@@ -159,6 +166,8 @@ class CHWarrantyPlan(Document):
 		a company-level setting. This allows simple configuration without
 		complex category mappings.
 		"""
+		availability = self.coverage_availability or "In-Store Only"
+		self.allow_external_device = 1 if availability in ("External Only", "Both") else 0
 		if not self.allow_external_device:
 			return
 
@@ -166,6 +175,13 @@ class CHWarrantyPlan(Document):
 			frappe.throw(
 				_("Customer-provided IMEI is only supported for VAS / Protection plans."),
 				title=_("Invalid External Device Setup"),
+			)
+		if (self.external_device_price or 0) < 0:
+			frappe.throw(_("External Device Price cannot be negative."))
+		if not self.external_device_price and not self.allow_zero_external_price:
+			frappe.throw(
+				_("Set an External Device Price greater than zero, or explicitly enable Allow ₹0 External Sale."),
+				title=_("External Price Required"),
 			)
 
 		# If a plan-specific generic device item is configured, validate it

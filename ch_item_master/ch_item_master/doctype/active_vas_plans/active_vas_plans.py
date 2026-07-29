@@ -67,6 +67,8 @@ class ActiveVASPlans(Document):
 			"serial_no",
 			"is_external_device",
 			"external_device_source",
+			"external_device_model_item",
+			"external_device_sub_category",
 			"start_date",
 			"end_date",
 			"sales_invoice",
@@ -137,6 +139,22 @@ class ActiveVASPlans(Document):
 			# device identity is always in serial_no (IMEI). No strict plan.external_device_item check.
 			if not (self.serial_no or "").strip() or not (self.external_device_source or "").strip():
 				frappe.throw(_("External devices require an IMEI and a capture source."))
+			plan_sub_categories = {
+				row.sub_category for row in (plan.get("applicable_sub_categories") or [])
+				if row.sub_category
+			}
+			if plan_sub_categories and not self.external_device_model_item:
+				frappe.throw(_("Select the external device model for this sub-category-restricted plan."))
+			if self.external_device_model_item:
+				model = frappe.db.get_value(
+					"Item", self.external_device_model_item,
+					["disabled", "ch_sub_category"], as_dict=True,
+				)
+				if not model or model.disabled:
+					frappe.throw(_("The selected external device model is not active."))
+				self.external_device_sub_category = model.ch_sub_category
+				if plan_sub_categories and model.ch_sub_category not in plan_sub_categories:
+					frappe.throw(_("The external device model is outside this plan's applicable sub-categories."))
 		else:
 			self.external_device_source = ""
 			if cint(item.has_serial_no) and not (self.serial_no or "").strip():
@@ -347,7 +365,11 @@ class ActiveVASPlans(Document):
 			"coverage_description": plan.coverage_description,
 			"terms_and_conditions": plan.terms_and_conditions,
 			"allow_external_device": plan.allow_external_device,
+			"coverage_availability": plan.coverage_availability,
+			"external_device_price": plan.external_device_price,
+			"allow_zero_external_price": plan.allow_zero_external_price,
 			"external_device_item": plan.external_device_item,
+			"applicable_sub_categories": _rows("applicable_sub_categories"),
 			"benefit_rules": benefit_rules,
 			"coverage_rules": _rows("coverage_rules"),
 			"fee_rules": _rows("fee_rules"),

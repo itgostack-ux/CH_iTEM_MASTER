@@ -83,16 +83,14 @@ frappe.ui.form.on('CH Warranty Plan', {
 		}
 	},
 
-	allow_external_device(frm) {
-		// When checkbox is toggled, refresh applicable categories visibility and warn if no categories set
-		if (frm.doc.allow_external_device) {
-			let plan_categories = (frm.doc.applicable_categories || []).filter(row => row.category).map(row => row.category);
-			if (!plan_categories.length) {
-				frappe.show_alert({
-					message: __('When allowing customer-provided IMEI, configure one or more applicable categories in the Applicability section. Generic device items are resolved from these categories at POS sale time.'),
-					indicator: 'orange'
-				});
-			}
+	coverage_availability(frm) {
+		const external = ['External Only', 'Both'].includes(frm.doc.coverage_availability);
+		frm.set_value('allow_external_device', external ? 1 : 0);
+		if (external) {
+			frappe.show_alert({
+				message: __('Configure the fixed External Device Price. Leave Applicable Sub Categories blank to accept every external phone, or configure them to require model verification at POS.'),
+				indicator: 'blue'
+			});
 		}
 	},
 });

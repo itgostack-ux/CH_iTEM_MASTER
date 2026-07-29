@@ -1618,6 +1618,12 @@ class CHWarrantyClaim(Document):
 			try:
 				sp = frappe.get_doc("Active VAS Plans", self.sold_plan)
 				if sp.status == "Active" and sp.docstatus == 1:
+					if (sp.serial_no or "").strip() != (self.serial_no or "").strip():
+						frappe.throw(_("The selected VAS plan does not cover this IMEI."))
+					if self.company and sp.company != self.company:
+						frappe.throw(_("The selected VAS plan belongs to another company."))
+					if self.customer and sp.customer != self.customer:
+						frappe.throw(_("The selected VAS plan belongs to another customer."))
 					self.warranty_status = "Under Warranty"
 					self.warranty_plan = sp.warranty_plan
 					self.plan_type = sp.plan_type

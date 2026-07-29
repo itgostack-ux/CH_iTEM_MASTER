@@ -1,0 +1,22 @@
+{
+ "name": "CH Warranty Plan Sub Category",
+ "module": "CH Item Master",
+ "doctype": "DocType",
+ "istable": 1,
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": ["sub_category"],
+ "fields": [
+  {
+   "fieldname": "sub_category",
+   "fieldtype": "Link",
+   "label": "Sub Category",
+   "options": "CH Sub Category",
+   "reqd": 1,
+   "in_list_view": 1
+  }
+ ],
+ "permissions": [],
+ "modified": "2026-07-29 00:00:00.000000",
+ "creation": "2026-07-29 00:00:00.000000"
+}

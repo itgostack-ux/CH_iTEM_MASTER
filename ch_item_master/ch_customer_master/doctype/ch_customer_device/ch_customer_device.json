@@ -104,11 +104,10 @@
   },
   {
    "fieldname": "serial_no",
-   "fieldtype": "Link",
+   "fieldtype": "Data",
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Serial No",
-   "options": "Serial No",
    "reqd": 1,
    "unique": 1,
    "search_index": 1
