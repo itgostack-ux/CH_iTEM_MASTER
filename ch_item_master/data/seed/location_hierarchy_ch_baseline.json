@@ -5582,7 +5582,7 @@
   },
   "exported_at": "2026-07-07 13:18:09.126684",
   "filter_company": null,
-  "schema_version": 2,
+  "schema_version": 3,
   "source_site": "erpnext.local",
   "states": [
     {
@@ -6241,6 +6241,32 @@
       "store_status": "Active",
       "territory": "All Territories",
       "warehouse_base": "GG-OLDWASHERMANPET-Sellable",
+      "zone": "Chennai North"
+    },
+    {
+      "address": null,
+      "branch": null,
+      "city": "Chennai-33",
+      "city_name": "Chennai",
+      "city_state": "Tamil Nadu",
+      "company_abbr": "BM",
+      "contact_phone": null,
+      "custom_latitude": null,
+      "custom_longitude": null,
+      "disabled": 0,
+      "google_maps_url": null,
+      "is_buyback_enabled": 0,
+      "is_retail_enabled": 0,
+      "is_service_enabled": 0,
+      "latitude": 0.0,
+      "longitude": 0.0,
+      "opening_date": null,
+      "pincode": "600021",
+      "store_code": "GG-WASHERMANPET",
+      "store_name": "GoGizmo - Washermanpet",
+      "store_status": "Active",
+      "territory": "All Territories",
+      "warehouse_base": "GG-WASHERMANPET-Sellable",
       "zone": "Chennai North"
     },
     {
@@ -7136,6 +7162,7 @@
       "company_abbr": "BM",
       "description": null,
       "source_warehouse_base": "Chennai - Hub",
+      "source_warehouse_label": "GoGizmo Chennai Distribution Hub",
       "zone_name": "Chennai Central"
     },
     {
@@ -7145,6 +7172,7 @@
       "company_abbr": "BM",
       "description": null,
       "source_warehouse_base": "Chennai - Hub",
+      "source_warehouse_label": "GoGizmo Chennai Distribution Hub",
       "zone_name": "Chennai North"
     },
     {
@@ -7154,6 +7182,7 @@
       "company_abbr": "BM",
       "description": null,
       "source_warehouse_base": "Chennai - Hub",
+      "source_warehouse_label": "GoGizmo Chennai Distribution Hub",
       "zone_name": "Chennai South"
     },
     {
@@ -7163,6 +7192,7 @@
       "company_abbr": "BM",
       "description": null,
       "source_warehouse_base": "Chennai - Hub",
+      "source_warehouse_label": "GoGizmo Chennai Distribution Hub",
       "zone_name": "Chennai West"
     },
     {

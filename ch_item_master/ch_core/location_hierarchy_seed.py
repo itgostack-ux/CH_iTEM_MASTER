@@ -92,9 +92,9 @@ from ch_item_master.config import iter_all_rows
 # refuses to load a file whose version is newer than what this module
 # knows about.
 #   v1 — states/cities/zones/stores, raw city PK references.
-#   v2 — adds ``companies`` section (auto-created when missing) and
-#        ``city_name``/``city_state`` natural keys on zones + stores.
-SEED_SCHEMA_VERSION = 2
+#   v2 — adds ``companies`` and city natural keys.
+#   v3 — adds an optional business-facing label for distribution hubs.
+SEED_SCHEMA_VERSION = 3
 BASELINE_RELATIVE_PATH = os.path.join("data", "seed", "location_hierarchy_ch_baseline.json")
 
 # Fields captured per doctype.  We deliberately DON'T dump audit
@@ -652,7 +652,8 @@ def _upsert_city(entry: dict, plan: dict) -> None:
         doc.insert(ignore_permissions=True)
 
 
-def _ensure_seed_zone_warehouse(base_name: str, company: str, city: str, plan: dict) -> str | None:
+def _ensure_seed_zone_warehouse(base_name: str, company: str, city: str, plan: dict,
+                                display_label: str | None = None) -> str | None:
     """Ensure the seed's zone source warehouse exists.
 
     Zone hubs are derived infrastructure for the hierarchy. A fresh site will
@@ -664,6 +665,11 @@ def _ensure_seed_zone_warehouse(base_name: str, company: str, city: str, plan: d
 
     target = _warehouse_target_name(base_name, company)
     if frappe.db.exists("Warehouse", target):
+        if not plan["dry_run"] and display_label:
+            updates = {"warehouse_name": display_label}
+            if frappe.get_meta("Warehouse").has_field("ch_display_name"):
+                updates["ch_display_name"] = display_label
+            frappe.db.set_value("Warehouse", target, updates, update_modified=False)
         return target
 
     plan["to_create"].append(
@@ -693,6 +699,11 @@ def _ensure_seed_zone_warehouse(base_name: str, company: str, city: str, plan: d
     wh.ch_city = city
     wh.ch_location_type = "Zone Warehouse"
     wh.insert(ignore_permissions=True)
+    if display_label:
+        updates = {"warehouse_name": display_label}
+        if frappe.get_meta("Warehouse").has_field("ch_display_name"):
+            updates["ch_display_name"] = display_label
+        frappe.db.set_value("Warehouse", wh.name, updates, update_modified=False)
     return wh.name
 
 
@@ -722,10 +733,11 @@ def _upsert_zone(entry: dict, plan: dict, company_map: dict | None) -> None:
     if existing:
         if not plan["dry_run"]:
             current_source = frappe.db.get_value("CH Store Zone", existing, "source_warehouse")
+            source_wh = _ensure_seed_zone_warehouse(
+                entry.get("source_warehouse_base"), company, city, plan,
+                entry.get("source_warehouse_label"),
+            )
             if not current_source:
-                source_wh = _ensure_seed_zone_warehouse(
-                    entry.get("source_warehouse_base"), company, city, plan
-                )
                 if source_wh:
                     frappe.db.set_value(
                         "CH Store Zone", existing, "source_warehouse", source_wh,
@@ -738,7 +750,8 @@ def _upsert_zone(entry: dict, plan: dict, company_map: dict | None) -> None:
         return
 
     source_wh = _ensure_seed_zone_warehouse(
-        entry.get("source_warehouse_base"), company, city, plan
+        entry.get("source_warehouse_base"), company, city, plan,
+        entry.get("source_warehouse_label"),
     )
 
     values = {k: entry.get(k) for k in _ZONE_FIELDS}
@@ -771,12 +784,14 @@ def _upsert_store(entry: dict, plan: dict, company_map: dict | None) -> None:
         plan["skipped"].append({"type": "CH Store", "reason": "missing store_name", "entry": entry})
         return
 
-    # Unique-by-(store_name, company) matches ch_store._validate_unique_store_name.
-    existing = frappe.db.get_value(
-        "CH Store",
-        {"store_name": store_name, "company": company},
-        "name",
-    )
+    # Store code is the cross-site identity. Fall back to the legacy natural
+    # key for older seeds that did not carry a stable code.
+    store_code = (entry.get("store_code") or "").strip()
+    existing = frappe.db.get_value("CH Store", store_code, "name") if store_code else None
+    if not existing:
+        existing = frappe.db.get_value(
+            "CH Store", {"store_name": store_name, "company": company}, "name"
+        )
     if existing:
         # HEAL missing zone / city links on stores that were seeded during an
         # earlier broken migrate (e.g. the pre-fix v27 run where CH Store Zone
@@ -790,6 +805,10 @@ def _upsert_store(entry: dict, plan: dict, company_map: dict | None) -> None:
                 as_dict=True,
             ) or {}
             healed_fields = {}
+
+            current_name = frappe.db.get_value("CH Store", existing, "store_name") or ""
+            if store_code and current_name != store_name:
+                healed_fields["store_name"] = store_name
 
             target_zone = entry.get("zone")
             if (
@@ -820,6 +839,10 @@ def _upsert_store(entry: dict, plan: dict, company_map: dict | None) -> None:
                 plan["updated"].append(
                     {"type": "CH Store", "name": existing, "healed": healed_fields}
                 )
+                if "store_name" in healed_fields:
+                    from ch_erp15.ch_erp15.warehouse_display import sync_store_warehouse_labels
+
+                    sync_store_warehouse_labels(frappe.get_doc("CH Store", existing))
 
             if not (current.get("warehouse") or "").strip():
                 from ch_item_master.ch_core.warehouse_geo import provision_store_warehouse

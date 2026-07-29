@@ -15,7 +15,7 @@ This directory ships **reference datasets** for the retail geography
 
 | File | Rows | Purpose |
 |------|-----:|---------|
-| `location_hierarchy_ch_baseline.json` | 892 (2 companies, 38 states, 794 cities, 9 zones, 49 stores) | Reference geography as of the initial GoFix production dump. Schema v2. |
+| `location_hierarchy_ch_baseline.json` | 893 (2 companies, 38 states, 794 cities, 9 zones, 50 stores) | Reference geography as of the initial GoFix production dump, including stable store and hub display labels. Schema v3. |
 
 ## Usage
 
@@ -81,7 +81,7 @@ bench --site staging ch-locations-import \
 * Zone hub warehouses — materialised by the importer itself when the
   referenced hub is missing.
 
-## Cross-site identity contract (schema v2)
+## Cross-site identity contract (schema v3)
 
 Primary keys are DETERMINISTIC so every platform resolves to identical
 identities:
@@ -101,7 +101,7 @@ identities:
 Re-running the import over a fully-seeded site is a no-op:
 
 ```
-DRY-RUN: would create 0, skip 892, needs 0 manual follow-ups.
+DRY-RUN: would create 0, skip 893, needs 0 manual follow-ups.
 ```
 
 Rows that already exist match by natural key:
