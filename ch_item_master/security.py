@@ -145,15 +145,10 @@ def get_user_mapped_companies(user=None):
         except Exception:
             pass
 
-    if frappe.db.exists("DocType", "CH POS User Allocation"):
-        try:
-            pos_companies.update(filter(None, frappe.get_all(
-                "CH POS User Allocation",
-                filters={"user": user, "is_active": 1},
-                pluck="company",
-            )))
-        except Exception:
-            pass
+    # CH POS User Allocation was retired into CH User Scope (ch_erp15 patch
+    # v34_consolidate_user_authorization). It only ever ADDED companies on top
+    # of POS Executive and CH User Scope, both of which are still consulted
+    # here, so removing it narrows nothing.
 
     # POS allocation is the source of truth for a POS-facing user; CH User
     # Scope grants of equal standing are added, never overridden.

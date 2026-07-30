@@ -35,8 +35,7 @@
   "column_break_cap",
   "is_retail_enabled",
   "is_hub",
-  "users_section",
-  "store_users"
+  "users_section"
  ],
  "fields": [
   {
@@ -235,12 +234,6 @@
    "fieldname": "users_section",
    "fieldtype": "Section Break",
    "label": "Store Users"
-  },
-  {
-   "fieldname": "store_users",
-   "fieldtype": "Table",
-   "label": "Store Users",
-   "options": "CH Store User"
   }
  ],
  "index_web_pages_for_search": 1,

@@ -310,6 +310,11 @@ def expire_role_assignments() -> dict:
 	next scheduler run can retry them. The scheduler transaction is committed by
 	Frappe after this function returns.
 	"""
+	# CH Role Assignment was retired into Role Profile (ch_erp15 patch
+	# v34_consolidate_user_authorization). Frappe has no native time-bounded
+	# role grant, so this expiry job is kept — dormant while the table is
+	# absent — rather than deleted. If bounded grants are needed again, add
+	# valid_from/valid_to to CH User Scope instead of reviving a second doctype.
 	if not frappe.db.table_exists("CH Role Assignment"):
 		return {"expired": 0, "failed": 0, "has_more": False}
 

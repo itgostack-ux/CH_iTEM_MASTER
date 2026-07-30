@@ -218,21 +218,18 @@ def get_store_bins(store: str) -> dict:
 
 
 def get_store_for_user() -> str | None:
-	"""Best-effort lookup: store the current user belongs to (via CH Store User)."""
-	user = frappe.session.user
-	if not user or user in ("Administrator", "Guest"):
+	"""Best-effort lookup: store the current user belongs to.
+
+	Reads CH User Scope (CH Store User retired — ch_erp15 patch v34), honouring
+	the Home Store tick when the user is scoped to several stores.
+	"""
+	try:
+		from ch_erp15.ch_erp15.scope import get_user_home_store
+
+		return get_user_home_store()
+	except Exception:
 		return None
-	store = frappe.db.get_value(
-		"CH Store User",
-		{"user": user},
-		"parent",
-	)
-	return store
 
-
-# ──────────────────────────────────────────────────────────────────────────
-# 3. The transfer engine
-# ──────────────────────────────────────────────────────────────────────────
 
 def transfer_between_bins(
 	store: str,

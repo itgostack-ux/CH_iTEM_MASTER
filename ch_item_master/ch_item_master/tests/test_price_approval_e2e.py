@@ -102,7 +102,7 @@ def _ensure_company_scope(user, company):
 		scope = frappe.get_doc({
 			"doctype": "CH User Scope",
 			"user": user,
-			"scope_role": "Category Head",
+			"role_profile": "CH Category Head",
 			"enabled": 1,
 			"companies": [{"company": company}],
 		})
