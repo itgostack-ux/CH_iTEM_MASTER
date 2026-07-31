@@ -75,12 +75,19 @@ def _sync_warranty_claim(doc):
 	if current in ("Closed", "Cancelled", "Delivered"):
 		return
 
+	updates = {
+		"claim_status": new_claim_status,
+		"repair_status": _map_repair_status(sr_status),
+	}
+	if new_claim_status == "Final QC Pending":
+		updates.update({
+			"repair_completion_date": nowdate(),
+			"final_qc_status": "Pending",
+		})
 	frappe.db.set_value(
-		"CH Warranty Claim", claim_name,
-		{
-			"claim_status": new_claim_status,
-			"repair_status": _map_repair_status(sr_status),
-		},
+		"CH Warranty Claim",
+		claim_name,
+		updates,
 		update_modified=True,
 	)
 

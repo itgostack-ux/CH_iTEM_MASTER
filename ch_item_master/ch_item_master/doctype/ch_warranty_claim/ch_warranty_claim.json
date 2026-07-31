@@ -194,6 +194,7 @@
   "processing_fee_amount",
   "column_break_processing_fee",
   "processing_fee_journal_entry",
+  "processing_fee_invoice",
   "processing_fee_payment_mode",
   "section_fee_payment_link",
   "processing_fee_link_url",
@@ -293,7 +294,7 @@
    "fieldname": "claim_status",
    "fieldtype": "Select",
    "label": "Claim Status",
-   "options": "Draft\nPending Coverage Check\nCoverage Identified\nPending Approval\nNeed More Information\nApproved\nPartially Approved\nRejected\nPickup Requested\nPickup Scheduled\nPicked Up\nDevice Received\nQC Pending\nQC Passed\nQC Failed\nFee Pending\nFee Paid\nFee Waived\nTicket Created\nIn Repair\nAdditional Approval Pending\nAwaiting Spare\nRepair Complete\nFinal QC Pending\nFinal QC Passed\nInvoice Pending\nInvoice Raised\nPayment Pending\nPayment Received\nOut for Delivery\nDelivered\nClosed\nCancelled\nNot Repairable",
+   "options": "Draft\nPending Coverage Check\nCoverage Identified\nPending Approval\nNeed More Information\nApproved\nPartially Approved\nRejected\nPickup Requested\nPickup Scheduled\nPicked Up\nDevice Received\nQC Pending\nQC Passed\nQC Failed\nFee Pending\nFee Paid\nFee Waived\nTicket Created\nIn Repair\nAdditional Approval Pending\nAwaiting Spare\nRepair Complete\nFinal QC Pending\nFinal QC Passed\nInvoice Pending\nInvoice Raised\nPayment Pending\nPayment Received\nReady for Delivery\nOut for Delivery\nDelivered\nClosed\nCancelled\nNot Repairable",
    "default": "Draft",
    "in_list_view": 1,
    "in_standard_filter": 1,
@@ -513,21 +514,18 @@
    "label": "Device Evidence"
   },
   {
-   "allow_on_submit": 1,
    "fieldname": "device_image_front",
    "fieldtype": "Attach Image",
    "label": "Front",
    "description": "Front view of the device"
   },
   {
-   "allow_on_submit": 1,
    "fieldname": "device_image_back",
    "fieldtype": "Attach Image",
    "label": "Back",
    "description": "Back view of the device"
   },
   {
-   "allow_on_submit": 1,
    "fieldname": "device_image_left",
    "fieldtype": "Attach Image",
    "label": "Left Side",
@@ -538,21 +536,18 @@
    "fieldtype": "Column Break"
   },
   {
-   "allow_on_submit": 1,
    "fieldname": "device_image_right",
    "fieldtype": "Attach Image",
    "label": "Right Side",
    "description": "Right side of the device"
   },
   {
-   "allow_on_submit": 1,
    "fieldname": "device_image_top",
    "fieldtype": "Attach Image",
    "label": "Top",
    "description": "Top view of the device"
   },
   {
-   "allow_on_submit": 1,
    "fieldname": "device_image_bottom",
    "fieldtype": "Attach Image",
    "label": "Bottom",
@@ -603,6 +598,8 @@
    "fieldname": "processing_fee_amount",
    "fieldtype": "Currency",
    "label": "Processing Fee Amount",
+   "read_only": 1,
+   "no_copy": 1,
    "allow_on_submit": 1,
    "description": "Fee customer must pay before repair begins"
   },
@@ -618,6 +615,16 @@
    "read_only": 1,
    "allow_on_submit": 1,
    "description": "Submitted accounting entry for the processing fee collection"
+  },
+  {
+   "fieldname": "processing_fee_invoice",
+   "fieldtype": "Link",
+   "label": "Processing Fee Invoice",
+   "options": "Sales Invoice",
+   "read_only": 1,
+   "no_copy": 1,
+   "allow_on_submit": 1,
+   "description": "Submitted and fully paid POS invoice used to collect the processing fee"
   },
   {
    "fieldname": "section_cost",
@@ -669,7 +676,7 @@
    "fieldname": "approval_status",
    "fieldtype": "Select",
    "label": "Approval Status",
-   "options": "Pending\nApproved\nPartially Approved\nRejected\nNeed More Information",
+   "options": "\nPending\nApproved\nPartially Approved\nRejected\nNeed More Information",
    "read_only": 1,
    "no_copy": 1,
    "in_standard_filter": 1,
@@ -998,28 +1005,38 @@
    "fieldtype": "Link",
    "label": "GoGizmo Invoice",
    "options": "Sales Invoice",
-   "description": "Inter-company invoice: GoFix bills GoGizmo"
+   "description": "Submitted inter-company invoice: GoFix bills GoGizmo",
+   "read_only": 1,
+   "no_copy": 1,
+   "allow_on_submit": 1
   },
   {
    "fieldname": "gogizmo_payment_ref",
    "fieldtype": "Data",
    "label": "GoGizmo Payment Reference",
    "allow_on_submit": 1,
-   "description": "Payment/JE reference for GoGizmo share of repair cost paid to GoFix."
+   "description": "Submitted Payment Entry or Journal Entry for GoGizmo share paid to GoFix.",
+   "read_only": 1,
+   "no_copy": 1
   },
   {
    "fieldname": "customer_invoice",
    "fieldtype": "Link",
    "label": "Customer Invoice",
    "options": "Sales Invoice",
-   "description": "Invoice to customer for deductible / out-of-warranty"
+   "description": "Submitted invoice to customer for deductible / out-of-warranty amount",
+   "read_only": 1,
+   "no_copy": 1,
+   "allow_on_submit": 1
   },
   {
    "fieldname": "customer_payment_ref",
    "fieldtype": "Data",
    "label": "Customer Payment Reference",
    "allow_on_submit": 1,
-   "description": "Payment reference for customer portion of repair cost."
+   "description": "Submitted Payment Entry or Journal Entry for the customer portion.",
+   "read_only": 1,
+   "no_copy": 1
   },
   {
    "fieldname": "column_break_settlement",
@@ -1029,7 +1046,8 @@
    "fieldname": "settlement_status",
    "fieldtype": "Select",
    "label": "Settlement Status",
-   "options": "\nPending\nPartially Settled\nSettled",
+   "options": "\nNot Required\nPending\nPartially Settled\nSettled",
+   "default": "Pending",
    "read_only": 1,
    "no_copy": 1,
    "allow_on_submit": 1
@@ -1260,6 +1278,8 @@
    "fieldtype": "Select",
    "label": "Fee Payment Mode",
    "options": "\nCash\nUPI\nCard\nBank Transfer\nPayment Link\nSplit",
+   "read_only": 1,
+   "no_copy": 1,
    "allow_on_submit": 1
   },
   {
@@ -1312,6 +1332,8 @@
    "fieldname": "processing_fee_payment_ref",
    "fieldtype": "Data",
    "label": "Payment Reference",
+   "read_only": 1,
+   "no_copy": 1,
    "allow_on_submit": 1
   },
   {
@@ -1547,20 +1569,27 @@
    "fieldname": "final_qc_status",
    "fieldtype": "Select",
    "label": "Final QC Status",
-   "options": "\nPending\nPassed\nFailed"
+   "options": "\nPending\nPassed\nFailed",
+   "read_only": 1,
+   "no_copy": 1,
+   "allow_on_submit": 1
   },
   {
    "fieldname": "final_qc_by",
    "fieldtype": "Link",
    "label": "Final QC By",
    "options": "User",
-   "read_only": 1
+   "read_only": 1,
+   "no_copy": 1,
+   "allow_on_submit": 1
   },
   {
    "fieldname": "final_qc_at",
    "fieldtype": "Datetime",
    "label": "Final QC At",
-   "read_only": 1
+   "read_only": 1,
+   "no_copy": 1,
+   "allow_on_submit": 1
   },
   {
    "fieldname": "column_break_final_qc",
@@ -1569,7 +1598,10 @@
   {
    "fieldname": "final_qc_remarks",
    "fieldtype": "Small Text",
-   "label": "Final QC Remarks"
+   "label": "Final QC Remarks",
+   "read_only": 1,
+   "no_copy": 1,
+   "allow_on_submit": 1
   },
   {
    "fieldname": "section_final_outcome",
@@ -1581,7 +1613,7 @@
    "fieldname": "final_outcome",
    "fieldtype": "Select",
    "label": "Final Outcome",
-   "options": "\nRepaired Under Anniversary Warranty\nRepaired Under VAS Plan\nRepaired Under Repair Warranty\nRepaired Paid\nNot Repairable at Intake\nNot Repairable After Diagnosis\nRejected Claim\nCancelled by Customer\nGoodwill Repair",
+   "options": "\nRepaired Under Anniversary Warranty\nRepaired Under VAS Plan\nRepaired Under Repair Warranty\nRepaired Under Manufacturer Warranty\nRepaired Paid\nNot Repairable at Intake\nNot Repairable After Diagnosis\nRejected Claim\nCancelled by Customer\nGoodwill Repair",
    "read_only": 1
   },
   {

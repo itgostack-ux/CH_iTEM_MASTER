@@ -40,6 +40,14 @@ _WARRANTY_DASHBOARD_ROLES = (
 	"Sales Manager",
 	"Sales User",
 )
+_CLAIM_EVIDENCE_FIELDS = (
+	"device_image_front",
+	"device_image_back",
+	"device_image_left",
+	"device_image_right",
+	"device_image_top",
+	"device_image_bottom",
+)
 
 
 def _require_warranty_dashboard_access(company=None):
@@ -689,16 +697,32 @@ def validate_claim(sold_plan_name, issue_type=None, estimate_amount=0) -> dict:
 
 			# Per-issue claim limit
 			if rule_match.max_claim_per_issue and rule_match.max_claim_per_issue > 0:
-				issue_claims = frappe.db.count("CH Warranty Claim", {
-					"sold_plan": sold_plan_name,
-					"issue_category": issue_type,
-					"docstatus": 1,
-					"claim_status": ["not in", ["Cancelled", "Rejected"]],
-				})
+				issue_claims = frappe.db.sql(
+					"""
+					SELECT COUNT(DISTINCT claim.name)
+					FROM `tabCH Warranty Claim` claim
+					LEFT JOIN `tabCH Claim Issue Category` category
+					  ON category.parent = claim.name
+					 AND category.parenttype = 'CH Warranty Claim'
+					 AND category.parentfield = 'issue_categories'
+					WHERE claim.sold_plan = %s
+					  AND claim.docstatus = 1
+					  AND claim.claim_status NOT IN ('Cancelled', 'Rejected')
+					  AND (
+						claim.issue_category = %s
+						OR category.issue_category = %s
+					  )
+					""",
+					(sold_plan_name, issue_type, issue_type),
+				)[0][0]
 				if issue_claims >= rule_match.max_claim_per_issue:
-					return {"eligible": False,
-					        "reason": _("Max {0} claims for '{1}' already used").format(
-					            rule_match.max_claim_per_issue, issue_type)}
+					return {
+						"eligible": False,
+						"reason": _("Max {0} claims for '{1}' already used").format(
+							rule_match.max_claim_per_issue,
+							issue_type,
+						),
+					}
 
 	# ── Calculate amounts ─────────────────────────────────────────────
 	covered_before_deductible = estimate_amount * (coverage_percent / 100)
@@ -1211,6 +1235,189 @@ def get_customer_warranty_dashboard(identifier, company=None) -> dict:
 # ── Warranty Claim APIs ─────────────────────────────────────────────────────
 
 
+def _normalize_claim_issue_categories(issue_categories, issue_category=None) -> list[str]:
+	"""Normalize current and legacy issue inputs before creating any document."""
+	values = issue_categories
+	if isinstance(values, str):
+		try:
+			values = json.loads(values)
+		except (TypeError, ValueError):
+			values = [value.strip() for value in values.split(",") if value.strip()]
+	if values in (None, ""):
+		values = []
+	if not isinstance(values, (list, tuple)):
+		frappe.throw(_("Issue categories must be a list."), frappe.ValidationError)
+
+	normalized = []
+	for entry in values:
+		value = entry.get("issue_category") if isinstance(entry, dict) else entry
+		value = str(value or "").strip()
+		if value and value not in normalized:
+			normalized.append(value)
+	legacy = str(issue_category or "").strip()
+	if legacy and legacy not in normalized:
+		normalized.append(legacy)
+
+	limit = get_int_setting("warranty_claim_issue_category_limit", 10, minimum=1)
+	if len(normalized) > limit:
+		frappe.throw(
+			_("A maximum of {0} issue categories is allowed per claim.").format(limit),
+			frappe.ValidationError,
+		)
+	if not normalized:
+		frappe.throw(
+			_("Select at least one issue category before creating the claim."),
+			frappe.ValidationError,
+		)
+	return normalized
+
+
+def _normalize_claim_evidence(evidence_files, *, require_minimum=False) -> list[dict]:
+	"""Validate private, user-owned staging files before binding them to a claim."""
+	if isinstance(evidence_files, str):
+		try:
+			evidence_files = json.loads(evidence_files)
+		except (TypeError, ValueError):
+			frappe.throw(_("Claim evidence must be a JSON list."), frappe.ValidationError)
+	evidence_files = evidence_files or []
+	if not isinstance(evidence_files, (list, tuple)):
+		frappe.throw(_("Claim evidence must be a list."), frappe.ValidationError)
+	if len(evidence_files) > len(_CLAIM_EVIDENCE_FIELDS):
+		frappe.throw(
+			_("A maximum of {0} device images is allowed.").format(len(_CLAIM_EVIDENCE_FIELDS)),
+			frappe.ValidationError,
+		)
+
+	normalized = []
+	used_urls = set()
+	used_fields = set()
+	for entry in evidence_files:
+		if isinstance(entry, str):
+			entry = {"file_url": entry}
+		if not isinstance(entry, dict):
+			frappe.throw(_("Each claim evidence entry must be an object."), frappe.ValidationError)
+
+		file_name = (entry.get("file_name") or entry.get("name") or "").strip()
+		file_url = (entry.get("file_url") or "").strip()
+		if not file_name and not file_url:
+			frappe.throw(
+				_("Each claim evidence entry must identify an uploaded file."),
+				frappe.ValidationError,
+			)
+		filters = {"name": file_name} if file_name else {"file_url": file_url}
+		file_row = frappe.db.get_value(
+			"File",
+			filters,
+			[
+				"name",
+				"file_url",
+				"is_private",
+				"owner",
+				"attached_to_doctype",
+				"attached_to_name",
+			],
+			as_dict=True,
+		)
+		if not file_row or not file_row.file_url:
+			frappe.throw(_("Claim evidence file was not found."), frappe.DoesNotExistError)
+		if not file_row.is_private:
+			frappe.throw(_("Claim evidence files must be private."), frappe.PermissionError)
+		if file_row.attached_to_doctype or file_row.attached_to_name:
+			frappe.throw(
+				_("Claim evidence file {0} is already attached to another document.").format(
+					file_row.name
+				),
+				frappe.ValidationError,
+			)
+		if not is_privileged_user() and file_row.owner != frappe.session.user:
+			frappe.throw(_("You can only use evidence files that you uploaded."), frappe.PermissionError)
+		if file_row.file_url in used_urls:
+			frappe.throw(_("Duplicate claim evidence is not allowed."), frappe.ValidationError)
+
+		fieldname = (entry.get("fieldname") or entry.get("field") or "").strip()
+		if fieldname not in _CLAIM_EVIDENCE_FIELDS or fieldname in used_fields:
+			fieldname = next(
+				(candidate for candidate in _CLAIM_EVIDENCE_FIELDS if candidate not in used_fields),
+				"",
+			)
+		if not fieldname:
+			frappe.throw(_("No device-image field is available for this evidence."), frappe.ValidationError)
+
+		used_urls.add(file_row.file_url)
+		used_fields.add(fieldname)
+		normalized.append({
+			"file_name": file_row.name,
+			"file_url": file_row.file_url,
+			"fieldname": fieldname,
+		})
+
+	minimum = min(
+		get_int_setting("warranty_claim_min_evidence_images", 4, minimum=1),
+		len(_CLAIM_EVIDENCE_FIELDS),
+	)
+	if require_minimum and len(normalized) < minimum:
+		frappe.throw(
+			_("Upload at least {0} distinct device images before creating the claim.").format(
+				minimum
+			),
+			frappe.ValidationError,
+			title=_("Claim Evidence Required"),
+		)
+	return normalized
+
+
+def _set_claim_evidence(claim, evidence: list[dict]) -> None:
+	for entry in evidence:
+		claim.set(entry["fieldname"], entry["file_url"])
+
+
+def _bind_claim_evidence(claim, evidence: list[dict]) -> None:
+	for entry in evidence:
+		frappe.db.set_value(
+			"File",
+			entry["file_name"],
+			{
+				"attached_to_doctype": claim.doctype,
+				"attached_to_name": claim.name,
+				"attached_to_field": entry["fieldname"],
+			},
+			update_modified=False,
+		)
+
+
+@frappe.whitelist(methods=["POST"])
+def discard_unattached_claim_evidence(file_names) -> dict:
+	"""Remove failed-upload staging files owned by the current user."""
+	if isinstance(file_names, str):
+		try:
+			file_names = json.loads(file_names)
+		except (TypeError, ValueError):
+			file_names = [file_names]
+	if not isinstance(file_names, (list, tuple)):
+		frappe.throw(_("File names must be a list."), frappe.ValidationError)
+
+	removed = 0
+	for file_name in tuple(dict.fromkeys(str(value).strip() for value in file_names if value)):
+		row = frappe.db.get_value(
+			"File",
+			file_name,
+			["owner", "is_private", "attached_to_doctype", "attached_to_name"],
+			as_dict=True,
+		)
+		if (
+			not row
+			or not row.is_private
+			or row.attached_to_doctype
+			or row.attached_to_name
+		):
+			continue
+		if not is_privileged_user() and row.owner != frappe.session.user:
+			continue
+		frappe.delete_doc("File", file_name, ignore_permissions=True)
+		removed += 1
+	return {"removed": removed}
+
+
 def _get_claim_doc(claim_name, permission_type="read"):
 	"""Load a claim only after company-aware permission checks pass."""
 	frappe.has_permission("CH Warranty Claim", permission_type, doc=claim_name, throw=True)
@@ -1225,16 +1432,41 @@ def get_claim_ui_capabilities(claim_name) -> dict:
 		is_privileged_user()
 		or frappe.has_permission("CH Warranty Claim", "write", doc=claim, throw=False)
 	)
-	return {
-		"can_perform_intake_qc": bool(
+	def _can(role_field, defaults):
+		return bool(
 			can_write
 			and claim.docstatus == 1
-			and claim.claim_status in ("Device Received", "QC Pending")
-			and has_role_setting(
+			and has_role_setting(role_field, defaults)
+		)
+
+	return {
+		"can_perform_intake_qc": bool(
+			_can(
 				"warranty_claim_qc_roles",
 				("CH Warranty Manager", "Service Manager", "Store Manager", "Stock Manager"),
 			)
-		)
+			and claim.claim_status in ("Device Received", "QC Pending")
+		),
+		"can_manage_logistics": _can(
+			"warranty_claim_logistics_roles",
+			("CH Warranty Manager", "Service Manager", "Sales Manager"),
+		),
+		"can_manage_service": _can(
+			"warranty_claim_service_roles",
+			("CH Warranty Manager", "Service Manager"),
+		),
+		"can_manage_finance": _can(
+			"warranty_claim_finance_roles",
+			("CH Warranty Manager", "Accounts Manager"),
+		),
+		"can_perform_final_qc": _can(
+			"warranty_claim_qc_roles",
+			("CH Warranty Manager", "Service Manager", "Store Manager", "Stock Manager"),
+		),
+		"can_manage_claim": _can(
+			"warranty_claim_management_roles",
+			("CH Warranty Manager", "Service Manager"),
+		),
 	}
 
 
@@ -1246,7 +1478,7 @@ def initiate_warranty_claim(serial_no, customer, item_code, company,
                             estimated_repair_cost=0, customer_phone=None,
 							customer_email=None, sold_plan=None,
 							mode_of_service="Walk-in", pickup_address=None,
-							pickup_slot=None) -> dict:
+							pickup_slot=None, evidence_files=None) -> dict:
 	"""Initiate a new warranty claim from POS or desk.
 
 	Auto-detects warranty coverage, calculates cost split, and either
@@ -1291,6 +1523,8 @@ def initiate_warranty_claim(serial_no, customer, item_code, company,
 			frappe.throw(_("Location scope validation is unavailable."), frappe.PermissionError)
 		assert_user_has_store_scope(store=reported_at_store, company=reported_at_company)
 
+	issue_names = _normalize_claim_issue_categories(issue_categories, issue_category)
+	evidence = _normalize_claim_evidence(evidence_files, require_minimum=True)
 	claim = frappe.new_doc("CH Warranty Claim")
 	claim.update({
 		"serial_no": serial_no,
@@ -1300,7 +1534,7 @@ def initiate_warranty_claim(serial_no, customer, item_code, company,
 		"reported_at_company": reported_at_company,
 		"reported_at_store": reported_at_store or "",
 		"issue_description": issue_description,
-		"issue_category": issue_category,
+		"issue_category": issue_names[0],
 		"estimated_repair_cost": float(estimated_repair_cost or 0),
 		"customer_phone": customer_phone or "",
 		"customer_email": customer_email or "",
@@ -1315,19 +1549,14 @@ def initiate_warranty_claim(serial_no, customer, item_code, company,
 	if sold_plan:
 		claim.sold_plan = sold_plan
 
-	# Add issue categories (Table MultiSelect)
-	if issue_categories:
-		import json as _json
-		cats = issue_categories
-		if isinstance(cats, str):
-			try:
-				cats = _json.loads(cats)
-			except (ValueError, TypeError):
-				cats = [c.strip() for c in cats.split(",") if c.strip()]
-		for cat in cats:
-			claim.append("issue_categories", {"issue_category": cat})
+	# Keep the current multi-select authoritative while populating the hidden
+	# first-category field for legacy reports and integrations.
+	for issue_name in issue_names:
+		claim.append("issue_categories", {"issue_category": issue_name})
 
+	_set_claim_evidence(claim, evidence)
 	claim.insert()
+	_bind_claim_evidence(claim, evidence)
 	claim.submit()
 
 	return {
@@ -1460,6 +1689,70 @@ def create_claim_repair_ticket(claim_name, remarks=None) -> dict:
 	"""Create GoFix repair ticket with strict gate control."""
 	claim = _get_claim_doc(claim_name, "write")
 	return claim.create_repair_ticket(remarks=remarks)
+
+
+@frappe.whitelist(methods=["POST"])
+def request_additional_approval_claim(
+	claim_name,
+	additional_issue_description=None,
+	additional_cost_estimated=0,
+	additional_cost_covered=0,
+	additional_issue_photos=None,
+	remarks=None,
+) -> dict:
+	"""Request customer approval for additional repair work from POS."""
+	claim = _get_claim_doc(claim_name, "write")
+	return claim.request_additional_approval(
+		additional_issue_description=additional_issue_description,
+		additional_cost_covered=additional_cost_covered,
+		additional_cost_customer=additional_cost_estimated,
+		additional_issue_photos=additional_issue_photos,
+		remarks=remarks,
+	)
+
+
+@frappe.whitelist(methods=["POST"])
+def resolve_additional_approval_claim(claim_name, decision, remarks=None) -> dict:
+	"""Record the customer's additional-cost decision from POS."""
+	claim = _get_claim_doc(claim_name, "write")
+	return claim.resolve_additional_approval(decision=decision, remarks=remarks)
+
+
+@frappe.whitelist(methods=["POST"])
+def perform_final_qc_claim(claim_name, qc_result, qc_remarks=None) -> dict:
+	"""Record final QC from POS through the governed document action."""
+	claim = _get_claim_doc(claim_name, "write")
+	return claim.perform_final_qc(qc_result=qc_result, qc_remarks=qc_remarks)
+
+
+@frappe.whitelist(methods=["POST"])
+def settle_claim_finance(
+	claim_name,
+	gogizmo_invoice=None,
+	gogizmo_payment_ref=None,
+	customer_invoice=None,
+	customer_payment_ref=None,
+) -> dict:
+	"""Record document-backed claim settlement from POS."""
+	claim = _get_claim_doc(claim_name, "write")
+	return claim.settle_claim(
+		gogizmo_invoice=gogizmo_invoice,
+		gogizmo_payment_ref=gogizmo_payment_ref,
+		customer_invoice=customer_invoice,
+		customer_payment_ref=customer_payment_ref,
+	)
+
+
+@frappe.whitelist(methods=["POST"])
+def close_warranty_claim(claim_name, remarks=None) -> dict:
+	"""Close a delivered or terminal no-service claim from POS."""
+	claim = _get_claim_doc(claim_name, "write")
+	claim.close_claim(remarks=remarks)
+	return {
+		"claim_name": claim.name,
+		"claim_status": "Closed",
+		"settlement_status": claim.settlement_status,
+	}
 
 
 @frappe.whitelist(methods=["POST"])
@@ -2221,15 +2514,11 @@ def create_claim_from_bot(
     claim.company           = company
     claim.reported_by       = frappe.session.user
 
-    # Attach up to 6 photos to the 6 device-image fields
-    image_fields = [
-        "device_image_front", "device_image_back", "device_image_left",
-        "device_image_right", "device_image_top", "device_image_bottom",
-    ]
-    for idx, photo_url in enumerate(photos[:6]):
-        setattr(claim, image_fields[idx], photo_url)
+    evidence = _normalize_claim_evidence(photos, require_minimum=False)
+    _set_claim_evidence(claim, evidence)
 
     claim.insert()
+    _bind_claim_evidence(claim, evidence)
 
     # Notify all VAS Managers that a new bot claim needs review
     _notify_vas_managers_new_bot_claim(claim)

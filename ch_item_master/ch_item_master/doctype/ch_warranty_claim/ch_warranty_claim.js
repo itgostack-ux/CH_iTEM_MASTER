@@ -161,6 +161,35 @@ function _setup_action_buttons(frm) {
 			});
 		}
 
+	// ── Pickup logistics ──
+	if (["Approved", "Pickup Requested"].includes(s) && frm.doc.pickup_required) {
+		frm.add_custom_button(__("Schedule Pickup"), () => {
+			frappe.prompt(
+				[
+					{ fieldtype: "Small Text", fieldname: "pickup_address", label: __("Pickup Address"),
+					  default: frm.doc.pickup_address || "", reqd: 1 },
+					{ fieldtype: "Datetime", fieldname: "pickup_slot", label: __("Pickup Slot"),
+					  default: frm.doc.pickup_slot || "" },
+					{ fieldtype: "Data", fieldname: "pickup_partner", label: __("Pickup Partner") },
+					{ fieldtype: "Data", fieldname: "pickup_tracking_no", label: __("Tracking Number") },
+					{ fieldtype: "Small Text", fieldname: "remarks", label: __("Remarks") },
+				],
+				(values) => frm.call("schedule_pickup", values).then(() => frm.reload_doc()),
+				__("Schedule Claim Pickup")
+			);
+		}, __("Logistics")).addClass("btn-primary");
+	}
+
+	if (s === "Pickup Scheduled") {
+		frm.add_custom_button(__("Mark Picked Up"), () => {
+			frappe.prompt(
+				{ fieldtype: "Small Text", fieldname: "remarks", label: __("Remarks") },
+				(values) => frm.call("mark_picked_up", { remarks: values.remarks }).then(() => frm.reload_doc()),
+				__("Confirm Device Pickup")
+			);
+		}, __("Logistics")).addClass("btn-warning");
+	}
+
 	// ── Generate Processing Fee (QC Passed, fee not yet set) ──
 	if (s === "QC Passed" && !frm.doc.processing_fee_amount) {
 		frm.add_custom_button(__("Generate Fee"), () => {
@@ -306,8 +335,7 @@ function _setup_action_buttons(frm) {
 	}
 
 	// ── Close Claim ──
-	if (["Repair Complete", "Approved", "Rejected", "Delivered", "QC Failed",
-		 "Final QC Passed", "Payment Received", "Not Repairable"].includes(s)) {
+	if (["Rejected", "Delivered", "QC Failed", "Not Repairable"].includes(s)) {
 		frm.add_custom_button(__("Close Claim"), () => {
 			frappe.prompt(
 				{ fieldtype: "Small Text", fieldname: "remarks", label: "Closing Remarks" },
@@ -317,58 +345,103 @@ function _setup_action_buttons(frm) {
 				__("Close Warranty Claim")
 			);
 		}, __("Actions"));
+	}
 
-		// Settle Claim — record GoGizmo→GoFix payment and customer portion
-		if (["Repair Complete", "Final QC Passed", "Delivered"].includes(s)
-				&& frm.doc.settlement_status !== "Settled") {
-			frm.add_custom_button(__("Record Settlement"), () => {
-				const d = new frappe.ui.Dialog({
-					title: __("Record Claim Settlement"),
-					fields: [
-						{
-							fieldtype: "Section Break",
-							label: __("GoGizmo → GoFix Payment"),
-						},
-						{
-							fieldname: "gogizmo_payment_ref",
-							fieldtype: "Data",
-							label: __("GoGizmo Payment Reference"),
-							description: __("JE/payment reference for GoGizmo share (₹{0}) paid to GoFix",
-								[format_currency(frm.doc.gogizmo_share, frm.doc.currency)]),
-							default: frm.doc.gogizmo_payment_ref || "",
-						},
-						{ fieldtype: "Column Break" },
-						{
-							fieldtype: "Section Break",
-							label: __("Customer Payment"),
-						},
-						{
-							fieldname: "customer_payment_ref",
-							fieldtype: "Data",
-							label: __("Customer Payment Reference"),
-							description: __("Payment reference for customer share (₹{0})",
-								[format_currency(frm.doc.customer_share, frm.doc.currency)]),
-							default: frm.doc.customer_payment_ref || "",
-						},
-					],
-					primary_action_label: __("Save Settlement"),
-					primary_action: (v) => {
-						frm.call("settle_claim", {
-							gogizmo_payment_ref: v.gogizmo_payment_ref || null,
-							customer_payment_ref: v.customer_payment_ref || null,
-						}).then(r => {
-							d.hide();
-							frappe.show_alert({
-								message: __("Settlement recorded: {0}", [r.message?.settlement_status || "Updated"]),
-								indicator: "green",
-							});
-							frm.reload_doc();
-						});
+	// Settle Claim — record GoGizmo→GoFix payment and customer portion
+	if (["Final QC Passed", "Invoice Pending", "Invoice Raised", "Payment Pending"].includes(s)
+			&& frm.doc.settlement_status !== "Settled") {
+		frm.add_custom_button(__("Record Settlement"), () => {
+			const d = new frappe.ui.Dialog({
+				title: __("Record Claim Settlement"),
+				fields: [
+					{
+						fieldtype: "Section Break",
+						label: __("GoGizmo → GoFix Payment"),
 					},
-				});
-				d.show();
-			}, __("Actions"));
-		}
+					{
+						fieldname: "gogizmo_invoice",
+						fieldtype: "Link",
+						options: "Sales Invoice",
+						label: __("GoGizmo Invoice"),
+						default: frm.doc.gogizmo_invoice || "",
+						hidden: flt(frm.doc.gogizmo_share) <= 0,
+						reqd: flt(frm.doc.gogizmo_share) > 0,
+					},
+					{
+						fieldname: "gogizmo_payment_ref",
+						fieldtype: "Data",
+						label: __("GoGizmo Payment Reference"),
+						description: __("Submitted Payment Entry or Journal Entry for the GoGizmo share (₹{0})",
+							[format_currency(frm.doc.gogizmo_share, frm.doc.currency)]),
+						default: frm.doc.gogizmo_payment_ref || "",
+						hidden: flt(frm.doc.gogizmo_share) <= 0,
+					},
+					{ fieldtype: "Section Break", label: __("Customer Payment") },
+					{
+						fieldname: "customer_invoice",
+						fieldtype: "Link",
+						options: "Sales Invoice",
+						label: __("Customer Invoice"),
+						default: frm.doc.customer_invoice || "",
+						hidden: flt(frm.doc.customer_share) <= 0,
+						reqd: flt(frm.doc.customer_share) > 0,
+					},
+					{
+						fieldname: "customer_payment_ref",
+						fieldtype: "Data",
+						label: __("Customer Payment Reference"),
+						description: __("Submitted Payment Entry or Journal Entry for the customer share (₹{0})",
+							[format_currency(frm.doc.customer_share, frm.doc.currency)]),
+						default: frm.doc.customer_payment_ref || "",
+						hidden: flt(frm.doc.customer_share) <= 0,
+					},
+				],
+				primary_action_label: __("Save Settlement"),
+				primary_action: (v) => {
+					frm.call("settle_claim", {
+						gogizmo_invoice: v.gogizmo_invoice || null,
+						gogizmo_payment_ref: v.gogizmo_payment_ref || null,
+						customer_invoice: v.customer_invoice || null,
+						customer_payment_ref: v.customer_payment_ref || null,
+					}).then(r => {
+						d.hide();
+						frappe.show_alert({
+							message: __("Settlement recorded: {0}", [r.message?.settlement_status || "Updated"]),
+							indicator: "green",
+						});
+						frm.reload_doc();
+					});
+				},
+			});
+			d.show();
+		}, __("Actions"));
+	}
+
+	if (["Payment Received", "Ready for Delivery"].includes(s)) {
+		frm.add_custom_button(__("Out for Delivery"), () => {
+			frappe.prompt(
+				[
+					{ fieldtype: "Data", fieldname: "pickup_partner", label: __("Delivery Partner") },
+					{ fieldtype: "Data", fieldname: "pickup_tracking_no", label: __("Tracking Number") },
+					{ fieldtype: "Small Text", fieldname: "remarks", label: __("Remarks") },
+				],
+				(values) => frm.call("mark_out_for_delivery", values).then(() => frm.reload_doc()),
+				__("Dispatch Repaired Device")
+			);
+		}, __("Logistics")).addClass("btn-primary");
+	}
+
+	if (s === "Out for Delivery") {
+		frm.add_custom_button(__("Mark Delivered"), () => {
+			frappe.prompt(
+				[
+					{ fieldtype: "Data", fieldname: "delivery_otp", label: __("Delivery OTP"), reqd: 1 },
+					{ fieldtype: "Small Text", fieldname: "remarks", label: __("Remarks") },
+				],
+				(values) => frm.call("mark_delivered_back", values).then(() => frm.reload_doc()),
+				__("Confirm Customer Delivery")
+			);
+		}, __("Logistics")).addClass("btn-success");
 	}
 }
 

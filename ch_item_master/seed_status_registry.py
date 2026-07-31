@@ -123,6 +123,7 @@ STATUS_REGISTRY = {
 			"Invoice Raised",
 			"Payment Pending",
 			"Payment Received",
+			"Ready for Delivery",
 			"Out for Delivery",
 			"Delivered",
 			"Closed",
@@ -286,9 +287,11 @@ CROSS_APP_MAPPINGS = {
 	"SR_TO_CLAIM_STATUS": {
 		"_source": ("Service Request", "decision"),
 		"_target": ("CH Warranty Claim", "claim_status"),
-		"Completed": "Repair Complete",
-		"Invoiced": "Repair Complete",
-		"Delivered": "Delivered",
+		# GoFix completion means the repair is back at the claim final-QC gate.
+		# It must never bypass claim settlement and OTP-controlled handover.
+		"Completed": "Final QC Pending",
+		"Invoiced": "Final QC Pending",
+		"Delivered": "Final QC Pending",
 		"Cancelled": "Cancelled",
 		"Rejected": "Rejected",
 	},

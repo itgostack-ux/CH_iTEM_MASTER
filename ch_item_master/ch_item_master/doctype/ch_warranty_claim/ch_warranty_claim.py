@@ -65,6 +65,29 @@ _WARRANTY_FEE_WAIVER_REQUEST_ROLES = (
 	"Service Manager",
 	"Sales Manager",
 )
+_ANNIVERSARY_ELIGIBLE_PLAN_TYPES = (
+	"Own Warranty",
+	"Extended Warranty",
+	"Extended",  # legacy value
+)
+_VAS_ELIGIBLE_PLAN_TYPES = (
+	"Value Added Service",
+	"VAS",  # legacy value
+	"Protection Plan",
+	"Protection",  # legacy value
+	"Post-Repair Warranty",
+	"Extended Warranty",
+	"Extended",  # legacy value
+	"Own Warranty",
+)
+_CLAIM_EVIDENCE_FIELDS = (
+	"device_image_front",
+	"device_image_back",
+	"device_image_left",
+	"device_image_right",
+	"device_image_top",
+	"device_image_bottom",
+)
 
 
 def resolve_lifecycle_name(serial: str | None) -> str | None:
@@ -107,6 +130,25 @@ class CHWarrantyClaim(Document):
 		"additional_approval_status",
 		"additional_approval_link_sent_at",
 		"additional_approval_decided_at",
+		"gogizmo_invoice",
+		"gogizmo_payment_ref",
+		"customer_invoice",
+		"customer_payment_ref",
+		"settlement_status",
+		"processing_fee_status",
+		"processing_fee_amount",
+		"processing_fee_invoice",
+		"processing_fee_journal_entry",
+		"processing_fee_payment_mode",
+		"processing_fee_paid_at",
+		"processing_fee_paid_amount",
+		"processing_fee_payment_ref",
+		"processing_fee_posting_attempts",
+		"processing_fee_last_posting_at",
+		"processing_fee_gl_error",
+		"processing_fee_link_url",
+		"processing_fee_link_sent_at",
+		"processing_fee_link_sent_via",
 		"processing_fee_waiver_status",
 		"processing_fee_waiver_requested_by",
 		"processing_fee_waiver_approved_by",
@@ -121,9 +163,18 @@ class CHWarrantyClaim(Document):
 		"picked_up_at",
 		"out_for_delivery_at",
 		"delivered_back_at",
-		"final_qc_result",
+		"final_qc_status",
 		"final_qc_by",
 		"final_qc_at",
+		"final_qc_remarks",
+	)
+	_GOVERNANCE_NUMERIC_FIELDS = (
+		"requires_approval",
+		"approved_amount",
+		"delivery_otp_attempts",
+		"processing_fee_amount",
+		"processing_fee_paid_amount",
+		"processing_fee_posting_attempts",
 	)
 
 	def _validate_governance_fields(self):
@@ -133,6 +184,8 @@ class CHWarrantyClaim(Document):
 				"claim_status": (None, "", "Draft"),
 				"requires_approval": (None, "", 0),
 				"delivery_otp_attempts": (None, "", 0),
+				"settlement_status": (None, "", "Pending"),
+				"processing_fee_status": (None, "", "Pending", "Not Required"),
 			}
 			for fieldname in self._GOVERNANCE_FIELDS:
 				if self.get(fieldname) not in allowed.get(fieldname, (None, "", 0, 0.0)):
@@ -141,7 +194,18 @@ class CHWarrantyClaim(Document):
 						frappe.PermissionError,
 					)
 			return
-		if any(self.get(fieldname) != before.get(fieldname) for fieldname in self._GOVERNANCE_FIELDS):
+		def canonical_value(fieldname, value):
+			if value in (None, ""):
+				return None
+			if fieldname in self._GOVERNANCE_NUMERIC_FIELDS and flt(value) == 0:
+				return None
+			return value
+
+		if any(
+			canonical_value(fieldname, self.get(fieldname))
+			!= canonical_value(fieldname, before.get(fieldname))
+			for fieldname in self._GOVERNANCE_FIELDS
+		):
 			frappe.throw(
 				_("Warranty approval and fulfilment evidence can only be changed through authorized actions."),
 				frappe.PermissionError,
@@ -208,6 +272,7 @@ class CHWarrantyClaim(Document):
 		if not hmac.compare_digest(expected, self.delivery_otp):
 			frappe.throw(_("Invalid delivery OTP."), frappe.AuthenticationError)
 		frappe.cache.delete(attempt_key)
+
 	def _require_action(self, role_field, default_roles, action) -> None:
 		require_scoped_document_action(
 			self,
@@ -225,14 +290,25 @@ class CHWarrantyClaim(Document):
 
 	def validate(self):
 		self._validate_governance_fields()
+		self._validate_intake_evidence_immutability()
+		self._validate_claim_media_audit()
 		if self.get("serial_no") and self.get("sold_plan"):
-			_dup = frappe.db.get_value("CH Warranty Claim", {
-				"serial_no": self.serial_no, "sold_plan": self.sold_plan,
-				"claim_status": ("not in", ("Closed", "Rejected", "Withdrawn")),
-				"name": ("!=", self.name),
-			}, "name")
+			_dup = frappe.db.get_value(
+				"CH Warranty Claim",
+				{
+					"serial_no": self.serial_no, "sold_plan": self.sold_plan,
+					"claim_status": ("not in", ("Closed", "Rejected", "Cancelled")),
+					"name": ("!=", self.name),
+				},
+				"name",
+			)
 			if _dup:
-				frappe.throw(frappe._("Open warranty claim {0} already exists for this serial and plan.").format(_dup), title=frappe._("Duplicate Claim"))
+				frappe.throw(
+					frappe._(
+						"Open warranty claim {0} already exists for this serial and plan."
+					).format(_dup),
+					title=frappe._("Duplicate Claim"),
+				)
 		if self.customer_phone:
 			self.customer_phone = validate_indian_phone(self.customer_phone, "Customer Phone")
 		if self.manufacturer_contact_phone:
@@ -245,7 +321,79 @@ class CHWarrantyClaim(Document):
 		if not self.claim_status:
 			self.claim_status = "Draft"
 
+	def _validate_intake_evidence_immutability(self):
+		"""Initial device-condition images become audit evidence on submission."""
+		if self.is_new():
+			return
+		before = self.get_doc_before_save()
+		if not before or before.docstatus != 1:
+			return
+		if any(
+			(self.get(fieldname) or "") != (before.get(fieldname) or "")
+			for fieldname in _CLAIM_EVIDENCE_FIELDS
+		):
+			frappe.throw(
+				_(
+					"Submitted intake images are immutable. Add later-stage photos "
+					"to Claim Media instead."
+				),
+				frappe.PermissionError,
+			)
+
+	def _validate_claim_media_audit(self):
+		"""Keep lifecycle media append-only after submit and stamp its author."""
+		rows = self.get("claim_media") or []
+		before = self.get_doc_before_save() if not self.is_new() else None
+		previous_rows = {
+			row.name: (
+				row.get("stage") or "",
+				row.get("image") or "",
+				row.get("caption") or "",
+				row.get("uploaded_by") or "",
+				str(row.get("uploaded_at") or ""),
+			)
+			for row in (before.get("claim_media") or [])
+			if row.name
+		} if before and before.docstatus == 1 else {}
+
+		current_names = set()
+		for row in rows:
+			if row.name:
+				current_names.add(row.name)
+			if row.is_new():
+				row.uploaded_by = frappe.session.user
+				row.uploaded_at = now_datetime()
+				continue
+			if row.name in previous_rows:
+				current = (
+					row.get("stage") or "",
+					row.get("image") or "",
+					row.get("caption") or "",
+					row.get("uploaded_by") or "",
+					str(row.get("uploaded_at") or ""),
+				)
+				if current != previous_rows[row.name]:
+					frappe.throw(
+						_(
+							"Submitted claim media is append-only; existing evidence "
+							"cannot be edited."
+						),
+						frappe.PermissionError,
+					)
+
+		if set(previous_rows) - current_names:
+			frappe.throw(
+				_("Submitted claim media is append-only; existing evidence cannot be removed."),
+				frappe.PermissionError,
+			)
+
 	def before_submit(self):
+		if not self._issue_category_names():
+			frappe.throw(
+				_("Select at least one issue category before submitting the claim."),
+				frappe.ValidationError,
+			)
+		self._validate_submission_evidence()
 		self._lookup_warranty_coverage()
 		self._run_coverage_decision_engine()
 		self._calculate_cost_split()
@@ -358,46 +506,10 @@ class CHWarrantyClaim(Document):
 		self._log("Approved", old, "Approved",
 		          (remarks or f"Approved by {frappe.session.user}") + partial_note)
 
-		# Auto-calculate and send processing fee based on claim channel:
-		#   Online/Bot → fee sent BEFORE pickup is arranged (payment gateway link)
-		#   Walk-in / Store → fee collected at counter (after device received)
-		#
-		# The real helper is `_calculate_processing_fee()` (returns the amount).
-		# The previous call — `_calculate_processing_fee_amount()` — did not exist,
-		# so the try/except swallowed an AttributeError every single time and
-		# operators had to raise the fee manually. Now we call the correct helper
-		# and persist the amount + status on the claim so the standard
-		# fee-payment flow (send link, mark paid, etc.) picks it up automatically.
-		try:
-			self.reload()
-			fee_amount = flt(self._calculate_processing_fee())
-			fee_updates = {
-				"processing_fee_amount": fee_amount,
-				"processing_fee_status": (
-					"Pending" if fee_amount > 0 else "Not Required"
-				),
-			}
-			self.db_set(fee_updates)
-			self.processing_fee_amount = fee_amount
-			self.processing_fee_status = fee_updates["processing_fee_status"]
-		except Exception:
-			# Still non-fatal — operator can generate manually from the claim form
-			# via `generate_processing_fee()` — but capture it for audit so we
-			# notice regressions instead of silently masking them again.
-			frappe.log_error(
-				frappe.get_traceback(),
-				f"CH Warranty Claim: processing fee pre-calc failed for {self.name}",
-			)
-
-		if self.pickup_required or (self.claim_channel or "") in ("Online/Bot", "Phone"):
-			# For online claims: collect fee before arranging pickup
-			if (self.claim_channel or "") in ("Online/Bot", "Phone") and flt(self.processing_fee_amount) > 0:
-				self._log(
-					"Fee Pending",
-					"Approved",
-					"Approved",
-					"Processing fee payment link to be sent to customer before pickup.",
-				)
+		# Processing fees are determined only after physical receiving and intake
+		# QC. Approval may authorize pickup, but it must not create accounting
+		# obligations for a device that has not been inspected.
+		if self.pickup_required:
 			self.db_set({
 				"claim_status": "Pickup Requested",
 				"logistics_status": "Pickup Requested",
@@ -408,7 +520,7 @@ class CHWarrantyClaim(Document):
 				"Pickup Requested",
 				"Claim approved and waiting for pickup scheduling",
 			)
-		# Walk-in: stays at Approved — device receiving happens next; fee collected at counter
+		# Walk-in: stays at Approved — device receiving and intake QC happen next.
 
 	@frappe.whitelist(methods=["POST"])
 	def reject(self, reason=None) -> None:
@@ -541,7 +653,7 @@ class CHWarrantyClaim(Document):
 		)
 		if self.docstatus != 1:
 			frappe.throw(_("Claim must be submitted first."), title=_("Ch Warranty Claim Error"))
-		if self.claim_status != "Repair Complete":
+		if self.claim_status not in ("Repair Complete", "Final QC Pending"):
 			frappe.throw(_("Final QC requires repair complete — current status: {0}").format(
 				self.claim_status))
 		if qc_result not in ("Passed", "Failed"):
@@ -555,9 +667,15 @@ class CHWarrantyClaim(Document):
 			"final_qc_remarks": qc_remarks or "",
 		}
 		if qc_result == "Passed":
-			updates["claim_status"] = "Final QC Passed"
+			if flt(self.gogizmo_share) <= 0 and flt(self.customer_share) <= 0:
+				updates["settlement_status"] = "Settled"
+				updates["claim_status"] = "Ready for Delivery"
+			else:
+				updates["settlement_status"] = "Pending"
+				updates["claim_status"] = "Final QC Passed"
 		else:
-			updates["claim_status"] = "Repair Complete"  # Back to repair
+			updates["claim_status"] = "In Repair"
+			updates["repair_status"] = "In Progress"
 
 		self.db_set(updates)
 		self._log(f"Final QC {qc_result}", old, updates["claim_status"],
@@ -585,7 +703,7 @@ class CHWarrantyClaim(Document):
 		old = self.claim_status
 		self.repair_status = "Completed"
 		self.repair_completion_date = nowdate()
-		self.claim_status = "Repair Complete"
+		self.claim_status = "Final QC Pending"
 
 		# If returning from manufacturer, set actual return date
 		if old == "Sent to Manufacturer" and not self.actual_return_date:
@@ -594,14 +712,15 @@ class CHWarrantyClaim(Document):
 		update_fields = {
 			"repair_status": "Completed",
 			"repair_completion_date": self.repair_completion_date,
-			"claim_status": "Repair Complete",
+			"final_qc_status": "Pending",
+			"claim_status": "Final QC Pending",
 		}
 		if self.actual_return_date:
 			update_fields["actual_return_date"] = self.actual_return_date
 
 		self.db_set(update_fields)
 
-		self._log("Repair Complete", old, "Repair Complete",
+		self._log("Repair Complete", old, "Final QC Pending",
 		          remarks or ("Device returned from manufacturer" if old == "Sent to Manufacturer"
 		                      else "Repair completed by GoFix"))
 
@@ -616,8 +735,13 @@ class CHWarrantyClaim(Document):
 		)
 		if self.docstatus != 1:
 			frappe.throw(_("Claim must be submitted first."), title=_("Ch Warranty Claim Error"))
-		if self.claim_status in ("Closed", "Cancelled", "Rejected"):
-			frappe.throw(_("Cannot schedule pickup — current status: {0}").format(self.claim_status), title=_("Ch Warranty Claim Error"))
+		if self.claim_status not in ("Approved", "Pickup Requested"):
+			frappe.throw(
+				_("Pickup can only be scheduled for an approved claim (current: {0}).").format(
+					self.claim_status
+				),
+				title=_("Ch Warranty Claim Error"),
+			)
 		if not (pickup_address or self.pickup_address):
 			frappe.throw(_("Pickup address is required."), title=_("Ch Warranty Claim Error"))
 
@@ -713,8 +837,17 @@ class CHWarrantyClaim(Document):
 		)
 		if self.docstatus != 1:
 			frappe.throw(_("Claim must be submitted first."), title=_("Ch Warranty Claim Error"))
-		if self.claim_status != "Repair Complete":
-			frappe.throw(_("Cannot mark out for delivery — current status: {0}").format(self.claim_status), title=_("Ch Warranty Claim Error"))
+		if self.claim_status not in ("Payment Received", "Ready for Delivery"):
+			frappe.throw(
+				_("Delivery requires completed accounting settlement (current: {0}).").format(
+					self.claim_status
+				),
+				title=_("Ch Warranty Claim Error"),
+			)
+		if self.final_qc_status != "Passed":
+			frappe.throw(_("Final QC must pass before delivery."), frappe.ValidationError)
+		if self.settlement_status != "Settled":
+			frappe.throw(_("Claim settlement must be complete before delivery."), frappe.ValidationError)
 
 		old = self.claim_status
 		delivery_otp = self._issue_delivery_otp()
@@ -773,7 +906,13 @@ class CHWarrantyClaim(Document):
 		}
 
 	@frappe.whitelist(methods=["POST"])
-	def settle_claim(self, gogizmo_payment_ref=None, customer_payment_ref=None) -> None:
+	def settle_claim(
+		self,
+		gogizmo_invoice=None,
+		gogizmo_payment_ref=None,
+		customer_invoice=None,
+		customer_payment_ref=None,
+	) -> None:
 		"""Record financial settlement between GoGizmo ↔ GoFix and GoGizmo ↔ Customer.
 
 		Claim ledger closes here:
@@ -788,46 +927,105 @@ class CHWarrantyClaim(Document):
 		)
 		if self.docstatus != 1:
 			frappe.throw(_("Claim must be submitted."), title=_("Settlement Error"))
+		if self.final_qc_status != "Passed" or self.claim_status not in (
+			"Final QC Passed",
+			"Invoice Pending",
+			"Invoice Raised",
+			"Payment Pending",
+			"Payment Received",
+			"Ready for Delivery",
+		):
+			frappe.throw(
+				_("Settlement is allowed only after final QC passes (current: {0}).").format(
+					self.claim_status
+				),
+				frappe.ValidationError,
+				title=_("Settlement Error"),
+			)
 
-		gogizmo_done = (
-			flt(self.gogizmo_share) <= 0
-			or gogizmo_payment_ref
-			or self.gogizmo_payment_ref
-		)
-		customer_done = (
-			flt(self.customer_share) <= 0
-			or customer_payment_ref
-			or self.customer_payment_ref
-		)
+		gogizmo_invoice = (gogizmo_invoice or self.gogizmo_invoice or "").strip()
+		customer_invoice = (customer_invoice or self.customer_invoice or "").strip()
+		gogizmo_payment_ref = (
+			gogizmo_payment_ref or self.gogizmo_payment_ref or ""
+		).strip()
+		customer_payment_ref = (
+			customer_payment_ref or self.customer_payment_ref or ""
+		).strip()
 
-		updates = {}
-		if gogizmo_payment_ref:
-			updates["gogizmo_payment_ref"] = gogizmo_payment_ref
-		if customer_payment_ref:
-			updates["customer_payment_ref"] = customer_payment_ref
+		if flt(self.gogizmo_share) > 0:
+			self._validate_settlement_invoice(
+				gogizmo_invoice,
+				flt(self.gogizmo_share),
+				_("GoGizmo"),
+			)
+		if flt(self.customer_share) > 0:
+			self._validate_settlement_invoice(
+				customer_invoice,
+				flt(self.customer_share),
+				_("Customer"),
+				expected_customer=self.customer,
+			)
+
+		gogizmo_paid = bool(
+			flt(self.gogizmo_share) > 0
+			and self._validate_settlement_payment(
+				gogizmo_payment_ref,
+				gogizmo_invoice,
+				flt(self.gogizmo_share),
+				_("GoGizmo"),
+			)
+		)
+		customer_paid = bool(
+			flt(self.customer_share) > 0
+			and self._validate_settlement_payment(
+				customer_payment_ref,
+				customer_invoice,
+				flt(self.customer_share),
+				_("Customer"),
+			)
+		)
+		gogizmo_done = flt(self.gogizmo_share) <= 0 or gogizmo_paid
+		customer_done = flt(self.customer_share) <= 0 or customer_paid
+
+		updates = {
+			"gogizmo_invoice": gogizmo_invoice or None,
+			"customer_invoice": customer_invoice or None,
+			"gogizmo_payment_ref": gogizmo_payment_ref or None,
+			"customer_payment_ref": customer_payment_ref or None,
+		}
 
 		if gogizmo_done and customer_done:
 			updates["settlement_status"] = "Settled"
 			new_status = "Settled"
-		elif gogizmo_done or customer_done:
+			updates["claim_status"] = (
+				"Payment Received"
+				if flt(self.gogizmo_share) > 0 or flt(self.customer_share) > 0
+				else "Ready for Delivery"
+			)
+		elif gogizmo_paid or customer_paid:
 			updates["settlement_status"] = "Partially Settled"
 			new_status = "Partially Settled"
+			updates["claim_status"] = "Payment Pending"
 		else:
 			updates["settlement_status"] = "Pending"
 			new_status = "Pending"
+			updates["claim_status"] = "Payment Pending"
 
-		if updates:
-			self.db_set(updates)
+		old = self.claim_status
+		self.db_set(updates)
 
 		self._log(
 			"Settlement Updated",
-			self.claim_status,
-			self.claim_status,
+			old,
+			updates["claim_status"],
 			f"Settlement status: {new_status}. "
 			f"GoGizmo ref: {gogizmo_payment_ref or self.gogizmo_payment_ref or '—'}. "
 			f"Customer ref: {customer_payment_ref or self.customer_payment_ref or '—'}.",
 		)
-		return {"settlement_status": new_status}
+		return {
+			"settlement_status": new_status,
+			"claim_status": updates["claim_status"],
+		}
 
 	@frappe.whitelist(methods=["POST"])
 	def close_claim(self, remarks=None) -> None:
@@ -837,24 +1035,19 @@ class CHWarrantyClaim(Document):
 			_WARRANTY_MANAGEMENT_ROLES,
 			_("close a warranty claim"),
 		)
-		if self.claim_status not in (
-			"Repair Complete", "Approved", "Rejected", "Sent to Manufacturer",
-			"Delivered", "QC Failed", "Final QC Passed", "Payment Received", "Not Repairable"
-		):
+		no_service_statuses = ("Rejected", "QC Failed", "Not Repairable")
+		if self.claim_status not in (*no_service_statuses, "Delivered"):
 			frappe.throw(_("Cannot close — current status: {0}").format(
 				self.claim_status))
 
-		# Settlement must be complete before closing (unless claim is Rejected/Cancelled —
-		# no repair was done so no financial settlement needed).
-		needs_settlement = self.claim_status not in ("Rejected", "Cancelled", "Not Repairable")
-		if needs_settlement and self.settlement_status not in ("Settled", ""):
-			if flt(self.gogizmo_share) > 0 or flt(self.customer_share) > 0:
-				frappe.throw(
-					_("Cannot close claim — settlement is {0}. "
-					  "Record GoGizmo and customer payments via Settle Claim before closing.").format(
-						self.settlement_status or "Pending"),
-					title=_("Settlement Incomplete"),
-				)
+		needs_settlement = self.claim_status not in no_service_statuses
+		if needs_settlement and self.settlement_status != "Settled":
+			frappe.throw(
+				_("Cannot close claim — settlement is {0}. "
+				  "Complete document-backed settlement before closing.").format(
+					self.settlement_status or "Pending"),
+				title=_("Settlement Incomplete"),
+			)
 
 		old = self.claim_status
 
@@ -870,11 +1063,12 @@ class CHWarrantyClaim(Document):
 		final_outcome = self._determine_final_outcome(old)
 
 		self.claim_status = "Closed"
-		self.settlement_status = "Settled"
+		final_settlement_status = "Settled" if needs_settlement else "Not Required"
+		self.settlement_status = final_settlement_status
 
 		update_dict = {
 			"claim_status": "Closed",
-			"settlement_status": "Settled",
+			"settlement_status": final_settlement_status,
 			"total_claim_cost": self.total_claim_cost,
 			"final_outcome": final_outcome,
 		}
@@ -925,7 +1119,7 @@ class CHWarrantyClaim(Document):
 			"repair_warranty": "Repaired Under Repair Warranty",
 			"paid_repair": "Repaired Paid",
 			"goodwill": "Goodwill Repair",
-			"manufacturer_warranty": "Repaired Under Anniversary Warranty",  # fallback
+			"manufacturer_warranty": "Repaired Under Manufacturer Warranty",
 		}
 		return outcome_map.get(self.coverage_type, "Repaired Paid")
 
@@ -1215,6 +1409,105 @@ class CHWarrantyClaim(Document):
 			_("record a warranty claim processing fee payment"),
 		)
 		return self._mark_fee_paid(paid_amount, payment_mode, payment_ref, remarks)
+
+	def record_processing_fee_invoice(self, invoice_name) -> dict:
+		"""Settle the processing fee from an authoritative paid POS invoice.
+
+		The Sales Invoice owns the accounting entry, so this action records the
+		link and advances the claim without creating a duplicate Journal Entry.
+		"""
+		if self.docstatus != 1:
+			frappe.throw(_("Claim must be submitted first."), frappe.ValidationError)
+		if self.claim_status != "Fee Pending":
+			frappe.throw(
+				_("Claim {0} is not awaiting a processing fee (status: {1}).").format(
+					self.name, self.claim_status
+				),
+				frappe.ValidationError,
+			)
+		if self.processing_fee_status not in ("Pending", "Link Sent"):
+			frappe.throw(
+				_("Processing fee is {0}, not pending.").format(self.processing_fee_status),
+				frappe.ValidationError,
+			)
+		if self.processing_fee_invoice:
+			frappe.throw(
+				_("Processing fee is already linked to invoice {0}.").format(
+					self.processing_fee_invoice
+				),
+				frappe.ValidationError,
+			)
+
+		invoice = frappe.get_doc("Sales Invoice", invoice_name)
+		if invoice.docstatus != 1 or invoice.is_return:
+			frappe.throw(
+				_("Processing-fee invoice {0} must be a submitted sale.").format(invoice_name),
+				frappe.ValidationError,
+			)
+		if invoice.get("custom_warranty_claim") != self.name:
+			frappe.throw(
+				_("Sales Invoice {0} is not linked to claim {1}.").format(
+					invoice_name, self.name
+				),
+				frappe.ValidationError,
+			)
+		if invoice.company != self.company or invoice.customer != self.customer:
+			frappe.throw(
+				_("Processing-fee invoice company and customer must match the claim."),
+				frappe.ValidationError,
+			)
+
+		expected = flt(self.processing_fee_amount, 2)
+		invoice_total = flt(invoice.rounded_total or invoice.grand_total, 2)
+		if expected <= 0 or abs(invoice_total - expected) > 0.01:
+			frappe.throw(
+				_(
+					"Processing-fee invoice total must exactly match the claim fee of {0}."
+				).format(expected),
+				frappe.ValidationError,
+			)
+		if flt(invoice.outstanding_amount, 2) > 0.01:
+			frappe.throw(
+				_("Processing-fee invoice {0} is not fully paid.").format(invoice_name),
+				frappe.ValidationError,
+			)
+
+		modes = [
+			(row.mode_of_payment or "").strip()
+			for row in (invoice.get("payments") or [])
+			if flt(row.amount) > 0
+		]
+		allowed_modes = {"Cash", "UPI", "Card", "Bank Transfer", "Payment Link"}
+		payment_mode = modes[0] if len(modes) == 1 and modes[0] in allowed_modes else "Split"
+		paid_at = now_datetime()
+		updates = {
+			"processing_fee_invoice": invoice.name,
+			"processing_fee_status": "Paid",
+			"processing_fee_paid_amount": expected,
+			"processing_fee_paid_at": paid_at,
+			"processing_fee_payment_mode": payment_mode,
+			"processing_fee_payment_ref": invoice.name,
+			"claim_status": "Fee Paid",
+			"processing_fee_gl_error": "",
+		}
+		old = self.claim_status
+		self.db_set(updates)
+		for fieldname, value in updates.items():
+			setattr(self, fieldname, value)
+		self._log(
+			"Fee Paid",
+			old,
+			"Fee Paid",
+			_("Processing fee {0} settled by Sales Invoice {1}.").format(
+				expected, invoice.name
+			),
+		)
+		return {
+			"claim_name": self.name,
+			"claim_status": "Fee Paid",
+			"processing_fee_status": "Paid",
+			"processing_fee_invoice": invoice.name,
+		}
 
 	def _mark_fee_paid(self, paid_amount=None, payment_mode=None,
 	                  payment_ref=None, remarks=None) -> dict:
@@ -1572,11 +1865,8 @@ class CHWarrantyClaim(Document):
 			errors.append(_("Claim must be approved (current: {0})").format(self.claim_status))
 		if not self.device_received_at:
 			errors.append(_("Device must be physically received at store"))
-		# Walk-in claims: VAS manager approval suffices — intake QC is not mandatory.
-		# Online/Phone claims: QC must pass (device arrived via logistics, needs inspection).
-		is_walkin = (self.mode_of_service or "") == "Walk-in"
-		if not is_walkin and self.intake_qc_status != "Passed":
-			errors.append(_("Intake QC must pass for non-walk-in claims (current: {0})").format(
+		if self.intake_qc_status != "Passed":
+			errors.append(_("Intake QC must pass before repair (current: {0})").format(
 				self.intake_qc_status or "Not Done"))
 		if (self.processing_fee_status not in ("Paid", "Waived", "Not Required")
 				and flt(self.processing_fee_amount) > 0):
@@ -1595,6 +1885,195 @@ class CHWarrantyClaim(Document):
 		self._create_gofix_ticket()
 
 	# ── Private Methods ──────────────────────────────────────────────────
+
+	def _issue_category_names(self) -> list[str]:
+		"""Return the normalized issue categories from the current and legacy fields."""
+		categories = []
+		for row in self.get("issue_categories") or []:
+			value = (row.get("issue_category") or "").strip()
+			if value and value not in categories:
+				categories.append(value)
+		legacy = (self.get("issue_category") or "").strip()
+		if legacy and legacy not in categories:
+			categories.append(legacy)
+		return categories
+
+	def _validate_submission_evidence(self) -> None:
+		"""Require durable device evidence before a claim becomes operational."""
+		evidence = {
+			(self.get(fieldname) or "").strip()
+			for fieldname in _CLAIM_EVIDENCE_FIELDS
+			if (self.get(fieldname) or "").strip()
+		}
+		for row in self.get("claim_media") or []:
+			image = (row.get("image") or "").strip()
+			if image:
+				evidence.add(image)
+
+		minimum = min(
+			get_int_setting("warranty_claim_min_evidence_images", 4, minimum=1),
+			len(_CLAIM_EVIDENCE_FIELDS),
+		)
+		if len(evidence) < minimum:
+			frappe.throw(
+				_("Upload at least {0} distinct device images before submitting the claim.").format(
+					minimum
+				),
+				frappe.ValidationError,
+				title=_("Claim Evidence Required"),
+			)
+
+	def _validate_active_plan_entitlement(self, active_plan) -> None:
+		"""Apply the authoritative plan limits and issue benefits to this claim."""
+		from ch_item_master.ch_item_master.warranty_api import validate_claim
+
+		frappe.db.sql(
+			"SELECT name FROM `tabActive VAS Plans` WHERE name = %s FOR UPDATE",
+			(active_plan.name,),
+		)
+		categories = self._issue_category_names() or [None]
+		results = []
+		for issue_type in categories:
+			result = validate_claim(
+				active_plan.name,
+				issue_type=issue_type,
+				estimate_amount=flt(self.estimated_repair_cost),
+			)
+			if not result.get("eligible"):
+				frappe.throw(
+					_("The selected VAS plan is not eligible for {0}: {1}").format(
+						issue_type or _("this claim"),
+						result.get("reason") or _("eligibility check failed"),
+					),
+					frappe.ValidationError,
+					title=_("Claim Not Covered"),
+				)
+			results.append(result)
+
+		# A single repair estimate can cover multiple reported issues. Apply the
+		# most restrictive eligible benefit instead of adding the estimate once
+		# per issue.
+		self.flags.validated_claim_eligibility = min(
+			results,
+			key=lambda result: flt(result.get("covered_amount")),
+		)
+		self.deductible_amount = max(
+			flt(self.deductible_amount),
+			max(flt(result.get("deductible")) for result in results),
+		)
+
+	def _validate_settlement_invoice(
+		self,
+		invoice_name,
+		required_amount,
+		label,
+		expected_customer=None,
+	) -> None:
+		if not invoice_name:
+			frappe.throw(
+				_("{0} settlement requires a submitted Sales Invoice.").format(label),
+				frappe.ValidationError,
+			)
+		invoice = frappe.db.get_value(
+			"Sales Invoice",
+			invoice_name,
+			["docstatus", "customer", "grand_total"],
+			as_dict=True,
+		)
+		if not invoice or invoice.docstatus != 1:
+			frappe.throw(
+				_("Sales Invoice {0} must exist and be submitted.").format(invoice_name),
+				frappe.ValidationError,
+			)
+		if expected_customer and invoice.customer != expected_customer:
+			frappe.throw(
+				_("Sales Invoice {0} belongs to another customer.").format(invoice_name),
+				frappe.ValidationError,
+			)
+		if flt(invoice.grand_total, 2) + 0.01 < flt(required_amount, 2):
+			frappe.throw(
+				_("Sales Invoice {0} does not cover the required {1} amount of {2}.").format(
+					invoice_name,
+					label,
+					flt(required_amount, 2),
+				),
+				frappe.ValidationError,
+			)
+
+	def _validate_settlement_payment(
+		self,
+		reference,
+		invoice_name,
+		required_amount,
+		label,
+	) -> bool:
+		if not reference:
+			return False
+
+		if frappe.db.exists("Payment Entry", reference):
+			if frappe.db.get_value("Payment Entry", reference, "docstatus") != 1:
+				frappe.throw(
+					_("Payment Entry {0} must be submitted.").format(reference),
+					frappe.ValidationError,
+				)
+			allocated = frappe.db.sql(
+				"""
+				SELECT COALESCE(SUM(allocated_amount), 0)
+				FROM `tabPayment Entry Reference`
+				WHERE parent = %s
+				  AND reference_doctype = 'Sales Invoice'
+				  AND reference_name = %s
+				""",
+				(reference, invoice_name),
+			)[0][0]
+			if flt(allocated, 2) + 0.01 < flt(required_amount, 2):
+				frappe.throw(
+					_("Payment Entry {0} is not allocated for the full {1} amount.").format(
+						reference,
+						label,
+					),
+					frappe.ValidationError,
+				)
+			return True
+
+		if frappe.db.exists("Journal Entry", reference):
+			if frappe.db.get_value("Journal Entry", reference, "docstatus") != 1:
+				frappe.throw(
+					_("Journal Entry {0} must be submitted.").format(reference),
+					frappe.ValidationError,
+				)
+			rows = frappe.get_all(
+				"Journal Entry Account",
+				filters={
+					"parent": reference,
+					"reference_type": "Sales Invoice",
+					"reference_name": invoice_name,
+				},
+				fields=["debit_in_account_currency", "credit_in_account_currency"],
+			)
+			linked_amount = sum(
+				max(
+					flt(row.debit_in_account_currency),
+					flt(row.credit_in_account_currency),
+				)
+				for row in rows
+			)
+			if flt(linked_amount, 2) + 0.01 < flt(required_amount, 2):
+				frappe.throw(
+					_("Journal Entry {0} is not linked for the full {1} amount.").format(
+						reference,
+						label,
+					),
+					frappe.ValidationError,
+				)
+			return True
+
+		frappe.throw(
+			_(
+				"{0} payment reference {1} must be a submitted Payment Entry or Journal Entry."
+			).format(label, reference),
+			frappe.ValidationError,
+		)
 
 	def _set_title(self):
 		self.title = f"{self.serial_no} — {self.customer_name or self.customer}"
@@ -1617,24 +2096,34 @@ class CHWarrantyClaim(Document):
 		if self.sold_plan:
 			try:
 				sp = frappe.get_doc("Active VAS Plans", self.sold_plan)
-				if sp.status == "Active" and sp.docstatus == 1:
-					if (sp.serial_no or "").strip() != (self.serial_no or "").strip():
-						frappe.throw(_("The selected VAS plan does not cover this IMEI."))
-					if self.company and sp.company != self.company:
-						frappe.throw(_("The selected VAS plan belongs to another company."))
-					if self.customer and sp.customer != self.customer:
-						frappe.throw(_("The selected VAS plan belongs to another customer."))
-					self.warranty_status = "Under Warranty"
-					self.warranty_plan = sp.warranty_plan
-					self.plan_type = sp.plan_type
-					self.warranty_start_date = sp.start_date
-					self.warranty_end_date = sp.end_date
-					self.claims_used = sp.claims_used or 0
-					self.max_claims = sp.max_claims or 0
-					self.deductible_amount = flt(sp.deductible_amount)
-					return
+				if sp.docstatus != 1 or sp.status != "Active":
+					frappe.throw(
+						_("The selected VAS plan is not active (status: {0}).").format(
+							sp.status or _("Draft")
+						),
+						frappe.ValidationError,
+					)
+				if (sp.serial_no or "").strip() != (self.serial_no or "").strip():
+					frappe.throw(_("The selected VAS plan does not cover this IMEI."))
+				if self.company and sp.company != self.company:
+					frappe.throw(_("The selected VAS plan belongs to another company."))
+				if self.customer and sp.customer != self.customer:
+					frappe.throw(_("The selected VAS plan belongs to another customer."))
+				self.warranty_status = "Under Warranty"
+				self.warranty_plan = sp.warranty_plan
+				self.plan_type = sp.plan_type
+				self.warranty_start_date = sp.start_date
+				self.warranty_end_date = sp.end_date
+				self.claims_used = sp.claims_used or 0
+				self.max_claims = sp.max_claims or 0
+				self.deductible_amount = flt(sp.deductible_amount)
+				self._validate_active_plan_entitlement(sp)
+				return
 			except frappe.DoesNotExistError:
-				pass  # Fall through to auto-detection
+				frappe.throw(
+					_("The selected VAS plan {0} does not exist.").format(self.sold_plan),
+					frappe.DoesNotExistError,
+				)
 
 		result = check_warranty_status(self.serial_no, self.company)
 
@@ -1650,6 +2139,9 @@ class CHWarrantyClaim(Document):
 			self.claims_used = plan.get("claims_used", 0)
 			self.max_claims = plan.get("max_claims", 0)
 			self.deductible_amount = flt(plan.get("deductible_amount", 0))
+			self._validate_active_plan_entitlement(
+				frappe.get_doc("Active VAS Plans", self.sold_plan)
+			)
 
 		# If no active VAS plan covers device, check manufacturer warranty from Serial No
 		if not result.get("warranty_covered"):
@@ -1713,7 +2205,10 @@ class CHWarrantyClaim(Document):
 		# ── 2. Check anniversary_warranty ──
 		if not selected and self.sold_plan:
 			plan_type = self.plan_type or frappe.db.get_value("Active VAS Plans", self.sold_plan, "plan_type")
-			if plan_type in ("Own Warranty", "Extended") and self.warranty_status == "Under Warranty":
+			if (
+				plan_type in _ANNIVERSARY_ELIGIBLE_PLAN_TYPES
+				and self.warranty_status == "Under Warranty"
+			):
 				company = frappe.db.get_value("Active VAS Plans", self.sold_plan, "company") if self.sold_plan else ""
 
 				# Check plan-level coverage_type_override first
@@ -1761,7 +2256,7 @@ class CHWarrantyClaim(Document):
 		if not selected and self.sold_plan and self.warranty_status == "Under Warranty":
 			plan_type = self.plan_type or frappe.db.get_value("Active VAS Plans", self.sold_plan, "plan_type")
 			company = frappe.db.get_value("Active VAS Plans", self.sold_plan, "company") if self.sold_plan else ""
-			if plan_type in ("Value Added Service", "VAS", "Protection", "Post-Repair Warranty", "Extended", "Own Warranty"):
+			if plan_type in _VAS_ELIGIBLE_PLAN_TYPES:
 				selected = {
 					"coverage_type": "vas_plan",
 					"coverage_source": "gogizmo" if company == get_warranty_company() else "gofix",
@@ -1877,10 +2372,8 @@ class CHWarrantyClaim(Document):
 			trace.append({"step": "repair_warranty", "result": "SKIP", "reason": "no active SWR records"})
 			return None
 
-		# Get issue categories from claim
-		issue_cats = []
-		if self.issue_category:
-			issue_cats.append(self.issue_category)
+		# Evaluate both the current Table MultiSelect and the legacy single field.
+		issue_cats = self._issue_category_names()
 
 		# Check each SWR for issue match
 		for swr in swrs:
@@ -1946,11 +2439,16 @@ class CHWarrantyClaim(Document):
 			self.gofix_share = est
 			self.customer_share = 0
 		elif self.coverage_type in ("anniversary_warranty", "vas_plan"):
-			# Get company share percent from plan config
+			# Apply issue-level benefit validation first, then the plan/company
+			# contribution percentage. The customer bears the remaining estimate.
 			company_pct = self._get_company_share_percent()
-			deductible = flt(self.deductible_amount)
-			after_deductible = max(0, est - deductible)
-			self.gogizmo_share = flt(after_deductible * company_pct / 100, 2)
+			eligibility = self.flags.get("validated_claim_eligibility") or {}
+			if eligibility:
+				eligible_amount = min(est, flt(eligibility.get("covered_amount")))
+			else:
+				deductible = flt(self.deductible_amount)
+				eligible_amount = max(0, est - deductible)
+			self.gogizmo_share = flt(eligible_amount * company_pct / 100, 2)
 			self.gofix_share = 0
 			self.customer_share = flt(est - self.gogizmo_share, 2)
 		elif self.coverage_type == "goodwill":
@@ -1965,14 +2463,21 @@ class CHWarrantyClaim(Document):
 
 	def _get_company_share_percent(self):
 		"""Get company share % from coverage rule (per-issue) or plan, default 100."""
-		# Check per-issue override first
-		if self.issue_category and self.warranty_plan:
+		# Check every selected issue override first. When one repair estimate
+		# contains multiple issues, use the most restrictive configured payer
+		# share rather than silently ignoring the Table MultiSelect values.
+		if self.warranty_plan:
 			plan = frappe.get_cached_doc("CH Warranty Plan", self.warranty_plan)
-			for rule in (plan.coverage_rules or []):
-				if rule.issue_type == self.issue_category:
-					if rule.company_share_percent is not None and flt(rule.company_share_percent) > 0:
-						return flt(rule.company_share_percent)
-					break
+			issue_categories = set(self._issue_category_names())
+			overrides = [
+				flt(rule.company_share_percent)
+				for rule in (plan.coverage_rules or [])
+				if rule.issue_type in issue_categories
+				and rule.company_share_percent is not None
+				and flt(rule.company_share_percent) > 0
+			]
+			if overrides:
+				return min(overrides)
 
 		# Plan-level override
 		if self.warranty_plan:
@@ -2169,21 +2674,13 @@ class CHWarrantyClaim(Document):
 		# ── Full gate control (backend enforcement) ──────────────────────
 		self.reload()  # Ensure latest field values
 
-		# Walk-in claims: VAS manager approval at the counter suffices — intake
-		# QC is not mandatory because the cashier physically inspected the device
-		# during hand-over. Online / phone / courier claims must still clear QC
-		# (device arrived unseen via logistics and needs formal inspection).
-		# This mirrors the walk-in exception in `create_repair_ticket()` above —
-		# without it, walk-in claims threaded the public API but crashed here.
-		is_walkin = (self.mode_of_service or "") == "Walk-in"
-
 		gate_errors = []
 		if self.approval_status not in ("Approved", "") or self.claim_status in (
 				"Draft", "Pending Approval", "Rejected", "Cancelled"):
 			gate_errors.append(_("Claim not approved"))
 		if not self.device_received_at:
 			gate_errors.append(_("Device not received at store"))
-		if not is_walkin and self.intake_qc_status != "Passed":
+		if self.intake_qc_status != "Passed":
 			gate_errors.append(_("Intake QC not passed (status: {0})").format(
 				self.intake_qc_status or "Not Done"))
 		if (self.processing_fee_status not in ("Paid", "Waived", "Not Required")
@@ -2244,7 +2741,8 @@ class CHWarrantyClaim(Document):
 			sr.warranty_deductible = flt(self.deductible_amount)
 
 			# Issue details
-			sr.issue_category = self.issue_category
+			issue_categories = self._issue_category_names()
+			sr.issue_category = issue_categories[0] if issue_categories else self.issue_category
 			sr.issue_description = self.issue_description or ""
 
 			# Estimate
@@ -2413,7 +2911,7 @@ class CHWarrantyClaim(Document):
 			"In Repair":         "Your device is under repair. We will notify you when complete.",
 			"Repair Complete":   "Repair is complete! Your device will be returned to you shortly.",
 			"Out for Delivery":  "Your device is out for delivery. OTP: {otp}",
-			"Delivered":         "Your device has been delivered. Claim {name} is now closed. Thank you!",
+			"Delivered":         "Your device has been delivered. Claim {name} is awaiting final closure. Thank you!",
 		}
 		template = _NOTIFY_STATUSES.get(to_status)
 		if not template:

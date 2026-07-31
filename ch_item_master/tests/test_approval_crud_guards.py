@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 from unittest import TestCase
+from unittest.mock import patch
 
 import frappe
 
@@ -17,7 +18,11 @@ from ch_item_master.ch_item_master.doctype.ch_vendor_info_record.ch_vendor_info_
 )
 from ch_item_master.ch_item_master.doctype.ch_warranty_claim.ch_warranty_claim import (
 	CHWarrantyClaim,
+	_ANNIVERSARY_ELIGIBLE_PLAN_TYPES,
+	_VAS_ELIGIBLE_PLAN_TYPES,
 )
+from ch_item_master.ch_item_master import warranty_api
+from ch_item_master.seed_status_registry import CROSS_APP_MAPPINGS
 from ch_item_master.supplier_scheme.doctype.scheme_product_map.scheme_product_map import (
 	SchemeProductMap,
 )
@@ -98,6 +103,18 @@ class TestApprovalCrudGuards(TestCase):
 		with self.assertRaises(frappe.PermissionError):
 			CHWarrantyClaim._validate_governance_fields(doc)
 
+	def test_warranty_governance_accepts_database_blank_normalization(self):
+		before = {fieldname: None for fieldname in CHWarrantyClaim._GOVERNANCE_FIELDS}
+		values = {
+			fieldname: (0 if fieldname in CHWarrantyClaim._GOVERNANCE_NUMERIC_FIELDS else "")
+			for fieldname in CHWarrantyClaim._GOVERNANCE_FIELDS
+		}
+		doc = FakeDocument(values, before=before)
+		doc._GOVERNANCE_FIELDS = CHWarrantyClaim._GOVERNANCE_FIELDS
+		doc._GOVERNANCE_NUMERIC_FIELDS = CHWarrantyClaim._GOVERNANCE_NUMERIC_FIELDS
+
+		CHWarrantyClaim._validate_governance_fields(doc)
+
 	def test_product_map_rejects_caller_verification(self):
 		doc = FakeDocument(
 			{"mapping_source": "Verified", "verified_by": "forged@example.com", "verified_on": None},
@@ -125,3 +142,113 @@ class TestApprovalCrudGuards(TestCase):
 			and permission.get("read")
 			for permission in definition["permissions"]
 		))
+
+	def test_warranty_new_document_defaults_are_governable(self):
+		doc = frappe.new_doc("CH Warranty Claim")
+		self.assertIn(doc.approval_status, (None, ""))
+		self.assertEqual(doc.settlement_status, "Pending")
+		doc._validate_governance_fields()
+
+	def test_warranty_schema_starts_approval_status_blank(self):
+		path = Path(__file__).parents[1] / "ch_item_master/doctype/ch_warranty_claim/ch_warranty_claim.json"
+		definition = json.loads(path.read_text())
+		fields = {field["fieldname"]: field for field in definition["fields"]}
+		self.assertTrue(fields["approval_status"]["options"].startswith("\n"))
+		self.assertEqual(fields["settlement_status"].get("default"), "Pending")
+
+	def test_all_configured_warranty_plan_types_are_classifiable(self):
+		path = Path(__file__).parents[1] / "ch_item_master/doctype/ch_warranty_plan/ch_warranty_plan.json"
+		definition = json.loads(path.read_text())
+		plan_type = next(
+			field for field in definition["fields"] if field["fieldname"] == "plan_type"
+		)
+		configured = {value for value in plan_type["options"].splitlines() if value}
+
+		self.assertTrue(
+			configured.issubset(
+				set(_ANNIVERSARY_ELIGIBLE_PLAN_TYPES) | set(_VAS_ELIGIBLE_PLAN_TYPES)
+			)
+		)
+
+	def test_warranty_governance_covers_qc_and_settlement(self):
+		for fieldname in (
+			"final_qc_status",
+			"final_qc_by",
+			"final_qc_at",
+			"final_qc_remarks",
+			"gogizmo_invoice",
+			"gogizmo_payment_ref",
+			"customer_invoice",
+			"customer_payment_ref",
+			"settlement_status",
+		):
+			self.assertIn(fieldname, CHWarrantyClaim._GOVERNANCE_FIELDS)
+		self.assertNotIn("final_qc_result", CHWarrantyClaim._GOVERNANCE_FIELDS)
+
+	def test_warranty_submission_requires_four_distinct_images(self):
+		values = {
+			fieldname: None
+			for fieldname in (
+				"device_image_front",
+				"device_image_back",
+				"device_image_left",
+				"device_image_right",
+				"device_image_top",
+				"device_image_bottom",
+			)
+		}
+		values.update({
+			"device_image_front": "/private/files/front.jpg",
+			"device_image_back": "/private/files/back.jpg",
+			"device_image_left": "/private/files/left.jpg",
+			"device_image_right": "/private/files/right.jpg",
+			"claim_media": [],
+		})
+		doc = FakeDocument(values)
+		with patch(
+			"ch_item_master.ch_item_master.doctype.ch_warranty_claim.ch_warranty_claim.get_int_setting",
+			return_value=4,
+		):
+			CHWarrantyClaim._validate_submission_evidence(doc)
+			doc.device_image_right = doc.device_image_left
+			with self.assertRaises(frappe.ValidationError):
+				CHWarrantyClaim._validate_submission_evidence(doc)
+
+	def test_submitted_warranty_intake_images_are_immutable(self):
+		before = frappe._dict(
+			docstatus=1,
+			device_image_front="/private/files/original.png",
+		)
+		doc = FakeDocument(
+			{"device_image_front": "/private/files/replacement.png"},
+			before=before,
+		)
+		with self.assertRaises(frappe.PermissionError):
+			CHWarrantyClaim._validate_intake_evidence_immutability(doc)
+
+	def test_pos_claim_action_wrappers_exist(self):
+		for method_name in (
+			"request_additional_approval_claim",
+			"resolve_additional_approval_claim",
+			"perform_final_qc_claim",
+			"settle_claim_finance",
+			"close_warranty_claim",
+		):
+			self.assertTrue(callable(getattr(warranty_api, method_name, None)), method_name)
+
+	def test_claim_issue_categories_are_normalized_before_insert(self):
+		with patch.object(warranty_api, "get_int_setting", return_value=3):
+			self.assertEqual(
+				warranty_api._normalize_claim_issue_categories(
+					'[{"issue_category": "Battery"}, "Screen & Display", "Battery"]',
+					"Camera",
+				),
+				["Battery", "Screen & Display", "Camera"],
+			)
+			with self.assertRaises(frappe.ValidationError):
+				warranty_api._normalize_claim_issue_categories([], None)
+
+	def test_gofix_completion_cannot_bypass_claim_fulfilment_gates(self):
+		mapping = CROSS_APP_MAPPINGS["SR_TO_CLAIM_STATUS"]
+		for service_status in ("Completed", "Invoiced", "Delivered"):
+			self.assertEqual(mapping[service_status], "Final QC Pending")
