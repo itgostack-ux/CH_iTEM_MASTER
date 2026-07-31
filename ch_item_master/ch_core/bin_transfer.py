@@ -242,6 +242,7 @@ def transfer_between_bins(
 	batch_no: str | None = None,
 	posting_date=None,
 	submit: bool = True,
+	from_pos: bool = False,
 ) -> str:
 	"""Create a Stock Entry (Material Transfer) between two bins of one store.
 
@@ -319,6 +320,8 @@ def transfer_between_bins(
 	se = frappe.new_doc("Stock Entry")
 	se.stock_entry_type = "Material Transfer"
 	se.purpose = "Material Transfer"
+	if se.meta.has_field("custom_transfer_type"):
+		se.custom_transfer_type = "Store Transfer" if from_pos else "Warehouse Transfer"
 	se.company = company
 	se.from_warehouse = from_wh
 	se.to_warehouse = to_wh
@@ -440,6 +443,7 @@ def pos_bin_transfer(
 		reason=reason,
 		serial_no=serial_no,
 		batch_no=batch_no,
+		from_pos=True,
 	)
 	return {
 		"stock_entry": se_name,
