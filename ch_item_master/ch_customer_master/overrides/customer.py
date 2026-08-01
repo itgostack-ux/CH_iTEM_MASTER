@@ -173,7 +173,14 @@ def _assign_customer_id(doc):
 	"""Auto-assign a unique integer ch_customer_id for API / mobile / POS use."""
 	if doc.get("ch_customer_id"):
 		return
-	doc.ch_customer_id = next_numeric_id("customer")
+	# Imported/manual records can move the highest stored ID ahead of tabSeries.
+	# Skip those occupied values instead of making the next normal insert fail on
+	# the unique index. getseries remains the concurrency-safe allocator.
+	while True:
+		candidate = next_numeric_id("customer")
+		if not frappe.db.exists("Customer", {"ch_customer_id": candidate}):
+			doc.ch_customer_id = candidate
+			return
 
 
 def _set_kyc_verified_info(doc):
