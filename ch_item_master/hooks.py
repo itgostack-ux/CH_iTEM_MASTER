@@ -61,6 +61,7 @@ after_migrate = [
 	"ch_item_master.ch_core.location_hierarchy.repair_retail_location_integrity",
 	"ch_item_master.ch_core.bin_transfer.seed_default_reasons",
 	"ch_item_master.ch_customer_master.loyalty.ensure_congruence_loyalty_program",
+	"ch_item_master.id_sequences.sync_all_numeric_id_series",
 	"ch_item_master.ch_item_master.backfill_ids.backfill_ids_after_migrate",
 	"ch_item_master.ch_customer_master.bulk_reconciliation.install_customer_activity_indexes",
 	"ch_item_master.seed_status_registry.validate_status_registry",

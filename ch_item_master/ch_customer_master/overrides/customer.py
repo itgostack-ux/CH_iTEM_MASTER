@@ -16,7 +16,7 @@ import frappe
 from frappe import _
 from frappe.utils import getdate, today, random_string
 
-from ch_item_master.id_sequences import next_numeric_id
+from ch_item_master.id_sequences import next_free_numeric_id
 
 
 def before_insert(doc, method=None):
@@ -181,13 +181,12 @@ def _assign_customer_id(doc):
 	if doc.get("ch_customer_id"):
 		return
 	# Imported/manual records can move the highest stored ID ahead of tabSeries.
-	# Skip those occupied values instead of making the next normal insert fail on
-	# the unique index. getseries remains the concurrency-safe allocator.
-	while True:
-		candidate = next_numeric_id("customer")
-		if not frappe.db.exists("Customer", {"ch_customer_id": candidate}):
-			doc.ch_customer_id = candidate
-			return
+	# next_free_numeric_id skips those occupied values instead of letting the
+	# insert fail on the unique index, and fast-forwards the counter past the
+	# whole occupied range rather than probing it one ID at a time (the old
+	# unbounded `while True` here could spin for tens of thousands of rounds
+	# after a dump restore). getseries remains the concurrency-safe allocator.
+	doc.ch_customer_id = next_free_numeric_id("customer")
 
 
 def _set_kyc_verified_info(doc):
@@ -270,6 +269,8 @@ def _generate_membership_id(doc):
 
 	cust_id = doc.get("ch_customer_id")
 	if not cust_id:
-		cust_id = next_numeric_id("customer")
+		# ch_membership_id is unique too and is derived from this number, so the
+		# fallback must skip occupied IDs exactly like _assign_customer_id does.
+		cust_id = next_free_numeric_id("customer")
 		doc.ch_customer_id = cust_id
 	doc.ch_membership_id = f"GG-{int(cust_id):05d}"

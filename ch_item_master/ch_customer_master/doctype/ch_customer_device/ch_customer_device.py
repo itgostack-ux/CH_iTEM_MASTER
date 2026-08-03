@@ -4,14 +4,20 @@
 import frappe
 from frappe.model.document import Document
 
-from ch_item_master.id_sequences import next_numeric_id
+from ch_item_master.id_sequences import next_free_numeric_id
 
 
 class CHCustomerDevice(Document):
 	def before_insert(self):
-		"""Auto-generate the atomic customer-device integration ID."""
+		"""Auto-generate the atomic customer-device integration ID.
+
+		`device_id` carries a unique index, so allocation must skip values a
+		restored dump or bulk import already occupies — otherwise the insert
+		dies with "Device ID must be unique" and takes the whole POS invoice
+		submit down with it (this hook runs on Sales Invoice on_submit).
+		"""
 		if not self.device_id:
-			self.device_id = next_numeric_id("customer_device")
+			self.device_id = next_free_numeric_id("customer_device")
 
 	def validate(self):
 		self.set_item_details()
