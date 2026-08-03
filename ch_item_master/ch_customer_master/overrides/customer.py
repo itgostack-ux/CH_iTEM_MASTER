@@ -115,10 +115,18 @@ def _check_phone_dedup(doc):
 	Checks mobile_no against existing customers. Throws error (hard block)
 	to prevent data fragmentation across duplicate records.
 
-	During Data Import the check is softened to a warning so the row is
-	not marked as failed — duplicates are flagged in the import log but
-	the import continues. Operators should use the Update import mode to
-	reconcile overlapping phone numbers after the initial load.
+	The block applies to Data Import too. It used to soften to a warning
+	there so rows would not fail, but that is exactly how the 2026-07-19
+	bulk load created 15 customers sharing 7 phone numbers. Mobile number
+	is the customer identity key, so an import row that collides is a data
+	error and must fail loudly rather than land silently.
+
+	The check only fires when the number is new or changed. Excluding the
+	row's own docname is not enough on its own: the 7 legacy numbers are
+	each shared by 2-3 customers, so re-saving one of those rows still
+	matches a sibling and would make those 15 records permanently
+	unsavable from Desk and POS. Editing a customer's address or KYC must
+	not be blocked by a pre-existing collision the operator did not cause.
 	"""
 	mobile = doc.get("mobile_no")
 	if not mobile:
@@ -129,9 +137,13 @@ def _check_phone_dedup(doc):
 	if len(digits) < 10:
 		return
 
-	# Check if another customer has this number
 	filters = {"mobile_no": ("like", f"%{digits[-10:]}%")}
 	if not doc.is_new():
+		previous = frappe.db.get_value("Customer", doc.name, "mobile_no")
+		# Untouched number on an existing row: whatever collision exists is
+		# historical, and this save is not making it worse.
+		if previous and normalize_indian_phone(previous)[-10:] == digits[-10:]:
+			return
 		filters["name"] = ("!=", doc.name)
 
 	existing = frappe.db.get_value("Customer", filters, ["name", "customer_name"], as_dict=True)
@@ -143,12 +155,7 @@ def _check_phone_dedup(doc):
 		"Please update the existing customer record instead of creating a new one."
 	).format(mobile, existing.customer_name, existing.name)
 
-	if _is_import_context():
-		# Soften to a non-blocking warning during bulk import so the row
-		# is recorded as succeeded (with a caution message) rather than failed.
-		frappe.msgprint(msg, title=_("Duplicate Phone Number"), indicator="orange", alert=True)
-	else:
-		frappe.throw(msg, title=_("Duplicate Phone Number"))
+	frappe.throw(msg, title=_("Duplicate Phone Number"))
 
 
 def _generate_referral_code(doc):
