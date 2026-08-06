@@ -371,7 +371,7 @@ def _get_recent_transactions(customer, company=None):
 		srs = frappe.get_all(
 			"Service Request",
 			filters=sr_filters,
-			fields=["name", "creation", "company", "status", "device_item_name"],
+			fields=["name", "creation", "company", "decision as status", "device_item_name"],
 			order_by="creation desc",
 			limit=10,
 		)

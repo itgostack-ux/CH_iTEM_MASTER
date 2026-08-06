@@ -336,7 +336,7 @@ def get_dashboard(session_token: str) -> dict:
             service_requests = frappe.get_all(
                 "Service Request",
                 filters={"customer": customer},
-                fields=["name", "creation", "status", "device_item_name"],
+                fields=["name", "creation", "decision as status", "device_item_name"],
                 order_by="creation desc",
                 limit_page_length=8,
             )
