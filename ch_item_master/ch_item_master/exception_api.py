@@ -103,9 +103,18 @@ def raise_exception(exception_type, company, reason, requested_value=0,
 		reference_doc.check_permission("read")
 		if reference_doc.meta.has_field("company") and reference_doc.get("company") not in (None, "", company):
 			frappe.throw(_("The referenced document belongs to another company."), frappe.PermissionError)
-	if customer:
+
+	# if customer:
+	# 	frappe.has_permission("Customer", "read", customer, throw=True)
+	# if item_code:
+	# 	frappe.has_permission("Item", "read", item_code, throw=True)
+	# update:
+	_bypass_roles = {"POS User","POS Manager","CH Store Executive","CH Store Manager","System Manager"}
+	_is_bypass = bool(set(frappe.get_roles()) & _bypass_roles) or frappe.session.user == "Administrator"
+
+	if customer and not _is_bypass:
 		frappe.has_permission("Customer", "read", customer, throw=True)
-	if item_code:
+	if item_code and not _is_bypass:
 		frappe.has_permission("Item", "read", item_code, throw=True)
 
 	# ── Customer identity is mandatory for POS-raised exceptions ──────────
