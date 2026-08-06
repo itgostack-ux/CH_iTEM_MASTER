@@ -563,11 +563,17 @@ def restructure_store_tree(store_name: str) -> dict:
 		fields=["name", "parent_warehouse"],
 	)
 	for sib in siblings:
-		if sib.parent_warehouse != store_group:
-			frappe.db.set_value(
-				"Warehouse", sib.name, "parent_warehouse", store_group,
-				update_modified=False,
-			)
+		frappe.db.set_value(
+			"Warehouse", sib.name,
+			{
+				"parent_warehouse": store_group,
+				"ch_city": store.city,
+				"ch_zone": store.zone,
+				"ch_store": store.name,
+				"ch_location_type": "Store Bin",
+			},
+			update_modified=False,
+		)
 		result["reparented"].append(sib.name)
 
 	# 5. Persist the group pointer on the store master.

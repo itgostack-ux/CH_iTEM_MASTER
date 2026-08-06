@@ -7,14 +7,14 @@ from frappe.model.document import Document
 from frappe.utils import cint, getdate, today
 
 from ch_item_master.config import get_int_setting
-from ch_item_master.id_sequences import next_numeric_id
+from ch_item_master.id_sequences import next_free_numeric_id
 
 
 class CHLoyaltyTransaction(Document):
 	def before_insert(self):
 		"""Auto-generate the atomic loyalty transaction integration ID."""
 		if not self.loyalty_txn_id:
-			self.loyalty_txn_id = next_numeric_id("loyalty_transaction")
+			self.loyalty_txn_id = next_free_numeric_id("loyalty_transaction")
 
 	def validate(self):
 		self.validate_points()

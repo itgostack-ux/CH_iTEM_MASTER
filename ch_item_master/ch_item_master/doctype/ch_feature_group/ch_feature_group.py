@@ -4,7 +4,7 @@
 import frappe
 from frappe.model.document import Document
 
-from ch_item_master.id_sequences import next_numeric_id
+from ch_item_master.id_sequences import next_free_numeric_id
 
 
 class CHFeatureGroup(Document):
@@ -19,4 +19,4 @@ class CHFeatureGroup(Document):
 		"""Auto-assign a unique integer feature_group_id for API / mobile use."""
 		if self.feature_group_id:
 			return
-		self.feature_group_id = next_numeric_id("feature_group")
+		self.feature_group_id = next_free_numeric_id("feature_group")

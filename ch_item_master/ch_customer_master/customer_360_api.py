@@ -201,7 +201,9 @@ def _get_devices(customer, company=None):
 		"CH Customer Device",
 		filters=filters,
 		fields=[
-			"name", "serial_no", "item_code", "item_name", "brand",
+			"name", "serial_no", "inventory_serial", "device_source",
+			"ownership_verification", "verification_notes",
+			"item_code", "item_name", "brand",
 			"imei_number", "current_status", "purchase_date",
 			"warranty_status", "warranty_expiry", "warranty_plan_name",
 			"buyback_date", "buyback_price", "buyback_grade",

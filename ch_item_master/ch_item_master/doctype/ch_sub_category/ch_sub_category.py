@@ -6,7 +6,7 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import now_datetime
 
-from ch_item_master.id_sequences import next_numeric_id
+from ch_item_master.id_sequences import next_free_numeric_id
 
 from ch_item_master.ch_item_master.exceptions import (
 	DuplicateManufacturerError,
@@ -57,7 +57,7 @@ class CHSubCategory(Document):
 		UNIQUE constraint violation.
 		"""
 		if not self.sub_category_id:
-			self.sub_category_id = next_numeric_id("sub_category")
+			self.sub_category_id = next_free_numeric_id("sub_category")
 
 	def validate(self):
 		if self.sub_category_name:

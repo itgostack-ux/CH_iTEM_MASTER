@@ -582,21 +582,8 @@ def run_tag_auto_repricing():
 			""",
 			tuple(params),
 		)
-		frappe.db.sql(
-			f"""
-				UPDATE `tabItem Price` linked_price
-				INNER JOIN `tabCH Item Price` source_price
-				  ON source_price.`erp_item_price` = linked_price.`name`
-				SET linked_price.`price_list_rate` = source_price.`selling_price`,
-				    linked_price.`modified` = %s,
-				    linked_price.`modified_by` = %s
-				WHERE source_price.`name` IN ({name_placeholders})
-			""",
-			(now, frappe.session.user, *(row.price_name for row in changes)),
-		)
 		for row in changes:
-			if not row.linked_erp_item_price:
-				frappe.get_doc("CH Item Price", row.price_name)._sync_to_erp_item_price()
+			frappe.get_doc("CH Item Price", row.price_name)._sync_to_erp_item_price()
 
 	if work_rows:
 		now = now_datetime()

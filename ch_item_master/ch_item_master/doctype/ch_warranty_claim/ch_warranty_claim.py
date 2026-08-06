@@ -43,6 +43,10 @@ from frappe.model.document import Document
 from frappe.utils import add_to_date, nowdate, now_datetime, getdate, flt, validate_email_address
 
 from ch_item_master.ch_item_master.utils import validate_indian_phone
+from ch_item_master.ch_core.cost_center import (
+	resolve_cost_center,
+	resolve_reference_cost_center,
+)
 from ch_item_master.ch_item_master.doctype.ch_vas_settings.ch_vas_settings import (
 	get_vas_settings,
 	get_warranty_company,
@@ -50,7 +54,7 @@ from ch_item_master.ch_item_master.doctype.ch_vas_settings.ch_vas_settings impor
 	get_fee_waiver_roles,
 )
 from ch_item_master.config import get_int_setting, is_privileged_user
-from ch_item_master.id_sequences import next_numeric_id
+from ch_item_master.id_sequences import next_free_numeric_id
 from ch_item_master.security import get_company_filter_value, require_scoped_document_action
 
 
@@ -110,8 +114,11 @@ def resolve_lifecycle_name(serial: str | None) -> str | None:
 	serial = serial.strip()
 	if not serial:
 		return None
-	if frappe.db.exists("CH Serial Lifecycle", serial):
-		return serial
+	by_serial = frappe.db.get_value(
+		"CH Serial Lifecycle", {"serial_no": serial}, "name"
+	)
+	if by_serial:
+		return by_serial
 	return (
 		frappe.db.get_value("CH Serial Lifecycle", {"imei_number": serial}, "name")
 		or frappe.db.get_value("CH Serial Lifecycle", {"imei_number_2": serial}, "name")
@@ -286,7 +293,7 @@ class CHWarrantyClaim(Document):
 
 	def autoname(self):
 		if not self.claim_id:
-			self.claim_id = next_numeric_id("warranty_claim")
+			self.claim_id = next_free_numeric_id("warranty_claim")
 
 	def validate(self):
 		self._validate_governance_fields()
@@ -1626,7 +1633,27 @@ class CHWarrantyClaim(Document):
 		if not debit_account:
 			frappe.throw(_("No processing-fee receivable or default cash account is configured."))
 
-		cost_center = frappe.db.get_value("Company", company, "cost_center")
+		# A store claim is an operational store earning/cost event. Prefer the
+		# intake location; otherwise retain the Cost Center of the plan's sale.
+		location = self.get("reported_at_store")
+		cost_center = (
+			resolve_cost_center(
+				company, store=location, fallback_to_company=False
+			)
+			or resolve_cost_center(
+				company, warehouse=location, fallback_to_company=False
+			)
+		)
+		if not cost_center and self.get("sold_plan"):
+			source_invoice = frappe.db.get_value(
+				"Active VAS Plans", self.sold_plan, "sales_invoice"
+			)
+			cost_center = resolve_reference_cost_center(
+				"Sales Invoice", source_invoice, company
+			)
+		cost_center = cost_center or frappe.db.get_value(
+			"Company", company, "cost_center"
+		)
 
 		je = frappe.new_doc("Journal Entry")
 		je.update({
@@ -2852,7 +2879,7 @@ class CHWarrantyClaim(Document):
 
 	def _update_lifecycle_in_service(self):
 		"""Update CH Serial Lifecycle to In Service status."""
-		if not frappe.db.exists("CH Serial Lifecycle", self.serial_no):
+		if not frappe.db.exists("CH Serial Lifecycle", {"serial_no": self.serial_no}):
 			return
 
 		try:

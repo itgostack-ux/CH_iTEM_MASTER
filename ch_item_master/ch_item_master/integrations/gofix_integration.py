@@ -48,7 +48,11 @@ def on_service_request_update(doc, method=None):
 def _sync_warranty_claim(doc):
 	"""INT-1: Update CH Warranty Claim status when GoFix Service Request status changes."""
 	sr_name = doc.name
-	sr_status = doc.status or doc.decision
+	# Service Request has no `status` field — its lifecycle field is `decision`
+	# (`status` exists only as walkin_status / warranty_status / transfer_status).
+	# Reading doc.status raised AttributeError on EVERY Service Request save,
+	# so this sync had never once run. get() keeps it tolerant of either name.
+	sr_status = doc.get("decision") or doc.get("status")
 
 	if not sr_status:
 		return
@@ -117,7 +121,11 @@ def _sync_warranty_claim(doc):
 
 def _sync_serial_lifecycle(doc):
 	"""INT-2: Update CH Serial Lifecycle when GoFix Service Request status changes."""
-	sr_status = doc.status or doc.decision
+	# Service Request has no `status` field — its lifecycle field is `decision`
+	# (`status` exists only as walkin_status / warranty_status / transfer_status).
+	# Reading doc.status raised AttributeError on EVERY Service Request save,
+	# so this sync had never once run. get() keeps it tolerant of either name.
+	sr_status = doc.get("decision") or doc.get("status")
 	serial_no = doc.serial_no
 
 	if not serial_no or not sr_status:
@@ -131,7 +139,7 @@ def _sync_serial_lifecycle(doc):
 		else:
 			return
 
-	if not frappe.db.exists("CH Serial Lifecycle", serial_no):
+	if not frappe.db.exists("CH Serial Lifecycle", {"serial_no": serial_no}):
 		# Device arrived at service without going through the PR-tracked path
 		# (e.g. customer walk-in with existing device). Auto-create the lifecycle
 		# row so the tracker reflects the in-service state.
@@ -142,10 +150,12 @@ def _sync_serial_lifecycle(doc):
 		warehouse = sn_doc.warehouse
 		company = frappe.db.get_value("Warehouse", warehouse, "company") if warehouse else None
 		_create_minimal_lifecycle(sn_doc, warehouse, company)
-		if not frappe.db.exists("CH Serial Lifecycle", serial_no):
+		if not frappe.db.exists("CH Serial Lifecycle", {"serial_no": serial_no}):
 			return  # creation failed (lock timeout / no item_code) — skip
 
-	current_status = frappe.db.get_value("CH Serial Lifecycle", serial_no, "lifecycle_status")
+	current_status = frappe.db.get_value(
+		"CH Serial Lifecycle", {"serial_no": serial_no}, "lifecycle_status"
+	)
 	if current_status == new_lifecycle_status:
 		return
 

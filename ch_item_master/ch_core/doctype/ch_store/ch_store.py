@@ -4,7 +4,7 @@ import frappe
 from frappe.model.document import Document
 from frappe.utils import cint
 
-from ch_item_master.id_sequences import next_numeric_id, next_scoped_number
+from ch_item_master.id_sequences import next_free_numeric_id, next_scoped_number
 from ch_item_master.security import require_scoped_document_action
 from ch_item_master.ch_item_master.utils import validate_indian_phone
 
@@ -128,7 +128,7 @@ class CHStore(Document):
     def before_insert(self):
         """Auto-assign the atomic sequential integration ID."""
         if not self.store_id:
-            self.store_id = next_numeric_id("store")
+            self.store_id = next_free_numeric_id("store")
 
     def validate(self):
         if self.store_code:
@@ -142,11 +142,13 @@ class CHStore(Document):
         if self.contact_phone:
             self.contact_phone = validate_indian_phone(self.contact_phone, "Contact Phone")
 
-        if self.pincode and len(self.pincode.strip()) != 6:
-            frappe.throw(
-                frappe._("PIN Code must be exactly 6 digits."),
-                title=frappe._("Invalid PIN Code"),
-            )
+        if self.pincode:
+            self.pincode = self.pincode.strip()
+            if not re.fullmatch(r"\d{6}", self.pincode):
+                frappe.throw(
+                    frappe._("PIN Code must be exactly 6 digits."),
+                    title=frappe._("Invalid PIN Code"),
+                )
 
         if self.zone:
             zone = frappe.db.get_value("CH Store Zone", self.zone, ["company", "city"], as_dict=True)
@@ -168,9 +170,102 @@ class CHStore(Document):
                         title=frappe._("Invalid Zone"),
                     )
 
+        self._validate_operational_location()
+        self._validate_geography()
+        self._validate_branch_location()
+
         from ch_item_master.ch_core.location_hierarchy import validate_store_location_contract
 
         validate_store_location_contract(self)
+
+    def _requires_operational_location(self):
+        return not cint(self.disabled) and (self.store_status or "Active") == "Active"
+
+    def _validate_operational_location(self):
+        """An active store is an operating unit, not a loose address label."""
+        if not self._requires_operational_location():
+            return
+        missing = [
+            label
+            for fieldname, label in (("company", "Company"), ("city", "City"), ("zone", "Zone"))
+            if not self.get(fieldname)
+        ]
+        if missing:
+            frappe.throw(
+                frappe._("Active stores require: {0}.").format(", ".join(missing)),
+                title=frappe._("Incomplete Store Location"),
+            )
+        if cint(self.is_hub) and not self.warehouse:
+            frappe.throw(
+                frappe._("Active hub stores require an existing hub Warehouse."),
+                title=frappe._("Missing Hub Warehouse"),
+            )
+
+    def _validate_geography(self):
+        if self.city:
+            city = frappe.db.get_value("CH City", self.city, ["state", "disabled"], as_dict=True)
+            if not city or cint(city.disabled):
+                frappe.throw(
+                    frappe._("City {0} was not found or is disabled.").format(frappe.bold(self.city)),
+                    title=frappe._("Invalid City"),
+                )
+            if city.state and not self.state:
+                self.state = city.state
+            elif city.state and self.state and city.state != self.state:
+                frappe.throw(
+                    frappe._("City {0} belongs to state {1}, not {2}.").format(
+                        frappe.bold(self.city), frappe.bold(city.state), frappe.bold(self.state)
+                    ),
+                    title=frappe._("Invalid State"),
+                )
+
+        if self.pincode and frappe.db.exists("CH Pincode", self.pincode):
+            pin = frappe.db.get_value(
+                "CH Pincode", self.pincode, ["city", "state", "disabled"], as_dict=True
+            )
+            if cint(pin.disabled):
+                frappe.throw(
+                    frappe._("PIN Code {0} is disabled.").format(frappe.bold(self.pincode)),
+                    title=frappe._("Invalid PIN Code"),
+                )
+            if self.city and pin.city and pin.city != self.city:
+                frappe.throw(
+                    frappe._("PIN Code {0} belongs to city {1}, not {2}.").format(
+                        frappe.bold(self.pincode), frappe.bold(pin.city), frappe.bold(self.city)
+                    ),
+                    title=frappe._("Invalid PIN Code"),
+                )
+            if self.state and pin.state and pin.state != self.state:
+                frappe.throw(
+                    frappe._("PIN Code {0} belongs to state {1}, not {2}.").format(
+                        frappe.bold(self.pincode), frappe.bold(pin.state), frappe.bold(self.state)
+                    ),
+                    title=frappe._("Invalid PIN Code"),
+                )
+
+    def _validate_branch_location(self):
+        if not self.branch:
+            return
+        branch = frappe.db.get_value(
+            "Branch", self.branch, ["ch_company", "ch_city", "ch_zone"], as_dict=True
+        )
+        if not branch:
+            frappe.throw(frappe._("Branch {0} was not found.").format(frappe.bold(self.branch)))
+        checks = (
+            ("company", "ch_company", "company"),
+            ("city", "ch_city", "city"),
+            ("zone", "ch_zone", "zone"),
+        )
+        for store_field, branch_field, label in checks:
+            branch_value = branch.get(branch_field)
+            store_value = self.get(store_field)
+            if branch_value and store_value and branch_value != store_value:
+                frappe.throw(
+                    frappe._("Branch {0} belongs to {1} {2}, not {3}.").format(
+                        frappe.bold(self.branch), label, frappe.bold(branch_value), frappe.bold(store_value)
+                    ),
+                    title=frappe._("Invalid Branch"),
+                )
 
     def _validate_unique_store_name(self):
         """Reject duplicate store_name within the same company.
@@ -206,14 +301,33 @@ class CHStore(Document):
             )
 
     def after_insert(self):
-        """Auto-create the operational stock-state bins as siblings of the store warehouse."""
+        """Provision the standard Warehouse tree even for direct Desk/API inserts."""
+        if self._requires_operational_location() and not cint(self.is_hub) and not self.warehouse:
+            from ch_item_master.ch_core.warehouse_geo import provision_store_warehouse
+
+            provision_store_warehouse(self.name)
+            self.reload()
+        _ensure_store_cost_center_best_effort(self)
         ensure_store_bins(self)
         ensure_store_pos_profile(self)
 
     def on_update(self):
-        """If warehouse is assigned later, ensure bins are created."""
-        if self.has_value_changed("warehouse") and self.warehouse:
-            ensure_store_bins(self)
+        """Keep accounting/warehouse provisioning aligned with store master data."""
+        if any(
+            self.has_value_changed(fieldname)
+            for fieldname in ("company", "zone", "city", "state", "is_hub")
+        ):
+            _ensure_store_cost_center_best_effort(self)
+        location_changed = any(
+            self.has_value_changed(fieldname)
+            for fieldname in ("company", "zone", "city", "warehouse", "is_hub")
+        )
+        if location_changed and self.warehouse:
+            if not cint(self.is_hub):
+                from ch_item_master.ch_core.warehouse_geo import restructure_store_tree
+
+                ensure_store_bins(self)
+                restructure_store_tree(self.name)
             ensure_store_pos_profile(self)
 
 
@@ -252,6 +366,8 @@ def _create_store_pos_profile_with_permissions(store):
     if warehouse.get("disabled"):
         frappe.throw(frappe._("The store warehouse is disabled."), frappe.ValidationError)
 
+    store_cost_center = ensure_store_cost_center(store)
+
     candidate_names = [name for name in (store.pos_profile, f"POS - {store.store_code}") if name]
     for profile_name in dict.fromkeys(candidate_names):
         if not frappe.db.exists("POS Profile", profile_name):
@@ -263,6 +379,7 @@ def _create_store_pos_profile_with_permissions(store):
                 frappe._("Existing POS Profile company and warehouse must match the store."),
                 frappe.ValidationError,
             )
+        assign_pos_profile_cost_center(profile.name, store_cost_center, store.company)
         if store.pos_profile != profile.name:
             store.pos_profile = profile.name
             store.save()
@@ -284,7 +401,7 @@ def _create_store_pos_profile_with_permissions(store):
     profile.currency = company.default_currency
     profile.disabled = 1
     for fieldname, value in (
-        ("cost_center", company.cost_center),
+        ("cost_center", store_cost_center or company.cost_center),
         ("income_account", company.default_income_account),
         ("expense_account", company.default_expense_account),
         ("write_off_account", company.write_off_account),
@@ -300,6 +417,180 @@ def _create_store_pos_profile_with_permissions(store):
     store.pos_profile = profile.name
     store.save()
     return {"pos_profile": profile.name, "created": True, "disabled": True}
+
+
+def _get_root_cost_center(company):
+    """Return the company's root Cost Center without assuming its name."""
+    if not company or not frappe.db.table_exists("Cost Center"):
+        return None
+    return (
+        frappe.db.get_value(
+            "Cost Center",
+            {"company": company, "is_group": 1, "parent_cost_center": ("in", [None, ""])},
+            "name",
+        )
+        or frappe.db.get_value(
+            "Cost Center", {"company": company, "is_group": 1}, "name"
+        )
+    )
+
+
+_RETAIL_COST_CENTER_LABEL = "Retail Stores"
+_REGION_COST_CENTER_PREFIX = "Region - "
+
+
+def _ensure_cost_center_node(company, label, parent, *, is_group):
+    """Return an idempotent Cost Center node, creating it only when absent."""
+    existing = frappe.db.get_value(
+        "Cost Center",
+        {"company": company, "cost_center_name": label},
+        ["name", "parent_cost_center", "is_group"],
+        as_dict=True,
+    )
+    if not existing:
+        doc = frappe.get_doc(
+            {
+                "doctype": "Cost Center",
+                "cost_center_name": label,
+                "parent_cost_center": parent,
+                "company": company,
+                "is_group": cint(is_group),
+            }
+        )
+        doc.flags.ignore_permissions = True
+        doc.insert(ignore_permissions=True)
+        return doc.name
+
+    if cint(existing.is_group) != cint(is_group):
+        frappe.throw(
+            frappe._(
+                "Cost Center {0} already exists but has the wrong group setting."
+            ).format(frappe.bold(existing.name)),
+            frappe.ValidationError,
+        )
+
+    if parent and existing.parent_cost_center != parent:
+        current_label = frappe.db.get_value(
+            "Cost Center", existing.parent_cost_center, "cost_center_name"
+        )
+        root = _get_root_cost_center(company)
+        managed_parent = (
+            existing.parent_cost_center == root
+            or current_label == _RETAIL_COST_CENTER_LABEL
+            or (current_label or "").startswith(_REGION_COST_CENTER_PREFIX)
+        )
+        # Re-parent nodes created by this provisioning scheme, including the
+        # legacy store leaves that were placed directly below Company root.
+        # A deliberately chosen custom parent is preserved.
+        if managed_parent:
+            doc = frappe.get_doc("Cost Center", existing.name)
+            doc.parent_cost_center = parent
+            doc.flags.ignore_permissions = True
+            doc.save(ignore_permissions=True)
+    return existing.name
+
+
+def get_store_region_label(store):
+    """Return the stable management region available on the Store master."""
+    if isinstance(store, str):
+        store = frappe.get_doc("CH Store", store)
+    region = (store.get("zone") or "").strip()
+    if region:
+        return region
+    city = (store.get("city") or "").strip()
+    if city:
+        return (
+            frappe.db.get_value("CH City", city, "city_name") or city
+        ).strip()
+    return (store.get("state") or "").strip() or "Unassigned"
+
+
+def ensure_store_cost_center_hierarchy(store):
+    """Ensure Company → Retail Stores → Region → Store Cost Center."""
+    if isinstance(store, str):
+        store = frappe.get_doc("CH Store", store)
+    if not store or cint(store.get("is_hub")) or not store.company:
+        return None
+
+    root = _get_root_cost_center(store.company)
+    if not root:
+        return None
+    retail = _ensure_cost_center_node(
+        store.company, _RETAIL_COST_CENTER_LABEL, root, is_group=True
+    )
+    region_label = f"{_REGION_COST_CENTER_PREFIX}{get_store_region_label(store)}"
+    region = _ensure_cost_center_node(
+        store.company, region_label, retail, is_group=True
+    )
+    return {"root": root, "retail": retail, "region": region}
+
+
+def _ensure_store_cost_center_best_effort(store):
+    try:
+        return ensure_store_cost_center(store)
+    except Exception:
+        frappe.log_error(
+            frappe.get_traceback(),
+            f"ensure_store_cost_center failed for {store.name}",
+        )
+        return None
+
+
+def assign_pos_profile_cost_center(pos_profile, cost_center, company=None):
+    """Safely default a POS Profile to its store Cost Center.
+
+    Blank values and the Company default are configuration defaults, so they
+    may be replaced. An operator-selected non-default Cost Center is preserved
+    to avoid silently changing an intentional accounting design.
+    """
+    if not pos_profile or not cost_center or not frappe.db.exists("POS Profile", pos_profile):
+        return False
+
+    row = frappe.db.get_value(
+        "POS Profile", pos_profile, ["company", "cost_center"], as_dict=True
+    )
+    if not row or (company and row.company != company):
+        return False
+
+    company = company or row.company
+    company_default = frappe.db.get_value("Company", company, "cost_center")
+    current = row.cost_center or None
+    if current not in (None, "", company_default, cost_center):
+        return False
+    if current != cost_center:
+        frappe.db.set_value(
+            "POS Profile", pos_profile, "cost_center", cost_center, update_modified=False
+        )
+    frappe.clear_document_cache("POS Profile", pos_profile)
+    return True
+
+
+def ensure_store_cost_center(store, pos_profile=None):
+    """Create and assign the stable per-store Cost Center.
+
+    The label is based on ``store_code`` rather than the editable display name,
+    so renaming a store does not split its accounting history. The operation is
+    idempotent and deliberately non-destructive for explicitly configured POS
+    Profiles.
+    """
+    if isinstance(store, str):
+        store = frappe.get_doc("CH Store", store)
+    if not store or cint(store.get("is_hub")) or not store.company or not store.store_code:
+        return None
+
+    hierarchy = ensure_store_cost_center_hierarchy(store)
+    parent = hierarchy.get("region") if hierarchy else None
+    if not parent:
+        return None
+
+    label = f"POS - {store.store_code}"
+    cost_center = _ensure_cost_center_node(
+        store.company, label, parent, is_group=False
+    )
+
+    profile_name = pos_profile or store.get("pos_profile") or f"POS - {store.store_code}"
+    assign_pos_profile_cost_center(profile_name, cost_center, store.company)
+    return cost_center
 
 
 def backfill_store_pos_profiles():
@@ -368,9 +659,23 @@ def ensure_store_pos_profile(store, force=False):
     if not store.warehouse or not store.company:
         return None
 
+    try:
+        store_cost_center = ensure_store_cost_center(store, pos_profile=store.pos_profile)
+    except Exception:
+        # Finance provisioning is important but must not make the Store master
+        # impossible to create. The POS skeleton falls back to Company default
+        # and after_migrate will retry the idempotent backfill.
+        frappe.log_error(
+            frappe.get_traceback(),
+            f"ensure_store_cost_center failed for {store.name}",
+        )
+        store_cost_center = None
+
     # Only auto-fill when there is no existing profile, unless the caller
     # forced a rebuild via the desk button.
     if store.pos_profile and not force:
+        if store_cost_center:
+            assign_pos_profile_cost_center(store.pos_profile, store_cost_center, store.company)
         return {"pos_profile": store.pos_profile, "created": False, "disabled": None}
 
     if not store.store_code:
@@ -384,12 +689,15 @@ def ensure_store_pos_profile(store, force=False):
             frappe.db.set_value(
                 "CH Store", store.name, "pos_profile", profile_name, update_modified=False,
             )
+        assign_pos_profile_cost_center(profile_name, store_cost_center, store.company)
         disabled = frappe.db.get_value("POS Profile", profile_name, "disabled")
         return {"pos_profile": profile_name, "created": False, "disabled": bool(disabled)}
 
     try:
         currency = frappe.db.get_value("Company", store.company, "default_currency")
-        cost_center = frappe.db.get_value("Company", store.company, "cost_center")
+        cost_center = store_cost_center or frappe.db.get_value(
+            "Company", store.company, "cost_center"
+        )
         income_account = frappe.db.get_value("Company", store.company, "default_income_account")
         expense_account = frappe.db.get_value(
             "Company", store.company, "default_expense_account"
@@ -555,16 +863,28 @@ def ensure_store_bins(store):
                 "ch_bin_type": bin_type,
             },
         )
+        if not existing:
+            # Legacy provisioning created the correctly named leaf but did not
+            # always stamp its ownership metadata. Adopt it instead of trying
+            # to insert the same warehouse_name and swallowing DuplicateEntry.
+            base_name = f"{store.store_code}-{suffix}"
+            company_abbr = frappe.get_cached_value("Company", store.company, "abbr")
+            canonical_name = f"{base_name} - {company_abbr}" if company_abbr else base_name
+            existing = frappe.db.exists("Warehouse", canonical_name) or frappe.db.exists(
+                "Warehouse",
+                {"company": store.company, "warehouse_name": ("in", (base_name, canonical_name)), "is_group": 0},
+            )
         if existing:
+            updates = {
+                "ch_city": store.city,
+                "ch_zone": store.zone,
+                "ch_location_type": "Store Bin",
+                "ch_store": store.name,
+                "ch_bin_type": bin_type,
+            }
             if bin_parent:
-                current_parent = frappe.db.get_value(
-                    "Warehouse", existing, "parent_warehouse"
-                )
-                if current_parent != bin_parent:
-                    frappe.db.set_value(
-                        "Warehouse", existing, "parent_warehouse", bin_parent,
-                        update_modified=False,
-                    )
+                updates["parent_warehouse"] = bin_parent
+            frappe.db.set_value("Warehouse", existing, updates, update_modified=False)
             continue
 
         wh = frappe.new_doc("Warehouse")

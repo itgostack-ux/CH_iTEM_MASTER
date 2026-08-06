@@ -64,6 +64,14 @@ def _delete_store_if_exists(name):
 			pass
 
 
+def _delete_cost_center_if_exists(name):
+	if name and frappe.db.exists("Cost Center", name):
+		try:
+			frappe.delete_doc("Cost Center", name, ignore_permissions=True, force=True)
+		except Exception:
+			pass
+
+
 # ---------------------------------------------------------------------------
 # Test A — POS Profile auto-create (issue #7)
 # ---------------------------------------------------------------------------
@@ -85,11 +93,38 @@ def test_pos_profile_autocreate():
 	# skeleton is disabled; an existing operator-activated profile is reused.
 	pp = frappe.db.get_value(
 		"POS Profile", pp_name,
-		["company", "warehouse", "disabled"],
+		["company", "warehouse", "cost_center", "disabled"],
 		as_dict=True,
 	)
 	assert pp.company == COMPANY, f"Wrong company: {pp.company}"
 	assert pp.warehouse == store.warehouse, f"Wrong warehouse: {pp.warehouse}"
+	expected_cc = f"POS - {store.store_code} - {frappe.db.get_value('Company', COMPANY, 'abbr')}"
+	assert frappe.db.exists("Cost Center", expected_cc), f"Missing store Cost Center {expected_cc}"
+	assert pp.cost_center == expected_cc, (
+		f"POS Profile should use store Cost Center {expected_cc}, got {pp.cost_center}"
+	)
+	region_label = f"Region - {ch_store_mod.get_store_region_label(store)}"
+	region = frappe.db.get_value(
+		"Cost Center", expected_cc, "parent_cost_center"
+	)
+	region_row = frappe.db.get_value(
+		"Cost Center", region,
+		["cost_center_name", "parent_cost_center", "is_group"],
+		as_dict=True,
+	)
+	assert region_row and region_row.cost_center_name == region_label, (
+		f"Store Cost Center should be under {region_label}, got {region_row}"
+	)
+	retail_row = frappe.db.get_value(
+		"Cost Center", region_row.parent_cost_center,
+		["cost_center_name", "is_group"],
+		as_dict=True,
+	)
+	assert region_row.is_group == 1, f"Region {region} must be a group"
+	assert retail_row and retail_row.cost_center_name == "Retail Stores", (
+		f"Region should be under Retail Stores, got {retail_row}"
+	)
+	assert retail_row.is_group == 1, "Retail Stores must be a group"
 	if result.get("created"):
 		assert pp.disabled == 1, f"POS Profile should be disabled on seed insert, got {pp.disabled}"
 
@@ -251,7 +286,11 @@ def test_duplicate_store_name():
 def _cleanup_duplicate_store(state):
 	if not state:
 		return
-	_delete_store_if_exists(state.get("store"))
+	store_name = state.get("store")
+	_delete_store_if_exists(store_name)
+	if store_name:
+		abbr = frappe.db.get_value("Company", COMPANY, "abbr")
+		_delete_cost_center_if_exists(f"POS - {store_name} - {abbr}")
 	# Belt-and-braces: nuke any lingering rows with the test name.
 	for existing in frappe.get_all(
 		"CH Store",
@@ -286,6 +325,7 @@ def test_duplicate_hub_tag():
 		  AND (ch_city IS NULL OR ch_city = '' OR ch_city = %(city)s)
 		  AND (ch_bin_type IS NULL OR ch_bin_type = '')
 		  AND (ch_location_type IS NULL OR ch_location_type = '')
+		  AND LOWER(IFNULL(warehouse_type, '')) != 'transit'
 		LIMIT 1
 	""", {"c": COMPANY, "h": hub, "city": CITY}, as_dict=True)
 	created_candidate = False
@@ -764,11 +804,22 @@ def test_store_warehouse_auto_provision():
 		store_doc = frappe.db.get_value(
 			"CH Store",
 			store,
-			["warehouse", "warehouse_group", "pos_profile"],
+			["warehouse", "warehouse_group", "pos_profile", "store_code"],
 			as_dict=True,
 		)
 		assert store_doc.warehouse, "Store warehouse was not auto-created"
 		assert store_doc.warehouse_group, "Store warehouse group was not auto-created"
+		profile_cost_center = frappe.db.get_value(
+			"POS Profile", store_doc.pos_profile, "cost_center"
+		)
+		expected_cost_center = (
+			f"POS - {store_doc.store_code} - "
+			f"{frappe.db.get_value('Company', COMPANY, 'abbr')}"
+		)
+		assert profile_cost_center == expected_cost_center, (
+			f"auto-created POS Profile cost_center={profile_cost_center}, "
+			f"expected {expected_cost_center}"
+		)
 		meta = frappe.db.get_value(
 			"Warehouse",
 			store_doc.warehouse,
@@ -844,6 +895,8 @@ def _cleanup_auto_store_warehouse(state):
 		if store_doc and store_doc.pos_profile:
 			frappe.db.set_value("CH Store", store, "pos_profile", None, update_modified=False)
 			_delete_pos_profile_if_exists(store_doc.pos_profile)
+		abbr = frappe.db.get_value("Company", COMPANY, "abbr")
+		_delete_cost_center_if_exists(f"POS - {store} - {abbr}")
 		if store_doc and store_doc.warehouse_group:
 			groups.append(store_doc.warehouse_group)
 		for bin_wh in frappe.get_all("Warehouse", filters={"ch_store": store}, pluck="name"):

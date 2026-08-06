@@ -93,6 +93,8 @@ def run() -> dict:
 		plan.price = 999
 		plan.pricing_mode = "Fixed"
 		plan.fulfillment_type = "Digital Activation"
+		plan.coverage_availability = "Both"
+		plan.external_device_price = 999
 		plan.append(
 			"benefit_rules",
 			{
@@ -111,6 +113,28 @@ def run() -> dict:
 		)
 		plan.insert(ignore_permissions=True)
 
+		# Production activation requires a submitted commercial source. Build
+		# the smallest valid Sales Order so this test exercises the same path
+		# used by POS/Desk instead of bypassing issuance governance.
+		sales_order = frappe.new_doc("Sales Order")
+		sales_order.customer = customer
+		sales_order.company = company
+		sales_order.set_warehouse = frappe.db.get_value(
+			"Warehouse", {"company": company, "disabled": 0, "is_group": 0}, "name"
+		)
+		_assert(sales_order.set_warehouse, "No active warehouse available for VAS Sales Order")
+		sales_order.transaction_date = nowdate()
+		sales_order.delivery_date = frappe.utils.add_days(nowdate(), 1)
+		order_item = sales_order.append("items", {
+			"item_code": service_item,
+			"qty": 1,
+			"rate": 799,
+		})
+		if order_item.meta.has_field("custom_warranty_plan"):
+			order_item.custom_warranty_plan = plan.name
+		sales_order.insert(ignore_permissions=True)
+		sales_order.submit()
+
 		serial_no = f"VAS-SNAPSHOT-{frappe.generate_hash(length=8).upper()}"
 		issued = issue_warranty_plan(
 			warranty_plan=plan.name,
@@ -120,6 +144,7 @@ def run() -> dict:
 			start_date=nowdate(),
 			company=company,
 			plan_price=799,
+			sales_order=sales_order.name,
 			external_device_source="E2E VAS Snapshot Test",
 		)
 		_assert(issued.get("fulfillment_type") == "Digital Activation", "Issue API did not return fulfillment type")

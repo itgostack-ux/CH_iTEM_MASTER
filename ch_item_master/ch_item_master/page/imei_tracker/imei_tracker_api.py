@@ -945,9 +945,12 @@ def bulk_update_status(serial_nos, new_status, remarks=""):
 
     lifecycle_docs = {}
     for sn in serial_nos:
-        if not frappe.db.exists("CH Serial Lifecycle", sn):
+        lifecycle_name = frappe.db.get_value(
+            "CH Serial Lifecycle", {"serial_no": sn}, "name"
+        )
+        if not lifecycle_name:
             continue
-        lc = frappe.get_doc("CH Serial Lifecycle", sn)
+        lc = frappe.get_doc("CH Serial Lifecycle", lifecycle_name)
         if not is_privileged_user():
             try:
                 from ch_erp15.ch_erp15.scope import assert_user_has_store_scope

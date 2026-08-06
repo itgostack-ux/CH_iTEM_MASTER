@@ -419,6 +419,28 @@ def seed_external_device_item():
             frappe.log_error(title="seed_external_device_item failed", message=frappe.get_traceback())
             return
 
+    # The original bootstrap inserted tabItem directly and therefore skipped
+    # ERPNext's mandatory UOM Conversion Detail child row. Item Price and
+    # transaction validation require the stock UOM to be present in this table.
+    stock_uom = frappe.db.get_value("Item", item_code, "stock_uom") or "Nos"
+    if not frappe.db.exists(
+        "UOM Conversion Detail",
+        {
+            "parent": item_code,
+            "parenttype": "Item",
+            "parentfield": "uoms",
+            "uom": stock_uom,
+        },
+    ):
+        uom_row = frappe.new_doc("UOM Conversion Detail")
+        uom_row.parent = item_code
+        uom_row.parenttype = "Item"
+        uom_row.parentfield = "uoms"
+        uom_row.idx = 1
+        uom_row.uom = stock_uom
+        uom_row.conversion_factor = 1
+        uom_row.db_insert()
+
     # Backfill ch_default_external_device_item on all companies that don't have it set
     if not frappe.db.has_column("Company", "ch_default_external_device_item"):
         return

@@ -268,13 +268,6 @@ STATUS_REGISTRY = {
 			"Cancelled",
 		],
 	},
-	"POS Repair Intake": {
-		"status": [
-			"Draft",
-			"Converted",
-			"Cancelled",
-		],
-	},
 }
 
 # ═══════════════════════════════════════════════════════════════════════

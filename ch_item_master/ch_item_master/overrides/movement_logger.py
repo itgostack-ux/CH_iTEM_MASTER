@@ -80,11 +80,14 @@ def _append_log(
     try:
         if not serial_no:
             return
-        if not frappe.db.exists("CH Serial Lifecycle", serial_no):
+        lifecycle_name = frappe.db.get_value(
+            "CH Serial Lifecycle", {"serial_no": serial_no}, "name"
+        )
+        if not lifecycle_name:
             return
 
         current_status = frappe.db.get_value(
-            "CH Serial Lifecycle", serial_no, "lifecycle_status"
+            "CH Serial Lifecycle", lifecycle_name, "lifecycle_status"
         ) or ""
 
         # Build a human-readable remark
@@ -101,7 +104,7 @@ def _append_log(
 
         log = frappe.get_doc({
             "doctype": "CH Serial Lifecycle Log",
-            "parent": serial_no,
+            "parent": lifecycle_name,
             "parenttype": "CH Serial Lifecycle",
             "parentfield": "lifecycle_log",
             "log_timestamp": now_datetime(),

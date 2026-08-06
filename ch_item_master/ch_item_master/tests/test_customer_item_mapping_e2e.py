@@ -142,6 +142,12 @@ def test_customer_device_mapping():
         existing_sn = frappe.db.get_value("Serial No", {"item_code": item, "status": "Active"}, "name")
         if existing_sn:
             cd.serial_no = existing_sn
+            cd.device_source = "Inventory Serial"
+            cd.inventory_serial = existing_sn
+            # This test maps a stock device without a sale transaction. Keep
+            # the record explicitly quarantined rather than claiming ownership.
+            cd.ownership_verification = "Legacy Unverified"
+            cd.current_status = "Unverified"
         cd.purchase_date = nowdate()
         cd.flags.ignore_mandatory = True
         cd.flags.ignore_links = True

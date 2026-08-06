@@ -111,7 +111,7 @@
    "fieldname": "store",
    "fieldtype": "Link",
    "in_standard_filter": 1,
-   "label": "Store",
+   "label": "Store Warehouse",
    "options": "Warehouse",
    "search_index": 1
   },
