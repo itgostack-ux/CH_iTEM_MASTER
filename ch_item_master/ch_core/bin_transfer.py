@@ -65,7 +65,12 @@ def _authorized_store(store: str, *, transfer: bool = False):
 	if is_privileged_user():
 		return store_doc
 
-	if not frappe.has_permission("CH Store", ptype="read", doc=store_doc):
+	# if not frappe.has_permission("CH Store", ptype="read", doc=store_doc):
+	# 	frappe.throw(_("You do not have permission to view this store."), frappe.PermissionError)
+
+	_bypass_roles = {"POS User", "POS Manager", "CH Store Executive", "CH Store Manager"}
+	_is_bypass = bool(set(frappe.get_roles()) & _bypass_roles)
+	if not _is_bypass and not frappe.has_permission("CH Store", ptype="read", doc=store_doc):
 		frappe.throw(_("You do not have permission to view this store."), frappe.PermissionError)
 	ensure_company_access(store_doc.company)
 	try:

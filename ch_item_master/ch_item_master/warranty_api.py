@@ -1003,7 +1003,10 @@ def get_customer_warranty_dashboard(identifier, company=None) -> dict:
 			}
 
 	# ── Get customer info ────────────────────────────────────────────
-	frappe.has_permission("Customer", "read", doc=customer, throw=True)
+	_bypass_roles = {"POS User", "POS Manager", "CH Store Executive", "CH Store Manager", "System Manager"}
+	_is_bypass = bool(set(frappe.get_roles()) & _bypass_roles) or frappe.session.user == "Administrator"
+	if not _is_bypass:
+		frappe.has_permission("Customer", "read", doc=customer, throw=True)
 	cust_data = frappe.db.get_value(
 		"Customer", customer,
 		["name", "customer_name", "mobile_no", "ch_alternate_phone", "email_id"],
@@ -1512,8 +1515,15 @@ def initiate_warranty_claim(serial_no, customer, item_code, company,
 	)
 	frappe.has_permission("CH Warranty Claim", "create", throw=True)
 	frappe.has_permission("CH Warranty Claim", "submit", throw=True)
-	frappe.has_permission("Customer", "read", doc=customer, throw=True)
-	frappe.has_permission("Item", "read", doc=item_code, throw=True)
+	_bypass_roles = {"POS User", "POS Manager", "CH Store Executive", "CH Store Manager", "System Manager"}
+	_is_bypass = bool(set(frappe.get_roles()) & _bypass_roles) or frappe.session.user == "Administrator"
+	if not _is_bypass:
+		frappe.has_permission("Customer", "read", doc=customer, throw=True)
+
+	_bypass_roles = {"POS User", "POS Manager", "CH Store Executive", "CH Store Manager", "System Manager"}
+	_is_bypass = bool(set(frappe.get_roles()) & _bypass_roles) or frappe.session.user == "Administrator"
+	if not _is_bypass:
+		frappe.has_permission("Item", "read", doc=item_code, throw=True)
 	ensure_company_access(company)
 	ensure_company_access(reported_at_company)
 	if not is_privileged_user():

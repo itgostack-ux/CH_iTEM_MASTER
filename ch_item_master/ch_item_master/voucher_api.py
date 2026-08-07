@@ -20,7 +20,7 @@ from ch_item_master.security import (
 )
 
 
-_VOUCHER_ISSUE_ROLES = ("CH Master Manager", "CH Price Manager", "Sales Manager")
+_VOUCHER_ISSUE_ROLES = ("CH Master Manager", "CH Price Manager", "Sales Manager","POS User", "POS Manager", "CH Store Executive", "CH Store Manager")
 _VOUCHER_REDEMPTION_ROLES = ("Sales User", "Sales Manager", "CH Price Manager")
 _VOUCHER_REFUND_ROLES = ("Sales Manager", "CH Price Manager")
 _VOUCHER_TOPUP_ROLES = ("Sales Manager", "CH Price Manager")
