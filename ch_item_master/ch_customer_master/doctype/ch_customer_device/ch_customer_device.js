@@ -2,6 +2,18 @@
 // For license information, please see license.txt
 
 frappe.ui.form.on("CH Customer Device", {
+	refresh(frm) {
+		const source = frm.doc.device_source || "Inventory Serial";
+		const color = source === "Inventory Serial" ? "green"
+			: source === "Customer Provided" ? "blue" : "orange";
+		frm.dashboard.add_indicator(__(source), color);
+		if (frm.doc.ownership_verification === "Legacy Unverified") {
+			frm.dashboard.set_headline_alert(
+				__("Quarantined legacy record — ownership is not transaction-verified."),
+				"orange"
+			);
+		}
+	},
 	setup(frm) {
 		// Filter serial_no to only serials matching the selected item_code
 		frm.set_query("serial_no", () => {

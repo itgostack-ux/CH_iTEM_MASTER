@@ -19,7 +19,8 @@ from frappe.model.document import Document
 from frappe.utils import add_months, cint, flt, getdate, now_datetime, nowdate
 
 from ch_item_master.config import get_int_setting, is_privileged_user, require_role_setting
-from ch_item_master.id_sequences import next_numeric_id
+from ch_item_master.ch_core.cost_center import resolve_reference_cost_center
+from ch_item_master.id_sequences import next_free_numeric_id
 from ch_item_master.security import ensure_company_access
 from ch_item_master.ch_item_master.utils import validate_indian_phone
 
@@ -31,6 +32,19 @@ from ch_item_master.ch_item_master.exceptions import (
 
 
 class ActiveVASPlans(Document):
+	def _source_cost_center(self):
+		"""Keep every lifecycle posting on the store that sold the plan."""
+		for reference_type, reference_name in (
+			("Sales Invoice", self.get("sales_invoice")),
+			("Sales Order", self.get("sales_order")),
+		):
+			cost_center = resolve_reference_cost_center(
+				reference_type, reference_name, self.get("company")
+			)
+			if cost_center:
+				return cost_center
+		return None
+
 	@property
 	def valid_to(self):
 		return self.end_date
@@ -41,7 +55,7 @@ class ActiveVASPlans(Document):
 
 	def autoname(self):
 		"""Auto-generate the active plan integration ID if not set."""
-		self.sold_plan_id = next_numeric_id("active_vas_plan")
+		self.sold_plan_id = next_free_numeric_id("active_vas_plan")
 
 	def validate(self):
 		if self._is_issuance():
@@ -269,10 +283,56 @@ class ActiveVASPlans(Document):
 		return source, plan_price, device_price
 
 	def on_submit(self):
+		self._sync_customer_device_projection()
 		self._sync_to_serial_lifecycle()
 		self._send_welcome_notification()
 		self._log_vas_event("Plan Activated")
 		self._post_deferred_revenue_gl()
+
+	def _sync_customer_device_projection(self):
+		"""Materialize the covered device through the single controlled API.
+
+		This belongs to the plan lifecycle rather than the POS caller so plans
+		issued from Desk, an integration, or POS cannot diverge.
+		"""
+		if not self.serial_no:
+			return
+
+		from ch_item_master.ch_customer_master.doctype.ch_customer_device.ch_customer_device import (
+			CHCustomerDevice,
+		)
+
+		updates = {
+			"company": self.company,
+			"purchase_company": self.company,
+			"purchase_price": flt(self.device_purchase_price),
+			"active_warranty_plan": self.name,
+			"warranty_status": "In Warranty",
+			"warranty_expiry": self.end_date,
+			"warranty_plan_name": self.plan_title or self.warranty_plan,
+			"warranty_months": self.duration_months or 0,
+		}
+		if cint(self.is_external_device):
+			CHCustomerDevice.create_or_update_external(
+				self.serial_no,
+				self.customer,
+				self.external_device_model_item or self.item_code,
+				**updates,
+			)
+			return
+
+		updates.update({
+			"purchase_date": self.start_date,
+			"purchase_invoice": self.sales_invoice or None,
+			# A Sales Order reserves an inventory device but does not transfer
+			# ownership. The Sales Invoice hook promotes it to Owned.
+			"current_status": "Owned" if self.sales_invoice else "Reserved",
+		})
+		CHCustomerDevice.create_or_update_for_serial(
+			self.serial_no,
+			self.customer,
+			**updates,
+		)
 
 	def on_cancel(self):
 		self.status = "Cancelled"
@@ -516,10 +576,13 @@ class ActiveVASPlans(Document):
 		if not self.serial_no:
 			return
 
-		if not frappe.db.exists("CH Serial Lifecycle", self.serial_no):
+		lifecycle_name = frappe.db.get_value(
+			"CH Serial Lifecycle", {"serial_no": self.serial_no}, "name"
+		)
+		if not lifecycle_name:
 			return
 
-		lc = frappe.get_doc("CH Serial Lifecycle", self.serial_no)
+		lc = frappe.get_doc("CH Serial Lifecycle", lifecycle_name)
 
 		plan_type = self.plan_type or frappe.db.get_value(
 			"CH Warranty Plan", self.warranty_plan, "plan_type"
@@ -548,10 +611,13 @@ class ActiveVASPlans(Document):
 		if not self.serial_no:
 			return
 
-		if not frappe.db.exists("CH Serial Lifecycle", self.serial_no):
+		lifecycle_name = frappe.db.get_value(
+			"CH Serial Lifecycle", {"serial_no": self.serial_no}, "name"
+		)
+		if not lifecycle_name:
 			return
 
-		lc = frappe.get_doc("CH Serial Lifecycle", self.serial_no)
+		lc = frappe.get_doc("CH Serial Lifecycle", lifecycle_name)
 
 		if lc.warranty_plan == self.warranty_plan:
 			lc.warranty_plan = None
@@ -646,6 +712,7 @@ class ActiveVASPlans(Document):
 
 		try:
 			je = frappe.new_doc("Journal Entry")
+			cost_center = self._source_cost_center()
 			# Park the deferral on the SALE date, not the coverage start:
 			# the customer pays now even when coverage starts later (plans
 			# that stack after the base warranty begin in a future period —
@@ -659,8 +726,16 @@ class ActiveVASPlans(Document):
 			je.user_remark = f"Deferred Revenue — Active VAS Plans {self.name}"
 			je.flags.ch_system_generated_je = True
 			# Debit income (reverse premature recognition), Credit deferred liability
-			je.append("accounts", {"account": income_acct, "debit_in_account_currency": amount})
-			je.append("accounts", {"account": deferred_acct, "credit_in_account_currency": amount})
+			je.append("accounts", {
+				"account": income_acct,
+				"debit_in_account_currency": amount,
+				"cost_center": cost_center,
+			})
+			je.append("accounts", {
+				"account": deferred_acct,
+				"credit_in_account_currency": amount,
+				"cost_center": cost_center,
+			})
 			je.flags.ignore_permissions = True
 			je.insert()
 			je.submit()
@@ -765,6 +840,7 @@ class ActiveVASPlans(Document):
 			)
 
 		je = frappe.new_doc("Journal Entry")
+		cost_center = self._source_cost_center()
 		je.posting_date = as_of
 		je.company = self.company
 		je.user_remark = reference_key
@@ -772,10 +848,12 @@ class ActiveVASPlans(Document):
 		je.append("accounts", {
 			"account": deferred_acct,
 			"debit_in_account_currency": delta,
+			"cost_center": cost_center,
 		})
 		je.append("accounts", {
 			"account": revenue_acct,
 			"credit_in_account_currency": delta,
+			"cost_center": cost_center,
 		})
 		je.insert()
 		je.submit()
@@ -824,6 +902,7 @@ class ActiveVASPlans(Document):
 			return
 
 		je = frappe.new_doc("Journal Entry")
+		cost_center = self._source_cost_center()
 		je.posting_date = nowdate()
 		je.company = self.company
 		je.user_remark = (
@@ -834,10 +913,12 @@ class ActiveVASPlans(Document):
 		je.append("accounts", {
 			"account": deferred_acct,
 			"debit_in_account_currency": unamortised,
+			"cost_center": cost_center,
 		})
 		je.append("accounts", {
 			"account": revenue_acct,
 			"credit_in_account_currency": unamortised,
+			"cost_center": cost_center,
 		})
 		je.flags.ignore_permissions = True
 		je.insert()

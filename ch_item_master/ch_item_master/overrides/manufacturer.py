@@ -9,7 +9,7 @@ Adds auto-increment logic for manufacturer_id and mandatory full_name.
 import frappe
 from frappe import _
 
-from ch_item_master.id_sequences import next_numeric_id
+from ch_item_master.id_sequences import next_free_numeric_id
 
 
 def before_insert(doc, method=None):
@@ -20,7 +20,7 @@ def before_insert(doc, method=None):
 	if doc.full_name:
 		doc.full_name = " ".join(doc.full_name.split())
 	if not doc.manufacturer_id:
-		doc.manufacturer_id = next_numeric_id("manufacturer")
+		doc.manufacturer_id = next_free_numeric_id("manufacturer")
 
 
 def before_save(doc, method=None):

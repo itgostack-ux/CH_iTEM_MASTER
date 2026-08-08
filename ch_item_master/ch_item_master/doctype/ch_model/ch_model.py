@@ -5,7 +5,7 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 
-from ch_item_master.id_sequences import next_numeric_id
+from ch_item_master.id_sequences import next_free_numeric_id
 
 from ch_item_master.ch_item_master.exceptions import (
 	BrandManufacturerMismatchError,
@@ -35,7 +35,7 @@ class CHModel(Document):
 		UNIQUE constraint violation.
 		"""
 		if not self.model_id:
-			self.model_id = next_numeric_id("model")
+			self.model_id = next_free_numeric_id("model")
 
 	def validate(self):
 		if self.model_name:

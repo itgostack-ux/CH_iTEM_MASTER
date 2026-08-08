@@ -14,6 +14,7 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import nowdate, now_datetime, getdate
 
+from ch_item_master.config import require_role_setting
 from ch_item_master.security import has_serial_lifecycle_permission
 
 
@@ -34,10 +35,90 @@ VALID_TRANSITIONS = {
 }
 
 
+def lifecycle_name_for_serial(serial_no: str) -> str:
+    return (serial_no or "").replace("<", "%3C").replace(">", "%3E")
+
+
+def get_lifecycle_name(serial_no: str) -> str | None:
+    """Resolve by authoritative Serial No; do not assume projection name."""
+    return frappe.db.get_value(
+        "CH Serial Lifecycle", {"serial_no": serial_no}, "name"
+    )
+
+
 class CHSerialLifecycle(Document):
+    def before_naming(self):
+        self.flags.authoritative_serial_no = self.serial_no
+
+    def autoname(self):
+        # Legacy/imported Serial No values may contain < or >. Frappe permits
+        # them in existing data but rejects them as new document names. Keep
+        # the exact identifier in the unique Link field and escape only the
+        # projection's internal name.
+        self.name = lifecycle_name_for_serial(
+            self.flags.authoritative_serial_no or self.serial_no
+        )
+
     def validate(self):
+        self._sync_inventory_identity()
         self._validate_imei()
         self._auto_warranty_status()
+
+    def _sync_inventory_identity(self):
+        """Keep identity and physical location derived from ERPNext Serial No."""
+        serial_no = (self.serial_no or self.name or "").strip()
+        serial = frappe.db.get_value(
+            "Serial No",
+            serial_no,
+            ["name", "item_code", "warehouse", "status", "company", "ch_serial_kind"],
+            as_dict=True,
+        )
+        if not serial:
+            frappe.throw(
+                _("Lifecycle device {0} must exist in Serial No.").format(
+                    frappe.bold(serial_no)
+                ),
+                frappe.ValidationError,
+            )
+
+        self.serial_no = serial.name
+        self.item_code = serial.item_code
+        if serial.ch_serial_kind:
+            self.ch_serial_kind = serial.ch_serial_kind
+
+        tracking_statuses = {"", "Received", "In Stock", "Displayed", "Refurbished", "Repaired"}
+        if self.lifecycle_status in tracking_statuses:
+            self.current_warehouse = serial.warehouse or None
+            if serial.warehouse:
+                self.current_company = frappe.db.get_value("Warehouse", serial.warehouse, "company")
+                self.current_store = frappe.db.get_value(
+                    "CH Store", {"warehouse": serial.warehouse}, "name"
+                ) or None
+
+        cleaned = serial.name.replace(" ", "").replace("-", "")
+        if self.ch_serial_kind == "IMEI" and cleaned.isdigit() and len(cleaned) == 15:
+            self.imei_number = cleaned
+        elif self.imei_number and self.imei_number != serial.name:
+            frappe.throw(
+                _("IMEI 1 must be the authoritative Serial No identifier."),
+                frappe.ValidationError,
+            )
+
+        if self.imei_number_2:
+            collision = frappe.db.get_value(
+                "CH Serial Lifecycle",
+                {
+                    "name": ["!=", self.name or ""],
+                    "imei_number_2": self.imei_number_2,
+                },
+                "name",
+            )
+            primary_collision = frappe.db.exists("Serial No", self.imei_number_2)
+            if collision or (primary_collision and self.imei_number_2 != serial.name):
+                frappe.throw(
+                    _("IMEI 2 is already assigned to another inventory device."),
+                    frappe.ValidationError,
+                )
 
     def before_save(self):
         if self.has_value_changed("lifecycle_status"):
@@ -120,7 +201,15 @@ def _is_system_write() -> bool:
 def _require_lifecycle_access(doc, permission_type: str) -> None:
     if _is_system_write():
         return
-    doc.check_permission(permission_type)
+    if permission_type == "write":
+        require_role_setting(
+            "lifecycle_update_roles",
+            ("System Manager", "Stock Manager", "Stock User", "CH Master Manager"),
+            action=_("update serialized-device lifecycle status"),
+        )
+        doc.check_permission("read")
+    else:
+        doc.check_permission(permission_type)
     if not has_serial_lifecycle_permission(
         doc=doc,
         user=frappe.session.user,
@@ -167,7 +256,8 @@ def update_lifecycle_status(serial_no, new_status, company=None,
         **kwargs: Additional fields to set on the document (e.g. sale_date,
                   sale_document, sale_rate, customer, customer_name)
     """
-    if not frappe.db.exists("CH Serial Lifecycle", serial_no):
+    lifecycle_name = get_lifecycle_name(serial_no)
+    if not lifecycle_name:
         frappe.log_error(
             title=f"Serial Lifecycle not found: {serial_no}",
             message=f"Cannot update lifecycle to '{new_status}' — CH Serial Lifecycle '{serial_no}' does not exist.",
@@ -183,7 +273,7 @@ def update_lifecycle_status(serial_no, new_status, company=None,
         )
         return {"status": "skipped", "serial_no": serial_no, "reason": "lock_timeout"}
     try:
-        doc = frappe.get_doc("CH Serial Lifecycle", serial_no)
+        doc = frappe.get_doc("CH Serial Lifecycle", lifecycle_name)
 
         _require_lifecycle_access(doc, "write")
         company, warehouse = _validate_target_location(doc, company, warehouse)
@@ -192,7 +282,7 @@ def update_lifecycle_status(serial_no, new_status, company=None,
         # A concurrent request may have already advanced the status between the
         # caller's initial read and this point — use the fresh DB value as ground truth.
         _db_current_status = frappe.db.get_value(
-            "CH Serial Lifecycle", serial_no, "lifecycle_status"
+            "CH Serial Lifecycle", lifecycle_name, "lifecycle_status"
         ) or ""
         if _db_current_status != (doc.lifecycle_status or ""):
             frappe.throw(
@@ -222,7 +312,9 @@ def update_lifecycle_status(serial_no, new_status, company=None,
             if key in allowed_extra_fields:
                 doc.set(key, value)
 
-        doc.save(ignore_permissions=_is_system_write())
+        # The projection is read-only at DocType level. This controlled API
+        # performs the write only after role, store scope and transition checks.
+        doc.save(ignore_permissions=True)
         # v16: do not call frappe.db.commit() — caller or request lifecycle handles it
     finally:
         frappe.db.sql("SELECT RELEASE_LOCK(%s)", (lock_key,))
@@ -254,7 +346,10 @@ def update_lifecycle_status_for_document(serial_no, new_status, **kwargs) -> dic
 @frappe.whitelist()
 def get_lifecycle_history(serial_no) -> dict:
     """Get full lifecycle history of a device."""
-    doc = frappe.get_doc("CH Serial Lifecycle", serial_no)
+    lifecycle_name = get_lifecycle_name(serial_no)
+    if not lifecycle_name:
+        frappe.throw(_("Serial lifecycle not found for {0}").format(serial_no))
+    doc = frappe.get_doc("CH Serial Lifecycle", lifecycle_name)
     _require_lifecycle_access(doc, "read")
     return {
         "serial_no": doc.serial_no,

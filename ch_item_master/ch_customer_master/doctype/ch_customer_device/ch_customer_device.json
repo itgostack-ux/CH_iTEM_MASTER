@@ -1,5 +1,5 @@
 {
- "allow_import": 1,
+ "allow_import": 0,
  "actions": [],
  "autoname": "format:CHD-{customer}-{serial_no}",
  "creation": "2026-03-02 10:00:00.000000",
@@ -13,6 +13,10 @@
   "column_break_cust",
   "company",
   "device_section",
+  "device_source",
+  "inventory_serial",
+  "ownership_verification",
+  "verification_notes",
   "serial_no",
   "item_code",
   "item_name",
@@ -77,6 +81,7 @@
    "in_standard_filter": 1,
    "label": "Customer",
    "options": "Customer",
+   "read_only": 1,
    "reqd": 1,
    "search_index": 1
   },
@@ -95,7 +100,8 @@
    "fieldname": "company",
    "fieldtype": "Link",
    "label": "Sold By Company",
-   "options": "Company"
+   "options": "Company",
+   "read_only": 1
   },
   {
    "fieldname": "device_section",
@@ -103,11 +109,53 @@
    "label": "Device Details"
   },
   {
+   "default": "Inventory Serial",
+   "description": "Inventory Serial is backed by ERPNext Serial No. Customer Provided never creates inventory. Legacy Unverified is quarantined historical data.",
+   "fieldname": "device_source",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Device Source",
+   "options": "Inventory Serial\nCustomer Provided\nLegacy Unverified",
+   "read_only": 1,
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "description": "Authoritative ERPNext inventory identity. Blank for customer-provided and quarantined legacy devices.",
+   "fieldname": "inventory_serial",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Inventory Serial",
+   "no_copy": 1,
+   "options": "Serial No",
+   "read_only": 1,
+   "search_index": 1,
+   "unique": 1
+  },
+  {
+   "default": "Verified",
+   "fieldname": "ownership_verification",
+   "fieldtype": "Select",
+   "in_standard_filter": 1,
+   "label": "Ownership Verification",
+   "options": "Verified\nLegacy Unverified",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "verification_notes",
+   "fieldtype": "Small Text",
+   "label": "Verification Notes",
+   "read_only": 1
+  },
+  {
    "fieldname": "serial_no",
    "fieldtype": "Data",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "Serial No",
+   "label": "Device Identifier / IMEI",
+   "read_only": 1,
    "reqd": 1,
    "unique": 1,
    "search_index": 1
@@ -119,6 +167,7 @@
    "in_standard_filter": 1,
    "label": "Item Code",
    "options": "Item",
+   "read_only": 1,
    "reqd": 1,
    "search_index": 1
   },
@@ -146,7 +195,8 @@
   {
    "fieldname": "imei_number",
    "fieldtype": "Data",
-   "label": "IMEI Number"
+   "label": "IMEI Number",
+   "read_only": 1
   },
   {
    "fieldname": "color",
@@ -172,7 +222,8 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Current Status",
-   "options": "Owned\nIn Service\nBuyback\nSold\nReturned\nLost\nScrapped",
+   "options": "Reserved\nOwned\nIn Service\nBuyback\nSold\nReturned\nInactive\nLost\nScrapped\nUnverified",
+   "read_only": 1,
    "search_index": 1
   },
   {
@@ -337,12 +388,8 @@
   {
    "role": "System Manager",
    "read": 1,
-   "write": 1,
-   "create": 1,
-   "delete": 1,
    "email": 1,
    "export": 1,
-   "import": 1,
    "print": 1,
    "report": 1,
    "share": 1
@@ -350,8 +397,6 @@
   {
    "role": "Sales User",
    "read": 1,
-   "write": 1,
-   "create": 1,
    "email": 1,
    "export": 1,
    "print": 1,
@@ -361,9 +406,6 @@
   {
    "role": "Sales Manager",
    "read": 1,
-   "write": 1,
-   "create": 1,
-   "delete": 1,
    "export": 1
   },
   {

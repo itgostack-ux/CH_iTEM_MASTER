@@ -201,7 +201,9 @@ def _get_devices(customer, company=None):
 		"CH Customer Device",
 		filters=filters,
 		fields=[
-			"name", "serial_no", "item_code", "item_name", "brand",
+			"name", "serial_no", "inventory_serial", "device_source",
+			"ownership_verification", "verification_notes",
+			"item_code", "item_name", "brand",
 			"imei_number", "current_status", "purchase_date",
 			"warranty_status", "warranty_expiry", "warranty_plan_name",
 			"buyback_date", "buyback_price", "buyback_grade",
@@ -259,11 +261,11 @@ def _get_devices(customer, company=None):
 						ROW_NUMBER() OVER (
 							PARTITION BY parent
 							ORDER BY log_timestamp DESC, idx DESC, name DESC
-						) AS row_number
+						) AS lifecycle_row_rank
 					FROM `tabCH Serial Lifecycle Log`
 					WHERE parent IN %(parents)s
 				) ranked_logs
-				WHERE row_number <= %(per_parent_limit)s
+				WHERE lifecycle_row_rank <= %(per_parent_limit)s
 				ORDER BY parent ASC, log_timestamp DESC
 				LIMIT %(related_limit)s
 				""",
@@ -280,7 +282,7 @@ def _get_devices(customer, company=None):
 					frappe.ValidationError,
 				)
 			for log_row in log_rows:
-				log_row.pop("row_number", None)
+				log_row.pop("lifecycle_row_rank", None)
 				logs_by_lifecycle.setdefault(log_row.parent, []).append(log_row)
 
 	for device in devices:
@@ -369,7 +371,7 @@ def _get_recent_transactions(customer, company=None):
 		srs = frappe.get_all(
 			"Service Request",
 			filters=sr_filters,
-			fields=["name", "creation", "company", "status", "device_item_name"],
+			fields=["name", "creation", "company", "decision as status", "device_item_name"],
 			order_by="creation desc",
 			limit=10,
 		)

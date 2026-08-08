@@ -145,7 +145,7 @@ def _sync_snapshot(doc):
 
 	lc_row = frappe.db.get_value(
 		"CH Serial Lifecycle",
-		serial_no,
+		{"serial_no": serial_no},
 		["name", "current_warehouse", "lifecycle_status", "current_company"],
 		as_dict=True,
 	)
@@ -241,7 +241,7 @@ def _create_minimal_lifecycle(sn_doc, warehouse, company):
 		)
 		return
 	try:
-		if frappe.db.exists("CH Serial Lifecycle", sn_doc.name):
+		if frappe.db.exists("CH Serial Lifecycle", {"serial_no": sn_doc.name}):
 			return  # raced with another worker — nothing to do
 
 		lc = frappe.new_doc("CH Serial Lifecycle")

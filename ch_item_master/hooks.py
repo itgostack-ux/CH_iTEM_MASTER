@@ -98,6 +98,7 @@ scheduler_events = {
 		"ch_item_master.supplier_scheme.scheduled.auto_close_expired_schemes",
 		"ch_item_master.supplier_scheme.scheduled.send_expiry_claim_reminders",
 		"ch_item_master.ch_item_master.rbac.expire_role_assignments",
+		"ch_item_master.device_integrity.monitor_device_integrity",
 	],
 	"hourly": [
 		"ch_item_master.ch_item_master.exception_api.escalate_pending_exceptions",
@@ -272,8 +273,6 @@ doc_events = {
 		"on_submit": "ch_item_master.ch_item_master.overrides.movement_logger.on_stock_reconciliation_submit",
 	},
 	"Purchase Receipt": {
-		"on_submit": "ch_item_master.ch_item_master.overrides.purchase_receipt.on_submit",
-		"on_cancel": "ch_item_master.ch_item_master.overrides.purchase_receipt.on_cancel",
 		"validate": [
 			# Block receiving NEW stock of Obsolete/non-Active items (direct GRN
 			# path — PO/PI already gated). Obsolete may be sold, not purchased.
@@ -323,6 +322,10 @@ doc_events = {
 	"CH Item Price": {
 		"validate": "ch_item_master.ch_item_master.price_governance.validate_ch_item_price",
 		"on_update": "ch_item_master.ch_item_master.price_governance.log_ch_item_price_change",
+	},
+	"Item Price": {
+		"validate": "ch_item_master.ch_item_master.price_governance.validate_managed_item_price",
+		"on_trash": "ch_item_master.ch_item_master.price_governance.prevent_managed_item_price_delete",
 	},
 	"Buyback Price Master": {
 		"validate": "ch_item_master.ch_item_master.price_governance.validate_buyback_price",

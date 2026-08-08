@@ -493,6 +493,41 @@ def validate_warehouse_location_fields(doc, method=None):
 		if not _clean(doc.get("ch_hub_bin_type")):
 			frappe.throw("Hub Bin warehouses must have a Hub Bin Label.")
 
+	zone_name = _clean(doc.get("ch_zone"))
+	if zone_name:
+		zone = frappe.db.get_value(
+			"CH Store Zone", zone_name, ["company", "city"], as_dict=True
+		)
+		if not zone:
+			frappe.throw(f"Zone {zone_name} does not exist.")
+		if doc.get("company") and zone.company and zone.company != doc.company:
+			frappe.throw(
+				f"Zone {zone_name} belongs to company {zone.company}, not {doc.company}."
+			)
+		if _clean(doc.get("ch_city")) and zone.city and zone.city != doc.ch_city:
+			frappe.throw(
+				f"Zone {zone_name} belongs to city {zone.city}, not {doc.ch_city}."
+			)
+
+	store_name = _clean(doc.get("ch_store"))
+	if store_name:
+		store = frappe.db.get_value(
+			"CH Store", store_name, ["company", "city", "zone", "disabled"], as_dict=True
+		)
+		if not store:
+			frappe.throw(f"CH Store {store_name} does not exist.")
+		checks = (
+			("company", doc.get("company"), store.company),
+			("city", _clean(doc.get("ch_city")), _clean(store.city)),
+			("zone", zone_name, _clean(store.zone)),
+		)
+		for label, warehouse_value, store_value in checks:
+			if warehouse_value and store_value and warehouse_value != store_value:
+				frappe.throw(
+					f"Warehouse {label} {warehouse_value} does not match CH Store "
+					f"{store_name} {label} {store_value}."
+				)
+
 
 def validate_store_location_contract(store):
 	"""Validate that CH Store.warehouse remains a sellable store leaf."""
@@ -523,7 +558,19 @@ def validate_store_location_contract(store):
 			f"Default Warehouse {warehouse} belongs to company {wh.company}, "
 			f"not {store.company}."
 		)
-	if store.get("city") and _clean(wh.ch_city) and _clean(wh.ch_city) != store.city:
+	relocating_owned_warehouse = (
+		_clean(wh.ch_store) == store.name
+		and any(
+			getattr(store, "has_value_changed", lambda _field: False)(field)
+			for field in ("city", "zone")
+		)
+	)
+	if (
+		store.get("city")
+		and _clean(wh.ch_city)
+		and _clean(wh.ch_city) != store.city
+		and not relocating_owned_warehouse
+	):
 		frappe.throw(
 			f"Default Warehouse {warehouse} belongs to city {wh.ch_city}, "
 			f"not {store.city}."
@@ -842,13 +889,9 @@ def backfill_location_hierarchy():
 				warehouse_updates["ch_location_type"] = "Store Bin"
 			frappe.db.set_value("Warehouse", store.warehouse, warehouse_updates, update_modified=False)
 
-		if store.branch and frappe.db.exists("Branch", store.branch):
-			frappe.db.set_value(
-				"Branch",
-				store.branch,
-				{"ch_company": store.company, "ch_city": city, "ch_zone": store.zone or None},
-				update_modified=False,
-			)
+		# Branch is an independent office/issuing location.  Never derive its
+		# geography from whichever Store happens to be processed last; Branch
+		# validation enforces compatibility when a Store links to it.
 
 	# Mark zone source warehouses as zone warehouses. The source mapping lives
 	# on CH Store Zone; shared city hubs intentionally keep Warehouse.ch_zone

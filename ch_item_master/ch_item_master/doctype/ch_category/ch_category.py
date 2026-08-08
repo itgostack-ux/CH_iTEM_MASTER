@@ -5,7 +5,7 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 
-from ch_item_master.id_sequences import next_numeric_id
+from ch_item_master.id_sequences import next_free_numeric_id
 
 from ch_item_master.ch_item_master.exceptions import (
 	CategoryInUseError,
@@ -27,7 +27,7 @@ class CHCategory(Document):
 		UNIQUE constraint violation.
 		"""
 		if not self.category_id:
-			self.category_id = next_numeric_id("category")
+			self.category_id = next_free_numeric_id("category")
 
 	def validate(self):
 		if self.category_name:

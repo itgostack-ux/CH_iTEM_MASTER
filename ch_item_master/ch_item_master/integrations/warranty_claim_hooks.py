@@ -17,10 +17,12 @@ def on_submit(doc, method=None):
     """
     if not doc.serial_no:
         return
-    if not frappe.db.exists("CH Serial Lifecycle", doc.serial_no):
+    if not frappe.db.exists("CH Serial Lifecycle", {"serial_no": doc.serial_no}):
         return
 
-    current_status = frappe.db.get_value("CH Serial Lifecycle", doc.serial_no, "lifecycle_status")
+    current_status = frappe.db.get_value(
+        "CH Serial Lifecycle", {"serial_no": doc.serial_no}, "lifecycle_status"
+    )
     # Only advance from "Sold" or "Returned" states — don't overwrite in-progress service states
     if current_status not in ("Sold", "Returned", "Repaired"):
         return
@@ -52,10 +54,12 @@ def on_cancel(doc, method=None):
     """
     if not doc.serial_no:
         return
-    if not frappe.db.exists("CH Serial Lifecycle", doc.serial_no):
+    if not frappe.db.exists("CH Serial Lifecycle", {"serial_no": doc.serial_no}):
         return
 
-    current_status = frappe.db.get_value("CH Serial Lifecycle", doc.serial_no, "lifecycle_status")
+    current_status = frappe.db.get_value(
+        "CH Serial Lifecycle", {"serial_no": doc.serial_no}, "lifecycle_status"
+    )
     # Only revert if we're the ones who put it "In Service"
     if current_status != "In Service":
         return

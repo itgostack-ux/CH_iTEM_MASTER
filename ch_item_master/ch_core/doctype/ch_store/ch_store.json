@@ -153,7 +153,8 @@
    "options": "CH Store Zone",
    "in_standard_filter": 1,
    "description": "Stock requests from this store will be routed to the zone's source warehouse",
-   "search_index": 1
+   "search_index": 1,
+   "mandatory_depends_on": "eval:!doc.disabled && doc.store_status=='Active'"
   },
   {
    "fieldname": "address_section",
@@ -172,7 +173,8 @@
    "options": "CH City",
    "in_standard_filter": 1,
    "search_index": 1,
-   "description": "City under the selected company. Zones, warehouses, and offices are grouped below this city."
+   "description": "City under the selected company. Zones, warehouses, and offices are grouped below this city.",
+   "mandatory_depends_on": "eval:!doc.disabled && doc.store_status=='Active'"
   },
   {
    "fieldname": "column_break_addr",

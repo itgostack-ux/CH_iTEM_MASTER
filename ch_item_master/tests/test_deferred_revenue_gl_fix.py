@@ -15,6 +15,7 @@ class _DummyPlan:
 	def __init__(self):
 		self.name = "CH-SP-TEST-0001"
 		self.company = "BestBuy Mobiles Pvt Ltd"
+		self.warranty_plan = "CH-WP-TEST-0001"
 		self.plan_price = 2000
 		self.sales_invoice = "ACC-SINV-TEST-0001"
 		self.item_code = "PLAN-ITEM-001"
@@ -23,6 +24,9 @@ class _DummyPlan:
 
 	def get(self, key):
 		return getattr(self, key, None)
+
+	def _source_cost_center(self):
+		return ActiveVASPlans._source_cost_center(self)
 
 	def db_set(self, key, value):
 		self._db_set[key] = value
@@ -75,7 +79,7 @@ def run():
 				{"idx": 2, "income_account": "Warranty Income - BM", "amount": 500, "base_amount": 500},
 			]
 
-		def _fake_get_value(doctype, filters, fieldname=None):
+		def _fake_get_value(doctype, filters, fieldname=None, **kwargs):
 			if doctype == "Account":
 				return "Deferred Revenue - BM"
 			if doctype == "Company" and fieldname == "default_income_account":

@@ -5,7 +5,7 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 
-from ch_item_master.id_sequences import next_numeric_id
+from ch_item_master.id_sequences import next_free_numeric_id
 
 
 class CHPriceChannel(Document):
@@ -22,7 +22,7 @@ class CHPriceChannel(Document):
 		UNIQUE constraint violation.
 		"""
 		if not self.channel_id:
-			self.channel_id = next_numeric_id("price_channel")
+			self.channel_id = next_free_numeric_id("price_channel")
 
 	def validate(self):
 		if self.channel_name:

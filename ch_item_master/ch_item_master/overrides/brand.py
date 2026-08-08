@@ -9,7 +9,7 @@ Adds auto-increment logic for brand_id and manufacturer list validation.
 import frappe
 from frappe import _
 
-from ch_item_master.id_sequences import next_numeric_id
+from ch_item_master.id_sequences import next_free_numeric_id
 
 
 def before_insert(doc, method=None):
@@ -18,7 +18,7 @@ def before_insert(doc, method=None):
 	if doc.brand:
 		doc.brand = " ".join(doc.brand.split())
 	if not doc.brand_id:
-		doc.brand_id = next_numeric_id("brand")
+		doc.brand_id = next_free_numeric_id("brand")
 
 
 def before_save(doc, method=None):

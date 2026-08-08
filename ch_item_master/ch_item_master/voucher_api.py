@@ -8,6 +8,7 @@ import frappe
 from frappe import _
 from frappe.utils import flt, getdate, nowdate, now_datetime, cint
 
+from ch_item_master.ch_core.cost_center import resolve_reference_cost_center
 from ch_item_master.config import (
 	get_int_setting,
 	get_list_setting,
@@ -906,6 +907,9 @@ def _post_voucher_gl(voucher_name, company, amount, transaction_type,
 
 	try:
 		je = frappe.new_doc("Journal Entry")
+		cost_center = resolve_reference_cost_center(
+			"Sales Invoice", reference_doc, company
+		)
 		je.company = company
 		je.posting_date = posting_date
 		je.voucher_type = "Journal Entry"
@@ -916,6 +920,7 @@ def _post_voucher_gl(voucher_name, company, amount, transaction_type,
 			"account": debit_account,
 			"debit_in_account_currency": flt(amount),
 			"credit_in_account_currency": 0,
+			"cost_center": cost_center,
 			"reference_type": "CH Voucher",
 			"reference_name": voucher_name,
 		})
@@ -923,6 +928,7 @@ def _post_voucher_gl(voucher_name, company, amount, transaction_type,
 			"account": credit_account,
 			"debit_in_account_currency": 0,
 			"credit_in_account_currency": flt(amount),
+			"cost_center": cost_center,
 			"reference_type": "CH Voucher",
 			"reference_name": voucher_name,
 		})

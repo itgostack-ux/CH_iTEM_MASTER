@@ -84,12 +84,20 @@ class CHItemPrice(Document):
 		self._validate_channel_active()
 		self._check_overlapping_price()
 		self._auto_set_status()
+		self._validate_erp_projection_contract()
 
 	def _validate_channel_active(self):
 		"""Warn if the price channel is inactive."""
 		if not self.channel:
 			return
 		disabled = frappe.db.get_value("CH Price Channel", self.channel, "disabled")
+		if disabled and self.status in ("Active", "Scheduled"):
+			frappe.throw(
+				_("Channel {0} is inactive and cannot publish an ERPNext Item Price.").format(
+					frappe.bold(self.channel)
+				),
+				title=_("Inactive Channel"),
+			)
 		if disabled:
 			frappe.msgprint(
 				_("Channel {0} is currently inactive. This price will not apply "
@@ -234,6 +242,57 @@ class CHItemPrice(Document):
 		else:
 			self.status = "Active"
 
+	def _validate_erp_projection_contract(self):
+		"""An approved CH price must have exactly one usable ERP price target."""
+		if self.status not in ("Active", "Scheduled"):
+			return
+		channel = frappe.db.get_value(
+			"CH Price Channel", self.channel, ["price_list", "is_buying"], as_dict=True
+		)
+		if not channel or not channel.price_list:
+			frappe.throw(
+				_("Channel {0} must be linked to an ERPNext Price List before approval.").format(
+					frappe.bold(self.channel)
+				),
+				title=_("Missing ERPNext Price List"),
+			)
+		price_list = frappe.db.get_value(
+			"Price List", channel.price_list, ["enabled", "buying", "selling"], as_dict=True
+		)
+		if not price_list or not price_list.enabled:
+			frappe.throw(_("Price List {0} is missing or disabled.").format(channel.price_list))
+		if channel.is_buying and not price_list.buying:
+			frappe.throw(_("Buying channel {0} requires a Buying Price List.").format(self.channel))
+		if not channel.is_buying and not price_list.selling:
+			frappe.throw(_("Selling channel {0} requires a Selling Price List.").format(self.channel))
+
+		# ERPNext Item Price has no Company field. Therefore two company-scoped
+		# CH rows cannot project into the same Item + Price List + date range.
+		others = frappe.get_all(
+			"CH Item Price",
+			filters={
+				"name": ("!=", self.name or ""),
+				"item_code": self.item_code,
+				"channel": self.channel,
+				"company": ("!=", self.company),
+				"status": ("in", ("Active", "Scheduled")),
+			},
+			fields=["name", "effective_from", "effective_to", "company"],
+		)
+		start = getdate(self.effective_from)
+		end = getdate(self.effective_to) if self.effective_to else None
+		for other in others:
+			other_start = getdate(other.effective_from)
+			other_end = getdate(other.effective_to) if other.effective_to else None
+			if not ((end and end < other_start) or (other_end and start > other_end)):
+				frappe.throw(
+					_(
+						"{0} already publishes this Item/Channel for company {1}. "
+						"Use a company-specific Channel/Price List; ERPNext Item Price is not company-scoped."
+					).format(frappe.bold(other.name), frappe.bold(other.company)),
+					title=_("Ambiguous ERPNext Price Projection"),
+				)
+
 	def on_update(self):
 		"""Sync selling price to ERPNext native Item Price so all transactions auto-pick it up.
 
@@ -312,24 +371,34 @@ class CHItemPrice(Document):
 		"""
 		price_list = self._get_price_list()
 		if not price_list:
-			# Log warning instead of silently failing
-			frappe.log_error(
-				f"CH Price Channel '{self.channel}' has no linked Price List. "
-				f"Cannot sync CH Item Price {self.name} to ERPNext Item Price.",
-				"CH Item Price Sync Warning"
+			frappe.throw(
+				_("Channel {0} has no ERPNext Price List; price {1} cannot be published.").format(
+					frappe.bold(self.channel), frappe.bold(self.name)
+				),
+				frappe.ValidationError,
 			)
-			return
 
 		is_buying = frappe.db.get_value("CH Price Channel", self.channel, "is_buying") or 0
-
-		existing = frappe.db.get_value(
-			"Item Price",
-			{"item_code": self.item_code, "price_list": price_list, "ch_source_price": self.name},
-			"name",
+		frappe.db.sql(
+			"""SELECT name FROM `tabItem Price`
+			    WHERE item_code = %s AND price_list = %s FOR UPDATE""",
+			(self.item_code, price_list),
 		)
+		managed = frappe.get_all(
+			"Item Price", filters={"ch_source_price": self.name}, pluck="name", limit_page_length=2
+		)
+		if len(managed) > 1:
+			frappe.throw(_("CH Item Price {0} has multiple ERPNext projections: {1}").format(
+				self.name, ", ".join(managed)
+			))
+		existing = self.get("erp_item_price") if self.get("erp_item_price") and frappe.db.exists(
+			"Item Price", self.get("erp_item_price")
+		) else (managed[0] if managed else None)
 
 		if existing:
 			ip = frappe.get_doc("Item Price", existing)
+			if ip.get("ch_source_price") not in (None, "", self.name):
+				frappe.throw(_("ERPNext Item Price {0} is governed by another CH price.").format(existing))
 		else:
 			ip = frappe.new_doc("Item Price")
 			ip.item_code  = self.item_code
@@ -343,15 +412,19 @@ class CHItemPrice(Document):
 		ip.valid_from      = self.effective_from
 		ip.valid_upto      = self.effective_to or None
 		ip.ch_source_price = self.name
-		ip.company         = self.company or ""
+		if ip.meta.has_field("company"):
+			ip.company = self.company or ""
 		ip.note = f"Synced from CH Item Price {self.name}"
 
+		ip.flags.from_ch_item_price_sync = self.name
 		ip.flags.ignore_permissions = True
 		ip.flags.ignore_validate_update_after_submit = True
 		ip.save()
 
 		# Store back-reference (without retriggering on_update)
 		frappe.db.set_value("CH Item Price", self.name, "erp_item_price", ip.name, update_modified=False)
+		self.erp_item_price = ip.name
+		return ip.name
 
 	def _expire_erp_item_price(self):
 		"""Set valid_upto = today on the linked ERPNext Item Price."""

@@ -25,7 +25,6 @@ _BUYBACK_PRICE_FIELDS = {
     "a_grade_iw_6_11", "b_grade_iw_6_11", "c_grade_iw_6_11", "d_grade_iw_6_11",
     "a_grade_oow_11", "b_grade_oow_11", "c_grade_oow_11", "d_grade_oow_11",
 }
-
 # Roles allowed to make direct edits (bypass the batch requirement)
 # NOTE: No admin bypass — all users must go through the batch workflow.
 # Only programmatic bypasses (from_price_batch, from_ready_reckoner, ignore_price_governance) are allowed.
@@ -97,6 +96,33 @@ def validate_buyback_price(doc, method=None):
               "to update prices.<br><br>"
               "Changed fields: {0}").format(", ".join(changed_fields)),
             title=_("Price Governance"),
+        )
+
+
+def validate_managed_item_price(doc, method=None):
+    """A standard Item Price linked to CH Item Price is a governed projection."""
+    source = doc.get("ch_source_price")
+    if not source:
+        return
+    if not frappe.db.exists("CH Item Price", source):
+        frappe.throw(_("Managed Item Price references missing CH Item Price {0}.").format(source))
+    if doc.flags.get("from_ch_item_price_sync") != source:
+        frappe.throw(
+            _("Item Price {0} is managed by CH Item Price {1}. Edit and approve the CH record instead.").format(
+                doc.name or _("New Item Price"), frappe.bold(source)
+            ),
+            frappe.PermissionError,
+        )
+
+
+def prevent_managed_item_price_delete(doc, method=None):
+    source = doc.get("ch_source_price")
+    if source and doc.flags.get("from_ch_item_price_sync") != source:
+        frappe.throw(
+            _("Managed Item Price {0} cannot be deleted independently of CH Item Price {1}.").format(
+                doc.name, frappe.bold(source)
+            ),
+            frappe.PermissionError,
         )
 
 

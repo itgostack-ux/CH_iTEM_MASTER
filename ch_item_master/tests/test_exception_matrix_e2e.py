@@ -137,6 +137,9 @@ def test_01_router_resolves_band():
         return
     try:
         _ensure_matrix()
+        company = _any_company()
+        currency = frappe.get_cached_value("Company", company, "default_currency")
+        context = {"company": company, "currency": currency}
         cases = [
             (3000, "CH Store Executive"),
             (30000, "CH Area Sales Manager"),
@@ -144,7 +147,7 @@ def test_01_router_resolves_band():
             (5_000_000, "CH National Head"),
         ]
         for amount, expected in cases:
-            got = auth.required_role_for_amount(_ACTION, _DT, amount)
+            got = auth.required_role_for_amount(_ACTION, _DT, amount, doc=context)
             assert got == expected, f"amount {amount}: expected {expected}, got {got}"
         _ok("01 router resolves band", "4 bands correct")
     except Exception as e:
@@ -159,12 +162,17 @@ def test_02_next_band_above():
         return
     try:
         _ensure_matrix()
-        assert auth.next_band_above(_ACTION, _DT, 5000) == "CH Area Sales Manager"
-        assert auth.next_band_above(_ACTION, _DT, 50000) == "CH Zonal Sales Manager"
-        assert auth.next_band_above(_ACTION, _DT, 500000) == "CH National Head"
+        company = _any_company()
+        currency = frappe.get_cached_value("Company", company, "default_currency")
+        context = {"company": company, "currency": currency}
+        assert auth.next_band_above(_ACTION, _DT, 5000, doc=context) == "CH Area Sales Manager"
+        assert auth.next_band_above(_ACTION, _DT, 50000, doc=context) == "CH Zonal Sales Manager"
+        assert auth.next_band_above(_ACTION, _DT, 500000, doc=context) == "CH National Head"
         # top band reports unlimited (inf) — this is the scheduler's "nothing
         # above, leave for hard expiry" signal.
-        assert auth.max_amount_for_role(_ACTION, _DT, "CH National Head") == float("inf")
+        assert auth.max_amount_for_role(
+            _ACTION, _DT, "CH National Head", doc=context
+        ) == float("inf")
         _ok("02 next band above", "ladder walk correct")
     except Exception as e:
         _fail("02 next band above", str(e))

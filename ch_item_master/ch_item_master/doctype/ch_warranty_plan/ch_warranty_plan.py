@@ -6,7 +6,7 @@ from frappe import _
 from frappe.model.document import Document
 
 from ch_item_master.config import get_int_setting
-from ch_item_master.id_sequences import next_numeric_id
+from ch_item_master.id_sequences import next_free_numeric_id
 
 
 class CHWarrantyPlan(Document):
@@ -15,7 +15,7 @@ class CHWarrantyPlan(Document):
 		if self.plan_name:
 			self.plan_name = " ".join(self.plan_name.split())
 		if not self.warranty_plan_id:
-			self.warranty_plan_id = next_numeric_id("warranty_plan")
+			self.warranty_plan_id = next_free_numeric_id("warranty_plan")
 
 	def validate(self):
 		if self.plan_name:

@@ -1,14 +1,14 @@
 import frappe
 from frappe.model.document import Document
 
-from ch_item_master.id_sequences import next_numeric_id
+from ch_item_master.id_sequences import next_free_numeric_id
 
 
 class CHPaymentMethod(Document):
     def before_insert(self):
         """Auto-assign the atomic sequential integration ID."""
         if not self.payment_method_id:
-            self.payment_method_id = next_numeric_id("payment_method")
+            self.payment_method_id = next_free_numeric_id("payment_method")
 
     def validate(self):
         """Auto-set requirement flags based on method_type."""

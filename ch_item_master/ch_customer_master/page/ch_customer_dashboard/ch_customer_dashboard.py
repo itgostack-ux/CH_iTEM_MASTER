@@ -767,7 +767,10 @@ def _get_recent_activity(company):
             sr_filters["company"] = company
         for sr in frappe.get_all(
             "Service Request", filters=sr_filters,
-            fields=["name", "customer_name", "status", "company", "creation", "owner"],
+            # Service Request's canonical lifecycle field is ``decision``.
+            # Alias it for the dashboard response so the existing UI contract
+            # remains stable without recreating a duplicate status column.
+            fields=["name", "customer_name", "decision as status", "company", "creation", "owner"],
             order_by="creation desc", limit=5,
         ):
             activity.append({
