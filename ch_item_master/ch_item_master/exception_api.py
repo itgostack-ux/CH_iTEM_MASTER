@@ -300,12 +300,23 @@ def resolve_exception_approver(exc, etype) -> None:
 		_AUTH_ACTION, _AUTH_DOCTYPE, flt(exc.requested_value), doc=exc
 	)
 	if not role:
-		# No band matched — leave unassigned (graceful); team alert still fires.
-		return
+		frappe.throw(
+			_("No active approval-authority band covers value {0} for company {1}. "
+			  "Configure CH Approval Authority before raising this exception.").format(
+				flt(exc.requested_value), exc.company
+			),
+			title=_("Approval Matrix Gap"),
+		)
 	exc.approval_role = role
 	exc.assigned_approver = _apply_delegation(
 		_resolve_user_by_scope(role, exc.store_warehouse)
 	)
+	if not exc.assigned_approver:
+		frappe.throw(
+			_("No enabled user with role {0} is available for this store. "
+			  "Assign the role through CH User Scope before raising this exception.").format(role),
+			title=_("Approver Not Configured"),
+		)
 
 
 def _route_to_category_manager(exc) -> None:
@@ -390,10 +401,12 @@ def _manager_role_for(exc):
 	auth = _authority()
 	if not auth or not exc.approval_role:
 		return None
-	cur_max = auth.max_amount_for_role(_AUTH_ACTION, _AUTH_DOCTYPE, exc.approval_role)
+	cur_max = auth.max_amount_for_role(
+		_AUTH_ACTION, _AUTH_DOCTYPE, exc.approval_role, doc=exc
+	)
 	if cur_max == float("inf"):
 		return None  # already top of the ladder
-	return auth.next_band_above(_AUTH_ACTION, _AUTH_DOCTYPE, cur_max)
+	return auth.next_band_above(_AUTH_ACTION, _AUTH_DOCTYPE, cur_max, doc=exc)
 
 
 def _notify_exception_raised(exc, etype, escalated: bool = False) -> None:
@@ -881,19 +894,27 @@ def escalate_pending_exceptions():
 			if not anchor or now < add_to_date(anchor, minutes=sla):
 				continue
 
-			cur_max = auth.max_amount_for_role(_AUTH_ACTION, _AUTH_DOCTYPE, row.approval_role)
+			exc = frappe.get_doc("CH Exception Request", row.name)
+			cur_max = auth.max_amount_for_role(
+				_AUTH_ACTION, _AUTH_DOCTYPE, row.approval_role, doc=exc
+			)
 			if cur_max == float("inf"):
 				continue  # already top band — leave for hard expiry
-			next_role = auth.next_band_above(_AUTH_ACTION, _AUTH_DOCTYPE, cur_max)
+			next_role = auth.next_band_above(
+				_AUTH_ACTION, _AUTH_DOCTYPE, cur_max, doc=exc
+			)
 			if not next_role or next_role == row.approval_role:
 				continue
 
-			exc = frappe.get_doc("CH Exception Request", row.name)
 			prior_role = exc.approval_role
 			exc.approval_role = next_role
 			exc.assigned_approver = _apply_delegation(
 				_resolve_user_by_scope(next_role, exc.store_warehouse)
 			)
+			if not exc.assigned_approver:
+				frappe.throw(
+					_("No enabled approver is configured for escalation role {0}.").format(next_role)
+				)
 			exc.status = "Escalated"
 			exc.last_escalated_at = now
 			exc._authorize_approval_transition()

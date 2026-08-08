@@ -261,11 +261,11 @@ def _get_devices(customer, company=None):
 						ROW_NUMBER() OVER (
 							PARTITION BY parent
 							ORDER BY log_timestamp DESC, idx DESC, name DESC
-						) AS row_number
+						) AS lifecycle_row_rank
 					FROM `tabCH Serial Lifecycle Log`
 					WHERE parent IN %(parents)s
 				) ranked_logs
-				WHERE row_number <= %(per_parent_limit)s
+				WHERE lifecycle_row_rank <= %(per_parent_limit)s
 				ORDER BY parent ASC, log_timestamp DESC
 				LIMIT %(related_limit)s
 				""",
@@ -282,7 +282,7 @@ def _get_devices(customer, company=None):
 					frappe.ValidationError,
 				)
 			for log_row in log_rows:
-				log_row.pop("row_number", None)
+				log_row.pop("lifecycle_row_rank", None)
 				logs_by_lifecycle.setdefault(log_row.parent, []).append(log_row)
 
 	for device in devices:
