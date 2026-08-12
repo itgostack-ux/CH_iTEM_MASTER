@@ -170,7 +170,15 @@
   "expiry_warning_days",
   "break_glass_sla_hours",
   "break_glass_hard_limit_hours",
-  "break_glass_monitor_batch_limit"
+  "break_glass_monitor_batch_limit",
+  "competitor_pricing_section",
+  "competitor_collection_enabled",
+  "competitor_data_max_age_days",
+  "competitor_link_failure_limit",
+  "column_break_competitor",
+  "competitor_user_agent",
+  "competitor_global_max_requests",
+  "buyback_planner_roles"
  ],
  "fields": [
   {
@@ -1410,6 +1418,55 @@
    "label": "Break Glass Monitor Batch Limit",
    "non_negative": 1,
    "reqd": 1
+  },
+  {
+   "fieldname": "competitor_pricing_section",
+   "fieldtype": "Section Break",
+   "label": "Competitor Price Intelligence"
+  },
+  {
+   "fieldname": "competitor_collection_enabled",
+   "fieldtype": "Check",
+   "default": "0",
+   "label": "Enable Automated Competitor Collection",
+   "description": "Master kill switch. Off means the scheduled collector exits immediately without any outbound request."
+  },
+  {
+   "fieldname": "competitor_data_max_age_days",
+   "fieldtype": "Int",
+   "default": "7",
+   "label": "Market Data Max Age (Days)",
+   "description": "A band older than this is marked stale and hidden in the planner rather than shown as current."
+  },
+  {
+   "fieldname": "competitor_link_failure_limit",
+   "fieldtype": "Int",
+   "default": "5",
+   "label": "Link Failure Backoff Limit",
+   "description": "After this many consecutive failures the collector stops retrying a competitor link until it is edited."
+  },
+  {
+   "fieldname": "column_break_competitor",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "competitor_user_agent",
+   "fieldtype": "Data",
+   "label": "Default Collector User Agent",
+   "description": "Identify ourselves honestly to the sites we read. Used when a source sets no agent of its own."
+  },
+  {
+   "fieldname": "competitor_global_max_requests",
+   "fieldtype": "Int",
+   "default": "1000",
+   "label": "Global Max Requests Per Run",
+   "description": "Ceiling across all sources in one scheduled run, whatever the per-source limits add up to."
+  },
+  {
+   "fieldname": "buyback_planner_roles",
+   "fieldtype": "Small Text",
+   "label": "Buyback Price Planner Roles",
+   "description": "Roles allowed to open the planner and push price batches. System Manager always retains access."
   }
  ],
  "issingle": 1,

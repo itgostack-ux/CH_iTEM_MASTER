@@ -1,0 +1,212 @@
+{
+ "actions": [],
+ "autoname": "naming_series:",
+ "creation": "2026-08-12 00:00:00.000000",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "competitor",
+  "item_code",
+  "item_name",
+  "column_break_head",
+  "condition_profile",
+  "captured_at",
+  "valid_until",
+  "price_section",
+  "advertised_max",
+  "evaluated_quote",
+  "column_break_price",
+  "verified_payout",
+  "refurb_selling_price",
+  "provenance_section",
+  "collection_method",
+  "confidence",
+  "source_url",
+  "column_break_prov",
+  "fetch_status",
+  "error_message",
+  "http_status",
+  "raw_excerpt"
+ ],
+ "fields": [
+  {
+   "default": "CCPS-.YYYY.-.#####",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "CCPS-.YYYY.-.#####",
+   "no_copy": 1,
+   "print_hide": 1,
+   "set_only_once": 1
+  },
+  {
+   "fieldname": "competitor",
+   "fieldtype": "Link",
+   "options": "CH Competitor Source",
+   "label": "Competitor",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "item_code",
+   "fieldtype": "Link",
+   "options": "Item",
+   "label": "Item Code",
+   "reqd": 1,
+   "in_list_view": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "item_name",
+   "fieldtype": "Data",
+   "label": "Item Name",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "column_break_head",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Good",
+   "fieldname": "condition_profile",
+   "fieldtype": "Select",
+   "label": "Condition Profile",
+   "options": "Excellent\nGood\nAverage",
+   "reqd": 1,
+   "in_standard_filter": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "captured_at",
+   "fieldtype": "Datetime",
+   "label": "Captured At",
+   "reqd": 1,
+   "in_list_view": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "valid_until",
+   "fieldtype": "Datetime",
+   "label": "Valid Until",
+   "description": "Set when the competitor states a quote expiry. Blank means judge by age alone."
+  },
+  {
+   "fieldname": "price_section",
+   "fieldtype": "Section Break",
+   "label": "Prices"
+  },
+  {
+   "fieldname": "advertised_max",
+   "fieldtype": "Currency",
+   "label": "Advertised Maximum",
+   "in_list_view": 1,
+   "description": "The headline 'up to' figure. Marketing ceiling, not a payout."
+  },
+  {
+   "fieldname": "evaluated_quote",
+   "fieldtype": "Currency",
+   "label": "Evaluated Quote",
+   "description": "Price returned after answering the competitor's condition questionnaire."
+  },
+  {
+   "fieldname": "column_break_price",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "verified_payout",
+   "fieldtype": "Currency",
+   "label": "Verified Payout",
+   "description": "What the competitor actually paid, where we know it."
+  },
+  {
+   "fieldname": "refurb_selling_price",
+   "fieldtype": "Currency",
+   "label": "Refurbished Selling Price",
+   "description": "What the competitor resells this model for. The sanity check against our own buy price."
+  },
+  {
+   "fieldname": "provenance_section",
+   "fieldtype": "Section Break",
+   "label": "Provenance"
+  },
+  {
+   "default": "Automated Fetch",
+   "fieldname": "collection_method",
+   "fieldtype": "Select",
+   "label": "Collection Method",
+   "options": "Automated Fetch\nManual Entry\nVendor Feed",
+   "reqd": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "default": "Medium",
+   "fieldname": "confidence",
+   "fieldtype": "Select",
+   "label": "Confidence",
+   "options": "High\nMedium\nLow"
+  },
+  {
+   "fieldname": "source_url",
+   "fieldtype": "Data",
+   "label": "Source URL"
+  },
+  {
+   "fieldname": "column_break_prov",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Success",
+   "fieldname": "fetch_status",
+   "fieldtype": "Select",
+   "label": "Fetch Status",
+   "options": "Success\nNot Found\nBlocked\nError",
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "error_message",
+   "fieldtype": "Small Text",
+   "label": "Error Message",
+   "depends_on": "eval:doc.fetch_status && doc.fetch_status != 'Success'"
+  },
+  {
+   "fieldname": "http_status",
+   "fieldtype": "Int",
+   "label": "HTTP Status"
+  },
+  {
+   "fieldname": "raw_excerpt",
+   "fieldtype": "Code",
+   "label": "Raw Excerpt",
+   "description": "Truncated response fragment kept for audit — lets us prove where a number came from."
+  }
+ ],
+ "links": [],
+ "modified": "2026-08-12 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "CH Item Master",
+ "name": "CH Competitor Price Snapshot",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1, "write": 1, "create": 1, "delete": 1, "export": 1, "report": 1, "share": 1
+  },
+  {
+   "role": "CH Master Manager",
+   "read": 1, "write": 1, "create": 1, "delete": 1, "export": 1, "report": 1
+  },
+  {
+   "role": "CH Price Manager",
+   "read": 1, "write": 1, "create": 1, "export": 1, "report": 1
+  }
+ ],
+ "sort_field": "captured_at",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}

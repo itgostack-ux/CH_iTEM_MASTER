@@ -1,0 +1,139 @@
+{
+ "actions": [],
+ "autoname": "hash",
+ "creation": "2026-08-12 00:00:00.000000",
+ "doctype": "DocType",
+ "document_type": "Setup",
+ "engine": "InnoDB",
+ "field_order": [
+  "competitor",
+  "item_code",
+  "item_name",
+  "column_break_head",
+  "match_status",
+  "matched_by",
+  "url",
+  "telemetry_section",
+  "last_checked_at",
+  "last_fetch_status",
+  "column_break_telemetry",
+  "consecutive_failures",
+  "remarks"
+ ],
+ "fields": [
+  {
+   "fieldname": "competitor",
+   "fieldtype": "Link",
+   "options": "CH Competitor Source",
+   "label": "Competitor",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "item_code",
+   "fieldtype": "Link",
+   "options": "Item",
+   "label": "Item Code",
+   "reqd": 1,
+   "in_list_view": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "item_name",
+   "fieldtype": "Data",
+   "label": "Item Name",
+   "fetch_from": "item_code.item_name",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "column_break_head",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Unmatched",
+   "fieldname": "match_status",
+   "fieldtype": "Select",
+   "label": "Match Status",
+   "options": "Unmatched\nAuto Matched\nVerified\nNot Available",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "description": "Not Available means the competitor does not carry this model — the collector will stop retrying it."
+  },
+  {
+   "fieldname": "matched_by",
+   "fieldtype": "Select",
+   "label": "Matched By",
+   "options": "\nSlug\nSearch\nManual"
+  },
+  {
+   "fieldname": "url",
+   "fieldtype": "Data",
+   "label": "Product URL"
+  },
+  {
+   "fieldname": "telemetry_section",
+   "fieldtype": "Section Break",
+   "label": "Collection State"
+  },
+  {
+   "fieldname": "last_checked_at",
+   "fieldtype": "Datetime",
+   "label": "Last Checked At",
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "last_fetch_status",
+   "fieldtype": "Select",
+   "label": "Last Fetch Status",
+   "options": "\nSuccess\nNot Found\nBlocked\nError",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "column_break_telemetry",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "consecutive_failures",
+   "fieldtype": "Int",
+   "label": "Consecutive Failures",
+   "read_only": 1,
+   "description": "The collector backs off a link once this passes the configured limit."
+  },
+  {
+   "fieldname": "remarks",
+   "fieldtype": "Small Text",
+   "label": "Remarks",
+   "read_only": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-08-12 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "CH Item Master",
+ "name": "CH Competitor Item Link",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1, "write": 1, "create": 1, "delete": 1, "export": 1, "report": 1, "share": 1
+  },
+  {
+   "role": "CH Master Manager",
+   "read": 1, "write": 1, "create": 1, "delete": 1, "export": 1, "report": 1
+  },
+  {
+   "role": "CH Price Manager",
+   "read": 1, "write": 1, "create": 1, "export": 1, "report": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}

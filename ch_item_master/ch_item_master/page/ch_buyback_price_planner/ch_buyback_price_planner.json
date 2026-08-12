@@ -1,0 +1,18 @@
+{
+ "content": null,
+ "creation": "2026-08-12 00:00:00.000000",
+ "doctype": "Page",
+ "icon": "price-request",
+ "module": "CH Item Master",
+ "name": "ch-buyback-price-planner",
+ "page_name": "ch-buyback-price-planner",
+ "roles": [
+  {"role": "System Manager"},
+  {"role": "CH Master Manager"},
+  {"role": "CH Price Manager"}
+ ],
+ "script": null,
+ "style": null,
+ "system_page": 0,
+ "title": "Buyback Price Planner"
+}

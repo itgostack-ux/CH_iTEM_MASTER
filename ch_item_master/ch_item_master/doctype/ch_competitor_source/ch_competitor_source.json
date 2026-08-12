@@ -1,0 +1,238 @@
+{
+ "actions": [],
+ "autoname": "field:competitor_name",
+ "creation": "2026-08-12 00:00:00.000000",
+ "doctype": "DocType",
+ "document_type": "Setup",
+ "engine": "InnoDB",
+ "field_order": [
+  "competitor_name",
+  "disabled",
+  "column_break_head",
+  "base_url",
+  "adapter",
+  "fetch_section",
+  "url_template",
+  "price_selector",
+  "quote_selector",
+  "column_break_fetch",
+  "price_regex",
+  "default_condition_profile",
+  "confidence",
+  "politeness_section",
+  "respect_robots",
+  "request_delay_ms",
+  "column_break_polite",
+  "max_requests_per_run",
+  "timeout_seconds",
+  "user_agent",
+  "telemetry_section",
+  "last_run_at",
+  "last_run_status",
+  "column_break_telemetry",
+  "last_run_summary",
+  "notes"
+ ],
+ "fields": [
+  {
+   "fieldname": "competitor_name",
+   "fieldtype": "Data",
+   "label": "Competitor Name",
+   "reqd": 1,
+   "unique": 1,
+   "in_list_view": 1,
+   "search_index": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "disabled",
+   "fieldtype": "Check",
+   "label": "Disabled",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "description": "Disabled sources are skipped by the collector but keep their history."
+  },
+  {
+   "fieldname": "column_break_head",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "base_url",
+   "fieldtype": "Data",
+   "label": "Base URL",
+   "reqd": 1,
+   "description": "Scheme and host only, e.g. https://www.example.com"
+  },
+  {
+   "default": "Generic HTML",
+   "fieldname": "adapter",
+   "fieldtype": "Select",
+   "label": "Adapter",
+   "options": "Generic HTML\nGeneric JSON\nEmbedded Payload\nManual Only",
+   "in_list_view": 1,
+   "description": "Manual Only sources are never fetched \u2014 their snapshots are entered by hand."
+  },
+  {
+   "fieldname": "fetch_section",
+   "fieldtype": "Section Break",
+   "label": "Extraction"
+  },
+  {
+   "fieldname": "url_template",
+   "fieldtype": "Data",
+   "label": "URL Template",
+   "description": "Used when an item has no explicit link. {slug} is replaced with the slugified item name."
+  },
+  {
+   "fieldname": "price_selector",
+   "fieldtype": "Data",
+   "label": "Advertised Price Selector",
+   "description": "CSS selector for the advertised maximum, e.g. .price-value"
+  },
+  {
+   "fieldname": "quote_selector",
+   "fieldtype": "Data",
+   "label": "Evaluated Quote Selector",
+   "description": "CSS selector for an evaluated quote (Generic HTML), or a second regex for the resale price (Embedded Payload)."
+  },
+  {
+   "fieldname": "column_break_fetch",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "price_regex",
+   "fieldtype": "Data",
+   "label": "Price Regex (fallback)",
+   "description": "Applied to the selector text, or to the whole page when no selector matches. Must contain one capture group."
+  },
+  {
+   "default": "Good",
+   "fieldname": "default_condition_profile",
+   "fieldtype": "Select",
+   "label": "Default Condition Profile",
+   "options": "Excellent\nGood\nAverage"
+  },
+  {
+   "default": "Medium",
+   "fieldname": "confidence",
+   "fieldtype": "Select",
+   "label": "Confidence",
+   "options": "High\nMedium\nLow",
+   "description": "Stamped on every snapshot from this source. Advertised maxima deserve Low or Medium."
+  },
+  {
+   "fieldname": "politeness_section",
+   "fieldtype": "Section Break",
+   "label": "Fetch Limits"
+  },
+  {
+   "default": "1",
+   "fieldname": "respect_robots",
+   "fieldtype": "Check",
+   "label": "Respect robots.txt",
+   "description": "Strongly recommended. When enabled, a disallowed path is skipped and recorded as Blocked."
+  },
+  {
+   "default": "2000",
+   "fieldname": "request_delay_ms",
+   "fieldtype": "Int",
+   "label": "Delay Between Requests (ms)",
+   "description": "Minimum gap between two requests to this competitor."
+  },
+  {
+   "fieldname": "column_break_polite",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "200",
+   "fieldname": "max_requests_per_run",
+   "fieldtype": "Int",
+   "label": "Max Requests Per Run",
+   "description": "The collector refreshes the stalest items first, this many per scheduled run."
+  },
+  {
+   "default": "15",
+   "fieldname": "timeout_seconds",
+   "fieldtype": "Int",
+   "label": "Request Timeout (s)"
+  },
+  {
+   "fieldname": "user_agent",
+   "fieldtype": "Data",
+   "label": "User Agent",
+   "description": "Identify ourselves honestly. Leave blank to use the configured default."
+  },
+  {
+   "fieldname": "telemetry_section",
+   "fieldtype": "Section Break",
+   "label": "Last Run"
+  },
+  {
+   "fieldname": "last_run_at",
+   "fieldtype": "Datetime",
+   "label": "Last Run At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_run_status",
+   "fieldtype": "Select",
+   "label": "Last Run Status",
+   "options": "\nSuccess\nPartial\nFailed\nSkipped",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "column_break_telemetry",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "last_run_summary",
+   "fieldtype": "Small Text",
+   "label": "Last Run Summary",
+   "read_only": 1
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes"
+  }
+ ],
+ "links": [],
+ "modified": "2026-08-12 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "CH Item Master",
+ "name": "CH Competitor Source",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "export": 1,
+   "report": 1,
+   "share": 1
+  },
+  {
+   "role": "CH Master Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "export": 1,
+   "report": 1
+  },
+  {
+   "role": "CH Price Manager",
+   "read": 1,
+   "write": 1,
+   "export": 1,
+   "report": 1
+  }
+ ],
+ "sort_field": "competitor_name",
+ "sort_order": "ASC",
+ "states": [],
+ "track_changes": 1
+}

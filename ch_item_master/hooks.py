@@ -99,12 +99,19 @@ scheduler_events = {
 		"ch_item_master.supplier_scheme.scheduled.send_expiry_claim_reminders",
 		"ch_item_master.ch_item_master.rbac.expire_role_assignments",
 		"ch_item_master.device_integrity.monitor_device_integrity",
+		# Competitor price collection. No-ops unless switched on in settings;
+		# refreshes the stalest links first rather than sweeping the catalogue.
+		"ch_item_master.ch_item_master.competitor_pricing.collector.collect_competitor_prices",
+		"ch_item_master.ch_item_master.competitor_pricing.rollup.recompute_all_rollups",
 	],
 	"hourly": [
 		"ch_item_master.ch_item_master.exception_api.escalate_pending_exceptions",
 		"ch_item_master.ch_item_master.exception_api.expire_stale_exceptions",
 		"ch_item_master.ch_item_master.rbac.monitor_break_glass_sessions",
 		"ch_item_master.ch_item_master.commercial_api.monitor_pos_override_thresholds",
+		# Cheap enough to run often, so the planner never shows an aged band
+		# as if it were current.
+		"ch_item_master.ch_item_master.competitor_pricing.rollup.mark_stale_rollups",
 	],
 	"weekly": [
 		"ch_item_master.ch_item_master.doctype.ch_scheme_receivable.ch_scheme_receivable.run_scheduled_dunning",

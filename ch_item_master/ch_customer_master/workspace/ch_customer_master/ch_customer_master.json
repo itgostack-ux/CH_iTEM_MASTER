@@ -10,6 +10,7 @@
  "hide_custom": 0,
  "icon": "crm",
  "idx": 0,
+ "indicator_color": "green",
  "is_hidden": 0,
  "label": "CH Customer Master",
  "links": [
@@ -131,7 +132,7 @@
    "type": "Link"
   }
  ],
- "modified": "2026-05-11 12:06:11.034722",
+ "modified": "2026-08-12 17:10:12.520520",
  "modified_by": "Administrator",
  "module": "CH Customer Master",
  "name": "CH Customer Master",
@@ -178,6 +179,5 @@
   }
  ],
  "title": "CH Customer Master",
- "type": "Workspace",
- "indicator_color": "green"
+ "type": "Workspace"
 }

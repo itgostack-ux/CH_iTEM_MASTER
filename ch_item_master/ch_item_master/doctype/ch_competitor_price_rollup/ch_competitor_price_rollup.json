@@ -1,0 +1,176 @@
+{
+ "actions": [],
+ "autoname": "prompt",
+ "creation": "2026-08-12 00:00:00.000000",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "engine": "InnoDB",
+ "field_order": [
+  "item_code",
+  "item_name",
+  "condition_profile",
+  "column_break_head",
+  "quote_count",
+  "competitor_count",
+  "competitor_list",
+  "band_section",
+  "market_low",
+  "market_median",
+  "column_break_band",
+  "market_high",
+  "market_refurb_median",
+  "freshness_section",
+  "latest_captured_at",
+  "oldest_captured_at",
+  "column_break_fresh",
+  "is_stale",
+  "computed_at"
+ ],
+ "fields": [
+  {
+   "fieldname": "item_code",
+   "fieldtype": "Link",
+   "options": "Item",
+   "label": "Item Code",
+   "reqd": 1,
+   "in_list_view": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "item_name",
+   "fieldtype": "Data",
+   "label": "Item Name",
+   "in_list_view": 1
+  },
+  {
+   "default": "Good",
+   "fieldname": "condition_profile",
+   "fieldtype": "Select",
+   "label": "Condition Profile",
+   "options": "Excellent\nGood\nAverage",
+   "reqd": 1,
+   "in_standard_filter": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "column_break_head",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "quote_count",
+   "fieldtype": "Int",
+   "label": "Quote Count",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "competitor_count",
+   "fieldtype": "Int",
+   "label": "Competitor Count",
+   "read_only": 1
+  },
+  {
+   "fieldname": "competitor_list",
+   "fieldtype": "Small Text",
+   "label": "Competitors",
+   "read_only": 1
+  },
+  {
+   "fieldname": "band_section",
+   "fieldtype": "Section Break",
+   "label": "Market Band"
+  },
+  {
+   "fieldname": "market_low",
+   "fieldtype": "Currency",
+   "label": "Market Low",
+   "read_only": 1
+  },
+  {
+   "fieldname": "market_median",
+   "fieldtype": "Currency",
+   "label": "Market Median",
+   "read_only": 1,
+   "in_list_view": 1,
+   "description": "The reference value. Median rather than mean so one promotional outlier cannot drag the band."
+  },
+  {
+   "fieldname": "column_break_band",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "market_high",
+   "fieldtype": "Currency",
+   "label": "Market High",
+   "read_only": 1
+  },
+  {
+   "fieldname": "market_refurb_median",
+   "fieldtype": "Currency",
+   "label": "Refurb Resale Median",
+   "read_only": 1,
+   "description": "Median of what competitors resell this model for. A buy price approaching this is a margin warning."
+  },
+  {
+   "fieldname": "freshness_section",
+   "fieldtype": "Section Break",
+   "label": "Freshness"
+  },
+  {
+   "fieldname": "latest_captured_at",
+   "fieldtype": "Datetime",
+   "label": "Latest Capture",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "oldest_captured_at",
+   "fieldtype": "Datetime",
+   "label": "Oldest Capture In Band",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_fresh",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_stale",
+   "fieldtype": "Check",
+   "label": "Is Stale",
+   "read_only": 1,
+   "in_standard_filter": 1,
+   "description": "Past the configured max age. A stale band is hidden in the planner rather than shown as current."
+  },
+  {
+   "fieldname": "computed_at",
+   "fieldtype": "Datetime",
+   "label": "Computed At",
+   "read_only": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-08-12 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "CH Item Master",
+ "name": "CH Competitor Price Rollup",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1, "write": 1, "create": 1, "delete": 1, "export": 1, "report": 1, "share": 1
+  },
+  {
+   "role": "CH Master Manager",
+   "read": 1, "write": 1, "create": 1, "delete": 1, "export": 1, "report": 1
+  },
+  {
+   "role": "CH Price Manager",
+   "read": 1, "export": 1, "report": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}
