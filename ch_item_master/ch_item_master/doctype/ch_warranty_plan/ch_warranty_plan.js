@@ -9,7 +9,24 @@ frappe.ui.form.on('CH Warranty Plan', {
 		frm.set_query('service_item', () => ({
 			query: 'ch_item_master.ch_item_master.api.items_by_subcategory_nature',
 			filters: { natures: ['Subscription'], is_stock_item: 0 }
-		}));
+		})
+		);
+
+		frm.set_query('applicable_categories', () => {
+			const item_groups = (frm.doc.applicable_item_groups || [])
+				.map(row => row.item_group)
+				.filter(Boolean);
+			if (!item_groups.length) return {};
+			return { filters: { item_group: ['in', item_groups] } };
+		});
+
+		frm.set_query('applicable_sub_categories', () => {
+			const categories = (frm.doc.applicable_categories || [])
+				.map(row => row.category)
+				.filter(Boolean);
+			if (!categories.length) return {};
+			return { filters: { category: ['in', categories] } };
+		});
 	},
 
 	refresh(frm) {
@@ -81,6 +98,17 @@ frappe.ui.form.on('CH Warranty Plan', {
 				}
 			});
 		}
+		frappe.db.get_value('Item', frm.doc.service_item,
+			['brand', 'item_group', 'ch_category', 'ch_sub_category']
+		).then(r => {
+			if (!r || !r.message) return;
+			const item = r.message;
+
+			if (item.brand) {
+				frm.set_value('brand', item.brand);
+			}
+		});
+
 	},
 
 	coverage_availability(frm) {

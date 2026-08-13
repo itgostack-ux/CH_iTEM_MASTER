@@ -364,6 +364,40 @@ class CHWarrantyPlan(Document):
 					as_dict=True,
 				)
 			}
+		category_match = {}
+		if item_code and plan_names:
+			item_category = frappe.db.get_value("Item", item_code, "ch_category")
+			if item_category:
+				category_match = {
+					row.parent: bool(row.matches)
+					for row in frappe.db.sql(
+						"""
+							SELECT parent, MAX(category = %(category)s) AS matches
+							FROM `tabCH Warranty Plan Category`
+							WHERE parent IN %(plans)s
+							GROUP BY parent
+						""",
+						{"category": item_category, "plans": plan_names},
+						as_dict=True,
+					)
+				}
+		sub_category_match = {}
+		if item_code and plan_names:
+			item_sub_category = frappe.db.get_value("Item", item_code, "ch_sub_category")
+			if item_sub_category:
+				sub_category_match = {
+					row.parent: bool(row.matches)
+					for row in frappe.db.sql(
+						"""
+							SELECT parent, MAX(sub_category = %(sub_category)s) AS matches
+							FROM `tabCH Warranty Plan Sub Category`
+							WHERE parent IN %(plans)s
+							GROUP BY parent
+						""",
+						{"sub_category": item_sub_category, "plans": plan_names},
+						as_dict=True,
+					)
+				}
 		channel_match = {}
 		if channel and plan_names:
 			channel_match = {
@@ -394,6 +428,14 @@ class CHWarrantyPlan(Document):
 
 			# Check item group applicability
 			if item_group and plan.name in group_match and not group_match[plan.name]:
+				continue
+
+			# Check category applicability
+			if item_code and plan.name in category_match and not category_match[plan.name]:
+				continue
+
+			# Check sub-category applicability
+			if item_code and plan.name in sub_category_match and not sub_category_match[plan.name]:
 				continue
 
 			# Check channel applicability
