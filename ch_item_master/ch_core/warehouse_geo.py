@@ -524,9 +524,17 @@ def restructure_store_tree(store_name: str) -> dict:
 			# as the canonical Sellable leaf and leave the current one alone.
 			result["skipped"] = f"target_leaf_already_exists:{target_leaf}"
 		else:
+			# force/ignore_permissions: ERPNext ships Warehouse with
+			# allow_rename unset (0), so a plain rename_doc always throws
+			# "Warehouse not allowed to be renamed" and this branch could
+			# never complete. This is a server-owned restructure driven by
+			# CH Store.on_update — not a user-initiated rename — and the rest
+			# of this function already writes through unchecked
+			# frappe.db.set_value, so it runs with the same authority.
 			_rename_doc(
 				"Warehouse", current_leaf, target_leaf,
-				force=False, merge=False,
+				force=True, merge=False,
+				ignore_permissions=True,
 				show_alert=False,
 			)
 			# rename_doc cascades CH Store.warehouse via the Link field, so
