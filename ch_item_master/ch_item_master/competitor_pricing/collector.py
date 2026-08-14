@@ -283,7 +283,10 @@ def collect_competitor_prices():
 		"CH Competitor Source",
 		filters={"disabled": 0, "adapter": ("!=", "Manual Only")},
 		pluck="name",
-		order_by="ifnull(last_run_at, '1900-01-01') asc",
+		# MariaDB already places NULL first for ascending order, which gives us
+		# the intended never-run-first rotation. Keep this as a plain field:
+		# Frappe v16 rejects SQL functions in validated order_by clauses.
+		order_by="last_run_at asc, name asc",
 	)
 
 	summaries = []
