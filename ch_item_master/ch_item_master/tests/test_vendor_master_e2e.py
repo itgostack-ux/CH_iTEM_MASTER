@@ -329,7 +329,7 @@ def test_multi_vendor_price_comparison():
             "item_code": item,
             "buying": 1,
             "price_list": price_list,
-        }, fields=["rate", "supplier"])
+        }, fields=["price_list_rate", "supplier"])
         _ok(flow, f"Retrieved {len(all_prices)} buying prices for item {item}")
 
     # 4d. CH Vendor Info Record for multiple suppliers
@@ -452,8 +452,8 @@ def test_vendor_performance_score():
 
     # 6c. Update performance score
     try:
-        frappe.db.set_value("CH Vendor Performance", _FLOW["vperf"], "otif_score", 95.0, update_modified=True)
-        updated = frappe.db.get_value("CH Vendor Performance", _FLOW["vperf"], "otif_score")
+        frappe.db.set_value("CH Vendor Performance", _FLOW["vperf"], "otif_pct", 95.0, update_modified=True)
+        updated = frappe.db.get_value("CH Vendor Performance", _FLOW["vperf"], "otif_pct")
         if flt(updated) == 95.0:
             _ok(flow, "Vendor performance score updated to 95.0")
         else:

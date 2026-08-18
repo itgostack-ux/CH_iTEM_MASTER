@@ -274,13 +274,10 @@ def _category_allows_custom_name(doc):
     if doc.has_variants or doc.variant_of:
         return False
     if not doc.ch_sub_category:
-        # Legacy fallback: some old items may still only have ch_category set.
-        if doc.ch_category:
-            return bool(
-                frappe.db.get_value(
-                    "CH Category", doc.ch_category, "allow_custom_item_name"
-                ) or 0
-            )
+        # allow_custom_item_name only ever existed on CH Sub Category — the old
+        # ch_category fallback read a column that is not on CH Category and could
+        # only raise. With no sub-category to consult there is no flag to honour,
+        # so fall through to auto-generated naming.
         return False
     return bool(
         frappe.db.get_value(

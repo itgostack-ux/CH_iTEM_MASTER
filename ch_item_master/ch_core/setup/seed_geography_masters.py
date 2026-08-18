@@ -400,54 +400,61 @@ def add_address_custom_fields():
 
 def backfill_addresses():
     """Link existing Address records to the correct CH State / CH City / CH Pincode."""
-    addresses = frappe.db.sql(
-        """SELECT name, city, state, pincode
-           FROM `tabAddress`
-           WHERE country = 'India'
-             AND (city IS NOT NULL OR state IS NOT NULL OR pincode IS NOT NULL)""",
-        as_dict=True,
+    before = frappe.db.count(
+        "Address",
+        {
+            "country": "India",
+            "custom_ch_state": ("is", "not set"),
+        },
     )
-    updated = skipped = 0
-    for addr in addresses:
-        updates = {}
-
-        # Match CH State
-        if addr.state:
-            state_name = frappe.db.get_value("CH State", addr.state.strip(), "name")
-            if state_name:
-                current = frappe.db.get_value("Address", addr.name, "custom_ch_state")
-                if not current:
-                    updates["custom_ch_state"] = state_name
-
-        # Match CH City (try city_name match, state-aware)
-        if addr.city:
-            city_doc = frappe.db.get_value(
-                "CH City",
-                {"city_name": addr.city.strip()},
-                "name",
-                order_by="modified DESC",
-            )
-            if city_doc:
-                current = frappe.db.get_value("Address", addr.name, "custom_ch_city")
-                if not current:
-                    updates["custom_ch_city"] = city_doc
-
-        # Match CH Pincode
-        if addr.pincode and frappe.db.table_exists("CH Pincode"):
-            pin_doc = frappe.db.get_value("CH Pincode", addr.pincode.strip(), "name")
-            if pin_doc:
-                current = frappe.db.get_value("Address", addr.name, "custom_ch_pincode")
-                if not current:
-                    updates["custom_ch_pincode"] = pin_doc
-
-        if updates:
-            frappe.db.set_value("Address", addr.name, updates)
-            updated += 1
-        else:
-            skipped += 1
+    # Migration previously performed up to seven queries per Address and ran
+    # document update hooks for every match. Set-based updates make this safe
+    # for production address volumes and preserve already curated links.
+    frappe.db.sql(
+        """
+        UPDATE `tabAddress` address
+        INNER JOIN `tabCH State` state_master
+            ON state_master.name = TRIM(address.state)
+        SET address.custom_ch_state = state_master.name
+        WHERE address.country = 'India'
+          AND IFNULL(address.custom_ch_state, '') = ''
+          AND IFNULL(address.state, '') != ''
+        """
+    )
+    frappe.db.sql(
+        """
+        UPDATE `tabAddress` address
+        INNER JOIN (
+            SELECT city_name, MAX(name) AS name
+            FROM `tabCH City`
+            WHERE IFNULL(city_name, '') != ''
+            GROUP BY city_name
+        ) city_master ON city_master.city_name = TRIM(address.city)
+        SET address.custom_ch_city = city_master.name
+        WHERE address.country = 'India'
+          AND IFNULL(address.custom_ch_city, '') = ''
+          AND IFNULL(address.city, '') != ''
+        """
+    )
+    if frappe.db.table_exists("CH Pincode"):
+        frappe.db.sql(
+            """
+            UPDATE `tabAddress` address
+            INNER JOIN `tabCH Pincode` pincode_master
+                ON pincode_master.name = TRIM(address.pincode)
+            SET address.custom_ch_pincode = pincode_master.name
+            WHERE address.country = 'India'
+              AND IFNULL(address.custom_ch_pincode, '') = ''
+              AND IFNULL(address.pincode, '') != ''
+            """
+        )
 
     frappe.db.commit()
-    print(f"  Addresses backfilled: {updated} updated, {skipped} skipped/unmatched")
+    after = frappe.db.count(
+        "Address",
+        {"country": "India", "custom_ch_state": ("is", "not set")},
+    )
+    print(f"  Addresses backfilled: {max(before - after, 0)} newly state-linked")
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────

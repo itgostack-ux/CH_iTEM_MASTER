@@ -237,11 +237,23 @@ def _get_item_model(item_code):
 
 
 def _series_match(rule_series, item_code):
-	"""Check if item belongs to the specified series."""
-	item_series = frappe.db.get_value("Item", item_code, "ch_series")
-	if not item_series:
+	"""Check if item belongs to the specified series.
+
+	A supplier's series name is supplier vocabulary, not an Item attribute. It is
+	resolved to our catalogue by Scheme Product Map (supplier_series -> item_code),
+	which product_mapper.py writes. The old read of a non-existent Item.ch_series
+	raised 1054 on every series-scoped rule.
+	"""
+	rule_series = (rule_series or "").strip()
+	if not rule_series or not item_code:
 		return False
-	return item_series.lower() == rule_series.lower()
+	rows = frappe.get_all(
+		"Scheme Product Map",
+		filters={"item_code": item_code},
+		pluck="supplier_series",
+		limit_page_length=0,
+	)
+	return any((s or "").strip().lower() == rule_series.lower() for s in rows)
 
 
 def _split_serials(serial_no_str):

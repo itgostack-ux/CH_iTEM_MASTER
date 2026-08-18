@@ -1023,8 +1023,10 @@ def get_item_original_value(item_code: str, company: str | None = None) -> float
         # 2. Fallback: ERPNext Item Price (Standard Selling price list)
         filters = {"item_code": item_code, "selling": 1}
         if company:
-                price_list = frappe.db.get_value(
-                        "Company", company, "default_selling_price_list"
+                # The default selling price list is a Selling Settings single,
+                # not a Company field.
+                price_list = frappe.db.get_single_value(
+                        "Selling Settings", "selling_price_list"
                 ) or "Standard Selling"
                 filters["price_list"] = price_list
 
