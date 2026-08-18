@@ -1,24 +1,59 @@
 {
  "content": null,
- "creation": "2026-04-30 00:00:00.000000",
+ "creation": "2026-04-30 00:00:00",
  "docstatus": 0,
  "doctype": "Page",
  "icon": "barcode",
  "idx": 0,
- "modified": "2026-04-30 00:00:00.000000",
+ "modified": "2026-08-17 14:42:18.070574",
  "modified_by": "Administrator",
  "module": "CH Item Master",
  "name": "imei-tracker",
  "owner": "Administrator",
  "page_name": "imei-tracker",
  "roles": [
-  {"role": "Stock User"},
-  {"role": "Stock Manager"},
-  {"role": "Sales User"},
-  {"role": "Sales Manager"},
-  {"role": "System Manager"},
-  {"role": "CH Master Manager"},
-  {"role": "CH Viewer"}
+  {
+   "role": "Stock User"
+  },
+  {
+   "role": "Stock Manager"
+  },
+  {
+   "role": "Sales User"
+  },
+  {
+   "role": "Sales Manager"
+  },
+  {
+   "role": "System Manager"
+  },
+  {
+   "role": "CH Master Manager"
+  },
+  {
+   "role": "CH Viewer"
+  },
+  {
+   "role": "Purchase Manager"
+  },
+  {
+   "role": "Purchase User"
+  },
+  {
+   "role": "CH Purchase Executive"
+  },
+  {
+   "role": "CH Category Head"
+  },
+  {
+   "role": "Category Manager"
+  },
+  {
+   "role": "Sales Head"
+  },
+  {
+   "role": "CH Store Executive"
+  }
  ],
  "script": null,
  "standard": "Yes",
