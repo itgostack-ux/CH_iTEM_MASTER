@@ -15,6 +15,14 @@ from ch_item_master.security import require_scoped_document_action
 
 
 _DELIVERY_NOTE_CREATION_ROLES = ("Sales User", "Sales Manager")
+RETURN_POLICY_APPROVAL_ROLES = (
+	"CH Zonal Sales Manager",
+	"CH Category Head",
+	"Sales Manager",
+	"CH National Head",
+	"COO",
+	"CEO",
+)
 
 
 class CHExceptionRequest(Document):
@@ -154,6 +162,18 @@ class CHExceptionRequest(Document):
 				frappe.PermissionError,
 			)
 		approver = authenticated_user
+
+		# Customer returns outside the configured window are a sales-policy
+		# exception.  They require ZSM authority, while Category/Sales Heads and
+		# higher business authorities may act as an escalation/override.
+		if self.exception_type == "Return Beyond Policy":
+			roles = set(frappe.get_roles(approver))
+			if roles.intersection(RETURN_POLICY_APPROVAL_ROLES):
+				return approver
+			frappe.throw(
+				_("Customer returns beyond the configured window require ZSM, Category Head, Sales Head, or higher approval."),
+				frappe.PermissionError,
+			)
 
 		if self.assigned_approver:
 			if approver == self.assigned_approver or has_role_setting(

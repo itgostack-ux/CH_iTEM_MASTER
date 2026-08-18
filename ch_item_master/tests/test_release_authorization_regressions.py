@@ -55,6 +55,38 @@ class TestReleaseAuthorizationRegressions(TestCase):
 		finally:
 			frappe.set_user(original_user)
 
+	def test_return_beyond_policy_accepts_zsm_or_higher(self):
+		request = SimpleNamespace(
+			exception_type="Return Beyond Policy",
+			assigned_approver="assigned.zsm@example.com",
+		)
+		original_user = frappe.session.user
+		try:
+			frappe.set_user("category.head@example.com")
+			with patch.object(frappe, "get_roles", return_value=["CH Category Head"]):
+				self.assertEqual(
+					CHExceptionRequest._validate_approver(request, None),
+					"category.head@example.com",
+				)
+		finally:
+			frappe.set_user(original_user)
+
+	def test_return_beyond_policy_rejects_store_manager(self):
+		request = SimpleNamespace(
+			exception_type="Return Beyond Policy",
+			assigned_approver=None,
+		)
+		original_user = frappe.session.user
+		try:
+			frappe.set_user("store.manager@example.com")
+			with (
+				patch.object(frappe, "get_roles", return_value=["Store Manager"]),
+				self.assertRaises(frappe.PermissionError),
+			):
+				CHExceptionRequest._validate_approver(request, None)
+		finally:
+			frappe.set_user(original_user)
+
 	def test_exception_company_scope_uses_exact_configured_names(self):
 		request = SimpleNamespace(exception_type="Price Override", company="GoFix Demo Company")
 		exception_type = frappe._dict({"enabled": 1, "applicable_to_ggr": 1, "applicable_to_gfs": 0})

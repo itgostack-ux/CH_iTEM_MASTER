@@ -459,6 +459,21 @@
    "role": "CH National Head",
    "read": 1,
    "write": 1
+  },
+  {
+   "role": "CH Category Head",
+   "read": 1,
+   "write": 1
+  },
+  {
+   "role": "COO",
+   "read": 1,
+   "write": 1
+  },
+  {
+   "role": "CEO",
+   "read": 1,
+   "write": 1
   }
  ],
  "search_fields": "exception_type,company,reference_name,status",

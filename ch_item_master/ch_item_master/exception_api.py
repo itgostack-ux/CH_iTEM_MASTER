@@ -297,6 +297,22 @@ def resolve_exception_approver(exc, etype) -> None:
 	if exc.item_code and not exc.category:
 		exc.category = frappe.db.get_value("Item", exc.item_code, "ch_category") or None
 
+	if exc.exception_type == "Return Beyond Policy":
+		from ch_item_master.ch_item_master.doctype.ch_exception_request.ch_exception_request import (
+			RETURN_POLICY_APPROVAL_ROLES,
+		)
+
+		for role in RETURN_POLICY_APPROVAL_ROLES:
+			approver = _apply_delegation(_resolve_user_by_scope(role, exc.store_warehouse))
+			if approver:
+				exc.approval_role = role
+				exc.assigned_approver = approver
+				return
+		frappe.throw(
+			_("No enabled ZSM, Category Head, Sales Head, or higher approver is configured for this store."),
+			title=_("Return Approver Not Configured"),
+		)
+
 	if mode == "Category Manager":
 		_route_to_category_manager(exc)
 		return
