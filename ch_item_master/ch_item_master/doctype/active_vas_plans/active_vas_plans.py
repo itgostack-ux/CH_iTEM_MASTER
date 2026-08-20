@@ -1134,6 +1134,8 @@ _VAS_VIEW_ROLES = (
 	"Service Manager",
 	"Sales Manager",
 	"Sales User",
+	"VAS Manager",
+    "VAS Executive",
 )
 _VAS_FINANCE_ROLES = ("Accounts Manager", "CH Warranty Manager")
 

@@ -227,7 +227,7 @@
    "type": "Link"
   }
  ],
- "modified": "2026-08-12 17:10:12.937688",
+ "modified": "2026-08-20 11:07:38.894531",
  "modified_by": "Administrator",
  "module": "CH Item Master",
  "name": "CH VAS",
@@ -237,7 +237,20 @@
  "public": 1,
  "quick_lists": [],
  "restrict_to_domain": "",
- "roles": [],
+ "roles": [
+  {
+   "role": "VAS Manager"
+  },
+  {
+   "role": "VAS Executive"
+  },
+  {
+   "role": "Administrator"
+  },
+  {
+   "role": "System Manager"
+  }
+ ],
  "sequence_id": 10.0,
  "shortcuts": [
   {
