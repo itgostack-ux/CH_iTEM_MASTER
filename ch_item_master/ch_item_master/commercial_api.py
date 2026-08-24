@@ -14,22 +14,15 @@ from ch_item_master.config import (
 	get_list_setting,
 	get_role_setting,
 	get_user_roles,
-	require_role_setting,
-)
+	require_role_setting)
 from ch_item_master.security import ensure_company_access
 
 
 def _validate_price_query(item_code, channel, company):
-	require_role_setting(
-		"price_view_roles",
-		("CH Viewer", "CH Price Manager", "CH Master Manager"),
-		action=_("view commercial prices"),
-	)
 	if not item_code or not channel or not company:
 		frappe.throw(
 			_("Item Code, Price Channel, and Company are required."),
-			frappe.ValidationError,
-		)
+			frappe.ValidationError)
 	frappe.has_permission("Item", "read", item_code, throw=True)
 	frappe.has_permission("CH Price Channel", "read", channel, throw=True)
 	frappe.has_permission("CH Item Price", "read", throw=True)
@@ -84,8 +77,7 @@ def get_price_as_of(item_code, channel, as_of_date=None, company=None) -> dict:
 			"approved_by", "approved_at",
 		],
 		order_by="effective_from desc",
-		limit=1,
-	)
+		limit=1)
 
 	if not prices:
 		return None
@@ -106,9 +98,7 @@ def get_price_history(item_code, channel, company=None, limit=20) -> list:
 		1,
 		min(
 			cint(limit) or 20,
-			get_int_setting("price_history_limit", 100, minimum=1),
-		),
-	)
+			get_int_setting("price_history_limit", 100, minimum=1)))
 
 	filters = {
 		"item_code": item_code,
@@ -126,8 +116,7 @@ def get_price_history(item_code, channel, company=None, limit=20) -> list:
 			"approved_by", "approved_at",
 		],
 		order_by="effective_from desc",
-		limit_page_length=row_limit,
-	)
+		limit_page_length=row_limit)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -172,8 +161,7 @@ def validate_pos_discount(item_code, channel, rate, company, user=None):
 		"CH Item Price",
 		{"item_code": item_code, "channel": channel, "status": "Active", "company": company},
 		["selling_price", "mop", "mrp", "name"],
-		as_dict=True,
-	)
+		as_dict=True)
 
 	if not ch_price:
 		# No CH price — allow (ERPNext standard pricing applies)
@@ -202,8 +190,7 @@ def validate_pos_discount(item_code, channel, rate, company, user=None):
 			active_tags = frappe.get_all(
 				"CH Item Commercial Tag",
 				filters={"item_code": item_code, "status": "Active"},
-				pluck="tag",
-			)
+				pluck="tag")
 			has_allowed_tag = any(t.upper() in allowed_tags for t in active_tags)
 			if has_allowed_tag:
 				return {
@@ -339,8 +326,7 @@ def check_offer_precedence(item_code, channel, company):
 			"end_date": (">=", now),
 		},
 		["name", "offer_name", "offer_type", "value_type", "value", "erp_pricing_rule"],
-		as_dict=True,
-	)
+		as_dict=True)
 	return offer
 
 
@@ -364,8 +350,7 @@ def run_channel_parity_check():
 
 	batch_limit = min(
 		get_int_setting("commercial_scheduler_batch_limit", 500, minimum=1),
-		5000,
-	)
+		5000)
 	rows = frappe.db.sql(
 		"""
 			SELECT `item_code`,
@@ -389,16 +374,14 @@ def run_channel_parity_check():
 			"threshold": threshold,
 			"fetch_limit": batch_limit + 1,
 		},
-		as_dict=True,
-	)
+		as_dict=True)
 	divergent_items = rows[:batch_limit]
 	if not divergent_items:
 		return {"divergent": 0, "alerts_created": 0, "has_more": False}
 
 	alert_item_limit = min(
 		get_int_setting("commercial_alert_item_limit", 20, minimum=1),
-		batch_limit,
-	)
+		batch_limit)
 	displayed = divergent_items[:alert_item_limit]
 	item_codes = tuple(row.item_code for row in displayed)
 	channel_rows = frappe.db.sql(
@@ -416,21 +399,19 @@ def run_channel_parity_check():
 			"item_codes": item_codes,
 			"row_limit": batch_limit,
 		},
-		as_dict=True,
-	)
+		as_dict=True)
 	channels_by_item = {item_code: {} for item_code in item_codes}
 	for row in channel_rows:
 		channels_by_item.setdefault(row.item_code, {})[row.channel] = flt(row.selling_price)
 
 	alert_roles = (
-		(policy.parity_alert_role,)
+		(policy.parity_alert_role)
 		if policy.parity_alert_role
-		else get_role_setting("price_approval_roles", ())
+		else get_role_setting("price_approval_roles")
 	)
 	alert_users = get_enabled_role_users(
 		alert_roles,
-		company=company,
-	)
+		company=company)
 
 	description_lines = [
 		f"**{row.item_code}**: {flt(row.spread_pct):.1f}% spread — "
@@ -460,8 +441,7 @@ def run_channel_parity_check():
 			"status": "Open",
 			},
 			pluck="allocated_to",
-			limit=len(alert_users),
-		))
+			limit=len(alert_users)))
 
 	alerts_created = 0
 	for user in alert_users:
@@ -506,16 +486,14 @@ def run_tag_auto_repricing():
 	dead_markdown = min(max(flt(policy.get("dead_stock_markdown_percent")) or 30, 0), 99)
 	batch_limit = min(
 		get_int_setting("commercial_scheduler_batch_limit", 500, minimum=1),
-		5000,
-	)
+		5000)
 
 	tag_result = _auto_tag_slow_and_dead_stock(
 		company,
 		slow_days,
 		dead_days,
 		getdate(nowdate()),
-		batch_limit,
-	)
+		batch_limit)
 	price_rows = frappe.db.sql(
 		"""
 			SELECT tag.`name` AS `tag_name`, tag.`tag`, tag.`item_code`,
@@ -542,8 +520,7 @@ def run_tag_auto_repricing():
 			LIMIT %(fetch_limit)s
 		""",
 		{"company": company, "fetch_limit": batch_limit + 1},
-		as_dict=True,
-	)
+		as_dict=True)
 	work_rows = price_rows[:batch_limit]
 	changes = []
 	for row in work_rows:
@@ -580,8 +557,7 @@ def run_tag_auto_repricing():
 				    `modified_by` = %s
 				WHERE `name` IN ({name_placeholders}) AND `status` = 'Active'
 			""",
-			tuple(params),
-		)
+			tuple(params))
 		for row in changes:
 			frappe.get_doc("CH Item Price", row.price_name)._sync_to_erp_item_price()
 
@@ -620,9 +596,7 @@ def run_tag_auto_repricing():
 					else f"No markdown required for {row.tag} tag at the configured price floor"
 				),
 				actor,
-				now,
-			) for row in work_rows],
-		)
+				now) for row in work_rows])
 
 	result = {
 		"tagged": tag_result["tagged"],
@@ -689,8 +663,7 @@ def _auto_tag_slow_and_dead_stock(company, slow_days, dead_days, today, batch_li
 			"dead_cutoff": dead_cutoff,
 			"fetch_limit": batch_limit + 1,
 		},
-		as_dict=True,
-	)
+		as_dict=True)
 	candidates = rows[:batch_limit]
 	created = 0
 	failed = 0
@@ -720,8 +693,7 @@ def _auto_tag_slow_and_dead_stock(company, slow_days, dead_days, today, batch_li
 			failed += 1
 			frappe.log_error(
 				frappe.get_traceback(),
-				f"Commercial auto-tag failed for {row.item_code}",
-			)
+				f"Commercial auto-tag failed for {row.item_code}")
 	if dead_items:
 		frappe.db.sql(
 			"""
@@ -732,8 +704,7 @@ def _auto_tag_slow_and_dead_stock(company, slow_days, dead_days, today, batch_li
 				  AND `tag` = 'SLOW MOVING'
 				  AND `status` = 'Active'
 			""",
-			{"company": company, "item_codes": tuple(dead_items), "today": today},
-		)
+			{"company": company, "item_codes": tuple(dead_items), "today": today})
 	return {
 		"tagged": created,
 		"failed": failed,
@@ -773,8 +744,7 @@ def monitor_pos_override_thresholds():
 		return
 	batch_limit = min(
 		get_int_setting("commercial_scheduler_batch_limit", 500, minimum=1),
-		5000,
-	)
+		5000)
 
 	offenders = frappe.db.sql(
 		"""
@@ -796,8 +766,7 @@ def monitor_pos_override_thresholds():
 			"threshold": threshold,
 			"batch_limit": batch_limit,
 		},
-		as_dict=True,
-	)
+		as_dict=True)
 
 	if not offenders:
 		return
@@ -809,12 +778,10 @@ def monitor_pos_override_thresholds():
 		alert_roles=get_list_setting(
 			"pos_override_notification_roles",
 			(
-				(policy.get("override_alert_role"),)
+				(policy.get("override_alert_role"))
 				if policy.get("override_alert_role")
-				else get_role_setting("price_approval_roles", ())
-			),
-		),
-	)
+				else get_role_setting("price_approval_roles")
+			)))
 
 
 def _send_override_threshold_alert(company, threshold, offenders, alert_roles):
@@ -864,10 +831,8 @@ def _send_override_threshold_alert(company, threshold, offenders, alert_roles):
 			message=body,
 			reference_doctype="CH Commercial Policy",
 			reference_name=company,
-			delayed=False,
-		)
+			delayed=False)
 	except Exception:
 		frappe.log_error(
 			title="POS Override threshold alert failed",
-			message=frappe.get_traceback(),
-		)
+			message=frappe.get_traceback())

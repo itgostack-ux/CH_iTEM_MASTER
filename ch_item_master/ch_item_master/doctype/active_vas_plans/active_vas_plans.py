@@ -1129,14 +1129,6 @@ class ActiveVASPlans(Document):
 
 # ── Whitelisted API ────────────────────────────────────────────────────────
 
-_VAS_VIEW_ROLES = (
-	"CH Warranty Manager",
-	"Service Manager",
-	"Sales Manager",
-	"Sales User",
-)
-_VAS_FINANCE_ROLES = ("Accounts Manager", "CH Warranty Manager")
-
 
 def _require_named_permission(doctype, name, permission_type="read"):
 	if not frappe.has_permission(
@@ -1362,11 +1354,6 @@ def _load_authorized_active_plans(serial_no, company=None):
 	company = (company or "").strip() or None
 	if not serial_no or len(serial_no) > 140:
 		frappe.throw(_("Provide a valid serial number."), frappe.ValidationError)
-	require_role_setting(
-		"warranty_dashboard_roles",
-		_VAS_VIEW_ROLES,
-		action=_("view warranty coverage"),
-	)
 	frappe.has_permission("Active VAS Plans", "read", throw=True)
 
 	limit = min(get_int_setting("warranty_dashboard_device_limit", 100, minimum=1), 500)
@@ -1583,11 +1570,6 @@ def recognize_revenue_now(sold_plan):
 	sold_plan = (sold_plan or "").strip()
 	if not sold_plan or len(sold_plan) > 140:
 		frappe.throw(_("Provide a valid Active VAS Plan."), frappe.ValidationError)
-	require_role_setting(
-		"vas_finance_roles",
-		_VAS_FINANCE_ROLES,
-		action=_("recognize VAS revenue"),
-	)
 	locked_name = frappe.db.get_value(
 		"Active VAS Plans", sold_plan, "name", for_update=True
 	)

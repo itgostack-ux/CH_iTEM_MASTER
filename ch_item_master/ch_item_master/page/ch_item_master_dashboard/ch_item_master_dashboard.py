@@ -14,14 +14,6 @@ from ch_item_master.config import get_int_setting, is_privileged_user, require_r
 from ch_item_master.security import get_company_scope
 
 
-_DASHBOARD_ROLES = (
-    "CH Master Manager",
-    "CH Price Manager",
-    "CH Offer Manager",
-    "CH Warranty Manager",
-    "CH Viewer",
-    "Stock User",
-)
 _DASHBOARD_READ_DOCTYPES = (
     "CH Category",
     "CH Sub Category",
@@ -60,11 +52,6 @@ def get_dashboard_data(company=None) -> dict:
 
 
 def _require_dashboard_access():
-    require_role_setting(
-        "app_access_roles",
-        _DASHBOARD_ROLES,
-        action="view the Item Master dashboard",
-    )
     if is_privileged_user():
         return
     for doctype in _DASHBOARD_READ_DOCTYPES:

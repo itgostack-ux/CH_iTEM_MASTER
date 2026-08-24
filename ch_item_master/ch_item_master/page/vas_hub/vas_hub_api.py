@@ -14,15 +14,8 @@ except ImportError:
                 "allowed_stores": None, "allowed_warehouses": None}
 
 
-_VAS_DASHBOARD_ROLES = ("CH Warranty Manager", "Service Manager", "Sales Manager")
-
 
 def _require_vas_dashboard_access(company):
-    require_role_setting(
-        "vas_dashboard_roles",
-        _VAS_DASHBOARD_ROLES,
-        action=_("view the VAS operations dashboard"),
-    )
     for doctype in ("Active VAS Plans", "CH Warranty Claim", "CH Voucher"):
         frappe.has_permission(doctype, "read", throw=True)
     if is_privileged_user():

@@ -7,11 +7,6 @@ from ch_item_master.security import get_company_scope
 
 
 def execute(filters=None):
-    require_role_setting(
-        "price_view_roles",
-        ("CH Price Manager", "CH Master Manager", "CH Viewer"),
-        action=_("view supplier price comparison"),
-    )
     for doctype in ("Purchase Invoice", "Item", "Supplier", "CH Item Price"):
         frappe.has_permission(doctype, "read", throw=True)
     filters = frappe._dict(filters or {})

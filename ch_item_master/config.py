@@ -4,6 +4,8 @@ import re
 
 import frappe
 from frappe import _
+
+
 from frappe.utils import cint
 
 
@@ -44,12 +46,17 @@ def get_int_setting(fieldname: str, default: int, minimum: int = 0) -> int:
 	return max(cint(get_setting(fieldname, default)), minimum)
 
 
+# ---------------------------------------------------------------------------
+# Operational override gates only. Everything else is enforced by native
+# Frappe DocPerm via frappe.has_permission(...).
+# ---------------------------------------------------------------------------
 def get_role_setting(fieldname: str, defaults=()) -> frozenset[str]:
-	value = get_setting(fieldname)
-	if not value:
-		roles = frozenset(defaults)
-	else:
-		roles = frozenset(role.strip() for role in re.split(r"[,\n]", value) if role.strip())
+	# System Manager stays in the returned set: callers use this both to gate
+	# actions and to resolve notification recipients, and the privileged
+	# bypass is unconditional either way.
+	from ch_erp15.role_settings import get_setting_roles
+
+	roles = get_setting_roles("CH Item Master Settings", fieldname, defaults)
 	return roles.union(IMMUTABLE_PRIVILEGED_ROLES)
 
 
@@ -235,13 +242,11 @@ def has_role_setting(fieldname: str, defaults=(), user: str | None = None) -> bo
 	return has_any_role(get_role_setting(fieldname, defaults), user=user)
 
 
-def require_role_setting(fieldname: str, defaults=(), action: str | None = None) -> None:
-	roles = get_role_setting(fieldname, defaults)
-	if has_role_setting(fieldname, defaults):
+def require_role_setting(fieldname: str, *, action: str | None = None) -> None:
+	if has_role_setting(fieldname):
 		return
 	frappe.throw(
 		_("You do not have permission to {0}. Required role: {1}").format(
-			action or _("perform this action"), ", ".join(sorted(roles))
-		),
-		frappe.PermissionError,
-	)
+			action or _("perform this action"),
+			", ".join(sorted(get_role_setting(fieldname)))),
+		frappe.PermissionError)

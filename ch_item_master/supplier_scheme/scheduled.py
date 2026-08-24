@@ -23,8 +23,7 @@ def auto_close_expired_schemes():
 		},
 		pluck="name",
 		order_by="valid_to asc, name asc",
-		limit=_scheduler_batch_limit(),
-	)
+		limit=_scheduler_batch_limit())
 
 	if expired:
 		placeholders = ", ".join(["%s"] * len(expired))
@@ -41,9 +40,7 @@ def auto_close_expired_schemes():
 				frappe.utils.now(),
 				frappe.session.user,
 				*expired,
-				today,
-			),
-		)
+				today))
 		frappe.logger("supplier_scheme").info(
 			f"Auto-closed {len(expired)} expired supplier schemes"
 		)
@@ -78,9 +75,7 @@ def send_expiry_claim_reminders():
 		return
 
 	manager_roles = get_role_setting(
-		"supplier_scheme_approval_roles",
-		("Purchase Manager", "Scheme Manager", "System Manager"),
-	)
+		"supplier_scheme_approval_roles")
 	by_company = {}
 	for scheme in expiring:
 		if scheme.company:
@@ -132,13 +127,11 @@ def send_expiry_claim_reminders():
 				recipients=recipients,
 				subject=_("⚠ {count} Scheme(s) Expiring Soon With No Claims").format(count=len(schemes)),
 				message=body,
-				delayed=True,
-			)
+				delayed=True)
 		except Exception:
 			frappe.log_error(
 				frappe.get_traceback(),
-				f"Supplier Scheme: expiry reminder send failed for {company}",
-			)
+				f"Supplier Scheme: expiry reminder send failed for {company}")
 			continue
 		sent_names.extend(scheme.name for scheme in schemes)
 		total_recipients += len(recipients)
@@ -151,8 +144,7 @@ def send_expiry_claim_reminders():
 				SET `last_expiry_reminder` = %s
 				WHERE `name` IN ({placeholders})
 			""",
-			(today, *sent_names),
-		)
+			(today, *sent_names))
 		frappe.logger("supplier_scheme").info(
 			f"Sent expiry reminders for {len(sent_names)} schemes to {total_recipients} scoped managers"
 		)

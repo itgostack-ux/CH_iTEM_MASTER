@@ -202,11 +202,6 @@ def _require_lifecycle_access(doc, permission_type: str) -> None:
     if _is_system_write():
         return
     if permission_type == "write":
-        require_role_setting(
-            "lifecycle_update_roles",
-            ("System Manager", "Stock Manager", "Stock User", "CH Master Manager"),
-            action=_("update serialized-device lifecycle status"),
-        )
         doc.check_permission("read")
     else:
         doc.check_permission(permission_type)

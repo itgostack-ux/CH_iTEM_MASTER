@@ -4,14 +4,12 @@ from frappe import _
 from ch_item_master.config import get_int_setting, require_role_setting
 
 
-_LOGISTICS_ROLES = ("CH Warranty Manager", "Service Manager", "Sales Manager")
 _QUEUE_STATUSES = frozenset(
     {"Pickup Requested", "Pickup Scheduled", "Picked Up", "Device Received"}
 )
 
 
 def _require_logistics_access(action):
-    require_role_setting("warranty_claim_logistics_roles", _LOGISTICS_ROLES, action=action)
     frappe.has_permission("CH Warranty Claim", "read", throw=True)
 
 

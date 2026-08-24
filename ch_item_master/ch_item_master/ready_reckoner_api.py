@@ -29,28 +29,15 @@ _GROUP_MEMBER_SEPARATOR = ", "
 
 
 def _require_reckoner_access():
-    require_role_setting(
-        "app_access_roles",
-        ("System Manager", "CH Master Manager", "CH Price Manager", "CH Offer Manager", "CH Warranty Manager", "CH Viewer", "Stock User"),
-        action=_("view the ready reckoner"),
-    )
     frappe.has_permission("Item", "read", throw=True)
 
 
 def _require_price_operation():
-    require_role_setting(
-        "price_approval_roles",
-        ("System Manager", "CH Master Manager", "CH Price Manager", "CH Master Approver"),
-        action=_("manage item pricing"),
-    )
+    frappe.has_permission("CH Item Price", ptype="write", throw=True)
 
 
 def _require_master_approval():
-    require_role_setting(
-        "master_approval_roles",
-        ("System Manager", "CH Master Approver", "CH Master Manager"),
-        action=_("approve master data"),
-    )
+    frappe.has_permission("Item", ptype="write", throw=True)
 
 
 def _resolve_write_company(company=None):

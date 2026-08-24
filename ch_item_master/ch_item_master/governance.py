@@ -31,8 +31,7 @@ from ch_item_master.ch_item_master.exceptions import (
 	IncompleteItemMasterError,
 	InvalidLifecycleTransitionError,
 	ItemNotActiveError,
-	SoftDuplicateError,
-)
+	SoftDuplicateError)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -59,7 +58,6 @@ _ALLOWED_TRANSITIONS = {
 	"Blocked":        {"Active": "Approver"},
 }
 
-_DEFAULT_APPROVER_ROLES = {"CH Master Approver", "System Manager"}
 
 # Audit-tracked fields on Item — these record an audit entry on change.
 _AUDITED_ITEM_FIELDS = (
@@ -70,8 +68,7 @@ _AUDITED_ITEM_FIELDS = (
 	"valuation_method",
 	"disabled",
 	"has_serial_no",
-	"has_batch_no",
-)
+	"has_batch_no")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -79,7 +76,7 @@ _AUDITED_ITEM_FIELDS = (
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _is_approver() -> bool:
-	return has_role_setting("master_approval_roles", _DEFAULT_APPROVER_ROLES)
+	return has_role_setting("master_approval_roles")
 
 
 _NORM_RE = re.compile(r"[^a-z0-9]+")
@@ -102,8 +99,7 @@ def write_audit(
 	old_value=None,
 	new_value=None,
 	remarks: str = "",
-	trace_id: str = "",
-) -> None:
+	trace_id: str = "") -> None:
 	"""Append a CH Item Audit Log row. Never raises — audit must not break
 	the user's transaction. Errors are logged."""
 	try:
@@ -123,8 +119,7 @@ def write_audit(
 	except Exception:
 		frappe.log_error(
 			title="CH Item Audit Log write failed",
-			message=frappe.get_traceback(),
-		)
+			message=frappe.get_traceback())
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -212,16 +207,14 @@ def assert_item_transactable(item_code: str, doctype: str = "") -> None:
 				frappe.bold(item_code), doctype or _("purchase documents")
 			),
 			exc=ItemNotActiveError,
-			title=_("Item Obsolete"),
-		)
+			title=_("Item Obsolete"))
 	# Draft / Pending Review / Blocked → not usable in any transaction.
 	frappe.throw(
 		_("Item {0} is in lifecycle status '{1}' and cannot be used in {2}. Activate the item first.").format(
 			frappe.bold(item_code), status, doctype or _("transactions")
 		),
 		exc=ItemNotActiveError,
-		title=_("Item Not Active"),
-	)
+		title=_("Item Not Active"))
 
 
 def filter_sellable_items(item_codes, warehouse=None) -> set:
@@ -251,8 +244,7 @@ def filter_sellable_items(item_codes, warehouse=None) -> set:
 	rows = frappe.get_all(
 		"Item",
 		filters={"name": ["in", list(codes)]},
-		fields=["name", "ch_lifecycle_status"],
-	)
+		fields=["name", "ch_lifecycle_status"])
 	sellable = set()
 	obsolete = set()
 	for r in rows:
@@ -304,8 +296,7 @@ def check_soft_duplicate(doc) -> None:
 		mfr,
 		doc.get("ch_model") or "",
 		doc.get("brand") or "",
-		doc.get("item_name") or "",
-	)
+		doc.get("item_name") or "")
 	if not sig or sig == "-":
 		return
 
@@ -327,8 +318,7 @@ def check_soft_duplicate(doc) -> None:
 			"Item",
 			filters=filters,
 			fields=["name", "item_name", "default_item_manufacturer", "ch_model", "brand"],
-			limit=200,
-		)
+			limit=200)
 	except Exception:
 		# Defensive: if a custom column was removed, skip dup check rather than
 		# breaking item save. Audit-log the issue once.
@@ -340,8 +330,7 @@ def check_soft_duplicate(doc) -> None:
 			c.get("default_item_manufacturer") or "",
 			c.ch_model or "",
 			c.brand or "",
-			c.item_name or "",
-		)
+			c.item_name or "")
 		if c_sig and c_sig == sig:
 			subcat_nature = ""
 			if doc.get("ch_sub_category"):
@@ -374,7 +363,7 @@ def validate_completeness(doc) -> None:
 		return
 
 	target_status = (doc.get("ch_lifecycle_status") or "").strip()
-	if target_status not in ("Active",):
+	if target_status not in ("Active"):
 		return  # Only enforce at activation; Draft can be incomplete.
 
 	missing: list[str] = []
@@ -394,8 +383,7 @@ def validate_completeness(doc) -> None:
 			"CH Sub Category", doc.ch_sub_category,
 			["item_nature", "income_account", "expense_account",
 			 "subscription_duration_months_default", "gofix_service_category"],
-			as_dict=True,
-		) or {}
+			as_dict=True) or {}
 		nature = (sc.get("item_nature") or "").strip()
 
 		if nature == "Service" and not sc.get("gofix_service_category"):
@@ -413,8 +401,7 @@ def validate_completeness(doc) -> None:
 			_("Cannot activate Item {0}. Missing required fields for nature '{1}': {2}").format(
 				frappe.bold(doc.name or doc.item_name or "<new>"),
 				nature or _("<unspecified>"),
-				", ".join(missing),
-			)
+				", ".join(missing))
 		)
 
 
@@ -512,8 +499,7 @@ def install_workflows() -> None:
 	_ensure_workflow(
 		name=_WORKFLOW_NAME,
 		document_type="Item",
-		state_field="ch_lifecycle_status",
-	)
+		state_field="ch_lifecycle_status")
 
 
 def _ensure_state(state: str, style: str) -> None:
@@ -598,11 +584,9 @@ def validate_serial_kind_mandatory(doc, method=None) -> None:
 	if not serial_kind:
 		frappe.throw(
 			_("Serial Number Kind is mandatory. Please select one of: IMEI, Barcode, or UOM."),
-			title=_("Serial Kind Required"),
-		)
+			title=_("Serial Kind Required"))
 	
 	if serial_kind not in ("IMEI", "Barcode", "UOM"):
 		frappe.throw(
 			_("Invalid Serial Number Kind '{0}'. Valid values: IMEI, Barcode, UOM.").format(serial_kind),
-			title=_("Invalid Serial Kind"),
-		)
+			title=_("Invalid Serial Kind"))

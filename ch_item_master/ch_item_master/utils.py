@@ -8,21 +8,13 @@ from ch_item_master.config import (
 	get_int_setting,
 	get_role_setting,
 	has_role_setting,
-	require_role_setting,
-)
+	require_role_setting)
 
 
-DEFAULT_APP_ROLES = frozenset([
-	"CH Master Manager",
-	"CH Price Manager",
-	"CH Offer Manager",
-	"CH Warranty Manager",
-	"CH Viewer",
-])
 
 _ASSIGNMENT_ROLE_SETTINGS = {
-    "category_manager": ("category_manager_assignment_roles", ("CH Category Head",)),
-    "exception_approver": ("exception_assignment_roles", ("CH Master Approver",)),
+    "category_manager": ("category_manager_assignment_roles", ("CH Category Head")),
+    "exception_approver": ("exception_assignment_roles", ("CH Master Approver")),
 }
 
 
@@ -32,7 +24,7 @@ def check_app_permission():
 	The user must have at least one of the configured app roles; generic Item read access is NOT
 	sufficient (prevents all ERPNext stock users from landing here).
 	"""
-	return has_role_setting("app_access_roles", DEFAULT_APP_ROLES)
+	return has_role_setting("app_access_roles")
 
 
 # ───────────────────────────────────────────────────────────────────────────────
@@ -56,11 +48,7 @@ def get_users_by_role(doctype, txt, searchfield, start, page_len, filters):
     callers may pass ``filters.role``; the requested roles are still constrained
     by the configured assignable-role allowlist.
     """
-    require_role_setting(
-        "user_directory_roles",
-        defaults=("CH Master Manager", "CH Master Approver"),
-        action=_("search the item-governance user directory"),
-    )
+    frappe.has_permission("User", ptype="read", throw=True)
 
     filters = filters if isinstance(filters, dict) else {}
     assignment = str(filters.get("assignment") or "").strip()
@@ -90,7 +78,7 @@ def get_users_by_role(doctype, txt, searchfield, start, page_len, filters):
     if not roles or len(roles) > 10:
         return []
     assignable_roles = get_role_setting(
-        "assignable_user_roles", ("CH Category Head", "CH Master Approver")
+        "assignable_user_roles"
     )
     if not set(roles).issubset(assignable_roles):
         frappe.throw(_("The requested assignment role is not permitted."), frappe.PermissionError)
@@ -119,8 +107,7 @@ def get_users_by_role(doctype, txt, searchfield, start, page_len, filters):
         LIMIT %s OFFSET %s
         """,
         tuple(roles) + (txt_filter, txt_filter, txt_filter, page_len, start),
-        as_list=True,
-    )
+        as_list=True)
     return results
 
 
@@ -152,8 +139,7 @@ def _group_model_spec_values(model):
         "CH Model Spec Value",
         filters={"parent": model, "parenttype": "CH Model"},
         fields=["spec", "spec_value"],
-        order_by="idx asc",
-    )
+        order_by="idx asc")
     # Use set for O(1) deduplication, then convert to list
     grouped = defaultdict(set)
     for sv in rows:
@@ -178,8 +164,7 @@ def _get_spec_selectors(sub_category, model, grouped=None):
                  "is_variant": 1},
         fields=["spec", "name_order"],
         order_by="name_order asc, idx asc",
-        ignore_permissions=True,
-    )
+        ignore_permissions=True)
     if not variant_specs:
         return []
 
@@ -206,8 +191,7 @@ def _get_property_specs(sub_category, model, grouped=None):
                  "is_variant": 0},
         fields=["spec"],
         order_by="idx asc",
-        ignore_permissions=True,
-    )
+        ignore_permissions=True)
     if not property_specs:
         return []
 

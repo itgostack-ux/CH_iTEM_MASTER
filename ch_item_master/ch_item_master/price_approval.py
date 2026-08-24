@@ -60,8 +60,7 @@ def _apply_delegation(user):
 		for d in frappe.get_all(
 			"CH Approval Delegation",
 			filters={"delegator": user, "active": 1},
-			fields=["delegate", "valid_from", "valid_to"],
-		):
+			fields=["delegate", "valid_from", "valid_to"]):
 			if d.valid_from and getdate(d.valid_from) > today_d:
 				continue
 			if d.valid_to and getdate(d.valid_to) < today_d:
@@ -131,8 +130,7 @@ def stamp_row_categories(batch):
 			"Item",
 			filters={"name": ("in", list(codes))},
 			fields=["name", "ch_category"],
-			as_list=True,
-		)
+			as_list=True)
 	)
 	for row in batch.items:
 		row.category = cats.get(row.item_code) or None
@@ -194,13 +192,11 @@ def _notify(recipients, subject, message, batch):
 			recipients, subject, message,
 			reference_doctype="CH Price Upload Batch",
 			reference_name=batch.name,
-			email=True,
-		)
+			email=True)
 	except Exception:
 		frappe.log_error(
 			frappe.get_traceback(),
-			f"Price approval notification failed for {batch.name}",
-		)
+			f"Price approval notification failed for {batch.name}")
 
 
 def _assign(batch, user, category):
@@ -220,8 +216,7 @@ def _assign(batch, user, category):
 				"allocated_to": user,
 				"status": "Open",
 			},
-			limit=1,
-		)
+			limit=1)
 		if existing:
 			return
 		from frappe.desk.form.assign_to import add as assign_add
@@ -235,8 +230,7 @@ def _assign(batch, user, category):
 	except Exception:
 		frappe.log_error(
 			frappe.get_traceback(),
-			f"Price approval assignment failed for {batch.name}",
-		)
+			f"Price approval assignment failed for {batch.name}")
 
 
 def _close_assignment(batch, user):
@@ -248,8 +242,7 @@ def _close_assignment(batch, user):
 			"allocated_to": user,
 			"status": "Open",
 		},
-		pluck="name",
-	):
+		pluck="name"):
 		try:
 			frappe.db.set_value("ToDo", todo, "status", "Closed")
 		except Exception:
@@ -283,8 +276,7 @@ def notify_approvers(batch):
 			company=batch.company or "-",
 			cats=cats,
 			rows=rows,
-			url=_batch_url(batch),
-		)
+			url=_batch_url(batch))
 		_notify([row.approver], subject, message, batch)
 		_assign(batch, row.approver, mine[0].category)
 
@@ -311,9 +303,7 @@ def _notify_submitter(batch, category, action, actor, reason=None):
 def _is_override(user=None):
 	return has_role_setting(
 		"price_batch_override_roles",
-		("System Manager", "CH Master Manager"),
-		user=user,
-	)
+		user=user)
 
 
 def assert_can_action(batch, row, user=None):
@@ -331,22 +321,18 @@ def assert_can_action(batch, row, user=None):
 				frappe.bold(row.category or "-"), frappe.bold(row.approver)
 			),
 			frappe.PermissionError,
-			title=_("Not Your Category"),
-		)
+			title=_("Not Your Category"))
 
 	if not (
 		has_role_setting(
 			"price_batch_approval_roles",
-			("CH Category Head", "CH Price Manager", "CH Master Manager"),
-			user=user,
-		)
+			user=user)
 		or _is_override(user)
 	):
 		frappe.throw(
 			_("You do not hold a role permitted to approve price changes."),
 			frappe.PermissionError,
-			title=_("Not Permitted"),
-		)
+			title=_("Not Permitted"))
 
 	# Segregation of duties — the submitter cannot approve their own batch.
 	from ch_item_master.ch_item_master.rbac import check_sod
@@ -399,14 +385,12 @@ def decide_category(batch_name, category, action, comments=None):
 		batch,
 		None,
 		action=_("decide a price upload category"),
-		permission_types=("write",),
-		lock=True,
-	)
+		permission_types=("write"),
+		lock=True)
 	if batch.status not in ("Pending Approval", "Partially Approved"):
 		frappe.throw(
 			_("Batch is {0} — only batches awaiting approval can be actioned.").format(batch.status),
-			title=_("Not Awaiting Approval"),
-		)
+			title=_("Not Awaiting Approval"))
 
 	category = category or ""
 	row = next(
@@ -417,8 +401,7 @@ def decide_category(batch_name, category, action, comments=None):
 	if row.status != "Pending":
 		frappe.throw(
 			_("Category {0} was already {1}.").format(category or "-", row.status.lower()),
-			title=_("Already Decided"),
-		)
+			title=_("Already Decided"))
 
 	assert_can_action(batch, row)
 
@@ -475,13 +458,10 @@ def get_my_pending_approvals(company=None):
 	override = _is_override(user)
 	if not override and not has_role_setting(
 		"price_batch_approval_roles",
-		("CH Category Head", "CH Price Manager", "CH Master Manager"),
-		user=user,
-	):
+		user=user):
 		frappe.throw(
 			_("You do not hold a role permitted to view price approvals."),
-			frappe.PermissionError,
-		)
+			frappe.PermissionError)
 
 	frappe.has_permission("CH Price Upload Batch", "read", throw=True)
 	batch_filters = {
@@ -497,8 +477,7 @@ def get_my_pending_approvals(company=None):
 		filters=batch_filters,
 		fields=["name", "title", "company", "submitted_by", "submitted_at"],
 		order_by="submitted_at asc, name asc",
-		limit_page_length=queue_limit,
-	)
+		limit_page_length=queue_limit)
 	if not batches:
 		return []
 
@@ -517,8 +496,7 @@ def get_my_pending_approvals(company=None):
 			"parent", "category", "approver", "routed_via", "row_count", "total_value",
 		],
 		order_by="parent asc, idx asc",
-		limit_page_length=queue_limit,
-	)
+		limit_page_length=queue_limit)
 
 	result = []
 	for approval in approvals:

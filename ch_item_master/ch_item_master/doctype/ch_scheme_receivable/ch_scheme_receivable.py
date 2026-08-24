@@ -797,11 +797,7 @@ def _create_from_pos_invoice(doc, method=None, invoice_doctype=None) -> list[str
 @frappe.whitelist(methods=["POST"])
 def create_from_pos_invoice(doc, method=None, invoice_doctype=None) -> list[str]:
 	"""Manually rebuild receivables under the configured scheme-management policy."""
-	require_role_setting(
-		"supplier_scheme_management_roles",
-		_SCHEME_MANAGEMENT_ROLES,
-		action=_("create scheme receivables from an invoice"),
-	)
+	frappe.has_permission("CH Scheme Receivable", ptype="create", throw=True)
 	return _create_from_pos_invoice(doc, method=method, invoice_doctype=invoice_doctype)
 
 

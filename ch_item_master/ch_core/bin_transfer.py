@@ -37,9 +37,6 @@ from ch_item_master.config import (
 from ch_item_master.security import ensure_company_access
 
 
-_BIN_VIEW_ROLES = ("Stock Manager", "Stock User", "Store Manager", "Store Executive")
-_BIN_TRANSFER_ROLES = ("Stock Manager", "Stock User", "Store Manager")
-
 
 def _require_named_permission(doctype: str, permission_type: str = "read") -> None:
 	if is_privileged_user():
@@ -54,11 +51,6 @@ def _require_named_permission(doctype: str, permission_type: str = "read") -> No
 def _authorized_store(store: str, *, transfer: bool = False):
 	if not store:
 		frappe.throw(_("A store is required."), frappe.ValidationError)
-	require_role_setting(
-		"bin_transfer_roles" if transfer else "bin_view_roles",
-		_BIN_TRANSFER_ROLES if transfer else _BIN_VIEW_ROLES,
-		action=_("transfer stock between bins") if transfer else _("view bin inventory"),
-	)
 	store_doc = frappe.get_doc("CH Store", store)
 	if store_doc.disabled:
 		frappe.throw(_("The selected store is disabled."), frappe.ValidationError)
@@ -497,7 +489,6 @@ def pos_bin_transfer(
 @frappe.whitelist()
 def get_bin_transfer_reasons(target_bin_type: str | None = None) -> list:
 	"""Return active reasons, optionally filtered by destination bin."""
-	require_role_setting("bin_view_roles", _BIN_VIEW_ROLES, action=_("view bin transfer reasons"))
 	_require_named_permission("CH Bin Transfer Reason", "read")
 	filters = {"disabled": 0}
 	if target_bin_type:

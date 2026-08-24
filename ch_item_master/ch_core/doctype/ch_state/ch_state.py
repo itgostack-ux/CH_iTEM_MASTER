@@ -100,11 +100,7 @@ def ensure_state(state_name: str, country: str = "India", state_code: str | None
     """Internal compatibility entry point; it is intentionally not whitelisted."""
     if not (state_name or "").strip():
         return None
-    require_role_setting(
-        "location_manager_roles",
-        _LOCATION_MANAGER_ROLES,
-        action=_("manage state reference data"),
-    )
+    frappe.has_permission("CH State", ptype="write", throw=True)
     return _ensure_state(state_name, country, state_code)
 
 

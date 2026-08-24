@@ -19,8 +19,6 @@ from ch_item_master.config import (
 from ch_item_master.security import get_company_scope
 
 
-_CUSTOMER_360_ROLES = ("Sales Manager", "Service Manager", "CH Master Manager")
-
 
 def _assert_customer_scope(customer, company):
 	if is_privileged_user():
@@ -78,7 +76,6 @@ def get_customer_360(customer, company=None) -> dict:
 		dict with keys: profile, kyc, payment_accounts, devices, loyalty,
 		recent_transactions, store_visits, segment, referrals
 	"""
-	require_role_setting("customer_360_roles", _CUSTOMER_360_ROLES, action=_("view Customer 360"))
 	frappe.has_permission("Customer", "read", customer, throw=True)
 	if not frappe.db.exists("Customer", customer):
 		frappe.throw(_("Customer {0} does not exist").format(customer), title=_("API Error"))
@@ -655,11 +652,6 @@ def merge_customers(primary_customer, duplicate_customer) -> dict:
 
 	Transfers all transactions, devices, loyalty, and visits.
 	"""
-	require_role_setting(
-		"master_approval_roles",
-		("System Manager", "CH Master Approver", "CH Master Manager"),
-		action=_("merge customers"),
-	)
 
 	if primary_customer == duplicate_customer:
 		frappe.throw(_("Cannot merge a customer with itself"), title=_("API Error"))

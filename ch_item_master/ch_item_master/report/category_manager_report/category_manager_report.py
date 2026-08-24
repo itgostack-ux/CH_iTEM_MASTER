@@ -21,11 +21,6 @@ from ch_item_master.security import get_company_scope
 
 
 def execute(filters=None):
-    require_role_setting(
-        "app_access_roles",
-        ("CH Master Manager", "CH Price Manager", "CH Viewer"),
-        action=_("view the category manager report"),
-    )
     for doctype in ("CH Model", "Item", "CH Item Price", "CH Item Offer"):
         frappe.has_permission(doctype, "read", throw=True)
     filters = filters or {}

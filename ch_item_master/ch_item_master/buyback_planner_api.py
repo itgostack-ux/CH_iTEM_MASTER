@@ -36,8 +36,7 @@ PLANNABLE_FIELDS = (
 	"a_grade_iw_0_6", "b_grade_iw_0_6", "c_grade_iw_0_6", "d_grade_iw_0_6",
 	"a_grade_iw_6_11", "b_grade_iw_6_11", "c_grade_iw_6_11", "d_grade_iw_6_11",
 	"a_grade_oow_11", "b_grade_oow_11", "c_grade_oow_11", "d_grade_oow_11",
-	"scrap_price", "phone_dead_price",
-)
+	"scrap_price", "phone_dead_price")
 
 #: How far our price may drift from the market median before the planner says
 #: something. Expressed as a fraction of the median.
@@ -48,12 +47,11 @@ _ABOVE_MARKET_TOLERANCE = 0.05
 def _require_planner_access():
 	if is_privileged_user():
 		return
-	allowed = get_role_setting("buyback_planner_roles", ("CH Master Manager", "CH Price Manager"))
+	allowed = get_role_setting("buyback_planner_roles")
 	if not allowed.intersection(frappe.get_roles(frappe.session.user)):
 		frappe.throw(
 			_("You are not permitted to use the Buyback Price Planner."),
-			frappe.PermissionError,
-		)
+			frappe.PermissionError)
 
 
 def _sales_rank_map(item_codes: list, months: int = 12) -> dict:
@@ -73,8 +71,7 @@ def _sales_rank_map(item_codes: list, months: int = 12) -> dict:
 		GROUP BY sii.item_code
 		""",
 		{"items": tuple(item_codes), "months": cint(months)},
-		as_dict=True,
-	)
+		as_dict=True)
 	return {row["item_code"]: flt(row["qty"]) for row in rows}
 
 
@@ -111,8 +108,7 @@ def _site_prices(item_codes: list, condition_profile: str) -> dict:
 		  AND newest.latest = s.captured_at
 		""",
 		{"items": tuple(item_codes), "profile": condition_profile},
-		as_dict=True,
-	)
+		as_dict=True)
 
 	by_item = {}
 	for row in rows:
@@ -184,8 +180,7 @@ def get_planner_rows(
 	coverage: str = "",
 	page: int = 1,
 	page_length: int = 50,
-	sort_by: str = "sales",
-) -> dict:
+	sort_by: str = "sales") -> dict:
 	"""One page of planner rows, ranked by whichever signal matters right now.
 
 	``coverage`` narrows to the work worth doing: ``missing_price`` for models
@@ -273,8 +268,7 @@ def get_planner_rows(
 		LIMIT %(limit)s OFFSET %(offset)s
 		""",
 		params,
-		as_dict=True,
-	)
+		as_dict=True)
 
 	site_prices = _site_prices([r["item_code"] for r in rows], condition_profile)
 
@@ -307,8 +301,7 @@ def get_planner_rows(
 			"CH Competitor Source",
 			filters={"disabled": 0},
 			pluck="name",
-			order_by="competitor_name asc",
-		),
+			order_by="competitor_name asc"),
 	}
 
 
@@ -354,8 +347,7 @@ def get_planner_summary(item_group: str = "Mobiles", condition_profile: str = "G
 		WHERE i.disabled = 0 AND i.item_group = %(item_group)s
 		""",
 		{"item_group": item_group, "profile": condition_profile},
-		as_dict=True,
-	)[0]
+		as_dict=True)[0]
 
 	row["links"] = frappe.db.count("CH Competitor Item Link")
 	row["sources"] = frappe.db.count("CH Competitor Source", {"disabled": 0})
@@ -383,8 +375,7 @@ def create_planner_batch(changes, reason: str = "", company: str = "") -> dict:
 
 	from ch_item_master.ch_item_master.ready_reckoner_api import (
 		_BUYBACK_FIELD_LABELS,
-		_enrich_batch_items,
-	)
+		_enrich_batch_items)
 
 	if isinstance(changes, str):
 		changes = json.loads(changes)
@@ -396,15 +387,13 @@ def create_planner_batch(changes, reason: str = "", company: str = "") -> dict:
 		frappe.throw(
 			_("A price batch can contain at most {0} changes. Stage them in smaller groups.")
 			.format(row_limit),
-			frappe.ValidationError,
-		)
+			frappe.ValidationError)
 
 	reason = (reason or "").strip()
 	if not reason:
 		frappe.throw(
 			_("Give a reason — it is what the approver reads to judge the batch."),
-			title=_("Reason Required"),
-		)
+			title=_("Reason Required"))
 
 	# One read per item rather than one per change: a planner submission
 	# typically touches several grades of the same model.
@@ -417,8 +406,7 @@ def create_planner_batch(changes, reason: str = "", company: str = "") -> dict:
 		for row in frappe.get_all(
 			"Buyback Price Master",
 			filters={"item_code": ("in", item_codes), "is_active": 1},
-			fields=["item_code", *PLANNABLE_FIELDS],
-		)
+			fields=["item_code", *PLANNABLE_FIELDS])
 	}
 
 	batch_items = []
@@ -449,8 +437,7 @@ def create_planner_batch(changes, reason: str = "", company: str = "") -> dict:
 	if not batch_items:
 		frappe.throw(
 			_("Every submitted price already matches the current value — nothing to approve."),
-			title=_("No Changes"),
-		)
+			title=_("No Changes"))
 
 	batch = frappe.new_doc("CH Price Upload Batch")
 	batch.title = _("Buyback Planner — {0} models, {1} changes").format(

@@ -10,8 +10,7 @@ from ch_item_master.config import (
 	has_role_setting,
 	is_privileged_user,
 	iter_all_rows,
-	require_role_setting,
-)
+	require_role_setting)
 from ch_item_master.security import ensure_company_access
 
 
@@ -26,27 +25,7 @@ LEAF_LOCATION_TYPES = {
 	"Other",
 }
 STORE_BIN_TYPES = {"Sellable", "Damaged", "Demo", "Buyback"}
-_LOCATION_MANAGER_ROLES = ("CH Master Manager",)
-_LOCATION_VIEW_ROLES = (
-	"CH Master Manager",
-	"Stock Manager",
-	"Stock User",
-	"Store Manager",
-	"Store Executive",
-)
-_WAREHOUSE_PICKER_ROLES = (
-	"CH Master Manager",
-	"Stock Manager",
-	"Stock User",
-	"Store Manager",
-	"Store Executive",
-	"Accounts Manager",
-	"Accounts User",
-	"Sales Manager",
-	"Sales User",
-	"Purchase Manager",
-	"Purchase User",
-)
+_LOCATION_MANAGER_ROLES = ("CH Master Manager")
 _WAREHOUSE_SEARCH_FIELDS = {"name", "warehouse_name"}
 
 
@@ -58,44 +37,32 @@ def _require_named_permission(doctype, permission_type="read", doc=None):
 	):
 		frappe.throw(
 			_("You do not have {0} permission for {1}.").format(permission_type, doctype),
-			frappe.PermissionError,
-		)
+			frappe.PermissionError)
 
 
 def _check_view_permission(*doctypes):
 	if not (
-		has_role_setting("location_view_roles", _LOCATION_VIEW_ROLES)
-		or has_role_setting("location_manager_roles", _LOCATION_MANAGER_ROLES)
+		has_role_setting("location_view_roles")
+		or has_role_setting("location_manager_roles")
 	):
-		roles = get_role_setting("location_view_roles", _LOCATION_VIEW_ROLES).union(
-			get_role_setting("location_manager_roles", _LOCATION_MANAGER_ROLES)
+		roles = get_role_setting("location_view_roles").union(
+			get_role_setting("location_manager_roles")
 		)
 		frappe.throw(
 			_("You do not have permission to view the location hierarchy. Required role: {0}").format(
 				", ".join(sorted(roles))
 			),
-			frappe.PermissionError,
-		)
+			frappe.PermissionError)
 	for doctype in doctypes:
 		_require_named_permission(doctype, "read")
 
 
 def _check_warehouse_picker_permission(*doctypes):
-	require_role_setting(
-		"warehouse_picker_roles",
-		_WAREHOUSE_PICKER_ROLES,
-		action=_("search report warehouses"),
-	)
 	for doctype in doctypes:
 		_require_named_permission(doctype, "read")
 
 
 def _check_master_permission(*permissions):
-	require_role_setting(
-		"location_manager_roles",
-		_LOCATION_MANAGER_ROLES,
-		action=_("manage the location hierarchy"),
-	)
 	for doctype, permission_type in permissions:
 		_require_named_permission(doctype, permission_type)
 
@@ -217,8 +184,7 @@ def _assert_zone_scope(zone, scope=None, permission_type="read"):
 		zone_doc.company,
 		zone_doc.city,
 		zone_doc.name,
-		for_write=permission_type != "read",
-	):
+		for_write=permission_type != "read"):
 		frappe.throw(_("The selected zone is outside your assigned scope."), frappe.PermissionError)
 	return zone_doc, scope
 
@@ -270,8 +236,7 @@ def _warehouse_scope_condition(scope, values, alias="wh", prefix="location_scope
 		("cities", "ch_city", scope.get("direct_cities") or ()),
 		("zones", "ch_zone", scope.get("direct_zones") or ()),
 		("stores", "ch_store", scope.get("stores") or ()),
-		("warehouses", "name", scope.get("warehouses") or ()),
-	):
+		("warehouses", "name", scope.get("warehouses") or ())):
 		entries = tuple(sorted(set(entries)))
 		if not entries:
 			continue
@@ -301,8 +266,7 @@ def _warehouse_row(warehouse):
 			"parent_warehouse", "warehouse_type", "ch_city", "ch_zone",
 			"ch_location_type", "ch_store", "ch_bin_type", "ch_hub_bin_type",
 		],
-		as_dict=True,
-	)
+		as_dict=True)
 
 
 def _is_city_level_hub(warehouse):
@@ -324,8 +288,7 @@ def _zones_using_hub(warehouse):
 		filters={"source_warehouse": warehouse},
 		fields=["name", "zone_name", "company", "city"],
 		order_by="name",
-		limit_page_length=_tree_limit(),
-	)
+		limit_page_length=_tree_limit())
 
 
 def _stores_using_warehouse(warehouse):
@@ -336,8 +299,7 @@ def _stores_using_warehouse(warehouse):
 		filters={"warehouse": warehouse, "disabled": 0},
 		fields=["name", "store_name", "company", "city", "zone"],
 		order_by="name",
-		limit_page_length=_tree_limit(),
-	)
+		limit_page_length=_tree_limit())
 
 
 def _hub_zone_value(warehouse):
@@ -446,8 +408,7 @@ def validate_zone_source_warehouse(doc, method=None):
 		doc.source_warehouse,
 		company=doc.get("company"),
 		zone=doc.name,
-		city=doc.get("city"),
-	)
+		city=doc.get("city"))
 
 
 def validate_warehouse_location_fields(doc, method=None):
@@ -519,8 +480,7 @@ def validate_warehouse_location_fields(doc, method=None):
 		checks = (
 			("company", doc.get("company"), store.company),
 			("city", _clean(doc.get("ch_city")), _clean(store.city)),
-			("zone", zone_name, _clean(store.zone)),
-		)
+			("zone", zone_name, _clean(store.zone)))
 		for label, warehouse_value, store_value in checks:
 			if warehouse_value and store_value and warehouse_value != store_value:
 				frappe.throw(
@@ -655,8 +615,7 @@ def sync_zone_source_warehouse_metadata(zone):
 			"CH Store Zone",
 			zone,
 			["name", "company", "city", "source_warehouse"],
-			as_dict=True,
-		)
+			as_dict=True)
 	if not zone or not zone.source_warehouse:
 		return None
 
@@ -664,8 +623,7 @@ def sync_zone_source_warehouse_metadata(zone):
 		zone.source_warehouse,
 		company=zone.company,
 		zone=zone.name,
-		city=zone.city,
-	)
+		city=zone.city)
 	ch_zone = _hub_zone_value(zone.source_warehouse)
 	frappe.db.set_value(
 		"Warehouse",
@@ -677,8 +635,7 @@ def sync_zone_source_warehouse_metadata(zone):
 			"ch_store": None,
 			"ch_bin_type": None,
 		},
-		update_modified=False,
-	)
+		update_modified=False)
 	return zone.source_warehouse
 
 
@@ -709,8 +666,7 @@ def repair_retail_location_integrity(company=None):
 		"CH Store Zone",
 		filters=zone_filters,
 		fields=["name", "zone_name", "company", "city", "source_warehouse"],
-		order_by="name",
-	):
+		order_by="name"):
 		source = zone.source_warehouse
 		needs_replacement = False
 		if not source or not frappe.db.exists("Warehouse", source):
@@ -730,8 +686,7 @@ def repair_retail_location_integrity(company=None):
 			if hub:
 				frappe.db.set_value(
 					"CH Store Zone", zone.name, "source_warehouse", hub,
-					update_modified=False,
-				)
+					update_modified=False)
 				zone.source_warehouse = hub
 				fixed.append(
 					f"zone {zone.name}: source_warehouse {source or '(missing)'} -> {hub}"
@@ -754,8 +709,7 @@ def repair_retail_location_integrity(company=None):
 		"CH Store",
 		filters=store_filters,
 		fields=["name", "company", "city", "zone", "warehouse"],
-		order_by="name",
-	):
+		order_by="name"):
 		if not (store.city and store.zone and store.warehouse):
 			warnings.append(
 				f"store {store.name}: incomplete city/zone/warehouse; manual classification required"
@@ -783,8 +737,7 @@ def repair_retail_location_integrity(company=None):
 					"ch_store": store.name,
 					"ch_bin_type": "Sellable",
 				},
-				update_modified=False,
-			)
+				update_modified=False)
 			fixed.append(f"store {store.name}: restored Sellable bin metadata")
 		try:
 			ensure_store_bins(frappe.get_doc("CH Store", store.name))
@@ -822,8 +775,7 @@ def ensure_city(company, city_name, state=None):
 		existing = frappe.db.get_value(
 			"CH City",
 			{"state": state, "city_name": clean_city},
-			"name",
-		)
+			"name")
 	if not existing:
 		existing = frappe.db.get_value("CH City", {"city_name": clean_city}, "name")
 
@@ -864,8 +816,7 @@ def backfill_location_hierarchy():
 	stores = iter_all_rows(
 		"CH Store",
 		filters={"disabled": 0},
-		fields=["name", "company", "city", "state", "zone", "warehouse", "branch"],
-	)
+		fields=["name", "company", "city", "state", "zone", "warehouse", "branch"])
 
 	for store in stores:
 		city_name = store.city
@@ -898,16 +849,14 @@ def backfill_location_hierarchy():
 	# blank and are attached to each zone at render time.
 	for zone in iter_all_rows(
 		"CH Store Zone",
-		fields=["name", "company", "city", "source_warehouse"],
-	):
+		fields=["name", "company", "city", "source_warehouse"]):
 		if zone.source_warehouse and frappe.db.exists("Warehouse", zone.source_warehouse):
 			try:
 				sync_zone_source_warehouse_metadata(zone)
 			except Exception:
 				frappe.log_error(
 					frappe.get_traceback(),
-					f"source warehouse sync failed for zone {zone.name}",
-				)
+					f"source warehouse sync failed for zone {zone.name}")
 
 
 def backfill_store_bins():
@@ -926,8 +875,7 @@ def backfill_store_bins():
 	stores = iter_all_rows(
 		"CH Store",
 		filters={"disabled": 0, "warehouse": ["is", "set"]},
-		fields=["name"],
-	)
+		fields=["name"])
 	for row in stores:
 		try:
 			store = frappe.get_doc("CH Store", row.name)
@@ -961,8 +909,7 @@ def backfill_zone_hubs():
 
 	zones = iter_all_rows(
 		"CH Store Zone",
-		fields=["name", "zone_name", "company", "city", "source_warehouse"],
-	)
+		fields=["name", "zone_name", "company", "city", "source_warehouse"])
 	for zone in zones:
 		if not zone.company:
 			continue
@@ -975,8 +922,7 @@ def backfill_zone_hubs():
 			except Exception:
 				frappe.log_error(
 					frappe.get_traceback(),
-					f"backfill_zone_hubs: invalid hub for {zone.name}",
-				)
+					f"backfill_zone_hubs: invalid hub for {zone.name}")
 			continue
 
 		# 2. Otherwise, create one — name it after the zone (deterministic
@@ -1001,29 +947,26 @@ def backfill_zone_hubs():
 			except Exception:
 				frappe.log_error(
 					frappe.get_traceback(),
-					f"backfill_zone_hubs: failed to create hub for {zone.name}",
-				)
+					f"backfill_zone_hubs: failed to create hub for {zone.name}")
 				continue
 
 		# 3. Wire the zone to its hub.
 		frappe.db.set_value(
 			"CH Store Zone", zone.name, "source_warehouse", hub,
-			update_modified=False,
-		)
+			update_modified=False)
 		try:
 			zone.source_warehouse = hub
 			sync_zone_source_warehouse_metadata(zone)
 		except Exception:
 			frappe.log_error(
 				frappe.get_traceback(),
-				f"backfill_zone_hubs: metadata sync failed for {zone.name}",
-			)
+				f"backfill_zone_hubs: metadata sync failed for {zone.name}")
 
 
 # Default Hub Bin set every zone hub starts with. Operators add extra bins
 # (Sellable-02, Quarantine, Inbound-Dock-A, …) from the Location Hierarchy
 # page as the facility grows — migrate only guarantees the baseline.
-DEFAULT_HUB_BIN_LABELS = ("Sellable-01",)
+DEFAULT_HUB_BIN_LABELS = ("Sellable-01")
 
 
 def backfill_default_hub_bins():
@@ -1047,8 +990,7 @@ def backfill_default_hub_bins():
 		"CH Store Zone",
 		filters={"source_warehouse": ("is", "set")},
 		fields=["name", "source_warehouse"],
-		order_by="creation",
-	)
+		order_by="creation")
 	zones_by_hub: dict[str, list[str]] = {}
 	for zone in zones:
 		zones_by_hub.setdefault(zone.source_warehouse, []).append(zone.name)
@@ -1064,8 +1006,7 @@ def backfill_default_hub_bins():
 					"ch_location_type": "Hub Bin",
 					"ch_hub_bin_type": label,
 					"ch_zone": ("in", zone_names),
-				},
-			):
+				}):
 				continue
 			try:
 				result = create_hub_bin(anchor, label)
@@ -1074,8 +1015,7 @@ def backfill_default_hub_bins():
 			except Exception:
 				frappe.log_error(
 					frappe.get_traceback(),
-					f"backfill_default_hub_bins: {hub}/{label}",
-				)
+					f"backfill_default_hub_bins: {hub}/{label}")
 	if created:
 		print(f"backfill_default_hub_bins: created {created} default hub bin(s)")
 
@@ -1161,8 +1101,7 @@ def get_company_location_tree(company=None, warehouse_view="all"):
 		"CH Store Zone",
 		filters=zone_filters,
 		fields=["name", "zone_name", "company", "city", "source_warehouse"],
-		limit_page_length=limit,
-	):
+		limit_page_length=limit):
 		if not _zone_in_scope(scope, zone.company, zone.city, zone.name):
 			continue
 		company_node = companies.setdefault(zone.company, {"company": zone.company, "cities": {}, "system_defaults": []})
@@ -1179,8 +1118,7 @@ def get_company_location_tree(company=None, warehouse_view="all"):
 				"zones": {},
 				"hubs": [],
 				"transit": [],
-			},
-		)
+			})
 		city_node["zones"][zone.name] = {
 			"zone": zone.name,
 			"zone_name": zone.zone_name,
@@ -1207,8 +1145,7 @@ def get_company_location_tree(company=None, warehouse_view="all"):
 				"disabled": 0,
 			},
 			fields=["name", "store_name", "company"],
-			limit_page_length=limit,
-		)
+			limit_page_length=limit)
 		if _store_in_scope(scope, s)
 	}
 
@@ -1221,8 +1158,7 @@ def get_company_location_tree(company=None, warehouse_view="all"):
 			fields=["name", "warehouse_name", "company", "ch_city", "ch_zone",
 				"ch_location_type", "ch_store", "ch_bin_type", "ch_hub_bin_type",
 				"parent_warehouse"],
-			limit_page_length=limit,
-		):
+			limit_page_length=limit):
 			if _warehouse_in_scope(scope, hub):
 				source_hub_rows[hub.name] = hub
 	for zone in zone_rows:
@@ -1275,8 +1211,7 @@ def get_company_location_tree(company=None, warehouse_view="all"):
 		fields=["name", "warehouse_name", "company", "ch_city", "ch_zone",
 			"ch_location_type", "ch_store", "ch_bin_type", "ch_hub_bin_type",
 			"warehouse_type", "parent_warehouse"],
-		limit_page_length=limit,
-	):
+		limit_page_length=limit):
 		if not _warehouse_in_scope(scope, warehouse):
 			continue
 		if (
@@ -1302,8 +1237,7 @@ def get_company_location_tree(company=None, warehouse_view="all"):
 		if (warehouse.ch_location_type or "").strip() == "Other":
 			company_node = companies.setdefault(
 				warehouse.company,
-				{"company": warehouse.company, "cities": {}, "system_defaults": []},
-			)
+				{"company": warehouse.company, "cities": {}, "system_defaults": []})
 			company_node.setdefault("system_defaults", []).append(warehouse)
 			continue
 		# Hub Bins belong to the hub (rendered once at city level). Resolve the
@@ -1325,8 +1259,7 @@ def get_company_location_tree(company=None, warehouse_view="all"):
 			companies,
 			warehouse.company,
 			warehouse.ch_city,
-			warehouse.ch_zone,
-		)["warehouses"].append(warehouse)
+			warehouse.ch_zone)["warehouses"].append(warehouse)
 
 	# Attach each city's hubs to its city node.
 	for (comp, city_key), hubs in city_hubs.items():
@@ -1354,8 +1287,7 @@ def get_company_location_tree(company=None, warehouse_view="all"):
 		"CH Store",
 		filters=store_filters,
 		fields=["name", "store_code", "store_name", "company", "city", "zone", "warehouse", "store_status", "opening_date"],
-		limit_page_length=limit,
-	):
+		limit_page_length=limit):
 		if not _store_in_scope(scope, store):
 			continue
 		_zone_bucket(companies, store.company, store.city, store.zone)["stores"].append(store)
@@ -1368,8 +1300,7 @@ def get_company_location_tree(company=None, warehouse_view="all"):
 			"Branch",
 			filters=branch_filters,
 			fields=["name", "branch", "ch_company", "ch_city", "ch_zone"],
-			limit_page_length=limit,
-		):
+			limit_page_length=limit):
 			office_company = office.ch_company
 			if not office_company or not _branch_in_scope(scope, office):
 				continue
@@ -1386,8 +1317,7 @@ def _zone_bucket(companies, company, city, zone):
 	zone_key = zone or "Unassigned"
 	return city_node["zones"].setdefault(
 		zone_key,
-		{"zone": zone_key, "zone_name": zone_key, "source_warehouse": None, "warehouses": [], "stores": [], "offices": []},
-	)
+		{"zone": zone_key, "zone_name": zone_key, "source_warehouse": None, "warehouses": [], "stores": [], "offices": []})
 
 
 def _warehouse_matches_view(warehouse, warehouse_view):
@@ -1430,11 +1360,11 @@ def get_location_access():
 	if not user or user == "Guest":
 		return {"can_view": False, "can_manage": False}
 	can_manage = has_role_setting(
-		"location_manager_roles", _LOCATION_MANAGER_ROLES, user=user
+		"location_manager_roles", user=user
 	)
 	return {
 		"can_view": can_manage
-		or has_role_setting("location_view_roles", _LOCATION_VIEW_ROLES, user=user),
+		or has_role_setting("location_view_roles", user=user),
 		"can_manage": can_manage,
 	}
 
@@ -1452,8 +1382,7 @@ def list_companies():
 		filters=filters,
 		fields=["name", "company_name"],
 		order_by="company_name",
-		limit_page_length=_tree_limit(),
-	)
+		limit_page_length=_tree_limit())
 
 
 @frappe.whitelist()
@@ -1473,8 +1402,7 @@ def list_warehouses(company=None, unassigned_only=0):
 		filters=filters,
 		fields=["name", "warehouse_name", "company", "ch_city", "ch_zone", "ch_store", "ch_location_type"],
 		order_by="warehouse_name",
-		limit_page_length=_tree_limit(),
-	)
+		limit_page_length=_tree_limit())
 	return [row for row in rows if _warehouse_in_scope(scope, row)]
 
 
@@ -1495,8 +1423,7 @@ def list_branches(company=None, unassigned_only=0):
 		filters=filters,
 		fields=["name", "branch", "ch_company", "ch_city", "ch_zone"],
 		order_by="branch",
-		limit_page_length=_tree_limit(),
-	)
+		limit_page_length=_tree_limit())
 	return [row for row in rows if _branch_in_scope(scope, row)]
 
 
@@ -1598,8 +1525,7 @@ def list_states():
 		filters={"disabled": 0},
 		fields=["name", "state_name", "state_code", "country"],
 		order_by="state_name",
-		limit_page_length=_tree_limit(),
-	)
+		limit_page_length=_tree_limit())
 
 
 @frappe.whitelist(methods=["POST"])
@@ -1658,8 +1584,7 @@ def save_zone(company, city, zone_name, source_warehouse=None, name=None, descri
 		("CH Store Zone", "write" if name else "create"),
 		("Company", "read"),
 		("CH City", "read"),
-		("Warehouse", "write"),
-	)
+		("Warehouse", "write"))
 	scope = _assert_company_scope(company)
 	_reject_synthetic(zone_name, "zone")
 	_reject_synthetic(name, "zone")
@@ -1709,8 +1634,7 @@ def save_zone(company, city, zone_name, source_warehouse=None, name=None, descri
 			"Warehouse",
 			old_source,
 			{"ch_zone": None, "ch_location_type": None},
-			update_modified=False,
-		)
+			update_modified=False)
 	return doc.name
 
 
@@ -1783,8 +1707,7 @@ def assign_warehouse(warehouse, company=None, city=None, zone=None, location_typ
 		"Warehouse",
 		{"parent_warehouse": warehouse, "is_group": 0},
 		{"ch_city": city or None, "ch_zone": zone or None},
-		update_modified=False,
-	)
+		update_modified=False)
 	return True
 
 
@@ -1807,8 +1730,7 @@ def unassign_warehouse(warehouse):
 		"Warehouse",
 		{"parent_warehouse": warehouse, "is_group": 0},
 		{"ch_city": None, "ch_zone": None},
-		update_modified=False,
-	)
+		update_modified=False)
 	return True
 
 
@@ -1826,8 +1748,7 @@ def unassign_city_hub(warehouse, company, city):
 		"CH Store Zone",
 		filters={"company": company, "city": city, "source_warehouse": warehouse},
 		fields=["name"],
-		limit_page_length=_tree_limit(),
-	)
+		limit_page_length=_tree_limit())
 	for row in zones:
 		frappe.db.get_value("CH Store Zone", row.name, "name", for_update=True)
 		zone_doc, _scope = _assert_zone_scope(row.name, scope=scope, permission_type="write")
@@ -1864,8 +1785,7 @@ def create_hub(company, city, hub_name=None, warehouse=None, zones=None):
 		("Warehouse", "write"),
 		("CH Store Zone", "write"),
 		("Company", "read"),
-		("CH City", "read"),
-	)
+		("CH City", "read"))
 	if not company or not city:
 		frappe.throw("Company and City are required.")
 	scope = _assert_company_scope(company)
@@ -1884,8 +1804,7 @@ def create_hub(company, city, hub_name=None, warehouse=None, zones=None):
 			"CH Store Zone",
 			filters={"company": company, "city": city},
 			pluck="name",
-			limit_page_length=_tree_limit(),
-		)
+			limit_page_length=_tree_limit())
 	if not isinstance(zones, (list, tuple)):
 		frappe.throw(_("Zones must be a list."), frappe.ValidationError)
 	zones = list(dict.fromkeys(_clean(value) for value in zones if _clean(value)))
@@ -1912,16 +1831,14 @@ def create_hub(company, city, hub_name=None, warehouse=None, zones=None):
 		sibling_hub = frappe.db.get_value(
 			"CH Store Zone",
 			{"company": company, "city": city, "source_warehouse": ["is", "set"]},
-			"source_warehouse",
-		)
+			"source_warehouse")
 		if sibling_hub:
 			parent = frappe.db.get_value("Warehouse", sibling_hub, "parent_warehouse")
 		if not parent:
 			parent = frappe.db.get_value(
 				"Warehouse",
 				{"company": company, "is_group": 1, "ch_city": city, "ch_location_type": "City Group"},
-				"name",
-			)
+				"name")
 		if not parent:
 			parent = frappe.db.get_value(
 				"Warehouse", {"company": company, "is_group": 1, "ch_city": city}, "name"
@@ -1965,8 +1882,7 @@ def add_hub_bin_at_city(company, city, label, hub=None):
 		"CH Store Zone",
 		filters={"company": company, "city": city, "source_warehouse": ["is", "set"]},
 		fields=["name", "source_warehouse"],
-		limit_page_length=_tree_limit(),
-	)
+		limit_page_length=_tree_limit())
 	zones = [
 		z for z in zones
 		if _zone_in_scope(scope, company, city, z.name, for_write=True)
@@ -2057,8 +1973,7 @@ def save_store(company, city, zone, store_name, store_code=None, warehouse=None,
 		("CH Store Zone", "read"),
 		("Warehouse", "read"),
 		("Warehouse", "create"),
-		("Branch", "read"),
-	)
+		("Branch", "read"))
 	if not company or not city or not zone:
 		frappe.throw(_("Company, City, and Zone are required."), frappe.ValidationError)
 	store_name = _clean(store_name)
@@ -2185,8 +2100,7 @@ def create_store_bin(store, bin_type, custom_suffix=None):
 	# Idempotency: one bin per (store, bin_type).
 	existing = frappe.db.exists(
 		"Warehouse",
-		{"company": st.company, "ch_store": st.name, "ch_bin_type": bin_type},
-	)
+		{"company": st.company, "ch_store": st.name, "ch_bin_type": bin_type})
 	if existing:
 		return {"warehouse": existing, "bin_type": bin_type, "created": False}
 
@@ -2247,10 +2161,8 @@ def _resolve_hub_context(zone, scope=None):
 	if not hub or not frappe.db.exists("Warehouse", hub):
 		frappe.throw(
 			frappe._("Zone {0} has no Hub warehouse assigned. Assign one first.").format(
-				frappe.bold(zone_doc.zone_name or zone),
-			),
-			title=frappe._("Hub Not Assigned"),
-		)
+				frappe.bold(zone_doc.zone_name or zone)),
+			title=frappe._("Hub Not Assigned"))
 	_assert_warehouse_scope(hub, scope=scope)
 	_validate_hub_candidate(
 		hub, company=zone_doc.company, zone=zone_doc.name, city=zone_doc.city
@@ -2271,8 +2183,7 @@ def _sanitize_hub_bin_label(label):
 	if not re.match(r"^[A-Za-z0-9][A-Za-z0-9 _\-]*$", label):
 		frappe.throw(
 			frappe._("Hub Bin label may only contain letters, digits, spaces, dashes and underscores."),
-			title=frappe._("Invalid Label"),
-		)
+			title=frappe._("Invalid Label"))
 	return label
 
 
@@ -2294,8 +2205,7 @@ def list_hub_bins(zone):
 			"ch_hub_bin_type", "parent_warehouse",
 		],
 		order_by="ch_hub_bin_type asc",
-		limit_page_length=_tree_limit(),
-	)
+		limit_page_length=_tree_limit())
 	return [row for row in rows if _warehouse_in_scope(scope, row)]
 
 
@@ -2333,8 +2243,7 @@ def create_hub_bin(zone, label):
 			"ch_location_type": "Hub Bin",
 			"ch_hub_bin_type": label,
 		},
-		"name",
-	)
+		"name")
 	if existing:
 		return {"warehouse": existing, "label": label, "created": False}
 
@@ -2364,8 +2273,7 @@ def create_hub_bin(zone, label):
 				"ch_location_type": "Hub Bin",
 				"ch_hub_bin_type": label,
 			},
-			"name",
-		)
+			"name")
 		return {"warehouse": existing, "label": label, "created": False}
 
 	return {"warehouse": wh.name, "label": label, "created": True}
@@ -2441,8 +2349,7 @@ def report_warehouse_query(doctype, txt, searchfield, start, page_len, filters):
 		ORDER BY (st.name IS NULL), COALESCE(st.store_name, wh.warehouse_name)
 		LIMIT %(start)s, %(page_len)s
 		""",
-		values,
-	)
+		values)
 
 
 @frappe.whitelist()
@@ -2556,8 +2463,7 @@ def hub_warehouse_query(doctype, txt, searchfield, start, page_len, filters):
 			wh.name
 		LIMIT %(start)s, %(page_len)s
 		""",
-		values,
-	)
+		values)
 
 
 @frappe.whitelist()
@@ -2603,8 +2509,7 @@ def other_warehouse_query(doctype, txt, searchfield, start, page_len, filters):
 		ORDER BY wh.name
 		LIMIT %(start)s, %(page_len)s
 		""",
-		values,
-	)
+		values)
 
 
 @frappe.whitelist()
@@ -2684,8 +2589,7 @@ def sellable_warehouse_query(doctype, txt, searchfield, start, page_len, filters
 		ORDER BY wh.name
 		LIMIT %(start)s, %(page_len)s
 		""",
-		values,
-	)
+		values)
 
 
 @frappe.whitelist()
@@ -2743,5 +2647,4 @@ def master_city_query(doctype, txt, searchfield, start, page_len, filters):
 			c.name
 		LIMIT %(start)s, %(page_len)s
 		""",
-		values,
-	)
+		values)

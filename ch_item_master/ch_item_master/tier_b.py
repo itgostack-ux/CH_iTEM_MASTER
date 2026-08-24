@@ -29,7 +29,6 @@ from ch_item_master.ch_item_master.exceptions import ItemNotActiveError
 # MSP Enforcement
 # ─────────────────────────────────────────────────────────────────────────────
 
-_DEFAULT_APPROVAL_ROLES = {"CH Master Approver", "System Manager"}
 
 MSPViolation = frappe.ValidationError
 
@@ -42,7 +41,7 @@ def enforce_msp(doc, method=None):
 	"""
 	if not getattr(doc, "items", None):
 		return
-	is_approver = has_role_setting("master_approval_roles", _DEFAULT_APPROVAL_ROLES)
+	is_approver = has_role_setting("master_approval_roles")
 	violations = []
 
 	for row in doc.items:
@@ -68,14 +67,12 @@ def enforce_msp(doc, method=None):
 		frappe.msgprint(
 			_("MSP Warning (allowed for approvers):<br>{0}").format(msg),
 			title=_("Below Minimum Selling Price"),
-			indicator="orange",
-		)
+			indicator="orange")
 	else:
 		frappe.throw(
 			_("Cannot save — prices below Minimum Selling Price:<br>{0}").format(msg),
 			title=_("MSP Violation"),
-			exc=MSPViolation,
-		)
+			exc=MSPViolation)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -105,8 +102,7 @@ def enforce_expiry(doc, method=None):
 		frappe.get_all(
 			"Item",
 			filters={"name": ["in", list(item_codes)]},
-			fields=["name", "has_batch_no", "ch_enforce_expiry"],
-		)
+			fields=["name", "has_batch_no", "ch_enforce_expiry"])
 		if item_codes
 		else []
 	)
@@ -177,8 +173,7 @@ def track_standard_cost(doc, method=None):
 			"Standard Cost Changed",
 			field_name="ch_standard_cost",
 			old_value=str(old_cost),
-			new_value=str(new_cost),
-		)
+			new_value=str(new_cost))
 	except Exception:
 		frappe.log_error(title="Standard cost audit failed", message=frappe.get_traceback())
 
@@ -235,8 +230,7 @@ def get_active_substitutes(item_code: str) -> list[dict]:
 			"parenttype": "Item",
 		},
 		fields=["substitute_item", "substitute_type", "priority", "effective_from", "effective_to", "notes"],
-		order_by="priority asc",
-	)
+		order_by="priority asc")
 	active = []
 	for r in rows:
 		if r.effective_to and getdate(r.effective_to) < getdate(today_str):

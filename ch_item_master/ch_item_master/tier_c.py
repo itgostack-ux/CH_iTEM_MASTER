@@ -82,8 +82,7 @@ def snapshot_item_version(doc, method=None):
 			"CH Item Version",
 			{"item_code": doc.name},
 			"version_number",
-			order_by="version_number desc",
-		) or 0
+			order_by="version_number desc") or 0
 
 		snapshot = {f: getattr(doc, f, None) for f in _SNAPSHOT_FIELDS}
 
@@ -118,15 +117,13 @@ def get_item_versions(item_code: str) -> list[dict]:
 		filters={"item_code": item_code},
 		fields=["name", "version_number", "snapshot_date", "changed_by",
 		        "ch_lifecycle_status", "ch_plm_status", "ch_standard_cost", "remarks"],
-		order_by="version_number desc",
-	)
+		order_by="version_number desc")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 2. Formal Model Approval Gate
 # ─────────────────────────────────────────────────────────────────────────────
 
-_DEFAULT_APPROVAL_ROLES = {"CH Master Approver", "System Manager"}
 
 ApprovalError = frappe.ValidationError
 
@@ -141,19 +138,17 @@ def enforce_approval_gate(doc, method=None):
 	lifecycle = getattr(doc, "ch_lifecycle_status", None) or "Draft"
 
 	if lifecycle == "Active" and approval != "Approved":
-		if has_role_setting("master_approval_roles", _DEFAULT_APPROVAL_ROLES):
+		if has_role_setting("master_approval_roles"):
 			frappe.msgprint(
 				_("Approval Warning: item is being set Active without formal approval."),
 				title=_("Approval Gate Bypassed"),
-				indicator="orange",
-			)
+				indicator="orange")
 		else:
 			frappe.throw(
 				_("Item <b>{0}</b> cannot be set to Active until ch_approval_status = Approved. "
 				  "Current approval status: <b>{1}</b>").format(doc.name, approval),
 				title=_("Approval Gate"),
-				exc=ApprovalError,
-				)
+				exc=ApprovalError)
 
 
 @frappe.whitelist()
@@ -172,7 +167,7 @@ def get_item_ui_capabilities(item_code: str) -> dict:
 		can_review = is_effective_approver()
 		if can_review and doc.get("ch_submitted_by") == frappe.session.user:
 			can_review = has_role_setting(
-				"break_glass_supervisor_roles", ("System Manager",), frappe.session.user
+				"break_glass_supervisor_roles", user=frappe.session.user
 			)
 	return {"can_review": bool(can_review)}
 
@@ -272,14 +267,12 @@ def validate_gtin(doc, method=None):
 		frappe.throw(
 			_("GTIN/EAN/UPC must be 8, 12, 13, or 14 digits (numeric). Got: {0}").format(gtin),
 			title=_("Invalid GTIN"),
-			exc=GTINError,
-		)
+			exc=GTINError)
 	if not _gtin_check_digit_valid(gtin):
 		frappe.throw(
 			_("GTIN/EAN/UPC check digit is invalid for: {0}").format(gtin),
 			title=_("Invalid GTIN Check Digit"),
-			exc=GTINError,
-		)
+			exc=GTINError)
 
 
 def _gtin_check_digit_valid(gtin: str) -> bool:
@@ -299,8 +292,7 @@ def get_trading_partner_aliases(item_code: str) -> list[dict]:
 		"CH Item Trading Partner Alias",
 		filters={"parent": item_code, "parenttype": "Item"},
 		fields=["partner_type", "partner", "partner_item_code", "partner_item_name", "is_primary"],
-		order_by="partner_type asc, is_primary desc",
-	)
+		order_by="partner_type asc, is_primary desc")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -318,8 +310,7 @@ def get_site_defaults(item_code: str, warehouse: str | None = None) -> list[dict
 		"CH Item Site Default",
 		filters={"parent": item_code, "parenttype": "Item"},
 		fields=["warehouse", "default_uom", "safety_stock", "reorder_point",
-		        "lead_time_days", "min_order_qty"],
-	)
+		        "lead_time_days", "min_order_qty"])
 	if warehouse:
 		for r in rows:
 			if r.warehouse == warehouse:
@@ -339,8 +330,7 @@ def get_vendor_info(
 	company: str | None = None,
 	purchase_org: str | None = None,
 	supplier_site: str | None = None,
-	as_of_date: str | None = None,
-) -> list[dict] | dict | None:
+	as_of_date: str | None = None) -> list[dict] | dict | None:
 	"""
 	Return CH Vendor Info Record(s) for an item.
 	If supplier is given, return the matching record or None.
@@ -368,8 +358,7 @@ def get_vendor_info(
 		        "currency", "standard_price", "price_valid_from", "price_valid_to", "company",
 		        "purchase_org", "supplier_site", "source_rank", "allocation_pct",
 		        "lead_time_days", "min_order_qty", "preferred", "approval_status"],
-		order_by="preferred desc, source_rank asc, standard_price asc, modified desc",
-	)
+		order_by="preferred desc, source_rank asc, standard_price asc, modified desc")
 	rows = [
 		r for r in rows
 		if (not r.price_valid_from or getdate(r.price_valid_from) <= as_of)
@@ -387,8 +376,7 @@ def upsert_vendor_info(
 	company: str | None = None,
 	purchase_org: str | None = None,
 	supplier_site: str | None = None,
-	**kwargs,
-) -> str:
+	**kwargs) -> str:
 	"""
 	Create or update a CH Vendor Info Record for an item+supplier pair.
 	Accepts same field names as the doctype.
@@ -410,8 +398,7 @@ def upsert_vendor_info(
 	existing = frappe.db.get_value(
 		"CH Vendor Info Record",
 		lookup_filters,
-		"name",
-	)
+		"name")
 	if existing:
 		frappe.db.get_value("CH Vendor Info Record", existing, "name", for_update=True)
 		doc = frappe.get_doc("CH Vendor Info Record", existing)
@@ -498,8 +485,7 @@ def get_effective_vendor_source(
 	company: str | None = None,
 	purchase_org: str | None = None,
 	uom: str | None = None,
-	as_of_date: str | None = None,
-) -> dict | None:
+	as_of_date: str | None = None) -> dict | None:
 	"""
 	Return the best vendor source for requested quantity.
 	Respects active+approved records, validity window, MOQ, preferred/source rank,
@@ -509,8 +495,7 @@ def get_effective_vendor_source(
 		item_code=item_code,
 		company=company,
 		purchase_org=purchase_org,
-		as_of_date=as_of_date,
-	)
+		as_of_date=as_of_date)
 	if not vendors:
 		return None
 
@@ -571,8 +556,7 @@ def get_effective_vendor_source(
 		key=lambda x: (
 			0 if cint(x.get("preferred")) else 1,
 			cint(x.get("source_rank") or 999999),
-			flt(x.get("effective_unit_price") or 0),
-		)
+			flt(x.get("effective_unit_price") or 0))
 	)
 	return candidates[0]
 
@@ -639,8 +623,7 @@ def validate_plm_transition(doc, method=None):
 			_("PLM state transition <b>{0}</b> → <b>{1}</b> is not allowed. "
 			  "Allowed next states: {2}").format(plm_old, plm_new, ", ".join(allowed) or "None"),
 			title=_("Invalid PLM Transition"),
-			exc=PLMError,
-		)
+			exc=PLMError)
 	doc.ch_plm_changed_on = now_datetime()
 
 
@@ -721,8 +704,7 @@ def record_vendor_performance(
 	defect_rate: float = 0.0,
 	risk_level: str = "Low",
 	block_reason: str = "",
-	company: str | None = None,
-) -> str:
+	company: str | None = None) -> str:
 	"""
 	Record a vendor performance evaluation.
 	If risk_level is Critical, automatically marks the vendor's CH Vendor Info Record
@@ -744,8 +726,7 @@ def record_vendor_performance(
 		(_("OTIF"), otif_pct),
 		(_("On-time delivery"), on_time_delivery_pct),
 		(_("Quality score"), quality_score),
-		(_("Defect rate"), defect_rate),
-	):
+		(_("Defect rate"), defect_rate)):
 		if not 0 <= flt(value) <= 100:
 			frappe.throw(_("{0} must be between 0 and 100.").format(label), frappe.ValidationError)
 
@@ -776,8 +757,7 @@ def record_vendor_performance(
 			"CH Vendor Info Record",
 			filters={"item_code": item_code, "supplier": supplier, "company": company, "active": 1},
 			pluck="name",
-			limit_page_length=get_int_setting("vendor_query_limit", 200, minimum=1),
-		)
+			limit_page_length=get_int_setting("vendor_query_limit", 200, minimum=1))
 		for vir_name in vir_names:
 			vir = frappe.get_doc("CH Vendor Info Record", vir_name)
 			vir.check_permission("write")
@@ -793,8 +773,7 @@ def get_vendor_performance(
 	item_code: str,
 	supplier: str,
 	limit: int = 5,
-	company: str | None = None,
-) -> list[dict]:
+	company: str | None = None) -> list[dict]:
 	"""Return recent performance evaluations for a vendor, newest first."""
 	from ch_item_master.ch_item_master.rbac import check_vendor_view_role
 	check_vendor_view_role()
@@ -814,9 +793,7 @@ def get_vendor_performance(
 		order_by="evaluation_date desc",
 		limit_page_length=min(
 			max(cint(limit), 1),
-			get_int_setting("vendor_query_limit", 200, minimum=1),
-		),
-	)
+			get_int_setting("vendor_query_limit", 200, minimum=1)))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -827,8 +804,7 @@ def get_vendor_performance(
 def run_allocation_check(
 	item_code: str,
 	company: str | None = None,
-	purchase_org: str | None = None,
-) -> dict:
+	purchase_org: str | None = None) -> dict:
 	"""
 	Validate that all active+approved vendor allocations for an item
 	sum to exactly 100%.  Considers all vendors with allocation_pct > 0.
@@ -851,8 +827,7 @@ def run_allocation_check(
 		filters=filters,
 		fields=["name", "supplier", "allocation_pct", "source_rank"],
 		order_by="source_rank asc",
-		limit_page_length=get_int_setting("vendor_query_limit", 200, minimum=1),
-	)
+		limit_page_length=get_int_setting("vendor_query_limit", 200, minimum=1))
 	# Only count vendors that have a non-zero allocation set
 	alloc_rows = [r for r in rows if flt(r.allocation_pct) > 0]
 	total = sum(flt(r.allocation_pct) for r in alloc_rows)
@@ -869,8 +844,7 @@ def get_sourcing_split(
 	total_qty: float,
 	company: str | None = None,
 	purchase_org: str | None = None,
-	as_of_date: str | None = None,
-) -> list[dict]:
+	as_of_date: str | None = None) -> list[dict]:
 	"""
 	Split total_qty across preferred vendors by their allocation_pct.
 	Returns [{supplier, qty, effective_unit_price, vendor_record}].
@@ -885,8 +859,7 @@ def get_sourcing_split(
 	check = run_allocation_check(item_code, company=company, purchase_org=purchase_org)
 	vendors = sorted(
 		check.get("vendors") or [],
-		key=lambda v: cint(v.get("source_rank") or 999999),
-	)
+		key=lambda v: cint(v.get("source_rank") or 999999))
 
 	if not vendors:
 		return []
@@ -969,8 +942,7 @@ def get_contract_price(
 	supplier: str,
 	company: str | None = None,
 	purchase_org: str | None = None,
-	as_of_date: str | None = None,
-) -> dict | None:
+	as_of_date: str | None = None) -> dict | None:
 	"""
 	Return the active contract price for an item+supplier, if any.
 	Returns {contract_no, contract_type, contract_price, valid_from, valid_to} or None.

@@ -5,29 +5,24 @@ from ch_item_master.config import (
     get_role_setting,
     has_role_setting,
     is_privileged_user,
-    require_role_setting,
-)
+    require_role_setting)
 
 
 def require_scoped_document_action(
     doc,
     role_field,
-    default_roles=(),
     action=None,
-    permission_types=("write",),
+    permission_types=("write"),
     company_field="company",
     store_field=None,
     lock=False,
-    user=None,
-):
+    user=None):
     """Authorize a sensitive bound document action and optionally lock its row."""
     user = user or frappe.session.user
     if not user or user == "Guest":
         frappe.throw(_("You must be signed in to perform this action."), frappe.PermissionError)
 
     privileged = is_privileged_user(user)
-    if not privileged and role_field:
-        require_role_setting(role_field, default_roles, action=action)
 
     if lock:
         if not doc.get("name"):
@@ -41,21 +36,19 @@ def require_scoped_document_action(
         return
 
     if isinstance(permission_types, str):
-        permission_types = (permission_types,)
+        permission_types = (permission_types)
     for permission_type in permission_types:
         if not frappe.has_permission(
             doc.doctype,
             ptype=permission_type,
             doc=doc,
             user=user,
-            throw=False,
-        ):
+            throw=False):
             frappe.throw(
                 _("You do not have {0} permission for {1}.").format(
                     permission_type, doc.name
                 ),
-                frappe.PermissionError,
-            )
+                frappe.PermissionError)
 
     company = doc.get(company_field) if company_field else None
     store = doc.get(store_field) if store_field else None
@@ -70,15 +63,13 @@ def require_scoped_document_action(
     except (ImportError, ModuleNotFoundError):
         frappe.throw(
             _("Location scope validation is unavailable. Contact an administrator."),
-            frappe.PermissionError,
-        )
+            frappe.PermissionError)
 
     assert_user_has_store_scope(
         store=store,
         company=company,
         user=user,
-        msg=_("You are not permitted to act on this company or store."),
-    )
+        msg=_("You are not permitted to act on this company or store."))
 
 
 def _is_unrestricted_user(user=None):
@@ -90,7 +81,7 @@ def _is_unrestricted_user(user=None):
         return True
 
     try:
-        bypass_roles = get_role_setting("company_scope_bypass_roles", ("System Manager",))
+        bypass_roles = get_role_setting("company_scope_bypass_roles")
         return bool(set(frappe.get_roles(user)).intersection(bypass_roles))
     except Exception:
         return False
@@ -140,8 +131,7 @@ def get_user_mapped_companies(user=None):
             pos_companies.update(filter(None, frappe.get_all(
                 "POS Executive",
                 filters={"user": user, "is_active": 1},
-                pluck="company",
-            )))
+                pluck="company")))
         except Exception:
             pass
 
@@ -174,8 +164,7 @@ def get_user_mapped_companies(user=None):
             companies.update(filter(None, frappe.get_all(
                 "Employee",
                 filters={"user_id": user, "status": ("!=", "Left")},
-                pluck="company",
-            )))
+                pluck="company")))
         except Exception:
             pass
 
@@ -227,8 +216,7 @@ def ensure_company_access(company, user=None):
     if not allowed_companies or company not in allowed_companies:
         frappe.throw(
             _("You are not permitted to access {0} data.").format(frappe.bold(company)),
-            frappe.PermissionError,
-        )
+            frappe.PermissionError)
     return True
 
 
@@ -361,15 +349,6 @@ def has_vendor_performance_permission(doc=None, user=None, permission_type=None)
     return has_company_permission(doc=doc, user=user)
 
 
-_ITEM_APP_ROLES = (
-    "CH Master Manager",
-    "CH Price Manager",
-    "CH Offer Manager",
-    "CH Warranty Manager",
-    "CH Viewer",
-    "Stock User",
-)
-
 
 def _get_serial_scope(user=None):
     user = user or frappe.session.user
@@ -391,7 +370,7 @@ def _get_serial_scope(user=None):
 
 def get_serial_lifecycle_query(user=None):
     user = user or frappe.session.user
-    if not has_role_setting("app_access_roles", _ITEM_APP_ROLES, user=user):
+    if not has_role_setting("app_access_roles", user=user):
         return "1=0"
     scope = _get_serial_scope(user)
     if scope is None:
@@ -410,7 +389,7 @@ def get_serial_lifecycle_query(user=None):
 
 def has_serial_lifecycle_permission(doc=None, user=None, permission_type=None):
     user = user or frappe.session.user
-    if not has_role_setting("app_access_roles", _ITEM_APP_ROLES, user=user):
+    if not has_role_setting("app_access_roles", user=user):
         return False
     scope = _get_serial_scope(user)
     if scope is None:
@@ -425,7 +404,7 @@ def has_serial_lifecycle_permission(doc=None, user=None, permission_type=None):
 
 def get_item_version_query(user=None):
     user = user or frappe.session.user
-    if not has_role_setting("app_access_roles", _ITEM_APP_ROLES, user=user):
+    if not has_role_setting("app_access_roles", user=user):
         return "1=0"
     from ch_item_master.ch_item_master.rbac import get_item_query
 
@@ -440,7 +419,7 @@ def get_item_version_query(user=None):
 
 def has_item_version_permission(doc=None, user=None, permission_type=None):
     user = user or frappe.session.user
-    if not has_role_setting("app_access_roles", _ITEM_APP_ROLES, user=user):
+    if not has_role_setting("app_access_roles", user=user):
         return False
     if doc is None:
         return True

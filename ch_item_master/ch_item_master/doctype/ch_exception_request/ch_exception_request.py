@@ -21,8 +21,7 @@ RETURN_POLICY_APPROVAL_ROLES = (
 	"Sales Manager",
 	"CH National Head",
 	"COO",
-	"CEO",
-)
+	"CEO")
 
 
 class CHExceptionRequest(Document):
@@ -40,8 +39,7 @@ class CHExceptionRequest(Document):
 		"approval_expiry",
 		"otp_reference",
 		"resolution_value",
-		"last_escalated_at",
-	)
+		"last_escalated_at")
 
 	def _authorize_approval_transition(self):
 		self.flags.ch_exception_approval_context = self._APPROVAL_CONTEXT
@@ -56,13 +54,11 @@ class CHExceptionRequest(Document):
 		if before is None:
 			frappe.throw(
 				_("Create exception requests through the scoped exception API."),
-				frappe.PermissionError,
-			)
+				frappe.PermissionError)
 		if any(self.get(fieldname) != before.get(fieldname) for fieldname in self._PROTECTED_FIELDS):
 			frappe.throw(
 				_("Exception routing, decisions, and approval evidence can only be changed through authorized actions."),
-				frappe.PermissionError,
-			)
+				frappe.PermissionError)
 
 	@frappe.whitelist()
 	def get_ui_capabilities(self):
@@ -119,8 +115,7 @@ class CHExceptionRequest(Document):
 				self.purchase_price = flt(frappe.db.get_value(
 					"Bin",
 					{"item_code": self.item_code, "warehouse": self.store_warehouse},
-					"valuation_rate",
-				))
+					"valuation_rate"))
 
 	def validate(self):
 		self._validate_approval_transition()
@@ -144,23 +139,20 @@ class CHExceptionRequest(Document):
 			frappe.throw(
 				_("Customer is mandatory for POS exception requests. "
 				  "Select a customer on the cart before raising an exception."),
-				title=_("Customer Required"),
-			)
+				title=_("Customer Required"))
 		walk_in = frappe.db.get_value("POS Profile", self.pos_profile, "customer")
 		if walk_in and self.customer == walk_in:
 			frappe.throw(
 				_("Cannot raise an exception for the walk-in customer. "
 				  "Register the customer first, then raise the exception."),
-				title=_("Real Customer Required"),
-			)
+				title=_("Real Customer Required"))
 
 	def _validate_approver(self, approver):
 		authenticated_user = frappe.session.user
 		if approver and approver != authenticated_user:
 			frappe.throw(
 				_("Approver identity is derived from the authenticated session."),
-				frappe.PermissionError,
-			)
+				frappe.PermissionError)
 		approver = authenticated_user
 
 		# Customer returns outside the configured window are a sales-policy
@@ -172,30 +164,25 @@ class CHExceptionRequest(Document):
 				return approver
 			frappe.throw(
 				_("Customer returns beyond the configured window require ZSM, Category Head, Sales Head, or higher approval."),
-				frappe.PermissionError,
-			)
+				frappe.PermissionError)
 
 		if self.assigned_approver:
 			if approver == self.assigned_approver or has_role_setting(
-				"exception_override_roles", ("System Manager",), user=approver
+				"exception_override_roles", user=approver
 			):
 				return approver
 			frappe.throw(
 				_("This exception is assigned to {0}. Only that user can approve or reject it.").format(
 					self.assigned_approver
 				),
-				title=_("Unauthorized Approver"),
-			)
+				title=_("Unauthorized Approver"))
 
 		if not has_role_setting(
 			"exception_approval_roles",
-			("Store Manager", "Sales Manager", "Service Manager", "System Manager"),
-			user=approver,
-		):
+			user=approver):
 			frappe.throw(
 				_("User {0} is not authorized to approve or reject exception requests.").format(approver),
-				title=_("Unauthorized Approver"),
-			)
+				title=_("Unauthorized Approver"))
 		return approver
 
 	def _resolve_audit_event(self):
@@ -223,8 +210,7 @@ class CHExceptionRequest(Document):
 				remarks=remarks or self.resolution_remarks or "",
 				store=self.store_warehouse,
 				company=self.company,
-				user=user or self.approver or self.requested_by,
-			)
+				user=user or self.approver or self.requested_by)
 		except Exception:
 			frappe.log_error(
 				frappe.get_traceback(),
@@ -327,8 +313,7 @@ class CHExceptionRequest(Document):
 			before=prior_status,
 			after=f"Approved via {self.approval_channel}",
 			remarks=self.resolution_remarks or "Exception approved",
-			user=approver,
-		)
+			user=approver)
 		return self
 
 	def reject(self, approver=None, reason=None):
@@ -345,8 +330,7 @@ class CHExceptionRequest(Document):
 		if not reason:
 			frappe.throw(
 				_("Rejection reason is mandatory for exception requests."),
-				title=_("Reason Required"),
-			)
+				title=_("Reason Required"))
 
 		self.status = "Rejected"
 		self.approver = approver
@@ -362,8 +346,7 @@ class CHExceptionRequest(Document):
 			after="Rejected",
 			remarks=reason,
 			event_type="Other",
-			user=approver,
-		)
+			user=approver)
 		return self
 
 	def is_valid(self):
@@ -428,16 +411,14 @@ class CHExceptionRequest(Document):
 		if approved_deduction <= 0:
 			frappe.msgprint(
 				_("Exception {0}: no approved amount to apply.").format(self.name),
-				indicator="orange", alert=True,
-			)
+				indicator="orange", alert=True)
 			return
 
 		target_serial = (self.serial_no or "").strip()
 		if not target_serial:
 			frappe.msgprint(
 				_("Exception {0}: no serial number.").format(self.name),
-				indicator="orange", alert=True,
-			)
+				indicator="orange", alert=True)
 			return
 
 		# ── Locate DN row ──────────────────────────────────────────────────
@@ -450,7 +431,7 @@ class CHExceptionRequest(Document):
 			WHERE parent = %s
 			ORDER BY idx
 			""",
-			(dn_name,), as_dict=True
+			(dn_name), as_dict=True
 		)
 
 		target_row = None
@@ -465,8 +446,7 @@ class CHExceptionRequest(Document):
 				_("Exception {0}: serial {1} not found in DN {2}.").format(
 					self.name, target_serial, dn_name
 				),
-				indicator="red", alert=True,
-			)
+				indicator="red", alert=True)
 			return
 
 		# ── Compute new rate ───────────────────────────────────────────────
@@ -489,8 +469,7 @@ class CHExceptionRequest(Document):
 			AND name != %s
 			AND serial_no IN %s
 			""",
-			(dn_name, self.name, tuple(row_serials)),
-		)[0][0] or 0
+			(dn_name, self.name, tuple(row_serials)))[0][0] or 0
 
 		total_deduction = flt(flt(prior_deduction) + flt(approved_deduction), 2)
 
@@ -546,8 +525,7 @@ class CHExceptionRequest(Document):
 			"Delivery Note Item",
 			target_row.name,
 			all_updates,
-			update_modified=False,
-		)
+			update_modified=False)
 		debug_log.append(f"  ✅ Updated DN item {target_row.name}")
 
 		# ═══════════════════════════════════════════════════════════════════
@@ -573,20 +551,17 @@ class CHExceptionRequest(Document):
 			frappe.db.set_value(
 				"Delivery Note", dn_name,
 				"custom_exception_type", self.exception_type,
-				update_modified=False,
-			)
+				update_modified=False)
 		if dn_meta.has_field("custom_dn_status"):
 			frappe.db.set_value(
 				"Delivery Note", dn_name,
 				"custom_dn_status", "Exception Approved",
-				update_modified=False,
-			)
+				update_modified=False)
 
 		frappe.db.set_value(
 			"Delivery Note", dn_name,
 			"modified", now_datetime(),
-			update_modified=False,
-		)
+			update_modified=False)
 
 		# ── Verify ─────────────────────────────────────────────────────────
 		verify = frappe.db.get_value(
@@ -615,8 +590,7 @@ class CHExceptionRequest(Document):
 					"dn":              dn_name,
 					"reload":          True,
 				},
-				after_commit=True,
-			)
+				after_commit=True)
 		except Exception:
 			frappe.log_error(frappe.get_traceback(), "Realtime push failed")
 
@@ -634,11 +608,9 @@ class CHExceptionRequest(Document):
 				new_rate,
 				original_value,
 				new_item_amount,
-				verify.amount,
-			),
+				verify.amount),
 			indicator="green" if flt(verify.amount) == flt(new_item_amount) else "red",
-			alert=True,
-		)
+			alert=True)
 
 
 	def _sync_sales_order_item(self, so_name, so_item_name, new_rate, new_amount, qty):
@@ -694,7 +666,7 @@ class CHExceptionRequest(Document):
 			SELECT amount, net_amount
 			FROM `tabSales Order Item`
 			WHERE parent = %s
-		""", (so_name,), as_dict=True)
+		""", (so_name), as_dict=True)
 
 		so_total = flt(sum(flt(i.amount) for i in so_items), 2)
 		so_net_total = flt(sum(flt(i.net_amount) for i in so_items), 2) or so_total
@@ -723,7 +695,7 @@ class CHExceptionRequest(Document):
 			FROM `tabDelivery Note Item`
 			WHERE parent = %s
 			""",
-			(dn_name,), as_dict=True
+			(dn_name), as_dict=True
 		)
 		total = flt(sum(flt(i.amount) for i in items), 2)
 		net_total = flt(sum(flt(i.net_amount) for i in items), 2) or total
@@ -747,8 +719,7 @@ class CHExceptionRequest(Document):
 				"rounded_total":      rounded,
 				"base_rounded_total": rounded,
 			},
-			update_modified=False,
-		)
+			update_modified=False)
 # ═══════════════════════════════════════════════════════════════════════════════
 # WHITELISTED API — called from Delivery Note JS
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -779,8 +750,7 @@ def create_from_delivery_note(delivery_note, exception_type, items, requested_re
 	if len(items) > item_limit:
 		frappe.throw(
 			_("A maximum of {0} IMEIs can be submitted at once.").format(item_limit),
-			frappe.ValidationError,
-		)
+			frappe.ValidationError)
 	if any(not isinstance(item, dict) for item in items):
 		frappe.throw(_("Every item must be an object."), frappe.ValidationError)
 
@@ -792,8 +762,7 @@ def create_from_delivery_note(delivery_note, exception_type, items, requested_re
 		action=_("create delivery-note exception requests"),
 		permission_types=("read", "write"),
 		store_field="set_warehouse",
-		lock=True,
-	)
+		lock=True)
 	frappe.has_permission("CH Exception Request", "create", throw=True)
 
 	exception_type = (exception_type or "").strip()
@@ -808,8 +777,7 @@ def create_from_delivery_note(delivery_note, exception_type, items, requested_re
 	if len(reason) > reason_limit:
 		frappe.throw(
 			_("Reason cannot exceed {0} characters.").format(reason_limit),
-			frappe.ValidationError,
-		)
+			frappe.ValidationError)
 
 	amount_limit = flt(get_int_setting("exception_request_amount_limit", 10_000_000, minimum=1))
 	rows = {row.name: row for row in dn.items}
@@ -841,8 +809,7 @@ def create_from_delivery_note(delivery_note, exception_type, items, requested_re
 		if imei not in row_serials:
 			frappe.throw(
 				_("IMEI {0} does not belong to Delivery Note row {1}.").format(imei, row.idx),
-				frappe.ValidationError,
-			)
+				frappe.ValidationError)
 
 		unit_value = flt(row.rate, 2)
 		if amount <= 0 or amount > unit_value or amount > amount_limit:
@@ -850,8 +817,7 @@ def create_from_delivery_note(delivery_note, exception_type, items, requested_re
 				_("Exception amount for IMEI {0} must be positive and cannot exceed its item rate or the configured limit.").format(
 					imei
 				),
-				frappe.ValidationError,
-			)
+				frappe.ValidationError)
 		total_amount += amount
 		if total_amount > amount_limit:
 			frappe.throw(_("Total exception amount exceeds the configured limit."), frappe.ValidationError)
@@ -868,8 +834,7 @@ def create_from_delivery_note(delivery_note, exception_type, items, requested_re
 			assert_user_has_store_scope(
 				warehouse=warehouse,
 				company=dn.company,
-				msg=_("You are not permitted to create exceptions for this Delivery Note location."),
-			)
+				msg=_("You are not permitted to create exceptions for this Delivery Note location."))
 
 	existing = frappe.get_all(
 		"CH Exception Request",
@@ -882,15 +847,13 @@ def create_from_delivery_note(delivery_note, exception_type, items, requested_re
 			"docstatus": ("!=", 2),
 		},
 		fields=["name", "serial_no"],
-		limit_page_length=item_limit,
-	)
+		limit_page_length=item_limit)
 	if existing:
 		frappe.throw(
 			_("An open exception request already exists for IMEI {0}: {1}.").format(
 				existing[0].serial_no, existing[0].name
 			),
-			frappe.ValidationError,
-		)
+			frappe.ValidationError)
 
 	created = []
 	for row, imei, amount, warehouse, unit_value in validated:
@@ -923,8 +886,7 @@ def create_from_delivery_note(delivery_note, exception_type, items, requested_re
 		frappe.publish_realtime(
 			event=f"dn_status_changed:{delivery_note}",
 			message={"status": "Pending Approval"},
-			after_commit=True,
-		)
+			after_commit=True)
 
 	return {
 		"count": len(created),

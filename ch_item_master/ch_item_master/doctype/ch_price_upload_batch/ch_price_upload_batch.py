@@ -11,7 +11,7 @@ from ch_item_master.security import require_scoped_document_action
 
 _PRICE_BATCH_SUBMIT_ROLES = ("CH Price Manager", "CH Master Manager")
 _PRICE_BATCH_REVISE_ROLES = ("CH Price Manager", "CH Master Manager")
-_PRICE_BATCH_OVERRIDE_ROLES = ("CH Master Manager",)
+_PRICE_BATCH_OVERRIDE_ROLES = ("CH Master Manager")
 _PRICE_BATCH_APPLY_ROLES = ("CH Category Head", "CH Price Manager", "CH Master Manager")
 
 
@@ -56,8 +56,7 @@ class CHPriceUploadBatch(Document):
 		"applied_count",
 		"skipped_count",
 		"error_count",
-		"applied_at",
-	)
+		"applied_at")
 	_ITEM_GOVERNANCE_FIELDS = (
 		"item_code",
 		"channel",
@@ -69,8 +68,7 @@ class CHPriceUploadBatch(Document):
 		"reason",
 		"approval_status",
 		"status",
-		"error_message",
-	)
+		"error_message")
 	_CATEGORY_GOVERNANCE_FIELDS = (
 		"category",
 		"approver",
@@ -79,8 +77,7 @@ class CHPriceUploadBatch(Document):
 		"row_count",
 		"total_value",
 		"responded_at",
-		"comments",
-	)
+		"comments")
 
 	def _authorize_approval_transition(self):
 		self.flags.ch_price_batch_approval_context = self._APPROVAL_CONTEXT
@@ -109,8 +106,7 @@ class CHPriceUploadBatch(Document):
 			):
 				frappe.throw(
 					_("Batch approval state is set only by the approval workflow."),
-					frappe.PermissionError,
-				)
+					frappe.PermissionError)
 			if self.category_approvals or any(
 				row.approval_status not in (None, "", "Pending")
 				or row.status not in (None, "", "Pending")
@@ -119,15 +115,13 @@ class CHPriceUploadBatch(Document):
 			):
 				frappe.throw(
 					_("Batch row decisions and outcomes are server-managed."),
-					frappe.PermissionError,
-				)
+					frappe.PermissionError)
 			return
 
 		if any(self.get(fieldname) != before.get(fieldname) for fieldname in self._PROTECTED_FIELDS):
 			frappe.throw(
 				_("Batch approval state can only be changed through its workflow actions."),
-				frappe.PermissionError,
-			)
+				frappe.PermissionError)
 		if self._rows_signature(
 			self.category_approvals, self._CATEGORY_GOVERNANCE_FIELDS
 		) != self._rows_signature(
@@ -135,8 +129,7 @@ class CHPriceUploadBatch(Document):
 		):
 			frappe.throw(
 				_("Category routing and decisions are server-managed."),
-				frappe.PermissionError,
-			)
+				frappe.PermissionError)
 
 		if before.status == "Draft":
 			for row in self.items or []:
@@ -147,15 +140,13 @@ class CHPriceUploadBatch(Document):
 				):
 					frappe.throw(
 						_("Batch row decisions and outcomes are server-managed."),
-						frappe.PermissionError,
-					)
+						frappe.PermissionError)
 		elif self._rows_signature(
 			self.items, self._ITEM_GOVERNANCE_FIELDS
 		) != self._rows_signature(before.items, self._ITEM_GOVERNANCE_FIELDS):
 			frappe.throw(
 				_("Submitted batch rows are immutable. Revise the batch before editing."),
-				frappe.PermissionError,
-			)
+				frappe.PermissionError)
 
 	def _require_action(self, role_field, default_roles, action) -> None:
 		require_scoped_document_action(
@@ -163,9 +154,8 @@ class CHPriceUploadBatch(Document):
 			role_field,
 			default_roles,
 			action=action,
-			permission_types=("write",),
-			lock=True,
-		)
+			permission_types=("write"),
+			lock=True)
 
 	@frappe.whitelist()
 	def get_ui_capabilities(self) -> dict:
@@ -177,7 +167,7 @@ class CHPriceUploadBatch(Document):
 		pending_state = self.status in ("Pending Approval", "Partially Approved")
 		user = frappe.session.user
 		sod_allowed = self.submitted_by != user or has_role_setting(
-			"break_glass_supervisor_roles", ("System Manager",), user=user
+			"break_glass_supervisor_roles", user=user
 		)
 		can_override = bool(pending_state and sod_allowed and _is_override(user))
 		can_decide = bool(
@@ -186,9 +176,7 @@ class CHPriceUploadBatch(Document):
 			and (
 				has_role_setting(
 					"price_batch_approval_roles",
-					("CH Category Head", "CH Price Manager", "CH Master Manager"),
-					user=user,
-				)
+					user=user)
 				or can_override
 			)
 		)
@@ -243,8 +231,7 @@ class CHPriceUploadBatch(Document):
 						_("Row {0}: {1} cannot be negative ({2})").format(
 							row.idx, row.field_label, new_val
 						),
-						title=_("Invalid Buyback Price"),
-					)
+						title=_("Invalid Buyback Price"))
 
 		errors = []
 		for (item_code, channel), new_fields in selling_groups.items():
@@ -254,8 +241,7 @@ class CHPriceUploadBatch(Document):
 				{"item_code": item_code, "channel": channel,
 				 "status": ("in", ["Active", "Scheduled"])},
 				["mrp", "mop", "selling_price"],
-				as_dict=True,
-			) or {}
+				as_dict=True) or {}
 
 			mrp = new_fields.get("mrp", _safe_float(existing.get("mrp")))
 			mop = new_fields.get("mop", _safe_float(existing.get("mop")))
@@ -302,21 +288,18 @@ class CHPriceUploadBatch(Document):
 		self._require_action(
 			"price_batch_submit_roles",
 			_PRICE_BATCH_SUBMIT_ROLES,
-			_("submit a price upload batch for approval"),
-		)
+			_("submit a price upload batch for approval"))
 		self._authorize_approval_transition()
 		from ch_item_master.ch_item_master.price_approval import (
 			build_category_approvals,
-			notify_approvers,
-		)
+			notify_approvers)
 
 		if self.status != "Draft":
 			frappe.throw(_("Only Draft batches can be submitted for approval."), title=_("Ch Price Upload Batch Error"))
 		if not self.company:
 			frappe.throw(
 				_("Company is required — approvals are routed per company."),
-				title=_("Company Required"),
-			)
+				title=_("Company Required"))
 		self._validate_price_sanity()
 
 		unrouted = build_category_approvals(self)
@@ -327,8 +310,7 @@ class CHPriceUploadBatch(Document):
 					"<b>Category Manager</b> on those CH Category records, or a "
 					"<b>Company Head</b> on {1} as a fallback."
 				).format(", ".join(frappe.bold(c) for c in unrouted), frappe.bold(self.company)),
-				title=_("Cannot Route Approval"),
-			)
+				title=_("Cannot Route Approval"))
 
 		self.status = "Pending Approval"
 		self.submitted_by = frappe.session.user
@@ -342,8 +324,7 @@ class CHPriceUploadBatch(Document):
 		count = len(self.category_approvals)
 		frappe.msgprint(
 			_("Submitted to {0} category approver(s).").format(count),
-			indicator="blue",
-		)
+			indicator="blue")
 
 	@frappe.whitelist(methods=["POST"])
 	def revise_batch(self) -> None:
@@ -355,14 +336,12 @@ class CHPriceUploadBatch(Document):
 		self._require_action(
 			"price_batch_revise_roles",
 			_PRICE_BATCH_REVISE_ROLES,
-			_("revise a price upload batch"),
-		)
+			_("revise a price upload batch"))
 		self._authorize_approval_transition()
 		if self.status not in ("Rejected", "Partially Applied", "Applying"):
 			frappe.throw(
 				_("Only Rejected, Partially Applied or stuck Applying batches can be revised."),
-				title=_("Ch Price Upload Batch Error"),
-			)
+				title=_("Ch Price Upload Batch Error"))
 
 		# Reset row-level statuses — keep Applied rows as-is, reset others
 		for row in self.items:
@@ -396,8 +375,7 @@ class CHPriceUploadBatch(Document):
 		self._require_action(
 			"price_batch_override_roles",
 			_PRICE_BATCH_OVERRIDE_ROLES,
-			_("approve and apply an entire price upload batch"),
-		)
+			_("approve and apply an entire price upload batch"))
 		self._authorize_approval_transition()
 		from ch_item_master.ch_item_master.price_approval import _is_override
 		from ch_item_master.ch_item_master.rbac import check_sod
@@ -411,8 +389,7 @@ class CHPriceUploadBatch(Document):
 					"your own categories individually instead."
 				),
 				frappe.PermissionError,
-				title=_("Not Permitted"),
-			)
+				title=_("Not Permitted"))
 		check_sod(self.submitted_by, frappe.session.user)
 
 		stamp = now_datetime()
@@ -437,8 +414,7 @@ class CHPriceUploadBatch(Document):
 		self._require_action(
 			"price_batch_override_roles",
 			_PRICE_BATCH_OVERRIDE_ROLES,
-			_("reject an entire price upload batch"),
-		)
+			_("reject an entire price upload batch"))
 		self._authorize_approval_transition()
 		from ch_item_master.ch_item_master.price_approval import _is_override
 
@@ -451,8 +427,7 @@ class CHPriceUploadBatch(Document):
 					"your own categories individually instead."
 				),
 				frappe.PermissionError,
-				title=_("Not Permitted"),
-			)
+				title=_("Not Permitted"))
 		if not (reason or "").strip():
 			frappe.throw(_("A reason is required to reject."), title=_("Reason Required"))
 
@@ -488,8 +463,7 @@ class CHPriceUploadBatch(Document):
 		self._require_action(
 			"price_batch_apply_roles",
 			_PRICE_BATCH_APPLY_ROLES,
-			_("apply approved price upload categories"),
-		)
+			_("apply approved price upload categories"))
 		self._authorize_approval_transition()
 		if self.status not in ("Approved", "Partially Approved", "Partially Applied", "Applying"):
 			frappe.throw(_("This batch has no approved categories ready to apply."))
@@ -516,8 +490,7 @@ class CHPriceUploadBatch(Document):
 			frappe.log_error(frappe.get_traceback(), "Price Upload Batch Apply Error")
 			frappe.throw(
 				_("Error while applying changes. Check Error Log for details."),
-				title=_("Ch Price Upload Batch Error"),
-			)
+				title=_("Ch Price Upload Batch Error"))
 		return result
 
 	# ── Apply logic ──────────────────────────────────────────────────────
@@ -698,8 +671,7 @@ class CHPriceUploadBatch(Document):
 		existing_name = frappe.db.get_value(
 			"Buyback Price Master",
 			{"item_code": item_code, "is_active": 1},
-			"name",
-		)
+			"name")
 
 		if existing_name:
 			doc = frappe.get_doc("Buyback Price Master", existing_name)
@@ -751,8 +723,7 @@ class CHPriceUploadBatch(Document):
 					# Add tag
 					existing = frappe.db.exists(
 						"CH Item Commercial Tag",
-						{"item_code": item_code, "tag": tag_name, "status": "Active"},
-					)
+						{"item_code": item_code, "tag": tag_name, "status": "Active"})
 					if existing:
 						row.status = "Skipped"
 						row.error_message = f"Tag '{tag_name}' already active"
@@ -774,13 +745,11 @@ class CHPriceUploadBatch(Document):
 					existing = frappe.db.get_value(
 						"CH Item Commercial Tag",
 						{"item_code": item_code, "tag": old_tag, "status": "Active"},
-						"name",
-					)
+						"name")
 					if existing:
 						frappe.db.set_value(
 							"CH Item Commercial Tag", existing,
-							{"status": "Expired", "effective_to": nowdate()},
-						)
+							{"status": "Expired", "effective_to": nowdate()})
 						row.status = "Applied"
 						applied += 1
 					else:
@@ -793,13 +762,11 @@ class CHPriceUploadBatch(Document):
 					old_existing = frappe.db.get_value(
 						"CH Item Commercial Tag",
 						{"item_code": item_code, "tag": old_tag, "status": "Active"},
-						"name",
-					)
+						"name")
 					if old_existing:
 						frappe.db.set_value(
 							"CH Item Commercial Tag", old_existing,
-							{"status": "Expired", "effective_to": nowdate()},
-						)
+							{"status": "Expired", "effective_to": nowdate()})
 
 					doc = frappe.new_doc("CH Item Commercial Tag")
 					doc.item_code = item_code

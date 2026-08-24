@@ -104,13 +104,9 @@ def get_vas_attach_offers(item_code: str, selling_price=None, company=None):
 @frappe.whitelist(methods=["POST"])
 def auto_match_partner_commissions(partner=None):
 	"""Simple reconciliation helper: mark rows with settlement_reference as matched."""
-	require_role_setting(
-		"vas_finance_roles",
-		("Accounts Manager", "CH Warranty Manager"),
-		action=_("reconcile VAS partner commissions"),
-	)
 	if not frappe.db.exists("DocType", "VAS Commission"):
 		return {"updated": 0}
+	frappe.has_permission("VAS Commission", ptype="write", throw=True)
 
 	filters = {
 		"settlement_status": "Pending",

@@ -33,8 +33,7 @@ from ch_item_master.ch_item_master.utils import (
     _get_property_specs,
     _get_spec_selectors,
     _group_model_spec_values,
-    _next_item_code,
-)
+    _next_item_code)
 
 
 # ───────────────────────────────────────────────────────────────────────────────
@@ -62,8 +61,7 @@ def generate_item_name(sub_category, manufacturer=None, brand=None, model=None,
         "CH Sub Category",
         sub_category,
         ["include_manufacturer_in_name", "include_brand_in_name", "include_model_in_name"],
-        as_dict=True,
-    )
+        as_dict=True)
     if not sub_cat:
         frappe.throw(_("Sub Category {0} not found").format(sub_category), title=_("API Error"))
 
@@ -106,8 +104,7 @@ def generate_item_name(sub_category, manufacturer=None, brand=None, model=None,
             filters={"parent": sub_category, "parenttype": "CH Sub Category",
                      "in_item_name": 1},
             fields=["spec", "name_order"],
-            order_by="name_order asc, idx asc",
-        )
+            order_by="name_order asc, idx asc")
         spec_value_map = {
             sv["spec"]: sv["spec_value"]
             for sv in spec_values
@@ -143,8 +140,7 @@ def get_sub_category_manufacturers(sub_category) -> list:
     return frappe.get_all(
         "CH Sub Category Manufacturer",
         filters={"parent": sub_category, "parenttype": "CH Sub Category"},
-        pluck="manufacturer",
-    )
+        pluck="manufacturer")
 
 
 @frappe.whitelist()
@@ -161,8 +157,7 @@ def get_brands_for_manufacturer(manufacturer) -> list:
     brands = frappe.get_all(
         "CH Brand Manufacturer",
         filters={"manufacturer": manufacturer, "parenttype": "Brand"},
-        pluck="parent",
-    )
+        pluck="parent")
     return list(set(brands))
 
 
@@ -194,8 +189,7 @@ def get_attribute_values(spec="", txt="", **kwargs) -> list:
         filters=filters,
         fields=["attribute_value"],
         order_by="attribute_value asc",
-        limit_page_length=50,
-    )
+        limit_page_length=50)
     return [v.attribute_value for v in values]
 
 
@@ -248,8 +242,7 @@ def search_specs_for_sub_category(doctype, txt, searchfield, start, page_len, fi
         ORDER BY ia.attribute_name ASC
         LIMIT %(start)s, %(page_len)s
         """.format(where_clause=where_clause),  # noqa: UP032
-        values,
-    )
+        values)
 
 
 # ───────────────────────────────────────────────────────────────────────────────
@@ -292,8 +285,7 @@ def search_brands_for_category(doctype, txt, searchfield, start, page_len, filte
         ORDER BY m.brand ASC
         LIMIT %(start)s, %(page_len)s
         """.format(where_clause=" AND ".join(conditions)),  # noqa: UP032
-        values,
-    )
+        values)
 
 
 @frappe.whitelist()
@@ -337,8 +329,7 @@ def search_ch_models(doctype, txt, searchfield, start, page_len, filters) -> lis
         ORDER BY m.model_name ASC
         LIMIT %(start)s, %(page_len)s
         """.format(where_clause=" AND ".join(conditions)),  # noqa: UP032
-        values,
-    )
+        values)
 
 
 # ───────────────────────────────────────────────────────────────────────────────
@@ -358,16 +349,14 @@ def get_model_details(model) -> dict:
     mdoc = frappe.db.get_value(
         "CH Model", model,
         ["sub_category", "manufacturer", "brand"],
-        as_dict=True,
-    )
+        as_dict=True)
     if not mdoc:
         frappe.throw(_("Model {0} not found").format(model), title=_("API Error"))
 
     sc_data = frappe.db.get_value(
         "CH Sub Category", mdoc.sub_category,
         ["category", "hsn_code", "gst_rate"],
-        as_dict=True,
-    ) or {}
+        as_dict=True) or {}
 
     category = sc_data.get("category", "")
     item_group = frappe.db.get_value("CH Category", category, "item_group") if category else ""
@@ -383,8 +372,7 @@ def get_model_details(model) -> dict:
         "CH Model Feature",
         filters={"parent": model, "parenttype": "CH Model"},
         fields=["feature_group", "feature_name", "feature_value"],
-        order_by="idx asc",
-    )
+        order_by="idx asc")
 
     return {
         "sub_category": mdoc.sub_category,
@@ -422,8 +410,7 @@ def get_model_attribute_values(model) -> dict:
     variant_spec_set = set(frappe.get_all(
         "CH Sub Category Spec",
         filters={"parent": sub_category, "parenttype": "CH Sub Category", "is_variant": 1},
-        pluck="spec",
-    ))
+        pluck="spec"))
 
     grouped = _group_model_spec_values(model)
     return {spec: vals for spec, vals in grouped.items() if spec in variant_spec_set}
@@ -456,8 +443,7 @@ def get_property_spec_values(model, spec) -> list:
             filters={"parent": spec},
             fields=["attribute_value"],
             order_by="attribute_value asc",
-            limit_page_length=100,
-        )
+            limit_page_length=100)
         values = [r.attribute_value for r in rows]
 
     return values
@@ -482,11 +468,6 @@ def generate_items_from_model(model) -> dict:
     Uses ERPNext's native variant system so all standard variant
     features (BOM copy, pricing rules, etc.) work out of the box.
     """
-    require_role_setting(
-        "data_import_roles",
-        defaults=("System Manager", "CH Master Manager"),
-        action=_("generate item variants"),
-    )
 
     from erpnext.controllers.item_variant import create_variant, get_variant
 
@@ -511,16 +492,14 @@ def generate_items_from_model(model) -> dict:
     template_code = frappe.db.get_value(
         "Item",
         {"ch_model": model, "has_variants": 1},
-        "item_code",
-    )
+        "item_code")
 
     if not template_code:
         # Create template item
         sc_data = frappe.db.get_value(
             "CH Sub Category", mdoc.sub_category,
             ["category", "hsn_code", "gst_rate"],
-            as_dict=True,
-        ) or {}
+            as_dict=True) or {}
         category = sc_data.get("category", "")
         item_group = frappe.db.get_value("CH Category", category, "item_group") if category else ""
 
@@ -567,8 +546,7 @@ def generate_items_from_model(model) -> dict:
                 "Too many combinations ({0}). Maximum is {1}. "
                 "Reduce variation values or create in batches."
             ).format(total_combos, variant_limit),
-            title=_("Too Many Variants"),
-        )
+            title=_("Too Many Variants"))
 
     created = 0
     skipped = 0
@@ -591,8 +569,7 @@ def generate_items_from_model(model) -> dict:
             errors.append(f"{args}: creation failed; review the server error log")
             frappe.log_error(
                 frappe.get_traceback(),
-                f"Bulk Item Generation Error: {model}",
-            )
+                f"Bulk Item Generation Error: {model}")
 
     return {
         "template": template_code,
@@ -650,8 +627,7 @@ def search_models(doctype, txt, searchfield, start, page_len, filters) -> list:
         ORDER BY m.model_name ASC
         LIMIT %(page_len)s OFFSET %(start)s
         """.format(where=where),  # noqa: UP032
-        {**values, "start": int(start), "page_len": int(page_len)},
-    )
+        {**values, "start": int(start), "page_len": int(page_len)})
 
 
 # ─────────────────────────────────────────────────────────────────────────────

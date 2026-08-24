@@ -15,7 +15,6 @@ from ch_item_master.config import (
 from ch_item_master.security import ensure_company_access, get_company_scope
 
 
-_EXCEPTION_SUMMARY_ROLES = ("Store Manager", "Sales Manager", "Service Manager")
 _MAX_EXCEPTION_SUMMARY_DAYS = 366
 
 
@@ -801,11 +800,6 @@ def get_pending_exceptions(
 @frappe.whitelist()
 def get_exception_summary(company, from_date=None, to_date=None) -> list:
 	"""Return aggregated exception stats for reporting / dashboard."""
-	require_role_setting(
-		"exception_approval_roles",
-		_EXCEPTION_SUMMARY_ROLES,
-		action="view exception summaries",
-	)
 	if not is_privileged_user() and not frappe.has_permission(
 		"CH Exception Request",
 		ptype="read",

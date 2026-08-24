@@ -714,7 +714,6 @@ def get_customer_vouchers(customer, company=None, include_expired=False) -> list
 	Returns:
 		list of voucher dicts
 	"""
-	require_role_setting("voucher_view_roles", _VOUCHER_VIEW_ROLES, action=_("view customer vouchers"))
 	frappe.has_permission("CH Voucher", "read", throw=True)
 	if not frappe.db.exists("Customer", customer):
 		frappe.throw(_("Customer does not exist."))

@@ -29,33 +29,20 @@ from ch_item_master.config import (
 	get_role_setting,
 	has_role_setting,
 	is_privileged_user,
-	require_role_setting,
-)
+	require_role_setting)
 from ch_item_master.security import ensure_company_access, get_company_filter_value, get_company_scope
 
 
-_WARRANTY_DASHBOARD_ROLES = (
-	"CH Warranty Manager",
-	"Service Manager",
-	"Sales Manager",
-	"Sales User",
-)
 _CLAIM_EVIDENCE_FIELDS = (
 	"device_image_front",
 	"device_image_back",
 	"device_image_left",
 	"device_image_right",
 	"device_image_top",
-	"device_image_bottom",
-)
+	"device_image_bottom")
 
 
 def _require_warranty_dashboard_access(company=None):
-	require_role_setting(
-		"warranty_dashboard_roles",
-		_WARRANTY_DASHBOARD_ROLES,
-		action=_("view warranty dashboards"),
-	)
 	frappe.has_permission("Customer", "read", throw=True)
 	frappe.has_permission("CH Warranty Claim", "read", throw=True)
 	company_scope = get_company_scope(requested_company=company)
@@ -75,13 +62,11 @@ def _require_warranty_dashboard_access(company=None):
 		company_stores = set(frappe.get_all(
 			"CH Store",
 			filters={"company": scoped_company, "disabled": 0},
-			pluck="name",
-		))
+			pluck="name"))
 		if not company_stores or not company_stores.issubset(allowed_stores):
 			frappe.throw(
 				_("Warranty network dashboards require full store scope for {0}.").format(scoped_company),
-				frappe.PermissionError,
-			)
+				frappe.PermissionError)
 	return company_scope
 
 
@@ -91,8 +76,7 @@ def _processing_fee_link_secret(settings=None) -> str:
 	if not secret:
 		frappe.throw(
 			_("Processing Fee Link Secret is not configured in CH VAS Settings."),
-			frappe.AuthenticationError,
-		)
+			frappe.AuthenticationError)
 	return secret
 
 
@@ -144,8 +128,7 @@ def get_item_default_warranty(item_code) -> dict:
 	row = frappe.db.get_value(
 		"Item", item_code,
 		["ch_default_warranty_type", "ch_default_warranty_months", "ch_default_warranty_uom"],
-		as_dict=True,
-	) or frappe._dict()
+		as_dict=True) or frappe._dict()
 	duration = cint(row.get("ch_default_warranty_months"))
 	uom = row.get("ch_default_warranty_uom") or "Months"
 	months = duration * 12 if uom == "Years" else duration
@@ -182,8 +165,7 @@ def get_invoice_warranty_rows(doc) -> list[dict]:
 			"Active VAS Plans",
 			filters={"sales_invoice": doc.name, "status": ["!=", "Void"]},
 			fields=["serial_no", "plan_title", "warranty_plan", "plan_type",
-			        "start_date", "end_date", "duration_months"],
-		):
+			        "start_date", "end_date", "duration_months"]):
 			plans_by_serial.setdefault(p.serial_no or "", []).append(p)
 	except Exception:
 		pass
@@ -198,8 +180,7 @@ def get_invoice_warranty_rows(doc) -> list[dict]:
 				serials = frappe.get_all(
 					"Serial and Batch Entry",
 					filters={"parent": item.serial_and_batch_bundle},
-					pluck="serial_no",
-				)
+					pluck="serial_no")
 		base = get_item_default_warranty(item.item_code)
 		for sn in (serials or [None]):
 			if not base["months"] and not plans_by_serial.get(sn or ""):
@@ -257,8 +238,7 @@ def check_warranty(serial_no, company=None) -> dict:
 		           serial_lifecycle (if exists), deductible_amount
 	"""
 	from ch_item_master.ch_item_master.doctype.active_vas_plans.active_vas_plans import (
-		check_warranty_status,
-	)
+		check_warranty_status)
 
 	result = check_warranty_status(serial_no, company)
 
@@ -266,8 +246,7 @@ def check_warranty(serial_no, company=None) -> dict:
 	# as CH Warranty Claim so callers see identical behaviour for
 	# name / imei_number / imei_number_2 lookups.
 	from ch_item_master.ch_item_master.doctype.ch_warranty_claim.ch_warranty_claim import (
-		resolve_lifecycle_name,
-	)
+		resolve_lifecycle_name)
 
 	lc_name = resolve_lifecycle_name(serial_no)
 	if lc_name:
@@ -280,8 +259,7 @@ def check_warranty(serial_no, company=None) -> dict:
 				"item_code", "item_name", "customer", "customer_name",
 				"service_count", "last_service_date",
 			],
-			as_dict=True,
-		)
+			as_dict=True)
 		result["serial_lifecycle"] = lc
 	else:
 		result["serial_lifecycle"] = None
@@ -303,15 +281,13 @@ def get_applicable_plans(item_code=None, item_group=None, channel=None,
 	Delegates to CH Warranty Plan.get_applicable_plans with all filters.
 	"""
 	from ch_item_master.ch_item_master.doctype.ch_warranty_plan.ch_warranty_plan import (
-		CHWarrantyPlan,
-	)
+		CHWarrantyPlan)
 	return CHWarrantyPlan.get_applicable_plans(
 		item_code=item_code,
 		item_group=item_group,
 		channel=channel,
 		company=company,
-		brand=brand,
-	)
+		brand=brand)
 
 
 # ── VAS Category Validation ─────────────────────────────────────────────────
@@ -332,16 +308,14 @@ def validate_vas_category(serial_no, warranty_plan, external_item_code=None) -> 
 		"CH Warranty Plan",
 		warranty_plan,
 		["status", "is_sellable", "allow_external_device"],
-		as_dict=True,
-	)
+		as_dict=True)
 	if not plan or plan.status != "Active" or not plan.is_sellable:
 		return {"valid": False, "message": _("The selected VAS plan is not active and sellable")}
 
 	plan_sub_categories = frappe.get_all(
 		"CH Warranty Plan Sub Category",
 		filters={"parent": warranty_plan},
-		pluck="sub_category",
-	)
+		pluck="sub_category")
 
 	# Look up item from Serial No. For a customer-provided IMEI that is not in
 	# inventory, the declared model supplies the category/sub-category identity.
@@ -368,8 +342,7 @@ def validate_vas_category(serial_no, warranty_plan, external_item_code=None) -> 
 			declared_item = frappe.db.get_value(
 				"Item", external_item_code,
 				["name", "disabled", "ch_category", "ch_sub_category"],
-				as_dict=True,
-			)
+				as_dict=True)
 			if not declared_item or declared_item.disabled:
 				return {"valid": False, "message": _("Select an active device model")}
 			if plan_sub_categories and declared_item.ch_sub_category not in plan_sub_categories:
@@ -412,8 +385,7 @@ def validate_vas_category(serial_no, warranty_plan, external_item_code=None) -> 
 	plan_categories = frappe.get_all(
 		"CH Warranty Plan Category",
 		filters={"parent": warranty_plan},
-		pluck="category",
-	)
+		pluck="category")
 
 	if not plan_categories:
 		# No category restriction on this plan
@@ -557,8 +529,7 @@ def record_warranty_claim(serial_no, service_reference=None, company=None) -> di
 		dict with: sold_plan, claims_used, max_claims, deductible_amount
 	"""
 	from ch_item_master.ch_item_master.doctype.active_vas_plans.active_vas_plans import (
-		get_active_plans_for_serial,
-	)
+		get_active_plans_for_serial)
 
 	plans = get_active_plans_for_serial(serial_no, company)
 	valid_plans = [p for p in plans if p.get("is_valid")]
@@ -568,8 +539,7 @@ def record_warranty_claim(serial_no, service_reference=None, company=None) -> di
 			_("No active warranty plan found for serial {0}").format(
 				frappe.bold(serial_no)
 			),
-			title=_("No Warranty Coverage"),
-		)
+			title=_("No Warranty Coverage"))
 
 	# Sort by plan-level priority (higher = preferred), then by type-based default
 	type_priority = {
@@ -713,15 +683,13 @@ def validate_claim(sold_plan_name, issue_type=None, estimate_amount=0) -> dict:
 						OR category.issue_category = %s
 					  )
 					""",
-					(sold_plan_name, issue_type, issue_type),
-				)[0][0]
+					(sold_plan_name, issue_type, issue_type))[0][0]
 				if issue_claims >= rule_match.max_claim_per_issue:
 					return {
 						"eligible": False,
 						"reason": _("Max {0} claims for '{1}' already used").format(
 							rule_match.max_claim_per_issue,
-							issue_type,
-						),
+							issue_type),
 					}
 
 	# ── Calculate amounts ─────────────────────────────────────────────
@@ -772,8 +740,7 @@ def validate_msp(item_code, selling_rate) -> dict:
 	msp_data = frappe.db.get_value(
 		"Item", item_code,
 		["ch_minimum_selling_price", "ch_msp_effective_from"],
-		as_dict=True,
-	)
+		as_dict=True)
 
 	if not msp_data or not msp_data.ch_minimum_selling_price:
 		return {"is_valid": True, "msp": 0, "item_code": item_code, "message": "No MSP configured"}
@@ -804,8 +771,7 @@ def expire_sold_plans(batch_limit=None):
 	today_date = nowdate()
 	batch_limit = min(
 		cint(batch_limit) or get_int_setting("scheduler_batch_limit", 500, minimum=1),
-		5000,
-	)
+		5000)
 	candidates = frappe.get_all(
 		"Active VAS Plans",
 		filters={
@@ -815,8 +781,7 @@ def expire_sold_plans(batch_limit=None):
 		},
 		pluck="name",
 		order_by="end_date asc, name asc",
-		limit=batch_limit + 1,
-	)
+		limit=batch_limit + 1)
 	candidates_to_process = candidates[:batch_limit]
 	if not candidates_to_process:
 		return {"expired": 0, "failed": 0, "has_more": False}
@@ -832,16 +797,14 @@ def expire_sold_plans(batch_limit=None):
 			log_vas_event(
 				sold_plan=name,
 				event_type="Plan Expired",
-				remarks="Auto-expired by scheduled task",
-			)
+				remarks="Auto-expired by scheduled task")
 			successful.append(name)
 		except Exception:
 			frappe.db.rollback(save_point=save_point)
 			failed += 1
 			frappe.log_error(
 				frappe.get_traceback(),
-				f"VAS Ledger expiry logging failed for {name}",
-			)
+				f"VAS Ledger expiry logging failed for {name}")
 
 	if successful:
 		frappe.db.sql(
@@ -853,8 +816,7 @@ def expire_sold_plans(batch_limit=None):
 				  AND `docstatus` = 1
 				  AND `end_date` < %(today)s
 			""",
-			{"names": tuple(successful), "today": today_date},
-		)
+			{"names": tuple(successful), "today": today_date})
 		frappe.logger("ch_item_master").info(
 			f"Auto-expired {len(successful)} active VAS plans"
 		)
@@ -951,7 +913,7 @@ def get_customer_warranty_dashboard(identifier, company=None) -> dict:
 				WHERE dl.link_doctype = 'Customer'
 				  AND c.mobile_no LIKE %s
 				LIMIT 1
-			""", (f"%{phone_suffix}",))
+			""", (f"%{phone_suffix}"))
 			if contact:
 				customer = contact[0][0]
 
@@ -969,8 +931,7 @@ def get_customer_warranty_dashboard(identifier, company=None) -> dict:
 		# IMEI / IMEI-2 / canonical-name lookups behave identically across
 		# the warranty surface.
 		from ch_item_master.ch_item_master.doctype.ch_warranty_claim.ch_warranty_claim import (
-			resolve_lifecycle_name,
-		)
+			resolve_lifecycle_name)
 		lc_name = resolve_lifecycle_name(identifier)
 
 		if lc_name:
@@ -989,8 +950,7 @@ def get_customer_warranty_dashboard(identifier, company=None) -> dict:
 			customer = frappe.db.get_value(
 				"Active VAS Plans",
 				{"serial_no": identifier, "docstatus": 1},
-				"customer",
-			)
+				"customer")
 
 		if not customer:
 			# Return the single device lookup as before
@@ -1010,8 +970,7 @@ def get_customer_warranty_dashboard(identifier, company=None) -> dict:
 	cust_data = frappe.db.get_value(
 		"Customer", customer,
 		["name", "customer_name", "mobile_no", "ch_alternate_phone", "email_id"],
-		as_dict=True,
-	)
+		as_dict=True)
 	if cust_data:
 		customer_name = cust_data.customer_name
 		customer_phone = cust_data.mobile_no or cust_data.ch_alternate_phone or ""
@@ -1027,20 +986,17 @@ def get_customer_warranty_dashboard(identifier, company=None) -> dict:
 				"CH Customer Device",
 				filters={"customer": customer, "company": company_filter},
 				pluck="serial_no",
-				limit_page_length=device_limit,
-			)))
+				limit_page_length=device_limit)))
 		visible_serials.update(filter(None, frappe.get_all(
 			"Active VAS Plans",
 			filters={"customer": customer, "docstatus": 1, "company": company_filter},
 			pluck="serial_no",
-			limit_page_length=device_limit,
-		)))
+			limit_page_length=device_limit)))
 		visible_serials.update(filter(None, frappe.get_all(
 			"CH Warranty Claim",
 			filters={"customer": customer, "docstatus": ("!=", 2), "company": company_filter},
 			pluck="serial_no",
-			limit_page_length=device_limit,
-		)))
+			limit_page_length=device_limit)))
 
 	# ── Get ALL devices for this customer ────────────────────────────
 	devices = []
@@ -1057,8 +1013,7 @@ def get_customer_warranty_dashboard(identifier, company=None) -> dict:
 			"warranty_start_date", "warranty_end_date",
 		],
 		order_by="sale_date desc",
-		limit_page_length=device_limit,
-	)
+		limit_page_length=device_limit)
 	for d in lc_devices:
 		if company_scope and d["serial_no"] not in visible_serials:
 			continue
@@ -1076,8 +1031,7 @@ def get_customer_warranty_dashboard(identifier, company=None) -> dict:
 			"Active VAS Plans",
 			filters=sp_filters,
 			pluck="serial_no",
-			limit_page_length=remaining_devices,
-		)
+			limit_page_length=remaining_devices)
 		if remaining_devices
 		else []
 	)
@@ -1093,8 +1047,7 @@ def get_customer_warranty_dashboard(identifier, company=None) -> dict:
 		"Serial No",
 		filters={"name": ("in", serial_names)},
 		fields=["name", "item_code", "item_name", "status", "warranty_expiry_date"],
-		limit_page_length=len(serial_names),
-	) if serial_names else []
+		limit_page_length=len(serial_names)) if serial_names else []
 	serial_by_name = {row.name: row for row in serial_rows}
 
 	for sn in new_serials:
@@ -1133,8 +1086,7 @@ def get_customer_warranty_dashboard(identifier, company=None) -> dict:
 			"deductible_amount", "status", "plan_price",
 		],
 		order_by="start_date desc, name desc",
-		limit_page_length=device_limit,
-	) if device_serials else []
+		limit_page_length=device_limit) if device_serials else []
 	claim_rows = frappe.get_all(
 		"CH Warranty Claim",
 		filters=claim_filters,
@@ -1144,8 +1096,7 @@ def get_customer_warranty_dashboard(identifier, company=None) -> dict:
 			"gogizmo_share", "customer_share", "mode_of_service", "logistics_status",
 		],
 		order_by="creation desc, name desc",
-		limit_page_length=device_limit,
-	) if device_serials else []
+		limit_page_length=device_limit) if device_serials else []
 	plans_by_serial = {}
 	for plan in plan_rows:
 		plans_by_serial.setdefault(plan.serial_no, []).append(plan)
@@ -1199,8 +1150,7 @@ def get_customer_warranty_dashboard(identifier, company=None) -> dict:
 			"deductible_amount", "status", "plan_price",
 		],
 		order_by="start_date desc",
-		limit_page_length=device_limit,
-	)
+		limit_page_length=device_limit)
 	unlinked_plans = []
 	for plan in unlinked_plans_raw:
 		unlinked_plans.append(_decorate_warranty_dashboard_plan(plan, today))
@@ -1265,13 +1215,11 @@ def _normalize_claim_issue_categories(issue_categories, issue_category=None) -> 
 	if len(normalized) > limit:
 		frappe.throw(
 			_("A maximum of {0} issue categories is allowed per claim.").format(limit),
-			frappe.ValidationError,
-		)
+			frappe.ValidationError)
 	if not normalized:
 		frappe.throw(
 			_("Select at least one issue category before creating the claim."),
-			frappe.ValidationError,
-		)
+			frappe.ValidationError)
 	return normalized
 
 
@@ -1288,8 +1236,7 @@ def _normalize_claim_evidence(evidence_files, *, require_minimum=False) -> list[
 	if len(evidence_files) > len(_CLAIM_EVIDENCE_FIELDS):
 		frappe.throw(
 			_("A maximum of {0} device images is allowed.").format(len(_CLAIM_EVIDENCE_FIELDS)),
-			frappe.ValidationError,
-		)
+			frappe.ValidationError)
 
 	normalized = []
 	used_urls = set()
@@ -1305,8 +1252,7 @@ def _normalize_claim_evidence(evidence_files, *, require_minimum=False) -> list[
 		if not file_name and not file_url:
 			frappe.throw(
 				_("Each claim evidence entry must identify an uploaded file."),
-				frappe.ValidationError,
-			)
+				frappe.ValidationError)
 		filters = {"name": file_name} if file_name else {"file_url": file_url}
 		file_row = frappe.db.get_value(
 			"File",
@@ -1319,8 +1265,7 @@ def _normalize_claim_evidence(evidence_files, *, require_minimum=False) -> list[
 				"attached_to_doctype",
 				"attached_to_name",
 			],
-			as_dict=True,
-		)
+			as_dict=True)
 		if not file_row or not file_row.file_url:
 			frappe.throw(_("Claim evidence file was not found."), frappe.DoesNotExistError)
 		if not file_row.is_private:
@@ -1330,8 +1275,7 @@ def _normalize_claim_evidence(evidence_files, *, require_minimum=False) -> list[
 				_("Claim evidence file {0} is already attached to another document.").format(
 					file_row.name
 				),
-				frappe.ValidationError,
-			)
+				frappe.ValidationError)
 		if not is_privileged_user() and file_row.owner != frappe.session.user:
 			frappe.throw(_("You can only use evidence files that you uploaded."), frappe.PermissionError)
 		if file_row.file_url in used_urls:
@@ -1341,8 +1285,7 @@ def _normalize_claim_evidence(evidence_files, *, require_minimum=False) -> list[
 		if fieldname not in _CLAIM_EVIDENCE_FIELDS or fieldname in used_fields:
 			fieldname = next(
 				(candidate for candidate in _CLAIM_EVIDENCE_FIELDS if candidate not in used_fields),
-				"",
-			)
+				"")
 		if not fieldname:
 			frappe.throw(_("No device-image field is available for this evidence."), frappe.ValidationError)
 
@@ -1356,16 +1299,14 @@ def _normalize_claim_evidence(evidence_files, *, require_minimum=False) -> list[
 
 	minimum = min(
 		get_int_setting("warranty_claim_min_evidence_images", 4, minimum=1),
-		len(_CLAIM_EVIDENCE_FIELDS),
-	)
+		len(_CLAIM_EVIDENCE_FIELDS))
 	if require_minimum and len(normalized) < minimum:
 		frappe.throw(
 			_("Upload at least {0} distinct device images before creating the claim.").format(
 				minimum
 			),
 			frappe.ValidationError,
-			title=_("Claim Evidence Required"),
-		)
+			title=_("Claim Evidence Required"))
 	return normalized
 
 
@@ -1384,8 +1325,7 @@ def _bind_claim_evidence(claim, evidence: list[dict]) -> None:
 				"attached_to_name": claim.name,
 				"attached_to_field": entry["fieldname"],
 			},
-			update_modified=False,
-		)
+			update_modified=False)
 
 
 @frappe.whitelist(methods=["POST"])
@@ -1405,8 +1345,7 @@ def discard_unattached_claim_evidence(file_names) -> dict:
 			"File",
 			file_name,
 			["owner", "is_private", "attached_to_doctype", "attached_to_name"],
-			as_dict=True,
-		)
+			as_dict=True)
 		if (
 			not row
 			or not row.is_private
@@ -1439,37 +1378,31 @@ def get_claim_ui_capabilities(claim_name) -> dict:
 		return bool(
 			can_write
 			and claim.docstatus == 1
-			and has_role_setting(role_field, defaults)
+			and has_role_setting(role_field)
 		)
 
 	return {
 		"can_perform_intake_qc": bool(
 			_can(
 				"warranty_claim_qc_roles",
-				("CH Warranty Manager", "Service Manager", "Store Manager", "Stock Manager"),
-			)
+				("CH Warranty Manager", "Service Manager", "Store Manager", "Stock Manager"))
 			and claim.claim_status in ("Device Received", "QC Pending")
 		),
 		"can_manage_logistics": _can(
 			"warranty_claim_logistics_roles",
-			("CH Warranty Manager", "Service Manager", "Sales Manager"),
-		),
+			("CH Warranty Manager", "Service Manager", "Sales Manager")),
 		"can_manage_service": _can(
 			"warranty_claim_service_roles",
-			("CH Warranty Manager", "Service Manager"),
-		),
+			("CH Warranty Manager", "Service Manager")),
 		"can_manage_finance": _can(
 			"warranty_claim_finance_roles",
-			("CH Warranty Manager", "Accounts Manager"),
-		),
+			("CH Warranty Manager", "Accounts Manager")),
 		"can_perform_final_qc": _can(
 			"warranty_claim_qc_roles",
-			("CH Warranty Manager", "Service Manager", "Store Manager", "Stock Manager"),
-		),
+			("CH Warranty Manager", "Service Manager", "Store Manager", "Stock Manager")),
 		"can_manage_claim": _can(
 			"warranty_claim_management_roles",
-			("CH Warranty Manager", "Service Manager"),
-		),
+			("CH Warranty Manager", "Service Manager")),
 	}
 
 
@@ -1508,11 +1441,6 @@ def initiate_warranty_claim(serial_no, customer, item_code, company,
 	if not reported_at_company:
 		reported_at_company = company
 
-	require_role_setting(
-		"warranty_claim_intake_roles",
-		_WARRANTY_DASHBOARD_ROLES,
-		action=_("create warranty claims"),
-	)
 	frappe.has_permission("CH Warranty Claim", "create", throw=True)
 	frappe.has_permission("CH Warranty Claim", "submit", throw=True)
 	_bypass_roles = {"POS User", "POS Manager", "CH Store Executive", "CH Store Manager", "System Manager"}
@@ -1608,8 +1536,7 @@ def update_claim_logistics(claim_name, action, pickup_address=None,
 			pickup_slot=pickup_slot,
 			pickup_partner=pickup_partner,
 			pickup_tracking_no=pickup_tracking_no,
-			remarks=remarks,
-		)
+			remarks=remarks)
 
 	if action == "mark_picked_up":
 		return claim.mark_picked_up(delivery_otp=delivery_otp, remarks=remarks)
@@ -1618,8 +1545,7 @@ def update_claim_logistics(claim_name, action, pickup_address=None,
 		return claim.mark_out_for_delivery(
 			pickup_partner=pickup_partner,
 			pickup_tracking_no=pickup_tracking_no,
-			remarks=remarks,
-		)
+			remarks=remarks)
 
 	if action == "mark_delivered_back":
 		return claim.mark_delivered_back(delivery_otp=delivery_otp, remarks=remarks)
@@ -1640,8 +1566,7 @@ def receive_claim_device(claim_name, condition_on_receipt=None,
 		condition_on_receipt=condition_on_receipt,
 		accessories_received=accessories_received,
 		imei_verified=imei_verified,
-		receiving_remarks=receiving_remarks,
-	)
+		receiving_remarks=receiving_remarks)
 
 
 @frappe.whitelist(methods=["POST"])
@@ -1653,8 +1578,7 @@ def perform_claim_qc(claim_name, qc_result, qc_remarks=None,
 		qc_result=qc_result,
 		qc_remarks=qc_remarks,
 		qc_result_reason=qc_result_reason,
-		qc_checks=qc_checks,
-	)
+		qc_checks=qc_checks)
 
 
 @frappe.whitelist(methods=["POST"])
@@ -1680,8 +1604,7 @@ def mark_claim_fee_paid(claim_name, paid_amount=None, payment_mode=None,
 		paid_amount=paid_amount,
 		payment_mode=payment_mode,
 		payment_ref=payment_ref,
-		remarks=remarks,
-	)
+		remarks=remarks)
 
 
 @frappe.whitelist(methods=["POST"])
@@ -1690,8 +1613,7 @@ def waive_claim_fee(claim_name, waiver_reason, waived_amount=None) -> dict:
 	claim = _get_claim_doc(claim_name, "write")
 	return claim.waive_processing_fee(
 		waiver_reason=waiver_reason,
-		waived_amount=waived_amount,
-	)
+		waived_amount=waived_amount)
 
 
 @frappe.whitelist(methods=["POST"])
@@ -1708,8 +1630,7 @@ def request_additional_approval_claim(
 	additional_cost_estimated=0,
 	additional_cost_covered=0,
 	additional_issue_photos=None,
-	remarks=None,
-) -> dict:
+	remarks=None) -> dict:
 	"""Request customer approval for additional repair work from POS."""
 	claim = _get_claim_doc(claim_name, "write")
 	return claim.request_additional_approval(
@@ -1717,8 +1638,7 @@ def request_additional_approval_claim(
 		additional_cost_covered=additional_cost_covered,
 		additional_cost_customer=additional_cost_estimated,
 		additional_issue_photos=additional_issue_photos,
-		remarks=remarks,
-	)
+		remarks=remarks)
 
 
 @frappe.whitelist(methods=["POST"])
@@ -1741,16 +1661,14 @@ def settle_claim_finance(
 	gogizmo_invoice=None,
 	gogizmo_payment_ref=None,
 	customer_invoice=None,
-	customer_payment_ref=None,
-) -> dict:
+	customer_payment_ref=None) -> dict:
 	"""Record document-backed claim settlement from POS."""
 	claim = _get_claim_doc(claim_name, "write")
 	return claim.settle_claim(
 		gogizmo_invoice=gogizmo_invoice,
 		gogizmo_payment_ref=gogizmo_payment_ref,
 		customer_invoice=customer_invoice,
-		customer_payment_ref=customer_payment_ref,
-	)
+		customer_payment_ref=customer_payment_ref)
 
 
 @frappe.whitelist(methods=["POST"])
@@ -1786,7 +1704,7 @@ def pay_processing_fee(claim: str, token=None, expires=None, amount=None) -> dic
 	if not claim or not frappe.db.exists("CH Warranty Claim", claim):
 		frappe.throw(_("Invalid claim"), frappe.DoesNotExistError, title=_("API Error"))
 
-	frappe.db.sql("SELECT name FROM `tabCH Warranty Claim` WHERE name = %s FOR UPDATE", (claim,))
+	frappe.db.sql("SELECT name FROM `tabCH Warranty Claim` WHERE name = %s FOR UPDATE", (claim))
 	doc = frappe.get_doc("CH Warranty Claim", claim)
 
 	if doc.processing_fee_status == "Paid":
@@ -1843,8 +1761,7 @@ def _get_or_create_payment_attempt(doc, provider: str, amount: float, currency: 
 		},
 		"name",
 		order_by="creation desc",
-		for_update=True,
-	)
+		for_update=True)
 	if attempt_name:
 		return frappe.get_doc("CH Warranty Payment Attempt", attempt_name)
 
@@ -1887,8 +1804,7 @@ def _create_razorpay_order(doc, attempt, amount: float, settings) -> dict:
 	max_response_bytes = cint(settings.get("gateway_response_max_bytes")) or 65536
 	allowed_hosts = parse_exact_host_allowlist(
 		settings.get("razorpay_allowed_hosts") or "api.razorpay.com",
-		label="Razorpay",
-	)
+		label="Razorpay")
 	currency = settings.get("payment_currency") or "INR"
 	if not key_id or not key_secret:
 		frappe.throw(_("Razorpay credentials not configured"), title=_("Payment Config Error"))
@@ -1921,8 +1837,7 @@ def _create_razorpay_order(doc, attempt, amount: float, settings) -> dict:
 			payload=payload,
 			auth=(key_id, key_secret),
 			timeout=timeout_seconds,
-			max_response_bytes=max_response_bytes,
-		)
+			max_response_bytes=max_response_bytes)
 		order_id = (order.get("id") or "").strip()
 		if not order_id:
 			raise ValueError("Razorpay response did not include an order ID")
@@ -1956,8 +1871,7 @@ def _create_cashfree_order(doc, attempt, amount: float, settings) -> dict:
 	max_response_bytes = cint(settings.get("gateway_response_max_bytes")) or 65536
 	allowed_hosts = parse_exact_host_allowlist(
 		settings.get("cashfree_allowed_hosts") or "api.cashfree.com\nsandbox.cashfree.com",
-		label="Cashfree",
-	)
+		label="Cashfree")
 	currency = settings.get("payment_currency") or "INR"
 	if not app_id or not secret_key:
 		frappe.throw(_("Cashfree credentials not configured"), title=_("Payment Config Error"))
@@ -1992,8 +1906,7 @@ def _create_cashfree_order(doc, attempt, amount: float, settings) -> dict:
 			payload=payload,
 			headers={"x-api-version": "2023-08-01", "x-client-id": app_id, "x-client-secret": secret_key},
 			timeout=timeout_seconds,
-			max_response_bytes=max_response_bytes,
-		)
+			max_response_bytes=max_response_bytes)
 		order_id = (session.get("order_id") or attempt.merchant_request_id).strip()
 		payment_session_id = (session.get("payment_session_id") or "").strip()
 		if not order_id or not payment_session_id:
@@ -2064,15 +1977,13 @@ def _attempt_for_gateway_order(provider: str, order_id: str, merchant_request_id
 		"CH Warranty Payment Attempt",
 		{"provider": provider, "provider_order_id": order_id},
 		"name",
-		for_update=True,
-	)
+		for_update=True)
 	if not attempt_name and merchant_request_id:
 		attempt_name = frappe.db.get_value(
 			"CH Warranty Payment Attempt",
 			{"provider": provider, "merchant_request_id": merchant_request_id},
 			"name",
-			for_update=True,
-		)
+			for_update=True)
 	if not attempt_name:
 		frappe.throw(_("Unknown payment gateway order."), frappe.AuthenticationError)
 	attempt = frappe.get_doc("CH Warranty Payment Attempt", attempt_name)
@@ -2099,12 +2010,11 @@ def _settle_processing_fee(attempt, amount, payment_mode: str, payment_ref: str,
 		"CH Warranty Payment Attempt",
 		{"provider_payment_id": payment_ref, "name": ("!=", attempt.name)},
 		"name",
-		for_update=True,
-	)
+		for_update=True)
 	if duplicate:
 		frappe.throw(_("Provider payment ID is already linked to another attempt."), frappe.AuthenticationError)
 
-	frappe.db.sql("SELECT name FROM `tabCH Warranty Claim` WHERE name = %s FOR UPDATE", (claim_name,))
+	frappe.db.sql("SELECT name FROM `tabCH Warranty Claim` WHERE name = %s FOR UPDATE", (claim_name))
 	doc = frappe.get_doc("CH Warranty Claim", claim_name)
 	if doc.processing_fee_status == "Paid":
 		if payment_ref != (doc.processing_fee_payment_ref or ""):
@@ -2132,8 +2042,7 @@ def _settle_processing_fee(attempt, amount, payment_mode: str, payment_ref: str,
 		paid_amount=expected_amount,
 		payment_mode=payment_mode,
 		payment_ref=payment_ref,
-		remarks=_("Verified {0} gateway callback").format(payment_mode),
-	)
+		remarks=_("Verified {0} gateway callback").format(payment_mode))
 	if (result or {}).get("processing_fee_status") == "Paid":
 		attempt.db_set({
 			"status": "Settled",
@@ -2193,15 +2102,13 @@ def payment_webhook(gateway: str = "razorpay") -> dict:
 		attempt = _attempt_for_gateway_order(
 			"razorpay",
 			order_id,
-			notes.get("payment_attempt"),
-		)
+			notes.get("payment_attempt"))
 		settlement = _settle_processing_fee(
 			attempt,
 			flt(payment.get("amount")) / 100,
 			"Razorpay",
 			payment.get("id"),
-			payload,
-		)
+			payload)
 
 	elif gateway == "cashfree":
 		secret = _require_webhook_secret(settings)
@@ -2224,8 +2131,7 @@ def payment_webhook(gateway: str = "razorpay") -> dict:
 			payment.get("payment_amount") or order.get("order_amount"),
 			"Cashfree",
 			payment.get("cf_payment_id"),
-			payload,
-		)
+			payload)
 
 	elif gateway == "payu":
 		posted = dict(frappe.form_dict)
@@ -2249,8 +2155,7 @@ def payment_webhook(gateway: str = "razorpay") -> dict:
 			posted.get("amount"),
 			"PayU",
 			posted.get("mihpayid"),
-			posted,
-		)
+			posted)
 	else:
 		frappe.throw(_("Unsupported payment gateway."), frappe.AuthenticationError)
 
@@ -2307,8 +2212,7 @@ def get_vas_claims_dashboard(company=None, limit=15) -> dict:
 			"end_date",
 		],
 		order_by="modified desc",
-		limit=limit,
-	) or []
+		limit=limit) or []
 
 	plan_names = [p["name"] for p in sold_plans]
 	claim_counts = {}
@@ -2327,8 +2231,7 @@ def get_vas_claims_dashboard(company=None, limit=15) -> dict:
 			GROUP BY sold_plan
 			""",
 			{"names": tuple(plan_names)},
-			as_dict=True,
-		) or []
+			as_dict=True) or []
 		for r in rows:
 			claim_counts[r["sold_plan"]] = int(r["total"] or 0)
 			open_counts[r["sold_plan"]] = int(r["open_count"] or 0)
@@ -2360,8 +2263,7 @@ def get_vas_claims_dashboard(company=None, limit=15) -> dict:
 			"modified",
 		],
 		order_by="modified desc",
-		limit=limit,
-	) or []
+		limit=limit) or []
 
 	# ── Voucher redemptions (CH VAS Ledger — claim/redeem events) ─────────
 	voucher_redemptions = []
@@ -2383,8 +2285,7 @@ def get_vas_claims_dashboard(company=None, limit=15) -> dict:
 				"creation",
 			],
 			order_by="creation desc",
-			limit=limit,
-		) or []
+			limit=limit) or []
 		# Hydrate posting_date / customer for display from the linked active VAS plan.
 		plan_lookup = {}
 		need_lookup = {v["sold_plan"] for v in voucher_redemptions if v.get("sold_plan")}
@@ -2393,8 +2294,7 @@ def get_vas_claims_dashboard(company=None, limit=15) -> dict:
 			extra = frappe.get_all(
 				"Active VAS Plans",
 				filters={"name": ("in", list(need_lookup))},
-				fields=["name", "customer", "customer_name"],
-			)
+				fields=["name", "customer", "customer_name"])
 			plan_lookup = {p["name"]: p for p in extra}
 		for v in voucher_redemptions:
 			ref = next((p for p in sold_plans if p["name"] == v.get("sold_plan")), None) or \
@@ -2436,8 +2336,7 @@ def create_claim_from_bot(
     photos: list | str | None = None,
     customer_name: str = "",
     customer_email: str = "",
-    company: str = "",
-) -> dict:
+    company: str = "") -> dict:
     """Create a Draft CH Warranty Claim from a bot or online channel.
 
     The claim is left as Draft (docstatus=0) pending VAS Manager review.
@@ -2458,11 +2357,6 @@ def create_claim_from_bot(
     """
     import json as _json
 
-    require_role_setting(
-        "warranty_claim_intake_roles",
-        ("CH Warranty Manager", "Service Manager", "Sales Manager", "Sales User"),
-        action=_("create online warranty claims"),
-    )
     frappe.has_permission("CH Warranty Claim", "create", throw=True)
 
     if not serial_no:
@@ -2494,8 +2388,7 @@ def create_claim_from_bot(
     ensure_company_access(company)
 
     from ch_item_master.ch_item_master.doctype.ch_warranty_claim.ch_warranty_claim import (
-        resolve_lifecycle_name,
-    )
+        resolve_lifecycle_name)
 
     lifecycle_name = resolve_lifecycle_name(serial_no.strip())
     if not lifecycle_name:
@@ -2558,8 +2451,7 @@ def _resolve_customer_by_phone(phone: str, name: str, email: str, company: str) 
         linked = frappe.db.get_value(
             "Dynamic Link",
             {"parenttype": "Contact", "parent": contact, "link_doctype": "Customer"},
-            "link_name",
-        )
+            "link_name")
         if linked:
             return linked
 
@@ -2581,7 +2473,7 @@ def _notify_vas_managers_new_bot_claim(claim) -> None:
     configured_roles = frappe.db.get_single_value(
         "CH VAS Settings", "claim_notification_roles"
     )
-    roles = configured_roles or get_role_setting("warranty_claim_management_roles", ())
+    roles = configured_roles or get_role_setting("warranty_claim_management_roles")
     managers = get_enabled_role_users(roles, company=claim.company)
     for user in managers:
         try:
@@ -2603,5 +2495,4 @@ def _notify_vas_managers_new_bot_claim(claim) -> None:
         except Exception:
             frappe.log_error(
                 title=f"Warranty bot claim notification failed for {user}",
-                message=frappe.get_traceback(),
-            )
+                message=frappe.get_traceback())

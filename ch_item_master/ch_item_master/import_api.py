@@ -110,8 +110,7 @@ def _idempotency_store(key: str | None, payload_hash: str, response: dict) -> No
     frappe.cache().set_value(
         cache_key,
         {"payload_hash": payload_hash, "response": response},
-        expires_in_sec=_IDEMPOTENCY_TTL,
-    )
+        expires_in_sec=_IDEMPOTENCY_TTL)
 
 
 def _payload_hash(payload) -> str:
@@ -188,8 +187,7 @@ def _ensure_attribute_value(attribute, value):
 		"Item Attribute Value",
 		filters={"parent": attribute},
 		pluck="attribute_value",
-		order_by="idx asc, name asc",
-	))
+		order_by="idx asc, name asc"))
 
 	if value in all_vals:
 		return value  # exact match
@@ -243,8 +241,7 @@ def _validate_and_import(payload):
     sc_rows = iter_all_rows(
         "CH Sub Category",
         fields=["name", "category", "sub_category_name"],
-        order_by="name asc",
-    )
+        order_by="name asc")
     sc_lookup = {
         _norm_key(f"{r.category}-{r.sub_category_name}"): r.name
         for r in sc_rows
@@ -477,13 +474,11 @@ def _validate_and_import(payload):
                     for sv in mdl_data["spec_values"]:
                         before_count = frappe.db.count(
                             "Item Attribute Value",
-                            {"parent": sv["spec"]},
-                        )
+                            {"parent": sv["spec"]})
                         _ensure_attribute_value(sv["spec"], sv["value"])
                         after_count = frappe.db.count(
                             "Item Attribute Value",
-                            {"parent": sv["spec"]},
-                        )
+                            {"parent": sv["spec"]})
                         if after_count > before_count:
                             summary["attribute_values"]["created"] += 1
 
@@ -716,11 +711,7 @@ def import_masters(data, dry_run: int = 0, idempotency_key: str | None = None) -
     Returns:
         dict with success, summary, errors, dry_run, idempotency_key.
     """
-    require_role_setting(
-        "data_import_roles",
-        defaults=("System Manager", "CH Master Manager"),
-        action=_("import item master data"),
-    )
+    frappe.has_permission("Item", ptype="create", throw=True)
 
     if isinstance(data, str):
         data = json.loads(data)
@@ -774,11 +765,7 @@ def import_masters_from_csv() -> dict:
     Returns:
         dict with success, summary, and errors.
     """
-    require_role_setting(
-        "data_import_roles",
-        defaults=("System Manager", "CH Master Manager"),
-        action=_("import item master data"),
-    )
+    frappe.has_permission("Item", ptype="create", throw=True)
 
     uploaded = frappe.request.files.get("file")
     if not uploaded:

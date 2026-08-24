@@ -99,11 +99,7 @@ def backfill_active_defaults() -> dict:
 	never overrides a record someone has explicitly Reviewed / Rejected.
 	Returns a per-doctype count of rows touched.
 	"""
-	require_role_setting(
-		"data_import_roles",
-		("System Manager", "CH Master Manager"),
-		action=_("backfill imported master data"),
-	)
+	frappe.has_permission("Item", ptype="write", throw=True)
 
 	results: dict[str, int] = {}
 

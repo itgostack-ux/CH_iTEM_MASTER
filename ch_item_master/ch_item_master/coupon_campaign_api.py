@@ -49,11 +49,6 @@ def get_campaign_hub_data(company=None, from_date=None, to_date=None):
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 def _require_campaign_access(doctypes):
-	require_role_setting(
-		"coupon_campaign_management_roles",
-		_CAMPAIGN_ROLES,
-		action="view campaign and redemption data",
-	)
 	if is_privileged_user():
 		return
 

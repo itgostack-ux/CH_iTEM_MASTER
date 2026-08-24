@@ -46,8 +46,6 @@ from ch_item_master.config import (
 )
 
 
-_CUSTOMER_DASHBOARD_ROLES = ("Sales Manager", "Marketing Manager", "CH Master Manager")
-
 
 # ── Permission Helpers ───────────────────────────────────────────────────────
 
@@ -74,11 +72,6 @@ def _validate_company(company):
 
 
 def _require_dashboard_access(company=None):
-    require_role_setting(
-        "customer_dashboard_roles",
-        _CUSTOMER_DASHBOARD_ROLES,
-        action=_("view the customer network dashboard"),
-    )
     frappe.has_permission("Customer", "read", throw=True)
     frappe.has_permission("Company", "read", throw=True)
     frappe.has_permission("Sales Invoice", "read", throw=True)

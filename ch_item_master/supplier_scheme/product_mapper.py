@@ -44,11 +44,6 @@ def resolve_scheme_products(brand, schemes_json, company=None) -> dict:
 			- stats: {total, resolved, ai_suggested, unresolved}
 			- new_mappings: list of AI-suggested mappings for user review
 	"""
-	require_role_setting(
-		"supplier_scheme_approval_roles",
-		("Purchase Manager", "Scheme Manager"),
-		action=_("resolve supplier product mappings"),
-	)
 	if not company and not is_privileged_user():
 		frappe.throw(_("Company is required for product resolution."), frappe.PermissionError)
 	if company:
@@ -172,11 +167,6 @@ def save_mappings(mappings_json, scheme=None, company=None) -> dict:
 	Returns:
 		dict with saved count
 	"""
-	require_role_setting(
-		"supplier_scheme_management_roles",
-		("Accounts Manager", "Purchase Manager", "Scheme Manager"),
-		action=_("save supplier product mappings"),
-	)
 	if isinstance(mappings_json, str):
 		mappings = json.loads(mappings_json)
 	else:
@@ -294,11 +284,7 @@ def get_mapping_coverage(brand, company=None) -> dict:
 	"""
 	if not brand:
 		return {}
-	require_role_setting(
-		"supplier_scheme_management_roles",
-		("Accounts Manager", "Purchase Manager", "Scheme Manager"),
-		action=_("view supplier product mapping coverage"),
-	)
+	frappe.has_permission("Scheme Product Map", ptype="read", throw=True)
 	if not company and not is_privileged_user():
 		frappe.throw(_("Company is required for mapping coverage."), frappe.PermissionError)
 	if company:

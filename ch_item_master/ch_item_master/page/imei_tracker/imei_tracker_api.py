@@ -29,8 +29,7 @@ from ch_item_master.config import (
     get_list_setting,
     has_role_setting,
     is_privileged_user,
-    require_role_setting,
-)
+    require_role_setting)
 
 
 # ── Status bucket grouping ────────────────────────────────────────────────────
@@ -58,9 +57,7 @@ BUCKET_LABELS = {
 def get_ui_capabilities():
     return {
         "can_bulk_update": has_role_setting(
-            "bulk_imei_roles",
-            defaults=("System Manager", "Stock Manager", "CH Master Manager"),
-        ),
+            "bulk_imei_roles"),
         "unsold_stale_days": get_int_setting("imei_unsold_stale_days", 90),
         "service_stale_days": get_int_setting("imei_service_stale_days", 30),
     }
@@ -262,8 +259,7 @@ def _apply_scope(f, strict=False):
             company=f.get("company"),
             city=f.get("city"),
             zone=f.get("zone"),
-            store=f.get("store"),
-        )
+            store=f.get("store"))
     except Exception:
         if strict:
             frappe.throw(_("IMEI store scope cannot be verified."), frappe.PermissionError)
@@ -282,8 +278,7 @@ def _apply_scope(f, strict=False):
             company_wh = frappe.get_all(
                 "Warehouse",
                 filters={"company": f["company"], "disabled": 0},
-                pluck="name",
-            )
+                pluck="name")
             f["_allowed_warehouses"] = company_wh or ["__none__"]
         else:
             f["_allowed_warehouses"] = None  # truly unrestricted
@@ -297,8 +292,7 @@ def _apply_scope(f, strict=False):
             aw = frappe.get_all(
                 "Warehouse",
                 filters={"company": f["company"], "disabled": 0},
-                pluck="name",
-            )
+                pluck="name")
     f["_allowed_warehouses"] = aw or []
 
 
@@ -348,8 +342,7 @@ def get_imei_tracker_data(filters=None):
     kind_split = frappe.db.sql(
         f"SELECT {SERIAL_KIND_EXPR} AS serial_kind, COUNT(*) AS cnt "
         f"{_join_clause()} WHERE {where_no_kind} GROUP BY {SERIAL_KIND_EXPR}",
-        params_no_kind, as_dict=True,
-    )
+        params_no_kind, as_dict=True)
     kind_counts = {"IMEI": 0, "Barcode": 0, "UOM": 0}
     for r in kind_split:
         k = (r.serial_kind or "").strip()
@@ -449,19 +442,11 @@ def get_imei_tracker_data(filters=None):
     }
 
 
-_IMEI_VIEW_ROLES = (
-    "CH Master Manager",
-    "CH Warranty Manager",
-    "CH Viewer",
-    "Stock User",
-)
-_IMEI_BULK_ROLES = ("Stock Manager", "CH Master Manager")
-
 
 def _require_imei_view_access():
     if not (
-        has_role_setting("app_access_roles", _IMEI_VIEW_ROLES)
-        or has_role_setting("bulk_imei_roles", _IMEI_BULK_ROLES)
+        has_role_setting("app_access_roles")
+        or has_role_setting("bulk_imei_roles")
     ):
         frappe.throw(_("You do not have permission to view IMEI history."), frappe.PermissionError)
 
@@ -472,12 +457,10 @@ def _require_named_read(doctype, name):
         ptype="read",
         doc=name,
         user=frappe.session.user,
-        throw=False,
-    ):
+        throw=False):
         frappe.throw(
             _("You do not have permission to read {0} {1}.").format(doctype, name),
-            frappe.PermissionError,
-        )
+            frappe.PermissionError)
 
 
 def _has_named_read(doctype, name):
@@ -487,8 +470,7 @@ def _has_named_read(doctype, name):
             ptype="read",
             doc=name,
             user=frappe.session.user,
-            throw=False,
-        ))
+            throw=False))
     except Exception:
         return False
 
@@ -510,8 +492,7 @@ def _get_permitted_buyback_rows(doctype, serial_field, serial_no, fields, limit)
         filters={serial_field: serial_no},
         pluck="name",
         order_by="creation desc",
-        limit_page_length=limit,
-    ):
+        limit_page_length=limit):
         if not _has_named_read(doctype, name):
             continue
         row = frappe.db.get_value(doctype, name, fields, as_dict=True)
@@ -533,8 +514,7 @@ def get_imei_history(serial_no=None, imei=None):
     for filters in (
         {"serial_no": key},
         {"imei_number": key},
-        {"imei_number_2": key},
-    ):
+        {"imei_number_2": key}):
         lifecycle_name = frappe.db.get_value("CH Serial Lifecycle", filters, "name")
         if lifecycle_name:
             break
@@ -551,8 +531,7 @@ def get_imei_history(serial_no=None, imei=None):
                 "stock_condition", "current_company", "current_warehouse", "current_store",
                 "warranty_status", "purchase_date", "sale_date", "customer",
             ],
-            as_dict=True,
-        )
+            as_dict=True)
 
     sn_name = (
         lifecycle.get("serial_no") if lifecycle else None
@@ -570,8 +549,7 @@ def get_imei_history(serial_no=None, imei=None):
             "ch_buyback_order", "ch_buyback_date", "ch_buyback_price",
             "ch_buyback_grade", "ch_buyback_count", "ch_buyback_customer",
         ],
-        as_dict=True,
-    )
+        as_dict=True)
     if not serial:
         frappe.throw(_("Serial No {0} no longer exists.").format(sn_name), frappe.DoesNotExistError)
 
@@ -598,8 +576,7 @@ def get_imei_history(serial_no=None, imei=None):
     if not is_privileged_user() and (not company or not warehouse):
         frappe.throw(
             _("The serial's exact company and warehouse cannot be verified."),
-            frappe.PermissionError,
-        )
+            frappe.PermissionError)
     scope_filters = {"company": company}
     _apply_scope(scope_filters, strict=True)
     allowed_warehouses = scope_filters.get("_allowed_warehouses")
@@ -621,8 +598,7 @@ def get_imei_history(serial_no=None, imei=None):
         LIMIT {query_limit}
         """,
         {"serial_pattern": serial_pattern},
-        as_dict=True,
-    )
+        as_dict=True)
     stock_movements = []
     for row in stock_candidates:
         if sn_name not in _serial_values(row.serial_no) or not _has_named_read(
@@ -645,8 +621,7 @@ def get_imei_history(serial_no=None, imei=None):
         ORDER BY si.posting_date DESC, si.creation DESC LIMIT {query_limit}
         """,
         {"serial_pattern": serial_pattern},
-        as_dict=True,
-    )
+        as_dict=True)
     sales = []
     sales_permissions = {}
     for row in sales_candidates:
@@ -669,8 +644,7 @@ def get_imei_history(serial_no=None, imei=None):
         ORDER BY pi.posting_date DESC, pi.creation DESC LIMIT {query_limit}
         """,
         {"serial_pattern": serial_pattern},
-        as_dict=True,
-    )
+        as_dict=True)
     pos_sales = []
     pos_permissions = {}
     for row in pos_candidates:
@@ -695,8 +669,7 @@ def get_imei_history(serial_no=None, imei=None):
             LIMIT {history_limit}
             """,
             {"parent": lifecycle_name},
-            as_dict=True,
-        )
+            as_dict=True)
 
     buyback_limit = min(history_limit, 50)
     aggregated = {
@@ -706,8 +679,7 @@ def get_imei_history(serial_no=None, imei=None):
                 "name", "assessment_id", "customer", "customer_name", "store",
                 "item", "item_name", "quoted_price", "estimated_price", "status", "creation",
             ],
-            buyback_limit,
-        ),
+            buyback_limit),
         "inspections": _get_permitted_buyback_rows(
             "Buyback Inspection", "imei_serial", sn_name,
             [
@@ -715,8 +687,7 @@ def get_imei_history(serial_no=None, imei=None):
                 "item_name", "status", "condition_grade", "revised_price",
                 "diagnostic_source", "creation",
             ],
-            buyback_limit,
-        ),
+            buyback_limit),
         "orders": _get_permitted_buyback_rows(
             "Buyback Order", "imei_serial", sn_name,
             [
@@ -724,16 +695,14 @@ def get_imei_history(serial_no=None, imei=None):
                 "item_name", "final_price", "condition_grade", "status",
                 "payment_status", "creation",
             ],
-            buyback_limit,
-        ),
+            buyback_limit),
         "exchanges": _get_permitted_buyback_rows(
             "Buyback Exchange Order", "old_imei_serial", sn_name,
             [
                 "name", "exchange_id", "customer", "old_item", "new_item",
                 "buyback_amount", "amount_to_pay", "status", "creation",
             ],
-            buyback_limit,
-        ),
+            buyback_limit),
         "timeline": [],
         "audit_log": [],
     }
@@ -747,8 +716,7 @@ def get_imei_history(serial_no=None, imei=None):
             },
             fields=["name", "content", "comment_by", "creation"],
             order_by="creation desc",
-            limit_page_length=min(history_limit, 50),
-        )
+            limit_page_length=min(history_limit, 50))
         aggregated["timeline"] = [
             row for row in comment_rows if _has_named_read("Comment", row.name)
         ]
@@ -762,16 +730,14 @@ def get_imei_history(serial_no=None, imei=None):
             },
             pluck="name",
             order_by="timestamp desc",
-            limit_page_length=min(history_limit, 100),
-        ):
+            limit_page_length=min(history_limit, 100)):
             if not _has_named_read("Buyback Audit Log", name):
                 continue
             row = frappe.db.get_value(
                 "Buyback Audit Log",
                 name,
                 ["name", "action", "reference_name", "user", "timestamp", "old_value", "new_value"],
-                as_dict=True,
-            )
+                as_dict=True)
             if row:
                 aggregated["audit_log"].append(row)
 
@@ -915,8 +881,7 @@ def bulk_update_status(serial_nos, new_status, remarks=""):
     """
     allowed_statuses = get_list_setting(
         "bulk_imei_target_statuses",
-        ("Scrapped", "Lost", "In Stock"),
-    )
+        ("Scrapped", "Lost", "In Stock"))
     if new_status not in allowed_statuses:
         frappe.throw(_("Bulk transition not allowed for status: {0}").format(new_status))
 
@@ -934,14 +899,9 @@ def bulk_update_status(serial_nos, new_status, remarks=""):
     if len(serial_nos) > limit:
         frappe.throw(
             _("A maximum of {0} serial numbers can be updated at once.").format(limit),
-            frappe.ValidationError,
-        )
+            frappe.ValidationError)
 
-    require_role_setting(
-        "bulk_imei_roles",
-        defaults=("System Manager", "Stock Manager", "CH Master Manager"),
-        action=_("perform bulk IMEI status updates"),
-    )
+    frappe.has_permission("CH Serial Lifecycle", ptype="write", throw=True)
 
     lifecycle_docs = {}
     for sn in serial_nos:
@@ -958,15 +918,13 @@ def bulk_update_status(serial_nos, new_status, remarks=""):
                 frappe.throw(_("Store scope cannot be verified."), frappe.PermissionError)
             assert_user_has_store_scope(
                 company=lc.current_company,
-                warehouse=lc.current_warehouse,
-            )
+                warehouse=lc.current_warehouse)
         lifecycle_docs[sn] = lc
 
     updated = 0
     skipped = []
     from ch_item_master.ch_item_master.doctype.ch_serial_lifecycle.ch_serial_lifecycle import (
-        update_lifecycle_status,
-    )
+        update_lifecycle_status)
 
     for sn in serial_nos:
         if sn not in lifecycle_docs:
@@ -977,8 +935,7 @@ def bulk_update_status(serial_nos, new_status, remarks=""):
         result = update_lifecycle_status(
             sn,
             new_status,
-            remarks=remarks or _("Bulk update via IMEI Tracker"),
-        )
+            remarks=remarks or _("Bulk update via IMEI Tracker"))
         if result.get("status") == "ok":
             updated += 1
         else:
@@ -1068,11 +1025,9 @@ def backfill_is_imei_flag():
     kind_counts = frappe.db.sql(
         "SELECT IFNULL(ch_serial_kind,'') AS kind, COUNT(*) AS cnt "
         "FROM `tabSerial No` GROUP BY IFNULL(ch_serial_kind,'')",
-        as_dict=True,
-    )
+        as_dict=True)
     bool_counts = frappe.db.sql(
         "SELECT IFNULL(ch_is_imei,0) AS is_imei, COUNT(*) AS cnt "
         "FROM `tabSerial No` GROUP BY IFNULL(ch_is_imei,0)",
-        as_dict=True,
-    )
+        as_dict=True)
     return {"kind_counts": kind_counts, "bool_counts": bool_counts}

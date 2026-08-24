@@ -22,11 +22,6 @@ from ch_item_master.config import get_bounded_rows, get_int_setting, require_rol
 
 
 def execute(filters=None):
-    require_role_setting(
-        "app_access_roles",
-        ("CH Master Manager", "CH Viewer", "Stock User"),
-        action=_("view model coverage"),
-    )
     frappe.has_permission("CH Model", "read", throw=True)
     frappe.has_permission("Item", "read", throw=True)
     filters = filters or {}
