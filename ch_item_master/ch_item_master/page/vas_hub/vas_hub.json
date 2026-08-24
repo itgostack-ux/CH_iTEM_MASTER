@@ -1,20 +1,38 @@
 {
- "creation": "2025-07-08 00:00:00.000000",
+ "content": null,
+ "creation": "2025-07-08 00:00:00",
  "docstatus": 0,
  "doctype": "Page",
  "idx": 0,
- "modified": "2025-07-08 00:00:00.000000",
+ "modified": "2026-08-20 13:00:37.077370",
  "modified_by": "Administrator",
  "module": "CH Item Master",
  "name": "vas-hub",
  "owner": "Administrator",
  "page_name": "vas-hub",
  "roles": [
-  {"role": "System Manager"},
-  {"role": "Sales Manager"},
-  {"role": "Sales User"},
-  {"role": "Customer Service"}
+  {
+   "role": "System Manager"
+  },
+  {
+   "role": "Sales Manager"
+  },
+  {
+   "role": "Sales User"
+  },
+  {
+   "role": "VAS Manager"
+  },
+  {
+   "role": "VAS Executive"
+  },
+  {
+   "role": "Administrator"
+  }
  ],
+ "script": null,
  "standard": "Yes",
+ "style": null,
+ "system_page": 0,
  "title": "VAS Hub"
 }
