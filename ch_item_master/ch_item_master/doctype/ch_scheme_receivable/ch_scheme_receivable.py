@@ -18,9 +18,6 @@ from ch_item_master.config import get_int_setting, is_privileged_user, require_r
 from ch_item_master.security import ensure_company_access, require_scoped_document_action
 
 
-_SETTLEMENT_ROLES = ("Accounts Manager", "Purchase Manager", "Scheme Manager")
-_WRITE_OFF_ROLES = ("Accounts Manager",)
-_SCHEME_MANAGEMENT_ROLES = ("Accounts Manager", "Purchase Manager", "Scheme Manager")
 _CURRENCY_TOLERANCE = 0.01
 
 
@@ -256,7 +253,6 @@ def record_settlement(receivable_name, amount, payment_reference=None,
 	require_scoped_document_action(
 		doc,
 		"scheme_receivable_settlement_roles",
-		_SETTLEMENT_ROLES,
 		action=_("record a scheme receivable settlement"),
 		permission_types=("write",),
 		store_field="store",
@@ -333,7 +329,6 @@ def write_off(receivable_name, amount=None, journal_entry=None, remarks=None) ->
 	require_scoped_document_action(
 		doc,
 		"scheme_receivable_write_off_roles",
-		_WRITE_OFF_ROLES,
 		action=_("write off a scheme receivable"),
 		permission_types=("write",),
 		store_field="store",
@@ -427,7 +422,6 @@ def send_dunning_notice(receivable_name) -> dict:
 	require_scoped_document_action(
 		doc,
 		"scheme_receivable_settlement_roles",
-		_SETTLEMENT_ROLES,
 		action=_("send a scheme receivable dunning notice"),
 		permission_types=("read", "write"),
 		store_field="store",

@@ -9,12 +9,6 @@ from frappe.utils import now_datetime, nowdate, getdate
 from ch_item_master.security import require_scoped_document_action
 
 
-_PRICE_BATCH_SUBMIT_ROLES = ("CH Price Manager", "CH Master Manager")
-_PRICE_BATCH_REVISE_ROLES = ("CH Price Manager", "CH Master Manager")
-_PRICE_BATCH_OVERRIDE_ROLES = ("CH Master Manager")
-_PRICE_BATCH_APPLY_ROLES = ("CH Category Head", "CH Price Manager", "CH Master Manager")
-
-
 def _safe_float(val):
 	"""Convert a value to float, stripping commas and whitespace (e.g. '60,000' → 60000.0)."""
 	if not val:
@@ -148,13 +142,12 @@ class CHPriceUploadBatch(Document):
 				_("Submitted batch rows are immutable. Revise the batch before editing."),
 				frappe.PermissionError)
 
-	def _require_action(self, role_field, default_roles, action) -> None:
+	def _require_action(self, role_field, action) -> None:
 		require_scoped_document_action(
 			self,
 			role_field,
-			default_roles,
 			action=action,
-			permission_types=("write"),
+			permission_types=("write",),
 			lock=True)
 
 	@frappe.whitelist()
@@ -287,7 +280,6 @@ class CHPriceUploadBatch(Document):
 		"""
 		self._require_action(
 			"price_batch_submit_roles",
-			_PRICE_BATCH_SUBMIT_ROLES,
 			_("submit a price upload batch for approval"))
 		self._authorize_approval_transition()
 		from ch_item_master.ch_item_master.price_approval import (
@@ -335,7 +327,6 @@ class CHPriceUploadBatch(Document):
 		"""
 		self._require_action(
 			"price_batch_revise_roles",
-			_PRICE_BATCH_REVISE_ROLES,
 			_("revise a price upload batch"))
 		self._authorize_approval_transition()
 		if self.status not in ("Rejected", "Partially Applied", "Applying"):
@@ -374,7 +365,6 @@ class CHPriceUploadBatch(Document):
 		"""
 		self._require_action(
 			"price_batch_override_roles",
-			_PRICE_BATCH_OVERRIDE_ROLES,
 			_("approve and apply an entire price upload batch"))
 		self._authorize_approval_transition()
 		from ch_item_master.ch_item_master.price_approval import _is_override
@@ -413,7 +403,6 @@ class CHPriceUploadBatch(Document):
 		"""Override path: reject every still-pending category at once."""
 		self._require_action(
 			"price_batch_override_roles",
-			_PRICE_BATCH_OVERRIDE_ROLES,
 			_("reject an entire price upload batch"))
 		self._authorize_approval_transition()
 		from ch_item_master.ch_item_master.price_approval import _is_override
@@ -462,7 +451,6 @@ class CHPriceUploadBatch(Document):
 		"""
 		self._require_action(
 			"price_batch_apply_roles",
-			_PRICE_BATCH_APPLY_ROLES,
 			_("apply approved price upload categories"))
 		self._authorize_approval_transition()
 		if self.status not in ("Approved", "Partially Approved", "Partially Applied", "Applying"):

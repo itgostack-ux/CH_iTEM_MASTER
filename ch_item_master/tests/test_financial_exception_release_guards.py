@@ -83,7 +83,6 @@ class TestFinancialExceptionReleaseGuards(TestCase):
 		authorize.assert_called_once_with(
 			doc,
 			"scheme_receivable_settlement_roles",
-			ch_scheme_receivable._SETTLEMENT_ROLES,
 			action="record a scheme receivable settlement",
 			permission_types=("write",),
 			store_field="store",

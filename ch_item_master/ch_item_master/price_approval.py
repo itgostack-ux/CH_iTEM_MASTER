@@ -385,7 +385,7 @@ def decide_category(batch_name, category, action, comments=None):
 		batch,
 		None,
 		action=_("decide a price upload category"),
-		permission_types=("write"),
+		permission_types=("write",),
 		lock=True)
 	if batch.status not in ("Pending Approval", "Partially Approved"):
 		frappe.throw(

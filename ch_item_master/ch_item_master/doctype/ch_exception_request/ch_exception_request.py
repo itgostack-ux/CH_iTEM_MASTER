@@ -14,14 +14,15 @@ from ch_item_master.config import get_int_setting, get_list_setting, has_role_se
 from ch_item_master.security import require_scoped_document_action
 
 
-_DELIVERY_NOTE_CREATION_ROLES = ("Sales User", "Sales Manager")
-RETURN_POLICY_APPROVAL_ROLES = (
-	"CH Zonal Sales Manager",
-	"CH Category Head",
-	"Sales Manager",
-	"CH National Head",
-	"COO",
-	"CEO")
+def return_policy_approval_roles() -> list[str]:
+	"""Escalation ladder for "Return Beyond Policy", in the admin's row order.
+
+	Configured in CH Item Master Settings; DB is law, so an empty ladder means
+	nobody can approve.  Order matters -- routing walks it top to bottom.
+	"""
+	from ch_erp15.role_settings import get_setting_roles_ordered
+
+	return get_setting_roles_ordered("CH Item Master Settings", "return_policy_approval_roles")
 
 
 class CHExceptionRequest(Document):
@@ -160,7 +161,7 @@ class CHExceptionRequest(Document):
 		# higher business authorities may act as an escalation/override.
 		if self.exception_type == "Return Beyond Policy":
 			roles = set(frappe.get_roles(approver))
-			if roles.intersection(RETURN_POLICY_APPROVAL_ROLES):
+			if roles.intersection(return_policy_approval_roles()):
 				return approver
 			frappe.throw(
 				_("Customer returns beyond the configured window require ZSM, Category Head, Sales Head, or higher approval."),
@@ -381,9 +382,6 @@ class CHExceptionRequest(Document):
 			return
 		if self.reference_doctype == "Delivery Note":
 			self._apply_to_delivery_note()
-
-
-
 
 
 	def _apply_to_delivery_note(self):
@@ -758,7 +756,6 @@ def create_from_delivery_note(delivery_note, exception_type, items, requested_re
 	require_scoped_document_action(
 		dn,
 		"exception_delivery_note_creation_roles",
-		_DELIVERY_NOTE_CREATION_ROLES,
 		action=_("create delivery-note exception requests"),
 		permission_types=("read", "write"),
 		store_field="set_warehouse",

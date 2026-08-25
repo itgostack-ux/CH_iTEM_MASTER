@@ -9,9 +9,6 @@ from ch_item_master.security import require_scoped_document_action
 from ch_item_master.ch_item_master.utils import validate_indian_phone
 
 
-_LOCATION_MANAGER_ROLES = ("CH Master Manager",)
-
-
 # Brand-prefix conventions use the prefix configured on Company.
 #
 # Prefix source (priority order):
@@ -338,7 +335,6 @@ def create_pos_profile_for_store(store):
     require_scoped_document_action(
         doc,
         "location_manager_roles",
-        _LOCATION_MANAGER_ROLES,
         action=frappe._("create a POS Profile for a store"),
         permission_types=("write",),
         company_field="company",

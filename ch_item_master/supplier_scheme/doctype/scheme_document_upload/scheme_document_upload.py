@@ -15,7 +15,6 @@ from frappe.utils import flt, getdate
 from ch_item_master.config import get_int_setting
 from ch_item_master.outbound_security import parse_exact_host_allowlist, post_json_with_credentials
 from ch_item_master.security import require_scoped_document_action
-_SCHEME_MANAGEMENT_ROLES = ("Accounts Manager", "Purchase Manager", "Scheme Manager")
 
 
 class SchemeDocumentUpload(Document):
@@ -28,7 +27,6 @@ def _require_upload_action(doc, action):
 	require_scoped_document_action(
 		doc,
 		"supplier_scheme_management_roles",
-		_SCHEME_MANAGEMENT_ROLES,
 		action=action,
 		permission_types=("read", "write"),
 		company_field="company",

@@ -35,6 +35,7 @@ from ch_item_master.config import (
 	require_role_setting,
 )
 from ch_item_master.security import ensure_company_access
+from ch_erp15.config import has_counter_staff_bypass
 
 
 
@@ -60,8 +61,7 @@ def _authorized_store(store: str, *, transfer: bool = False):
 	# if not frappe.has_permission("CH Store", ptype="read", doc=store_doc):
 	# 	frappe.throw(_("You do not have permission to view this store."), frappe.PermissionError)
 
-	_bypass_roles = {"POS User", "POS Manager", "CH Store Executive", "CH Store Manager"}
-	_is_bypass = bool(set(frappe.get_roles()) & _bypass_roles)
+	_is_bypass = has_counter_staff_bypass()
 	if not _is_bypass and not frappe.has_permission("CH Store", ptype="read", doc=store_doc):
 		frappe.throw(_("You do not have permission to view this store."), frappe.PermissionError)
 	ensure_company_access(store_doc.company)

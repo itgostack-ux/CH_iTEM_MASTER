@@ -64,7 +64,6 @@ class TestSchemeMasterOperationGuards(TestCase):
 		authorize.assert_called_once_with(
 			doc,
 			"scheme_receivable_settlement_roles",
-			ch_scheme_receivable._SETTLEMENT_ROLES,
 			action="send a scheme receivable dunning notice",
 			permission_types=("read", "write"),
 			store_field="store",

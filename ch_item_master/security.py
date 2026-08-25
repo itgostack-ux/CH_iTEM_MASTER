@@ -4,15 +4,14 @@ from frappe import _
 from ch_item_master.config import (
     get_role_setting,
     has_role_setting,
-    is_privileged_user,
-    require_role_setting)
+    is_privileged_user)
 
 
 def require_scoped_document_action(
     doc,
     role_field,
     action=None,
-    permission_types=("write"),
+    permission_types=("write",),
     company_field="company",
     store_field=None,
     lock=False,
@@ -36,7 +35,7 @@ def require_scoped_document_action(
         return
 
     if isinstance(permission_types, str):
-        permission_types = (permission_types)
+        permission_types = (permission_types,)
     for permission_type in permission_types:
         if not frappe.has_permission(
             doc.doctype,

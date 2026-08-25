@@ -5,9 +5,6 @@ from frappe.model.document import Document
 from ch_item_master.config import require_role_setting
 
 
-_LOCATION_MANAGER_ROLES = ("CH Master Manager",)
-
-
 class CHState(Document):
     def validate(self):
         if self.state_name:

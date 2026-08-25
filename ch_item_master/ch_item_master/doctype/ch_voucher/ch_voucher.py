@@ -10,9 +10,6 @@ from ch_item_master.ch_item_master.utils import validate_indian_phone
 from ch_item_master.security import require_scoped_document_action
 
 
-_VOUCHER_MANAGEMENT_ROLES = ("CH Master Manager", "CH Price Manager")
-
-
 class CHVoucher(Document):
 	def before_insert(self):
 		if not self.voucher_code:
@@ -75,7 +72,6 @@ class CHVoucher(Document):
 		require_scoped_document_action(
 			self,
 			"voucher_management_roles",
-			_VOUCHER_MANAGEMENT_ROLES,
 			action=_("activate a voucher"),
 			permission_types=("write", "submit"),
 			lock=True,
@@ -95,7 +91,6 @@ class CHVoucher(Document):
 		require_scoped_document_action(
 			self,
 			"voucher_management_roles",
-			_VOUCHER_MANAGEMENT_ROLES,
 			action=_("cancel a voucher"),
 			permission_types=("write", "cancel"),
 			lock=True,

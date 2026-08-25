@@ -9,7 +9,6 @@ from ch_item_master.config import get_int_setting, is_privileged_user, require_r
 from ch_item_master.security import get_company_scope
 
 
-_CAMPAIGN_ROLES = ("Sales Manager", "CH Master Manager")
 _HUB_READ_DOCTYPES = (
 	"CH Coupon Campaign",
 	"POS Invoice",

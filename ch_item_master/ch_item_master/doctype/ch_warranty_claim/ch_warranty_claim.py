@@ -58,17 +58,6 @@ from ch_item_master.id_sequences import next_free_numeric_id
 from ch_item_master.security import get_company_filter_value, require_scoped_document_action
 
 
-_WARRANTY_APPROVAL_ROLES = ("CH Warranty Manager", "Service Manager", "Sales Manager")
-_WARRANTY_SERVICE_ROLES = ("CH Warranty Manager", "Service Manager")
-_WARRANTY_QC_ROLES = ("CH Warranty Manager", "Service Manager", "Store Manager", "Stock Manager")
-_WARRANTY_LOGISTICS_ROLES = ("CH Warranty Manager", "Service Manager", "Sales Manager")
-_WARRANTY_FINANCE_ROLES = ("CH Warranty Manager", "Accounts Manager")
-_WARRANTY_MANAGEMENT_ROLES = ("CH Warranty Manager", "Service Manager")
-_WARRANTY_FEE_WAIVER_REQUEST_ROLES = (
-	"CH Warranty Manager",
-	"Service Manager",
-	"Sales Manager",
-)
 _ANNIVERSARY_ELIGIBLE_PLAN_TYPES = (
 	"Own Warranty",
 	"Extended Warranty",
@@ -280,11 +269,10 @@ class CHWarrantyClaim(Document):
 			frappe.throw(_("Invalid delivery OTP."), frappe.AuthenticationError)
 		frappe.cache.delete(attempt_key)
 
-	def _require_action(self, role_field, default_roles, action) -> None:
+	def _require_action(self, role_field, action) -> None:
 		require_scoped_document_action(
 			self,
 			role_field,
-			default_roles,
 			action=action,
 			permission_types=("write",),
 			store_field="reported_at_store",
@@ -467,7 +455,7 @@ class CHWarrantyClaim(Document):
 		the difference is shifted to customer_share.
 		"""
 		self._require_action(
-			"warranty_claim_approval_roles", _WARRANTY_APPROVAL_ROLES, _("approve a warranty claim")
+			"warranty_claim_approval_roles", _("approve a warranty claim")
 		)
 		if self.docstatus != 1:
 			frappe.throw(_("Claim must be submitted before approval."), title=_("Ch Warranty Claim Error"))
@@ -533,7 +521,7 @@ class CHWarrantyClaim(Document):
 	def reject(self, reason=None) -> None:
 		"""GoGizmo Head rejects the claim."""
 		self._require_action(
-			"warranty_claim_approval_roles", _WARRANTY_APPROVAL_ROLES, _("reject a warranty claim")
+			"warranty_claim_approval_roles", _("reject a warranty claim")
 		)
 		if self.docstatus != 1:
 			frappe.throw(_("Claim must be submitted before rejection."), title=_("Ch Warranty Claim Error"))
@@ -564,7 +552,6 @@ class CHWarrantyClaim(Document):
 		"""Claim manager requests additional information or photos."""
 		self._require_action(
 			"warranty_claim_approval_roles",
-			_WARRANTY_APPROVAL_ROLES,
 			_("request more warranty claim information"),
 		)
 		if self.docstatus != 1:
@@ -590,7 +577,6 @@ class CHWarrantyClaim(Document):
 		"""Technician/advisor found additional damage — request customer approval."""
 		self._require_action(
 			"warranty_claim_service_roles",
-			_WARRANTY_SERVICE_ROLES,
 			_("request additional warranty claim approval"),
 		)
 		if self.docstatus != 1:
@@ -621,7 +607,6 @@ class CHWarrantyClaim(Document):
 		"""Record customer's decision on additional damage cost."""
 		self._require_action(
 			"warranty_claim_service_roles",
-			_WARRANTY_SERVICE_ROLES,
 			_("resolve additional warranty claim approval"),
 		)
 		if self.docstatus != 1:
@@ -656,7 +641,7 @@ class CHWarrantyClaim(Document):
 	def perform_final_qc(self, qc_result, qc_remarks=None) -> None:
 		"""Final QC after repair is complete."""
 		self._require_action(
-			"warranty_claim_qc_roles", _WARRANTY_QC_ROLES, _("perform warranty claim final QC")
+			"warranty_claim_qc_roles", _("perform warranty claim final QC")
 		)
 		if self.docstatus != 1:
 			frappe.throw(_("Claim must be submitted first."), title=_("Ch Warranty Claim Error"))
@@ -694,7 +679,6 @@ class CHWarrantyClaim(Document):
 		"""Called when GoFix completes the repair, or device returned from manufacturer."""
 		self._require_action(
 			"warranty_claim_service_roles",
-			_WARRANTY_SERVICE_ROLES,
 			_("complete a warranty claim repair"),
 		)
 		if (self.get("processing_fee_required") or flt(self.get("processing_fee_amount", 0)) > 0):
@@ -737,7 +721,6 @@ class CHWarrantyClaim(Document):
 		"""Schedule customer pickup for claim device collection."""
 		self._require_action(
 			"warranty_claim_logistics_roles",
-			_WARRANTY_LOGISTICS_ROLES,
 			_("schedule warranty claim pickup"),
 		)
 		if self.docstatus != 1:
@@ -788,7 +771,6 @@ class CHWarrantyClaim(Document):
 		"""
 		self._require_action(
 			"warranty_claim_logistics_roles",
-			_WARRANTY_LOGISTICS_ROLES,
 			_("mark a warranty claim device picked up"),
 		)
 		if self.docstatus != 1:
@@ -839,7 +821,6 @@ class CHWarrantyClaim(Document):
 		"""Mark repaired device as out for customer delivery."""
 		self._require_action(
 			"warranty_claim_logistics_roles",
-			_WARRANTY_LOGISTICS_ROLES,
 			_("dispatch a warranty claim device"),
 		)
 		if self.docstatus != 1:
@@ -885,7 +866,6 @@ class CHWarrantyClaim(Document):
 		"""Mark final handover to customer complete."""
 		self._require_action(
 			"warranty_claim_logistics_roles",
-			_WARRANTY_LOGISTICS_ROLES,
 			_("complete warranty claim delivery"),
 		)
 		if self.docstatus != 1:
@@ -929,7 +909,6 @@ class CHWarrantyClaim(Document):
 		"""
 		self._require_action(
 			"warranty_claim_finance_roles",
-			_WARRANTY_FINANCE_ROLES,
 			_("settle a warranty claim"),
 		)
 		if self.docstatus != 1:
@@ -1039,7 +1018,6 @@ class CHWarrantyClaim(Document):
 		"""Close the claim after settlement — sets final_outcome."""
 		self._require_action(
 			"warranty_claim_management_roles",
-			_WARRANTY_MANAGEMENT_ROLES,
 			_("close a warranty claim"),
 		)
 		no_service_statuses = ("Rejected", "QC Failed", "Not Repairable")
@@ -1176,7 +1154,6 @@ class CHWarrantyClaim(Document):
 		"""
 		self._require_action(
 			"warranty_claim_logistics_roles",
-			_WARRANTY_LOGISTICS_ROLES,
 			_("receive a warranty claim device"),
 		)
 		if self.docstatus != 1:
@@ -1223,7 +1200,6 @@ class CHWarrantyClaim(Document):
 		"""
 		self._require_action(
 			"warranty_claim_qc_roles",
-			_WARRANTY_QC_ROLES,
 			_("perform warranty claim intake QC"),
 		)
 		if self.docstatus != 1:
@@ -1300,7 +1276,6 @@ class CHWarrantyClaim(Document):
 		"""
 		self._require_action(
 			"warranty_claim_finance_roles",
-			_WARRANTY_FINANCE_ROLES,
 			_("set a warranty claim processing fee"),
 		)
 		if self.docstatus != 1:
@@ -1342,7 +1317,6 @@ class CHWarrantyClaim(Document):
 		"""
 		self._require_action(
 			"warranty_claim_finance_roles",
-			_WARRANTY_FINANCE_ROLES,
 			_("send a warranty claim fee payment link"),
 		)
 		if self.docstatus != 1:
@@ -1412,7 +1386,6 @@ class CHWarrantyClaim(Document):
 		"""Record processing fee payment from customer."""
 		self._require_action(
 			"warranty_claim_finance_roles",
-			_WARRANTY_FINANCE_ROLES,
 			_("record a warranty claim processing fee payment"),
 		)
 		return self._mark_fee_paid(paid_amount, payment_mode, payment_ref, remarks)
@@ -1810,7 +1783,6 @@ class CHWarrantyClaim(Document):
 		"""
 		self._require_action(
 			"warranty_claim_fee_waiver_request_roles",
-			_WARRANTY_FEE_WAIVER_REQUEST_ROLES,
 			_("request or approve a warranty claim fee waiver"),
 		)
 		if self.docstatus != 1:
@@ -1880,7 +1852,6 @@ class CHWarrantyClaim(Document):
 		"""
 		self._require_action(
 			"warranty_claim_service_roles",
-			_WARRANTY_SERVICE_ROLES,
 			_("create a warranty claim repair ticket"),
 		)
 		if self.docstatus != 1:
@@ -2866,7 +2837,6 @@ class CHWarrantyClaim(Document):
 		"""Manually send device to manufacturer (if not auto-routed on submit)."""
 		self._require_action(
 			"warranty_claim_service_roles",
-			_WARRANTY_SERVICE_ROLES,
 			_("send a warranty claim device to its manufacturer"),
 		)
 		if self.docstatus != 1:
@@ -2964,10 +2934,25 @@ class CHWarrantyClaim(Document):
 		# WhatsApp
 		if phone:
 			try:
-				from ch_item_master.ch_core.whatsapp import send_whatsapp_message
-				send_whatsapp_message(phone, message)
+				from ch_item_master.ch_core.whatsapp import send_template_message
+				send_template_message(
+					phone=phone,
+					event="warranty_claim_status_update",
+					body_values={
+						"1": self.customer_name or "Customer",
+						"2": self.name,
+						"3": to_status,
+						"4": message,
+					},
+					customer_name=self.customer_name,
+					ref_doctype=self.doctype,
+					ref_name=self.name,
+					company=self.reported_at_company or self.company,
+				)
 			except Exception:
-				pass  # WhatsApp not configured; fall through to email/SMS
+				# Never let WhatsApp block the email/SMS fallback below.
+				frappe.log_error(frappe.get_traceback(),
+				                 f"WhatsApp notify failed for claim {self.name} → {to_status}")
 
 		# Email
 		if email:

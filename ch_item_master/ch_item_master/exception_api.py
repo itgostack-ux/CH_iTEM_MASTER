@@ -13,6 +13,7 @@ from ch_item_master.config import (
 	require_role_setting,
 )
 from ch_item_master.security import ensure_company_access, get_company_scope
+from ch_erp15.config import has_counter_staff_bypass
 
 
 _MAX_EXCEPTION_SUMMARY_DAYS = 366
@@ -108,8 +109,7 @@ def raise_exception(exception_type, company, reason, requested_value=0,
 	# if item_code:
 	# 	frappe.has_permission("Item", "read", item_code, throw=True)
 	# update:
-	_bypass_roles = {"POS User","POS Manager","CH Store Executive","CH Store Manager","System Manager"}
-	_is_bypass = bool(set(frappe.get_roles()) & _bypass_roles) or frappe.session.user == "Administrator"
+	_is_bypass = has_counter_staff_bypass()
 
 	if customer and not _is_bypass:
 		frappe.has_permission("Customer", "read", customer, throw=True)
@@ -298,10 +298,10 @@ def resolve_exception_approver(exc, etype) -> None:
 
 	if exc.exception_type == "Return Beyond Policy":
 		from ch_item_master.ch_item_master.doctype.ch_exception_request.ch_exception_request import (
-			RETURN_POLICY_APPROVAL_ROLES,
+			return_policy_approval_roles,
 		)
 
-		for role in RETURN_POLICY_APPROVAL_ROLES:
+		for role in return_policy_approval_roles():
 			approver = _apply_delegation(_resolve_user_by_scope(role, exc.store_warehouse))
 			if approver:
 				exc.approval_role = role

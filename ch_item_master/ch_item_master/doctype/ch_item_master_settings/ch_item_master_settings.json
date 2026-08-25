@@ -506,6 +506,13 @@
    "description": "Pick roles from the list."
   },
   {
+   "fieldname": "return_policy_approval_roles",
+   "fieldtype": "Table MultiSelect",
+   "label": "Return Beyond Policy Approval Roles",
+   "options": "CH Role Link",
+   "description": "Escalation ladder for 'Return Beyond Policy' exceptions, in order. Routing walks the rows top to bottom and assigns the first role with an available user in scope. Re-order the rows to change seniority. Empty means nobody can approve."
+  },
+  {
    "description": "Exact Company names governed by the Applicable to GGR flag on exception types, one per line.",
    "fieldname": "exception_ggr_companies",
    "fieldtype": "Small Text",
@@ -750,20 +757,18 @@
    "hidden": 1
   },
   {
-   "default": "CH Warranty Manager\nService Manager",
-   "description": "Retired. This gate is now enforced by Role Permission Manager (document permissions).",
+   "description": "Pick roles from the list. Empty means nobody.",
    "fieldname": "warranty_claim_service_roles",
-   "fieldtype": "Small Text",
+   "fieldtype": "Table MultiSelect",
    "label": "Warranty Claim Service Roles",
-   "hidden": 1
+   "options": "CH Role Link"
   },
   {
-   "default": "CH Warranty Manager\nService Manager\nStore Manager\nStock Manager",
-   "description": "Retired. This gate is now enforced by Role Permission Manager (document permissions).",
+   "description": "Pick roles from the list. Empty means nobody.",
    "fieldname": "warranty_claim_qc_roles",
-   "fieldtype": "Small Text",
+   "fieldtype": "Table MultiSelect",
    "label": "Warranty Claim QC Roles",
-   "hidden": 1
+   "options": "CH Role Link"
   },
   {
    "default": "100",
@@ -774,12 +779,11 @@
    "reqd": 1
   },
   {
-   "default": "CH Warranty Manager\nService Manager\nSales Manager",
-   "description": "Retired. This gate is now enforced by Role Permission Manager (document permissions).",
+   "description": "Pick roles from the list. Empty means nobody.",
    "fieldname": "warranty_claim_logistics_roles",
-   "fieldtype": "Small Text",
+   "fieldtype": "Table MultiSelect",
    "label": "Warranty Claim Logistics Roles",
-   "hidden": 1
+   "options": "CH Role Link"
   },
   {
    "default": "15",
@@ -808,12 +812,11 @@
    "reqd": 1
   },
   {
-   "default": "CH Warranty Manager\nAccounts Manager",
-   "description": "Retired. This gate is now enforced by Role Permission Manager (document permissions).",
+   "description": "Pick roles from the list. Empty means nobody.",
    "fieldname": "warranty_claim_finance_roles",
-   "fieldtype": "Small Text",
+   "fieldtype": "Table MultiSelect",
    "label": "Warranty Claim Finance Roles",
-   "hidden": 1
+   "options": "CH Role Link"
   },
   {
    "default": "CH Warranty Manager\nService Manager",
@@ -1030,28 +1033,25 @@
    "hidden": 1
   },
   {
-   "default": "CH PLM Manager\nCH Master Approver\nCH Master Manager\nSystem Manager",
    "fieldname": "plm_manager_roles",
-   "fieldtype": "Small Text",
+   "fieldtype": "Table MultiSelect",
    "label": "PLM Manager Roles",
-   "hidden": 1,
-   "description": "Retired. This gate is now enforced by Role Permission Manager (document permissions)."
+   "description": "Pick roles from the list. Empty means nobody.",
+   "options": "CH Role Link"
   },
   {
-   "default": "CH Vendor Manager\nCH Master Manager\nSystem Manager",
    "fieldname": "vendor_manager_roles",
-   "fieldtype": "Small Text",
+   "fieldtype": "Table MultiSelect",
    "label": "Vendor Manager Roles",
-   "hidden": 1,
-   "description": "Retired. This gate is now enforced by Role Permission Manager (document permissions)."
+   "description": "Pick roles from the list. Empty means nobody.",
+   "options": "CH Role Link"
   },
   {
-   "default": "CH Vendor Manager\nCH Master Manager\nCH Master Approver\nCH Viewer\nSystem Manager",
    "fieldname": "vendor_view_roles",
-   "fieldtype": "Small Text",
+   "fieldtype": "Table MultiSelect",
    "label": "Vendor View Roles",
-   "hidden": 1,
-   "description": "Retired. This gate is now enforced by Role Permission Manager (document permissions)."
+   "description": "Pick roles from the list. Empty means nobody.",
+   "options": "CH Role Link"
   },
   {
    "default": "200",
@@ -1062,20 +1062,18 @@
    "reqd": 1
   },
   {
-   "default": "CH GTIN Editor\nCH Master Manager\nCH Master Approver\nSystem Manager",
    "fieldname": "gtin_editor_roles",
-   "fieldtype": "Small Text",
+   "fieldtype": "Table MultiSelect",
    "label": "GTIN Editor Roles",
-   "hidden": 1,
-   "description": "Retired. This gate is now enforced by Role Permission Manager (document permissions)."
+   "description": "Pick roles from the list. Empty means nobody.",
+   "options": "CH Role Link"
   },
   {
-   "default": "CH MRP Planner\nCH Master Manager\nSystem Manager",
    "fieldname": "mrp_planner_roles",
-   "fieldtype": "Small Text",
+   "fieldtype": "Table MultiSelect",
    "label": "MRP Planner Roles",
-   "hidden": 1,
-   "description": "Retired. This gate is now enforced by Role Permission Manager (document permissions)."
+   "description": "Pick roles from the list. Empty means nobody.",
+   "options": "CH Role Link"
   },
   {
    "default": "System Manager\nCH Price Manager\nCH Master Approver\nCH Master Manager\nCH GTIN Editor",

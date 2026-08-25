@@ -21,11 +21,6 @@ from ch_item_master.security import (
 )
 
 
-_VOUCHER_ISSUE_ROLES = ("CH Master Manager", "CH Price Manager", "Sales Manager","POS User", "POS Manager", "CH Store Executive", "CH Store Manager")
-_VOUCHER_REDEMPTION_ROLES = ("Sales User", "Sales Manager", "CH Price Manager")
-_VOUCHER_REFUND_ROLES = ("Sales Manager", "CH Price Manager")
-_VOUCHER_TOPUP_ROLES = ("Sales Manager", "CH Price Manager")
-_VOUCHER_VIEW_ROLES = ("Sales User", "Sales Manager", "CH Price Manager", "CH Viewer")
 _VOUCHER_SOURCE_DOCTYPES = (
 	"Sales Invoice",
 	"POS Invoice",
@@ -48,11 +43,10 @@ def _voucher_document(voucher_code):
 	return frappe.get_doc("CH Voucher", voucher_name)
 
 
-def _authorize_voucher(voucher, role_field, default_roles, action, permission_type="write", lock=True):
+def _authorize_voucher(voucher, role_field, action, permission_type="write", lock=True):
 	require_scoped_document_action(
 		voucher,
 		role_field,
-		default_roles,
 		action=action,
 		permission_types=(permission_type,),
 		lock=lock,
@@ -216,7 +210,6 @@ def issue_voucher(voucher_type, amount, company, customer=None, phone=None,
 	require_scoped_document_action(
 		voucher,
 		"voucher_issue_roles",
-		_VOUCHER_ISSUE_ROLES,
 		action=_("issue a voucher"),
 		permission_types=("create", "submit"),
 	)
@@ -271,7 +264,6 @@ def validate_voucher(voucher_code, cart_total=0, customer=None, channel=None) ->
 	_authorize_voucher(
 		voucher,
 		"voucher_redemption_roles",
-		_VOUCHER_REDEMPTION_ROLES,
 		_("validate a voucher"),
 		permission_type="read",
 		lock=False,
@@ -363,7 +355,6 @@ def redeem_voucher(voucher_code, amount, pos_invoice=None, reference_doctype=Non
 	_authorize_voucher(
 		voucher,
 		"voucher_redemption_roles",
-		_VOUCHER_REDEMPTION_ROLES,
 		_("redeem a voucher"),
 		lock=True,
 	)
@@ -514,7 +505,6 @@ def refund_voucher(voucher_code, amount, pos_invoice=None, reason=None) -> dict:
 	_authorize_voucher(
 		voucher,
 		"voucher_refund_roles",
-		_VOUCHER_REFUND_ROLES,
 		_("refund a voucher balance"),
 		lock=True,
 	)
@@ -599,7 +589,6 @@ def topup_voucher(voucher_code, amount, reason=None, reference_doctype=None,
 	_authorize_voucher(
 		voucher,
 		"voucher_topup_roles",
-		_VOUCHER_TOPUP_ROLES,
 		_("top up a voucher"),
 		lock=True,
 	)
@@ -683,7 +672,6 @@ def check_balance(voucher_code) -> dict:
 	_authorize_voucher(
 		voucher,
 		"voucher_view_roles",
-		_VOUCHER_VIEW_ROLES,
 		_("view a voucher balance"),
 		permission_type="read",
 		lock=False,
@@ -846,7 +834,6 @@ def expire_vouchers():
 		f"Voucher expiry: {len(vouchers)} voucher(s) expired"
 	)
 	return {"expired": len(vouchers), "has_more": len(rows) > batch_limit}
-
 
 
 # ─────────────────────────────────────────────────────────────────────────────

@@ -40,17 +40,13 @@ class TestCouponCampaignHubSecurity(TestCase):
 
 	def test_system_manager_bypass_does_not_depend_on_mutable_docperms(self):
 		with (
-			patch.object(coupon_campaign_api, "require_role_setting") as role_gate,
 			patch.object(coupon_campaign_api, "is_privileged_user", return_value=True),
 			patch.object(coupon_campaign_api.frappe, "has_permission") as has_permission,
 		):
 			coupon_campaign_api._require_campaign_access(coupon_campaign_api._HUB_READ_DOCTYPES)
 
-		role_gate.assert_called_once_with(
-			"coupon_campaign_management_roles",
-			coupon_campaign_api._CAMPAIGN_ROLES,
-			action="view campaign and redemption data",
-		)
+		# Authorization is DocPerm now: a privileged user short-circuits before any
+		# per-doctype permission check, and there is no app-level role gate left.
 		has_permission.assert_not_called()
 
 	def test_blank_company_never_becomes_global_for_unprivileged_user(self):

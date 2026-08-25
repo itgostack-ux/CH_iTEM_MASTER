@@ -10,8 +10,6 @@ from ch_item_master.security import require_scoped_document_action
 
 
 _SCHEME_APPROVAL_ROLES = ("Purchase Manager", "Scheme Manager")
-_SCHEME_SUBMIT_ROLES = ("Accounts User", "Accounts Manager", "Purchase Manager", "Scheme Manager")
-_SCHEME_MANAGEMENT_ROLES = ("Accounts Manager", "Purchase Manager", "Scheme Manager")
 
 
 def _is_approver():
@@ -72,11 +70,10 @@ class SupplierSchemeCircular(Document):
 				_("Approved or pending scheme terms are immutable. Reject or amend the scheme first."),
 				frappe.PermissionError)
 
-	def _require_action(self, role_field, default_roles, action, permission_types=("write")) -> None:
+	def _require_action(self, role_field, action, permission_types=("write",)) -> None:
 		require_scoped_document_action(
 			self,
 			role_field,
-			default_roles,
 			action=action,
 			permission_types=permission_types,
 			company_field="company",
@@ -199,7 +196,6 @@ class SupplierSchemeCircular(Document):
 		"""Trigger full recomputation of eligibility and payouts for this scheme."""
 		self._require_action(
 			"supplier_scheme_management_roles",
-			_SCHEME_MANAGEMENT_ROLES,
 			_("recompute supplier scheme achievements"))
 		from ch_item_master.supplier_scheme.engine import recompute_scheme
 		result = recompute_scheme(self.name)
@@ -211,7 +207,6 @@ class SupplierSchemeCircular(Document):
 		"""Generate a Scheme Claim Summary from current achievement data."""
 		self._require_action(
 			"supplier_scheme_management_roles",
-			_SCHEME_MANAGEMENT_ROLES,
 			_("generate a supplier scheme claim"))
 		frappe.has_permission("Scheme Claim Summary", "create", throw=True)
 		from ch_item_master.supplier_scheme.claim_engine import generate_claim_summary
@@ -229,7 +224,6 @@ class SupplierSchemeCircular(Document):
 		import json
 		self._require_action(
 			"supplier_scheme_management_roles",
-			_SCHEME_MANAGEMENT_ROLES,
 			_("link supplier scheme product maps"))
 		names = json.loads(names_json) if isinstance(names_json, str) else names_json
 		if not isinstance(names, list):
@@ -252,7 +246,6 @@ class SupplierSchemeCircular(Document):
 		"""Maker step: move a Draft scheme into Pending Approval for manager sign-off."""
 		self._require_action(
 			"supplier_scheme_submit_roles",
-			_SCHEME_SUBMIT_ROLES,
 			_("submit a supplier scheme for review"))
 		if self.docstatus != 0:
 			frappe.throw(_("Only saved (Draft) schemes can be submitted for review."))
@@ -292,7 +285,6 @@ class SupplierSchemeCircular(Document):
 		"""Checker step: approve and activate the scheme (submits the document)."""
 		self._require_action(
 			"supplier_scheme_approval_roles",
-			_SCHEME_APPROVAL_ROLES,
 			_("approve a supplier scheme"),
 			permission_types=("write", "submit"))
 		if not _is_approver():
@@ -310,7 +302,6 @@ class SupplierSchemeCircular(Document):
 		"""Checker step: reject the scheme and return it to Draft with a note."""
 		self._require_action(
 			"supplier_scheme_approval_roles",
-			_SCHEME_APPROVAL_ROLES,
 			_("reject a supplier scheme"))
 		if not _is_approver():
 			frappe.throw(_("Only a Purchase Manager or Scheme Manager can reject schemes."), title=_("Not Authorised"))
@@ -329,7 +320,6 @@ class SupplierSchemeCircular(Document):
 		"""Close this scheme (no further achievement entries)."""
 		self._require_action(
 			"supplier_scheme_management_roles",
-			_SCHEME_MANAGEMENT_ROLES,
 			_("close a supplier scheme"))
 		if self.docstatus != 1:
 			frappe.throw(_("Only submitted schemes can be closed"), title=_("Supplier Scheme Circular Error"))

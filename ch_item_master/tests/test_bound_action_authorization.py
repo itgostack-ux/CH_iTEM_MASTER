@@ -33,7 +33,6 @@ class TestBoundActionAuthorization(TestCase):
 		doc = self._doc()
 		with (
 			patch.object(security, "is_privileged_user", return_value=False),
-			patch.object(security, "require_role_setting"),
 			patch.object(security.frappe.db, "get_value", return_value=doc.name),
 			patch.object(security.frappe, "has_permission", return_value=False),
 			self.assertRaises(frappe.PermissionError),
@@ -41,7 +40,6 @@ class TestBoundActionAuthorization(TestCase):
 			security.require_scoped_document_action(
 				doc,
 				"warranty_claim_approval_roles",
-				("CH Warranty Manager",),
 				lock=True,
 				store_field="reported_at_store",
 			)
@@ -50,7 +48,6 @@ class TestBoundActionAuthorization(TestCase):
 		doc = self._doc()
 		with (
 			patch.object(security, "is_privileged_user", return_value=False),
-			patch.object(security, "require_role_setting") as require_role,
 			patch.object(security.frappe.db, "get_value", return_value=doc.name) as get_value,
 			patch.object(security.frappe, "has_permission", return_value=True),
 			patch.object(security, "ensure_company_access") as ensure_company,
@@ -61,13 +58,11 @@ class TestBoundActionAuthorization(TestCase):
 			security.require_scoped_document_action(
 				doc,
 				"warranty_claim_approval_roles",
-				("CH Warranty Manager",),
 				lock=True,
 				store_field="reported_at_store",
 				user="approver@example.com",
 			)
 
-		require_role.assert_called_once()
 		get_value.assert_any_call(
 			"CH Warranty Claim", doc.name, "name", for_update=True
 		)
@@ -84,19 +79,16 @@ class TestBoundActionAuthorization(TestCase):
 		doc = self._doc()
 		with (
 			patch.object(security, "is_privileged_user", return_value=True),
-			patch.object(security, "require_role_setting") as require_role,
 			patch.object(security.frappe.db, "get_value", return_value=doc.name),
 			patch.object(security.frappe, "has_permission") as has_permission,
 		):
 			security.require_scoped_document_action(
 				doc,
 				"voucher_management_roles",
-				("CH Price Manager",),
 				lock=True,
 				user="Administrator",
 			)
 
-		require_role.assert_not_called()
 		has_permission.assert_not_called()
 
 	def test_all_whitelisted_claim_mutators_use_central_action_gate(self):

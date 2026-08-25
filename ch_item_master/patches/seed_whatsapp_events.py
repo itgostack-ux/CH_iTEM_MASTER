@@ -40,6 +40,8 @@ EVENTS = [
      "1=customer, 2=invoice, 3=amount, 4=PDF URL"),
     ("transfer_status", "Logistics Transfer Status", "Logistics", "transfer_status",
      "1=manifest, 2=destination, 3=tracking URL"),
+    ("warranty_claim_status_update", "Warranty Claim Status Update", "Warranty",
+     "warranty_claim_status_update", "1=customer, 2=claim, 3=status, 4=message"),
 ]
 
 # legacy single field -> event key, for migrating overridden names

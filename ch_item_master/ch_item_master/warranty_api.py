@@ -31,6 +31,7 @@ from ch_item_master.config import (
 	is_privileged_user,
 	require_role_setting)
 from ch_item_master.security import ensure_company_access, get_company_filter_value, get_company_scope
+from ch_erp15.config import has_counter_staff_bypass
 
 
 _CLAIM_EVIDENCE_FIELDS = (
@@ -963,8 +964,7 @@ def get_customer_warranty_dashboard(identifier, company=None) -> dict:
 			}
 
 	# ── Get customer info ────────────────────────────────────────────
-	_bypass_roles = {"POS User", "POS Manager", "CH Store Executive", "CH Store Manager", "System Manager"}
-	_is_bypass = bool(set(frappe.get_roles()) & _bypass_roles) or frappe.session.user == "Administrator"
+	_is_bypass = has_counter_staff_bypass()
 	if not _is_bypass:
 		frappe.has_permission("Customer", "read", doc=customer, throw=True)
 	cust_data = frappe.db.get_value(
@@ -1374,7 +1374,7 @@ def get_claim_ui_capabilities(claim_name) -> dict:
 		is_privileged_user()
 		or frappe.has_permission("CH Warranty Claim", "write", doc=claim, throw=False)
 	)
-	def _can(role_field, defaults):
+	def _can(role_field):
 		return bool(
 			can_write
 			and claim.docstatus == 1
@@ -1384,25 +1384,19 @@ def get_claim_ui_capabilities(claim_name) -> dict:
 	return {
 		"can_perform_intake_qc": bool(
 			_can(
-				"warranty_claim_qc_roles",
-				("CH Warranty Manager", "Service Manager", "Store Manager", "Stock Manager"))
+				"warranty_claim_qc_roles")
 			and claim.claim_status in ("Device Received", "QC Pending")
 		),
 		"can_manage_logistics": _can(
-			"warranty_claim_logistics_roles",
-			("CH Warranty Manager", "Service Manager", "Sales Manager")),
+			"warranty_claim_logistics_roles"),
 		"can_manage_service": _can(
-			"warranty_claim_service_roles",
-			("CH Warranty Manager", "Service Manager")),
+			"warranty_claim_service_roles"),
 		"can_manage_finance": _can(
-			"warranty_claim_finance_roles",
-			("CH Warranty Manager", "Accounts Manager")),
+			"warranty_claim_finance_roles"),
 		"can_perform_final_qc": _can(
-			"warranty_claim_qc_roles",
-			("CH Warranty Manager", "Service Manager", "Store Manager", "Stock Manager")),
+			"warranty_claim_qc_roles"),
 		"can_manage_claim": _can(
-			"warranty_claim_management_roles",
-			("CH Warranty Manager", "Service Manager")),
+			"warranty_claim_management_roles"),
 	}
 
 
@@ -1443,13 +1437,11 @@ def initiate_warranty_claim(serial_no, customer, item_code, company,
 
 	frappe.has_permission("CH Warranty Claim", "create", throw=True)
 	frappe.has_permission("CH Warranty Claim", "submit", throw=True)
-	_bypass_roles = {"POS User", "POS Manager", "CH Store Executive", "CH Store Manager", "System Manager"}
-	_is_bypass = bool(set(frappe.get_roles()) & _bypass_roles) or frappe.session.user == "Administrator"
+	_is_bypass = has_counter_staff_bypass()
 	if not _is_bypass:
 		frappe.has_permission("Customer", "read", doc=customer, throw=True)
 
-	_bypass_roles = {"POS User", "POS Manager", "CH Store Executive", "CH Store Manager", "System Manager"}
-	_is_bypass = bool(set(frappe.get_roles()) & _bypass_roles) or frappe.session.user == "Administrator"
+	_is_bypass = has_counter_staff_bypass()
 	if not _is_bypass:
 		frappe.has_permission("Item", "read", doc=item_code, throw=True)
 	ensure_company_access(company)

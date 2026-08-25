@@ -25,7 +25,6 @@ LEAF_LOCATION_TYPES = {
 	"Other",
 }
 STORE_BIN_TYPES = {"Sellable", "Damaged", "Demo", "Buyback"}
-_LOCATION_MANAGER_ROLES = ("CH Master Manager")
 _WAREHOUSE_SEARCH_FIELDS = {"name", "warehouse_name"}
 
 
@@ -1048,7 +1047,6 @@ def backfill_bin_zones():
 			AND parent.ch_zone != ''
 		"""
 	)
-
 
 
 @frappe.whitelist()

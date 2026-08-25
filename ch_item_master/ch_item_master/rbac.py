@@ -48,14 +48,14 @@ def _roles(user: str | None = None) -> frozenset[str]:
 	return frozenset(frappe.get_roles(user or frappe.session.user))
 
 
-def _has_configured_role(fieldname: str, defaults, user: str | None = None) -> bool:
+def _has_configured_role(fieldname: str, user: str | None = None) -> bool:
 	user = user or frappe.session.user
 	if is_privileged_user(user):
 		return True
 	return bool(_roles(user) & get_role_setting(fieldname))
 
 
-def _configured_role_users(fieldname: str, defaults) -> list[str]:
+def _configured_role_users(fieldname: str) -> list[str]:
 	roles = get_role_setting(fieldname)
 	return get_enabled_system_role_emails(roles)
 
@@ -108,7 +108,6 @@ def check_plm_role(user: str | None = None) -> None:
 	"""Raise if user doesn't have the CH PLM Manager (or higher) role."""
 	if not _has_configured_role(
 		"plm_manager_roles",
-		("CH PLM Manager", "CH Master Approver", "CH Master Manager", "System Manager"),
 		user):
 		frappe.throw(
 			_("CH PLM Manager role is required to change the PLM status of an item."),
@@ -120,7 +119,6 @@ def check_vendor_manager_role(user: str | None = None) -> None:
 	"""Raise if user doesn't have the CH Vendor Manager (or higher) role."""
 	if not _has_configured_role(
 		"vendor_manager_roles",
-		("CH Vendor Manager", "CH Master Manager", "System Manager"),
 		user):
 		frappe.throw(
 			_("CH Vendor Manager role is required to create or update Vendor Info Records."),
@@ -132,7 +130,6 @@ def check_vendor_view_role(user: str | None = None) -> None:
 	"""Raise if user doesn't have read access to Vendor Info Records."""
 	if not _has_configured_role(
 		"vendor_view_roles",
-		("CH Vendor Manager", "CH Master Manager", "CH Master Approver", "CH Viewer", "System Manager"),
 		user):
 		frappe.throw(
 			_("You are not permitted to view Vendor Info Records."),
@@ -144,7 +141,6 @@ def check_gtin_editor_role(user: str | None = None) -> None:
 	"""Raise if user doesn't have the CH GTIN Editor (or higher) role."""
 	if not _has_configured_role(
 		"gtin_editor_roles",
-		("CH GTIN Editor", "CH Master Manager", "CH Master Approver", "System Manager"),
 		user):
 		frappe.throw(
 			_("CH GTIN Editor role is required to set or update a GTIN/EAN/UPC code."),
@@ -156,7 +152,6 @@ def check_mrp_planner_role(user: str | None = None) -> None:
 	"""Raise if user doesn't have the CH MRP Planner (or higher) role."""
 	if not _has_configured_role(
 		"mrp_planner_roles",
-		("CH MRP Planner", "CH Master Manager", "System Manager"),
 		user):
 		frappe.throw(
 			_("CH MRP Planner role is required to modify MRP/coverage planning fields."),
@@ -440,9 +435,7 @@ def close_break_glass(log_name: str, actions_taken: str = "") -> None:
 def _notify_break_glass(log_name: str, reason: str) -> None:
 	"""Send an alert to configured supervisors."""
 	try:
-		mgr_emails = _configured_role_users(
-			"break_glass_supervisor_roles", ("System Manager")
-		)
+		mgr_emails = _configured_role_users("break_glass_supervisor_roles")
 		mgr_emails = [e for e in mgr_emails if "@" in (e or "")]
 		if not mgr_emails:
 			return
@@ -551,9 +544,7 @@ def _send_break_glass_digest(
 	hard_limit_hours: int) -> None:
 	"""Email a consolidated security digest to configured supervisors."""
 	try:
-		recipients = _configured_role_users(
-			"break_glass_supervisor_roles", ("System Manager")
-		)
+		recipients = _configured_role_users("break_glass_supervisor_roles")
 		recipients = [e for e in recipients if "@" in (e or "")]
 		if not recipients:
 			return

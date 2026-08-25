@@ -13,9 +13,6 @@ from frappe.utils import nowdate
 from ch_item_master.security import require_scoped_document_action
 
 
-_SCHEME_MAPPING_ROLES = ("Accounts Manager", "Purchase Manager", "Scheme Manager")
-
-
 class SchemeProductMap(Document):
 	_VERIFICATION_CONTEXT = object()
 	_MAPPING_FIELDS = (
@@ -141,7 +138,6 @@ class SchemeProductMap(Document):
 		require_scoped_document_action(
 			self,
 			"supplier_scheme_management_roles",
-			_SCHEME_MAPPING_ROLES,
 			action=_("verify a supplier scheme product mapping"),
 			permission_types=("write",),
 			company_field="company",

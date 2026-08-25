@@ -39,7 +39,6 @@ class CHItemPrice(Document):
 		require_scoped_document_action(
 			self,
 			"price_approval_roles",
-			("System Manager", "CH Master Approver", "CH Master Manager", "CH Price Manager"),
 			action=action,
 			permission_types=("write",),
 			lock=True,

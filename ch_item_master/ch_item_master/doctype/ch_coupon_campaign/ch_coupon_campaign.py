@@ -13,11 +13,6 @@ from ch_item_master.config import get_int_setting
 from ch_item_master.security import require_scoped_document_action
 
 
-_COUPON_EXPORT_ROLES = ("Sales Manager", "CH Master Manager")
-_COUPON_DISTRIBUTION_ROLES = ("Sales Manager", "CH Master Manager")
-_COUPON_MANAGEMENT_ROLES = ("Sales Manager", "CH Master Manager")
-
-
 class CHCouponCampaign(Document):
 
 	# ── Lifecycle ────────────────────────────────────────────────────────────
@@ -270,7 +265,6 @@ class CHCouponCampaign(Document):
 		require_scoped_document_action(
 			self,
 			"coupon_campaign_management_roles",
-			_COUPON_MANAGEMENT_ROLES,
 			action=_("refresh coupon campaign statistics"),
 			permission_types=("write",),
 			lock=True,
@@ -352,7 +346,6 @@ class CHCouponCampaign(Document):
 		require_scoped_document_action(
 			self,
 			"coupon_code_export_roles",
-			_COUPON_EXPORT_ROLES,
 			action=_("export coupon campaign bearer codes"),
 			permission_types=("read", "export"),
 		)
@@ -381,7 +374,6 @@ class CHCouponCampaign(Document):
 		require_scoped_document_action(
 			self,
 			"coupon_code_distribution_roles",
-			_COUPON_DISTRIBUTION_ROLES,
 			action=_("distribute coupon campaign bearer codes"),
 			permission_types=("write",),
 			lock=True,

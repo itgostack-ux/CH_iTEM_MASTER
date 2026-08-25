@@ -63,7 +63,6 @@ class CHItemOffer(Document):
 		require_scoped_document_action(
 			self,
 			"offer_approval_roles",
-			("System Manager", "CH Offer Manager", "CH Master Approver", "CH Master Manager"),
 			action=action,
 			permission_types=("write",),
 			lock=True,
