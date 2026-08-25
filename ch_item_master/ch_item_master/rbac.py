@@ -74,7 +74,7 @@ def get_item_query(user: str) -> str:
 	"""
 	if not user:
 		user = frappe.session.user
-	if _has_configured_role("break_glass_supervisor_roles", ("System Manager"), user):
+	if _has_configured_role("break_glass_supervisor_roles", user):
 		return ""
 
 	try:
@@ -179,9 +179,7 @@ def check_sod(submitted_by: str, approver: str | None = None) -> None:
 	approver = approver or frappe.session.user
 	if approver != submitted_by:
 		return  # different users — no violation
-	if _has_configured_role(
-		"break_glass_supervisor_roles", ("System Manager"), approver
-	):
+	if _has_configured_role("break_glass_supervisor_roles", approver):
 		return
 	frappe.throw(
 		_("Segregation of Duties violation: <b>{0}</b> submitted this item for "
@@ -204,10 +202,9 @@ def is_effective_approver(user: str | None = None) -> bool:
 	(prevent self-delegation bypass of Segregation of Duties).
 	"""
 	user = user or frappe.session.user
-	approver_defaults = ("CH Master Approver", "System Manager")
 
 	# Direct role check
-	if _has_configured_role("master_approval_roles", approver_defaults, user):
+	if _has_configured_role("master_approval_roles", user):
 		return True
 
 	# Delegation check
@@ -226,7 +223,7 @@ def is_effective_approver(user: str | None = None) -> bool:
 		if d.delegator == user:
 			continue  # delegator cannot delegate to themselves
 		# Verify delegator actually has approver authority
-		if _has_configured_role("master_approval_roles", approver_defaults, d.delegator):
+		if _has_configured_role("master_approval_roles", d.delegator):
 			return True
 
 	return False
