@@ -15,7 +15,6 @@ Idempotent.  Roles that do not exist on this site are skipped.
 """
 import frappe
 
-from ch_erp15.role_settings import set_setting_roles
 
 DOCTYPE = "CH Item Master Settings"
 
@@ -46,9 +45,30 @@ ORDERED_LADDERS = {
 }
 
 
+def _role_settings():
+    """Import the ch_erp15 helpers, failing with something actionable.
+
+    This patch lives in ch_item_master but writes role settings owned by ch_erp15, so the
+    two apps must be deployed together. A bare module-level import turns a stale
+    ch_erp15 into an unreadable ImportError that aborts the whole migrate.
+    """
+    try:
+        from ch_erp15.role_settings import set_setting_roles
+
+        return set_setting_roles
+    except ImportError as exc:
+        frappe.throw(
+            "ch_erp15 is out of date on this site: {0}.\n\n"
+            "ch_item_master patches write role settings owned by ch_erp15, so update it "
+            "first (it must provide role_settings.set_setting_roles), then re-run "
+            "bench migrate.".format(exc),
+            title="Update ch_erp15 first",
+        )
+
 def execute():
     if not frappe.db.exists("DocType", DOCTYPE) or not frappe.db.table_exists("CH Role Link"):
         return
+    set_setting_roles = _role_settings()
     meta = frappe.get_meta(DOCTYPE)
     for fieldname, fallback in PREVIOUS_DEFAULTS.items():
         df = meta.get_field(fieldname)
