@@ -1179,12 +1179,23 @@ def _resolve_serial_location(serial_no, plan=None, require_named_reads=False):
 		serial_name = lifecycle.get("serial_no")
 
 	serial_warehouse = None
+	serial_company = None
 	if serial_name:
 		if require_named_reads:
 			_require_named_permission("Serial No", serial_name)
-		serial_warehouse = frappe.db.get_value("Serial No", serial_name, "warehouse")
+		serial_row = frappe.db.get_value(
+			"Serial No", serial_name, ["warehouse", "company"], as_dict=True
+		) or {}
+		serial_warehouse = serial_row.get("warehouse")
+		serial_company = serial_row.get("company")
 
-	company = lifecycle.get("current_company") if lifecycle else None
+	# The lifecycle is the richer record, but it only knows a company once the
+	# serial has moved through company stock. A customer's own device — booked in
+	# for repair, never owned by us — has a lifecycle row with nothing on it,
+	# while the Serial No itself does carry the company. Reading only the
+	# lifecycle made every warranty lookup on such a device fail with "the serial
+	# company cannot be resolved", which is the one case the lookup exists for.
+	company = (lifecycle.get("current_company") if lifecycle else None) or serial_company
 	warehouse = lifecycle.get("current_warehouse") if lifecycle else None
 	store = lifecycle.get("current_store") if lifecycle else None
 	if warehouse and serial_warehouse and warehouse != serial_warehouse:
