@@ -51,7 +51,7 @@ CUSTOM_FIELDS = {
 			"fieldname": "ch_bin_type",
 			"label": _("Bin Type"),
 			"fieldtype": "Select",
-			"options": "\nSellable\nDamaged\nBuyback\nDemo",
+			"options": "\nSellable\nDamaged\nBuyback\nDemo\nCustomer Device",
 			"insert_after": "ch_location_type",
 			"in_standard_filter": 1,
 			"depends_on": "eval:doc.ch_location_type=='Store Bin'",

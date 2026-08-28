@@ -24,7 +24,7 @@ LEAF_LOCATION_TYPES = {
 	"Hub Bin",
 	"Other",
 }
-STORE_BIN_TYPES = {"Sellable", "Damaged", "Demo", "Buyback"}
+STORE_BIN_TYPES = {"Sellable", "Damaged", "Demo", "Buyback", "Customer Device"}
 _WAREHOUSE_SEARCH_FIELDS = {"name", "warehouse_name"}
 
 

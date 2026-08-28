@@ -771,6 +771,13 @@ STORE_BIN_TYPES = (
     # warehouse stock value but tagged so reports/aging can isolate it.
     ("Demo", "Demo"),
     ("Buyback", "Buyback"),
+    # Customer Device: handsets we are holding but do not own — a repair booked
+    # in over the counter. Received at zero valuation, so the balance sheet is
+    # untouched, but the device becomes a real object the system can move,
+    # scan and account for. This is customer special stock in SAP's sense, and
+    # it is what lets a repair travel on a manifest with a driver rather than
+    # vanishing from the record the moment it leaves the shop.
+    ("Customer Device", "CustomerDevice"),
 )
 
 
