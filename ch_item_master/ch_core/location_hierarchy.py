@@ -965,7 +965,11 @@ def backfill_zone_hubs():
 # Default Hub Bin set every zone hub starts with. Operators add extra bins
 # (Sellable-02, Quarantine, Inbound-Dock-A, …) from the Location Hierarchy
 # page as the facility grows — migrate only guarantees the baseline.
-DEFAULT_HUB_BIN_LABELS = ("Sellable-01")
+# The trailing comma is load-bearing: without it this is a parenthesised STRING,
+# not a tuple, and the loop below iterates it character by character — creating
+# "Hub-S", "Hub-e", "Hub-l", "Hub-a", "Hub-b", "Hub-0", "Hub-1" under every hub,
+# on every migrate. Same shape as permission_types=("write").
+DEFAULT_HUB_BIN_LABELS = ("Sellable-01",)
 
 
 def backfill_default_hub_bins():
