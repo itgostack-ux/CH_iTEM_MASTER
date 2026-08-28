@@ -21,7 +21,7 @@ from urllib.parse import urlencode
 import frappe
 from frappe import _
 from frappe.rate_limiter import rate_limit
-from frappe.utils import add_months, cint, flt, getdate, now_datetime, nowdate
+from frappe.utils import add_days, add_months, cint, flt, getdate, now_datetime, nowdate
 
 from ch_item_master.config import (
 	get_enabled_role_users,
@@ -271,7 +271,95 @@ def check_warranty(serial_no, company=None) -> dict:
 	else:
 		result["deductible_amount"] = 0
 
+	# A VAS plan is not the only thing that can cover a device. A repair we did
+	# carries its own workmanship warranty, and the parts we fitted carry theirs.
+	# Both were recorded and neither was ever surfaced here, so a customer coming
+	# back inside their six months looked uncovered at the counter and got quoted
+	# for work they had already paid for.
+	result["repair_coverage"] = _repair_and_part_coverage(serial_no, company)
+	if result["repair_coverage"] and not result.get("warranty_covered"):
+		result["warranty_covered"] = True
+		result["warranty_status"] = _("In Repair Warranty")
+
 	return result
+
+
+def _repair_and_part_coverage(serial_no, company=None) -> list:
+	"""Live workmanship and part cover on a device, newest repair first.
+
+	Two distinct claims live here and they are settled by different people, so
+	they are returned separately rather than merged:
+
+	  repair_warranty — our labour. Comes from the Service Request's own
+	                    repair_warranty_expiry, and a claim against it is ours
+	                    to absorb.
+	  spare_warranty  — the part. Comes from the fitted item's warranty days
+	                    counted off the day it went in, and a claim against it
+	                    is recoverable from the supplier.
+
+	Only repairs actually delivered to the customer count; an open ticket is not
+	warranty cover.
+	"""
+	if not serial_no or not frappe.db.table_exists("Service Request"):
+		return []
+
+	filters = {
+		"serial_no": serial_no,
+		"docstatus": 1,
+		"decision": ("in", ("Completed", "Invoiced", "Delivered")),
+	}
+	if company:
+		filters["company"] = company
+
+	today_ = getdate(nowdate())
+	coverage = []
+	for sr in frappe.get_all(
+		"Service Request",
+		filters=filters,
+		fields=["name", "service_date", "actual_completion_date",
+		        "repair_warranty_expiry", "repair_warranty_days", "company"],
+		order_by="service_date desc",
+		limit_page_length=10,
+	):
+		if sr.repair_warranty_expiry and getdate(sr.repair_warranty_expiry) >= today_:
+			coverage.append({
+				"coverage_type": "repair_warranty",
+				"service_request": sr.name,
+				"covers": _("Workmanship on repair {0}").format(sr.name),
+				"expires_on": str(sr.repair_warranty_expiry),
+				"days_left": (getdate(sr.repair_warranty_expiry) - today_).days,
+				"claim_against": _("Own cost"),
+			})
+
+		# Parts fitted on that repair, each with its own clock.
+		for line in frappe.get_all(
+			"SR Spare Line",
+			filters={"parent": sr.name, "parenttype": "Service Request",
+			         "status": ("in", ("Consumed", "Sold"))},
+			fields=["spare_item", "item_name", "qty", "installed_part_serial"],
+		):
+			days = cint(frappe.db.get_value("Item", line.spare_item, "gofix_part_warranty_days"))
+			if not days:
+				continue
+			# Counted from when the repair was handed over, not when the part was
+			# bought — the customer's cover starts when they get the device back.
+			started = getdate(sr.actual_completion_date or sr.service_date)
+			expiry = add_days(started, days)
+			if getdate(expiry) < today_:
+				continue
+			coverage.append({
+				"coverage_type": "spare_warranty",
+				"service_request": sr.name,
+				"item_code": line.spare_item,
+				"covers": line.item_name or line.spare_item,
+				"installed_serial": line.installed_part_serial or "",
+				"expires_on": str(expiry),
+				"days_left": (getdate(expiry) - today_).days,
+				"claim_against": _("Supplier"),
+			})
+
+	coverage.sort(key=lambda c: c["days_left"], reverse=True)
+	return coverage
 
 
 @frappe.whitelist()
