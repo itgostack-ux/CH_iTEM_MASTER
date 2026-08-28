@@ -36,6 +36,8 @@ import frappe
 from frappe import _
 from frappe.utils import cint, flt
 
+from ch_item_master.config import require_role_setting
+
 RELEASED_LIFECYCLE = "Active"
 RELEASABLE_FROM = ("", "Draft", "Submitted for Review")
 
@@ -127,7 +129,12 @@ def preview_release(item_codes=None, filters=None, limit: int = 2000) -> dict:
 def release_items(item_codes=None, filters=None, remarks: str = "",
                   limit: int = 2000) -> dict:
 	"""Release ready items through the approval gate. Skips anything not ready."""
-	frappe.only_for(("System Manager", "CH Master Manager", "CH Master Approver"))
+	# Who may release a catalogue is a policy decision, so it lives in
+	# CH Item Master Settings rather than in this file. plm_manager_roles is the
+	# existing setting for moving items through their lifecycle, which is exactly
+	# what a bulk release does. get_role_setting always folds in the privileged
+	# roles, so an unconfigured site still lets an administrator through.
+	require_role_setting("plm_manager_roles", action=_("release items to production"))
 	if not remarks:
 		frappe.throw(
 			_("A release reason is required — it is written to the item's approval "
