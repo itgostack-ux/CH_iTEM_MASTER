@@ -124,15 +124,17 @@ def get_user_mapped_companies(user=None):
 
     scope_companies = _get_scope_mapped_companies(user)
 
+    # Which records grant a user a company is configuration — see CH ERP
+    # Settings > Additional Scope Sources — not a doctype named in this module.
     pos_companies = set()
-    if frappe.db.exists("DocType", "POS Executive"):
-        try:
-            pos_companies.update(filter(None, frappe.get_all(
-                "POS Executive",
-                filters={"user": user, "is_active": 1},
-                pluck="company")))
-        except Exception:
-            pass
+    try:
+        from ch_erp15.ch_erp15.scope import resolve_scope_from_sources
+
+        pos_companies.update(resolve_scope_from_sources(user)["companies"])
+    except (ImportError, ModuleNotFoundError):
+        pass
+    except Exception:
+        pass
 
     # CH POS User Allocation was retired into CH User Scope (ch_erp15 patch
     # v34_consolidate_user_authorization). It only ever ADDED companies on top

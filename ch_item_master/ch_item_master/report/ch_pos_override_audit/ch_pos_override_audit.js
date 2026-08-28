@@ -29,6 +29,10 @@ frappe.query_reports["CH POS Override Audit"] = {
 			label: __("Store / Warehouse"),
 			fieldtype: "Link",
 			options: "Warehouse",
+			get_query: () => {
+				const company = frappe.query_report.get_filter_value("company");
+				return { filters: company ? { company } : {} };
+			},
 		},
 		{
 			fieldname: "pos_user",
