@@ -2324,7 +2324,12 @@ def report_warehouse_query(doctype, txt, searchfield, start, page_len, filters):
 	_check_warehouse_picker_permission("Warehouse", "CH Store", "Company")
 	if doctype != "Warehouse":
 		frappe.throw(_("Invalid link query DocType."), frappe.ValidationError)
-	filters = filters or {}
+	# filters arrives as a JSON-encoded string over the wire for a standard
+	# link-query AJAX call (frappe.client's search endpoint always
+	# serializes it this way) — `filters or {}` alone leaves it as that raw
+	# string whenever it's non-empty, and every .get() call below then
+	# raises AttributeError: 'str' object has no attribute 'get'.
+	filters = frappe.parse_json(filters) or {}
 	start, page_len = _bounded_page(start, page_len)
 	values = {"txt": _wh_search_txt(txt), "start": start, "page_len": page_len}
 	scope = _get_location_scope(filters.get("company"))
@@ -2371,7 +2376,12 @@ def hub_warehouse_query(doctype, txt, searchfield, start, page_len, filters):
 	_check_master_permission(("Warehouse", "read"), ("CH Store Zone", "read"), ("Company", "read"))
 	if doctype != "Warehouse":
 		frappe.throw(_("Invalid link query DocType."), frappe.ValidationError)
-	filters = filters or {}
+	# filters arrives as a JSON-encoded string over the wire for a standard
+	# link-query AJAX call (frappe.client's search endpoint always
+	# serializes it this way) — `filters or {}` alone leaves it as that raw
+	# string whenever it's non-empty, and every .get() call below then
+	# raises AttributeError: 'str' object has no attribute 'get'.
+	filters = frappe.parse_json(filters) or {}
 	company = filters.get("company")
 	zone = filters.get("zone")
 	city = filters.get("city")
@@ -2481,7 +2491,12 @@ def other_warehouse_query(doctype, txt, searchfield, start, page_len, filters):
 	_check_master_permission(("Warehouse", "read"), ("Company", "read"))
 	if doctype != "Warehouse":
 		frappe.throw(_("Invalid link query DocType."), frappe.ValidationError)
-	filters = filters or {}
+	# filters arrives as a JSON-encoded string over the wire for a standard
+	# link-query AJAX call (frappe.client's search endpoint always
+	# serializes it this way) — `filters or {}` alone leaves it as that raw
+	# string whenever it's non-empty, and every .get() call below then
+	# raises AttributeError: 'str' object has no attribute 'get'.
+	filters = frappe.parse_json(filters) or {}
 	company = filters.get("company")
 	scope = _get_location_scope(company)
 	start, page_len = _bounded_page(start, page_len)
@@ -2533,7 +2548,12 @@ def sellable_warehouse_query(doctype, txt, searchfield, start, page_len, filters
 	_check_master_permission(("Warehouse", "read"), ("CH Store", "read"), ("CH Store Zone", "read"))
 	if doctype != "Warehouse":
 		frappe.throw(_("Invalid link query DocType."), frappe.ValidationError)
-	filters = filters or {}
+	# filters arrives as a JSON-encoded string over the wire for a standard
+	# link-query AJAX call (frappe.client's search endpoint always
+	# serializes it this way) — `filters or {}` alone leaves it as that raw
+	# string whenever it's non-empty, and every .get() call below then
+	# raises AttributeError: 'str' object has no attribute 'get'.
+	filters = frappe.parse_json(filters) or {}
 	company = filters.get("company")
 	zone = filters.get("zone")
 	city = filters.get("city")
@@ -2601,7 +2621,12 @@ def master_city_query(doctype, txt, searchfield, start, page_len, filters):
 	_check_master_permission(("CH City", "read"), ("CH State", "read"), ("Country", "read"))
 	if doctype != "CH City":
 		frappe.throw(_("Invalid link query DocType."), frappe.ValidationError)
-	filters = filters or {}
+	# filters arrives as a JSON-encoded string over the wire for a standard
+	# link-query AJAX call (frappe.client's search endpoint always
+	# serializes it this way) — `filters or {}` alone leaves it as that raw
+	# string whenever it's non-empty, and every .get() call below then
+	# raises AttributeError: 'str' object has no attribute 'get'.
+	filters = frappe.parse_json(filters) or {}
 	start, page_len = _bounded_page(start, page_len)
 	clean_txt = _clean(txt)[:140]
 	txt_like = f"%{clean_txt}%"
