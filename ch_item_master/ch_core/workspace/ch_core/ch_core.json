@@ -18,7 +18,7 @@
    "hidden": 0,
    "is_query_report": 0,
    "label": "Shared Masters",
-   "link_count": 0,
+   "link_count": 3,
    "link_type": "DocType",
    "onboard": 0,
    "type": "Card Break"
@@ -57,7 +57,7 @@
    "hidden": 0,
    "is_query_report": 0,
    "label": "Exception Approval",
-   "link_count": 0,
+   "link_count": 2,
    "link_type": "DocType",
    "onboard": 0,
    "type": "Card Break"
@@ -86,7 +86,7 @@
    "hidden": 0,
    "is_query_report": 0,
    "label": "Audit & Receivables",
-   "link_count": 0,
+   "link_count": 6,
    "link_type": "DocType",
    "onboard": 0,
    "type": "Card Break"
@@ -155,7 +155,7 @@
    "hidden": 0,
    "is_query_report": 0,
    "label": "Finance Reports",
-   "link_count": 0,
+   "link_count": 2,
    "link_type": "DocType",
    "onboard": 0,
    "type": "Card Break"
@@ -184,7 +184,7 @@
    "hidden": 0,
    "is_query_report": 0,
    "label": "Communications & Zones",
-   "link_count": 3,
+   "link_count": 12,
    "link_type": "DocType",
    "onboard": 0,
    "type": "Card Break"
@@ -258,9 +258,59 @@
    "link_type": "DocType",
    "onboard": 0,
    "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "CH WhatsApp Account",
+   "link_count": 0,
+   "link_to": "CH WhatsApp Account",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "CH WhatsApp Template",
+   "link_count": 0,
+   "link_to": "CH WhatsApp Template",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "CH WhatsApp Event",
+   "link_count": 0,
+   "link_to": "CH WhatsApp Event",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "CH SMS Account",
+   "link_count": 0,
+   "link_to": "CH SMS Account",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "CH Message Template",
+   "link_count": 0,
+   "link_to": "CH Message Template",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
   }
  ],
- "modified": "2026-08-12 17:10:12.090630",
+ "modified": "2026-08-31 18:31:00.022153",
  "modified_by": "Administrator",
  "module": "CH Core",
  "name": "CH Core",

@@ -5,11 +5,13 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import cint, date_diff, flt, getdate, nowdate
 
-from ch_item_master.config import get_enabled_role_emails, get_int_setting, has_role_setting
+from ch_item_master.config import (
+	get_enabled_role_emails,
+	get_int_setting,
+	get_role_setting,
+	has_role_setting,
+)
 from ch_item_master.security import require_scoped_document_action
-
-
-_SCHEME_APPROVAL_ROLES = ("Purchase Manager", "Scheme Manager")
 
 
 def _is_approver():
@@ -255,8 +257,10 @@ class SupplierSchemeCircular(Document):
 		self._authorize_approval_transition()
 		self.save()
 		# Notify approvers
+		# Notify the same configured role set the approval gate enforces, so
+		# the recipients can never drift from who may actually approve.
 		approver_emails = get_enabled_role_emails(
-			_SCHEME_APPROVAL_ROLES,
+			get_role_setting("supplier_scheme_approval_roles"),
 			company=self.company)
 		if approver_emails:
 			scheme_url = frappe.utils.get_url_to_form("Supplier Scheme Circular", self.name)
