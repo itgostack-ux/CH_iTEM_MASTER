@@ -351,6 +351,12 @@ def transfer_between_bins(
 	se.flags.ignore_transit_guard = True
 	se.insert()
 
+	# Only a serialised move builds a bundle. Non-serialised stock — a repair
+	# spare, an accessory a shop writes off — has none, and the `if bundle`
+	# below used to hit an unbound local and abort every quantity-only
+	# transfer before it could post.
+	bundle = None
+
 	# In v16 with Stock Settings.use_serial_batch_fields = 1, old-style
 	# row.serial_no may not guarantee exact-serial movement. Attach an explicit
 	# outward bundle so submit consumes the intended serial(s).
@@ -606,6 +612,113 @@ def get_bin_items(doctype, txt, searchfield, start, page_len, filters):
 
 
 @frappe.whitelist()
+def get_item_bin_context(item_code: str, store: str | None = None) -> dict:
+	"""Where an ITEM currently sits across a store's bins, and how much.
+
+	The serial lookup answers "which bin is this IMEI in". Non-serialised
+	stock — repair spares, and the accessories a retail store writes off —
+	has no serial to scan, so it needs the same question answered by item:
+	which bins hold it, and what quantity is in each. Without this the Bin
+	Manager could only ever move serialised goods.
+
+	``has_serial_no`` is returned so the caller can insist on a scan for
+	serialised items instead of moving them blind by quantity.
+	"""
+	store = store or get_store_for_user()
+	if not store:
+		frappe.throw(_("Cannot determine store for current user."))
+	if not item_code:
+		frappe.throw(_("Item is required."))
+	_authorized_store(store)
+	for doctype in ("Warehouse", "Bin", "Item"):
+		_require_named_permission(doctype, "read")
+
+	item = frappe.db.get_value(
+		"Item", item_code, ["name", "item_name", "has_serial_no", "stock_uom"], as_dict=True
+	)
+	if not item:
+		frappe.throw(_("Item {0} not found.").format(item_code))
+
+	bins = get_store_bins(store)
+	if not bins:
+		return {}
+
+	qty_by_wh = {
+		r.warehouse: flt(r.actual_qty)
+		for r in frappe.get_all(
+			"Bin",
+			filters={"item_code": item_code, "warehouse": ("in", list(bins.values()))},
+			fields=["warehouse", "actual_qty"],
+		)
+	}
+
+	rows = [
+		{"bin_type": bin_type, "warehouse": warehouse, "qty": qty_by_wh.get(warehouse, 0.0)}
+		for bin_type, warehouse in bins.items()
+		if qty_by_wh.get(warehouse, 0.0) > 0
+	]
+	rows.sort(key=lambda r: -r["qty"])
+
+	return {
+		"item_code": item.name,
+		"item_name": item.item_name,
+		"has_serial_no": int(item.has_serial_no or 0),
+		"stock_uom": item.stock_uom,
+		"store": store,
+		"bins": rows,
+	}
+
+
+def _non_serialised_bin_rows(warehouse, item_code=None, search_text=None, limit=100):
+	"""Item-level rows for stock in a bin that carries NO serial numbers.
+
+	The bin tabs count every unit in the warehouse, but the list underneath was
+	built from serial rows only. A spare part is not serialised, so a store
+	could read "Damaged 5" above a panel saying "No serials in Damaged bin
+	yet" — the count and the list contradicting each other, with no way to see
+	WHICH parts were quarantined. These rows close that gap; they carry a qty
+	instead of a serial, and are marked ``tracking = "quantity"`` so the UI can
+	tell the two apart rather than inventing a fake serial.
+	"""
+	_require_named_permission("Bin", "read")
+
+	conditions = [
+		"b.warehouse = %(warehouse)s",
+		"b.actual_qty > 0",
+		"IFNULL(i.has_serial_no, 0) = 0",
+	]
+	params = {"warehouse": warehouse, "limit": limit}
+
+	if item_code:
+		conditions.append("b.item_code = %(item_code)s")
+		params["item_code"] = item_code
+
+	if search_text:
+		conditions.append("(b.item_code LIKE %(search)s OR i.item_name LIKE %(search)s)")
+		params["search"] = f"%{search_text.strip()}%"
+
+	return frappe.db.sql(
+		"""
+		SELECT
+			NULL AS serial_no,
+			b.item_code,
+			i.item_name,
+			b.actual_qty AS qty,
+			i.stock_uom AS uom,
+			'quantity' AS tracking,
+			b.warehouse
+		FROM `tabBin` b
+		INNER JOIN `tabItem` i ON i.name = b.item_code
+		WHERE {where_clause}
+		ORDER BY b.actual_qty DESC, b.item_code
+		LIMIT %(limit)s
+		""".format(where_clause=" AND ".join(conditions)),
+		params,
+		as_dict=True,
+	)
+
+
+@frappe.whitelist()
 def get_store_bin_serials(
 	bin_type: str,
 	store: str | None = None,
@@ -698,6 +811,16 @@ def get_store_bin_serials(
 			params,
 			as_dict=True,
 		)
+
+	for row in rows:
+		row["tracking"] = "serial"
+
+	# Non-serialised stock (spare parts) sits in the same bin and must be
+	# listed too, or the tab count above disagrees with the list below.
+	rows = rows + _non_serialised_bin_rows(
+		warehouse, item_code=item_code, search_text=search_text,
+		limit=max(1, limit - len(rows)),
+	)
 
 	return {
 		"store": store,
