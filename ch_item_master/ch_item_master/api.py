@@ -650,6 +650,7 @@ def items_by_subcategory_nature(doctype, txt, searchfield, start, page_len, filt
       - is_repair_labour: 1 to require sub-cat.is_repair_labour = 1
       - is_amc: 1 to require sub-cat.is_amc = 1
       - is_stock_item: 0/1 fallback when sub-cat is not yet classified
+      - ch_category / brand / ch_model: narrow the device cascade
 
     Result columns (Frappe link query convention): name, item_name, ch_sub_category
     """
@@ -680,6 +681,20 @@ def items_by_subcategory_nature(doctype, txt, searchfield, start, page_len, filt
     if "is_stock_item" in filters:
         where.append("i.is_stock_item = %(is_stock_item)s")
         values["is_stock_item"] = int(filters["is_stock_item"])
+
+    # Optional narrowing down the category -> brand -> model chain. Each is
+    # applied only when supplied, so existing callers that pass none of them are
+    # unaffected. This exists because picking a device by typing its full item
+    # name is unusable at a service counter, where the customer often hands over
+    # a dead handset and the advisor works down from what they can see.
+    for key, column in (
+        ("ch_category", "i.ch_category"),
+        ("brand", "i.brand"),
+        ("ch_model", "i.ch_model"),
+    ):
+        if filters.get(key):
+            where.append(f"{column} = %({key})s")
+            values[key] = filters[key]
 
     if txt:
         where.append("(i.name LIKE %(txt)s OR i.item_name LIKE %(txt)s)")
