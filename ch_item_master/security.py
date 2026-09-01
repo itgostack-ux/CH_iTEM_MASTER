@@ -403,6 +403,22 @@ def has_serial_lifecycle_permission(doc=None, user=None, permission_type=None):
     )
 
 
+def get_ch_item_price_query(user=None):
+    """List filter for CH Item Price.
+
+    WHY: CH Item Price rows carry MRP/MOP/cost per company — commercially
+    sensitive numbers. Without this hook a user scoped to one company could
+    list (and read) every other company's pricing; the company scope resolved
+    from the same sources as every other company-owned doctype in this module
+    is the single truth for what a user may see.
+    """
+    return get_company_permission_query("CH Item Price", user=user)
+
+
+def has_ch_item_price_permission(doc=None, user=None, permission_type=None):
+    return has_company_permission(doc=doc, user=user)
+
+
 def get_item_version_query(user=None):
     user = user or frappe.session.user
     if not has_role_setting("app_access_roles", user=user):

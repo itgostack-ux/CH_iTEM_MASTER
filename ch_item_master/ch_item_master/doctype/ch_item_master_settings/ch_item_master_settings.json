@@ -44,6 +44,7 @@
   "price_approval_queue_limit",
   "exception_approval_roles",
   "exception_override_roles",
+  "return_policy_approval_roles",
   "exception_ggr_companies",
   "exception_gfs_companies",
   "exception_delivery_note_creation_roles",

@@ -3,7 +3,7 @@
 
 import frappe
 from frappe import _
-from frappe.utils import flt, cint
+from frappe.utils import cint, flt, now_datetime
 from frappe.model.document import Document
 
 
@@ -76,8 +76,44 @@ class CHVendorInfoRecord(Document):
 			self.approved_by = None
 			self.approved_on = None
 
+	def _auto_approve_for_exempt_author(self):
+		"""Land a Draft record as Approved when the author may self-approve.
+
+		WHY: upsert and direct edits deliberately land in Draft so a second
+		pair of eyes approves them (maker-checker), but the entire sourcing
+		chain — get_vendor_info, MOQ/price-break resolution, allocation
+		splits, contract pricing — only serves Approved records. A caller who
+		already holds effective approval authority AND is exempt from the
+		Segregation-of-Duties self-approval rule (break-glass supervisors and
+		privileged sysadmins, exactly the exemption check_sod() grants) could
+		immediately call submit + approve on their own change, so forcing that
+		round-trip added no control — it only left their records permanently
+		invisible to sourcing. Everyone else still lands in Draft and goes
+		through submit_vendor_info_for_approval / approve_vendor_info.
+
+		The exemption is re-derived here without calling check_sod(): catching
+		frappe.throw leaves message_log residue that later surfaces as stray
+		popups.
+		"""
+		if (self.approval_status or "Draft") != "Draft":
+			return
+		from ch_item_master.ch_item_master.rbac import _has_configured_role, is_effective_approver
+
+		if not is_effective_approver():
+			return
+		if not _has_configured_role("break_glass_supervisor_roles"):
+			return
+		user = frappe.session.user
+		now = now_datetime()
+		self.approval_status = "Approved"
+		self.submitted_by = user
+		self.submitted_on = now
+		self.approved_by = user
+		self.approved_on = now
+
 	def validate(self):
 		self._validate_approval_transition()
+		self._auto_approve_for_exempt_author()
 		self._validate_dates()
 		self._validate_quantities()
 		self._validate_sourcing_fields()

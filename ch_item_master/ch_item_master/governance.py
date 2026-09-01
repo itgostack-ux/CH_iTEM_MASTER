@@ -23,7 +23,7 @@ from typing import Iterable
 
 import frappe
 from frappe import _
-from frappe.utils import now_datetime
+from frappe.utils import cint, now_datetime
 
 from ch_item_master.config import has_role_setting
 
@@ -169,6 +169,35 @@ def validate_lifecycle_transition(doc) -> None:
 		raise InvalidLifecycleTransitionError(
 			_("Transition '{0}' → '{1}' requires the 'CH Master Approver' role.").format(old_status, new_status)
 		)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Sub Category gate: no new Items under a disabled CH Sub Category
+# ─────────────────────────────────────────────────────────────────────────────
+
+def validate_sub_category_enabled(doc, method=None) -> None:
+	"""Refuse attaching an Item to a disabled CH Sub Category.
+
+	WHY: the Sub Category is the governance anchor of an Item — it drives
+	naming, HSN/tax ownership, UOM defaults and the completeness profile.
+	Disabling a Sub Category is how the catalogue team retires taxonomy, so
+	letting a NEW Item (or a re-pointed one) attach to it would silently
+	resurrect retired configuration without review. Only the attachment is
+	gated: an existing Item whose Sub Category is disabled later must still
+	be editable (to obsolete it, fix stock flags, etc.), so unchanged
+	references are left alone.
+	"""
+	sub_category = doc.get("ch_sub_category")
+	if not sub_category:
+		return
+	if not doc.is_new() and not doc.has_value_changed("ch_sub_category"):
+		return
+	if cint(frappe.db.get_value("CH Sub Category", sub_category, "disabled")):
+		frappe.throw(
+			_("CH Sub Category {0} is disabled. Enable it (or pick an active sub category) before creating items under it.").format(
+				frappe.bold(sub_category)),
+			title=_("Sub Category Disabled"),
+			exc=frappe.ValidationError)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

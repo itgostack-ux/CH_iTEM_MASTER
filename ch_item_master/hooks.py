@@ -135,6 +135,7 @@ permission_query_conditions = {
 	"CH Vendor Performance": "ch_item_master.security.get_vendor_performance_query",
 	"CH Serial Lifecycle": "ch_item_master.security.get_serial_lifecycle_query",
 	"CH Item Version": "ch_item_master.security.get_item_version_query",
+	"CH Item Price": "ch_item_master.security.get_ch_item_price_query",
 }
 
 has_permission = {
@@ -152,6 +153,7 @@ has_permission = {
 	"CH Vendor Performance": "ch_item_master.security.has_vendor_performance_permission",
 	"CH Serial Lifecycle": "ch_item_master.security.has_serial_lifecycle_permission",
 	"CH Item Version": "ch_item_master.security.has_item_version_permission",
+	"CH Item Price": "ch_item_master.security.has_ch_item_price_permission",
 }
 
 # Document Events
@@ -167,6 +169,8 @@ doc_events = {
 			"ch_item_master.ch_item_master.overrides.item.validate_serial_kind",
 			# Mandatory on all items (IMEI/Barcode/UOM) — prevent NULL tracking
 			"ch_item_master.ch_item_master.governance.validate_serial_kind_mandatory",
+			# No new Items under a disabled CH Sub Category (retired taxonomy).
+			"ch_item_master.ch_item_master.governance.validate_sub_category_enabled",
 			# MRP mandatory for stock items; must be > 0 before save.
 			"ch_item_master.ch_item_master.item_mrp.validate_item_mrp",
 		],

@@ -32,7 +32,7 @@ import frappe
 from frappe import _
 from frappe.utils import now_datetime, today, getdate, flt, cint
 
-from ch_item_master.config import get_int_setting, has_role_setting
+from ch_item_master.config import get_int_setting, get_role_setting, get_user_roles, has_role_setting
 from ch_item_master.ch_item_master.exceptions import ItemNotActiveError
 from ch_item_master.security import ensure_company_access, get_company_scope
 
@@ -138,7 +138,14 @@ def enforce_approval_gate(doc, method=None):
 	lifecycle = getattr(doc, "ch_lifecycle_status", None) or "Draft"
 
 	if lifecycle == "Active" and approval != "Approved":
-		if has_role_setting("master_approval_roles"):
+		# WHY roles, not account identity: this is a data-governance gate, so
+		# the bypass must follow the roles the session actually holds
+		# (get_role_setting already unions the immutable System Manager role).
+		# has_role_setting()'s privileged short-circuit keys on the account
+		# NAME, which silently downgraded the gate for Administrator even when
+		# its effective role set says otherwise — role-driven matches the
+		# pre-refactor behaviour and keeps the gate honest under role changes.
+		if get_user_roles().intersection(get_role_setting("master_approval_roles")):
 			frappe.msgprint(
 				_("Approval Warning: item is being set Active without formal approval."),
 				title=_("Approval Gate Bypassed"),
@@ -719,7 +726,18 @@ def record_vendor_performance(
 	frappe.has_permission("Supplier", "read", supplier, throw=True)
 	company = _resolve_vendor_company(company)
 	if not company:
-		frappe.throw(_("Company is required for vendor performance records."), frappe.ValidationError)
+		# WHY: _resolve_vendor_company returns None only for an UNRESTRICTED
+		# caller (scope bypass) who named no company — scoped users either get
+		# their single company or are told to pick one. An unrestricted user
+		# may book against their default company instead of being refused;
+		# refusing here dead-ended the vendor performance chain for admins.
+		company = frappe.defaults.get_user_default("Company") or frappe.db.get_single_value(
+			"Global Defaults", "default_company")
+	if not company:
+		frappe.throw(
+			_("Company is required for vendor performance records."),
+			title=_("Vendor Performance"),
+			exc=frappe.ValidationError)
 	if risk_level not in {"Low", "Medium", "High", "Critical"}:
 		frappe.throw(_("Invalid vendor risk level."), frappe.ValidationError)
 	for label, value in (
@@ -751,15 +769,21 @@ def record_vendor_performance(
 	})
 	rec.insert()
 
-	# Auto-block: deactivate the vendor info record(s) for this item+supplier
+	# Auto-block: deactivate the vendor info record(s) for this item+supplier.
+	# WHY the company match is done in Python: a vendor info record with no
+	# company is a GLOBAL sourcing record (valid for every company), so a
+	# Critical rating must block it too — a strict company= filter silently
+	# skipped global records and left the blocked vendor sourceable.
 	if auto_block:
-		vir_names = frappe.get_list(
+		vir_rows = frappe.get_list(
 			"CH Vendor Info Record",
-			filters={"item_code": item_code, "supplier": supplier, "company": company, "active": 1},
-			pluck="name",
+			filters={"item_code": item_code, "supplier": supplier, "active": 1},
+			fields=["name", "company"],
 			limit_page_length=get_int_setting("vendor_query_limit", 200, minimum=1))
-		for vir_name in vir_names:
-			vir = frappe.get_doc("CH Vendor Info Record", vir_name)
+		for vir_row in vir_rows:
+			if vir_row.company and vir_row.company != company:
+				continue
+			vir = frappe.get_doc("CH Vendor Info Record", vir_row.name)
 			vir.check_permission("write")
 			vir.active = 0
 			vir.notes = f"[Auto-blocked] {block_reason}"

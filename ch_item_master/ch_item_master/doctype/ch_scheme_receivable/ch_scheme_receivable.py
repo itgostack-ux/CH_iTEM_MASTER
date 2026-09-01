@@ -790,7 +790,18 @@ def _create_from_pos_invoice(doc, method=None, invoice_doctype=None) -> list[str
 
 @frappe.whitelist(methods=["POST"])
 def create_from_pos_invoice(doc, method=None, invoice_doctype=None) -> list[str]:
-	"""Manually rebuild receivables under the configured scheme-management policy."""
+	"""Manually rebuild receivables under the configured scheme-management policy.
+
+	WHY the role gate comes first: this is a public POST endpoint and the
+	invoice name is caller-supplied, so the configured scheme-management
+	policy must refuse before any invoice is read or locked — an
+	unauthorised caller must learn nothing about the invoice, not even
+	whether it exists.
+	"""
+	require_role_setting(
+		"supplier_scheme_management_roles",
+		action=_("rebuild scheme receivables from an invoice"),
+	)
 	frappe.has_permission("CH Scheme Receivable", ptype="create", throw=True)
 	return _create_from_pos_invoice(doc, method=method, invoice_doctype=invoice_doctype)
 
