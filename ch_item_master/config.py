@@ -6,7 +6,7 @@ import frappe
 from frappe import _
 
 
-from frappe.utils import cint
+from frappe.utils import cint, flt
 
 
 IMMUTABLE_PRIVILEGED_ROLES = frozenset({"System Manager"})
@@ -34,12 +34,34 @@ def is_privileged_user(user: str | None = None) -> bool:
 	return bool(get_user_roles(user).intersection(IMMUTABLE_PRIVILEGED_ROLES))
 
 
+_NUMERIC_FIELDTYPES = ("Int", "Float", "Currency", "Percent")
+
+
 def get_setting(fieldname: str, default=None):
 	try:
 		value = frappe.get_cached_value("CH Item Master Settings", None, fieldname)
 	except Exception:
 		return default
-	return default if value in (None, "") else value
+	if value in (None, ""):
+		return default
+	if default is not None:
+		# A Single stores a never-edited numeric as 0, not NULL. Where the
+		# docfield declares a non-zero default, a stored 0 means "never
+		# configured" — returning it raw collapses thresholds like
+		# customer_vip_purchase_amount to 0 (every customer VIP). Check
+		# fields are excluded: an unchecked box must stay 0.
+		try:
+			df = frappe.get_meta("CH Item Master Settings").get_field(fieldname)
+		except Exception:
+			df = None
+		if (
+			df is not None
+			and df.fieldtype in _NUMERIC_FIELDTYPES
+			and flt(value) == 0
+			and flt(df.default) != 0
+		):
+			return default
+	return value
 
 
 def get_int_setting(fieldname: str, default: int, minimum: int = 0) -> int:

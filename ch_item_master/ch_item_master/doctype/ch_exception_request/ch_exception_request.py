@@ -405,7 +405,12 @@ class CHExceptionRequest(Document):
 		if dn_docstatus == 2:
 			frappe.throw(_("Cannot apply exception — DN {0} cancelled.").format(dn_name))
 
-		approved_deduction = flt(self.resolution_value or self.requested_value)
+		# approve() always writes resolution_value, so an explicit 0 means the
+		# approver granted no deduction — `or` would apply the requested amount
+		# the approver just declined. NULL (legacy row) still falls back.
+		approved_deduction = flt(
+			self.requested_value if self.resolution_value is None else self.resolution_value
+		)
 		if approved_deduction <= 0:
 			frappe.msgprint(
 				_("Exception {0}: no approved amount to apply.").format(self.name),
