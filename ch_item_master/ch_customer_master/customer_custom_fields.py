@@ -534,7 +534,11 @@ CUSTOMER_CUSTOM_FIELDS = {
 			"options": "Employee",
 			"insert_after": "ch_relationship_section",
 			"description": _("Primary staff assigned for CRM follow-up and customer retention"),
-		},
+			# A blank Employee link DENIES the whole Customer to any user holding an
+			# Employee User Permission under strict mode (i.e. every scoped user).
+			# CRM ownership must never gate access to the customer record.
+			"ignore_user_permissions": 1,
+},
 		# ── Customer Feedback ──
 		{
 			"fieldname": "ch_feedback_section",
