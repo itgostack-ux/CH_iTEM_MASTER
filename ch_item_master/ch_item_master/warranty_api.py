@@ -276,10 +276,15 @@ def check_warranty(serial_no, company=None) -> dict:
 	# Both were recorded and neither was ever surfaced here, so a customer coming
 	# back inside their six months looked uncovered at the counter and got quoted
 	# for work they had already paid for.
+	# Repair/part cover is ADVISORY here — it does NOT mark the device covered on
+	# its own. The old code flipped warranty_covered=True whenever ANY prior part
+	# or workmanship window was still live, so a brand-new UNRELATED fault was
+	# quoted free — a revenue leak. Whether a repair actually qualifies as
+	# in-warranty rework depends on the CURRENT issue matching the covered part /
+	# fault, which is only knowable once solutions are chosen; that decision lives
+	# in gofix.estimate_policy.warranty_rework_context. Here we just surface the
+	# list so the counter can see cover exists.
 	result["repair_coverage"] = _repair_and_part_coverage(serial_no, company)
-	if result["repair_coverage"] and not result.get("warranty_covered"):
-		result["warranty_covered"] = True
-		result["warranty_status"] = _("In Repair Warranty")
 
 	return result
 

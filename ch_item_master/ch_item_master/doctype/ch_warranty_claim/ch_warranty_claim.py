@@ -2728,9 +2728,10 @@ class CHWarrantyClaim(Document):
 			sr.service_date = nowdate()
 
 			# Warranty info
-			sr.warranty_status = "Under Warranty" if self.coverage_type in (
+			from ch_erp15.warranty import UNDER_WARRANTY, OUT_OF_WARRANTY
+			sr.warranty_status = UNDER_WARRANTY if self.coverage_type in (
 				"anniversary_warranty", "vas_plan", "repair_warranty", "goodwill"
-			) else "Out of Warranty"
+			) else OUT_OF_WARRANTY
 			sr.warranty_plan = self.warranty_plan
 			sr.warranty_plan_name = frappe.db.get_value(
 				"CH Warranty Plan", self.warranty_plan, "plan_name"
