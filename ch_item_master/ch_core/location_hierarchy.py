@@ -1391,7 +1391,8 @@ def list_companies():
 def list_warehouses(company=None, unassigned_only=0):
 	_check_master_permission(("Warehouse", "read"), ("Company", "read"))
 	scope = _get_location_scope(company)
-	filters = {"disabled": 0, "is_group": 0}
+	# GoFix custody bins are internal-only and never assignable.
+	filters = {"disabled": 0, "is_group": 0, "name": ("not like", "%-CustomerDevice%")}
 	companies = _scope_companies(scope)
 	if companies is not None:
 		filters["company"] = (

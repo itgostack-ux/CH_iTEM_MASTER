@@ -200,14 +200,21 @@ def get_store_bin(store: str, bin_type: str) -> str:
 
 
 def get_store_bins(store: str) -> dict:
-	"""Return {bin_type: warehouse_name} for all bins of the store."""
+	"""Return {bin_type: warehouse_name} for the store's MOVABLE bins.
+
+	Restricted to BIN_TYPES on purpose: internal custody bins (GoFix's
+	"Customer Device") also carry ch_store + ch_bin_type, but they must
+	never be offered as a transfer source or destination — custody stock
+	moves only through GoFix's own orchestration. transfer_between_bins
+	already rejects them; this keeps them out of the pickers too.
+	"""
 	bins = {}
 	base = frappe.db.get_value("CH Store", store, "warehouse")
 	if base:
 		bins["Sellable"] = base
 	rows = frappe.get_all(
 		"Warehouse",
-		filters={"ch_store": store, "ch_bin_type": ["!=", ""], "disabled": 0},
+		filters={"ch_store": store, "ch_bin_type": ["in", list(BIN_TYPES)], "disabled": 0},
 		fields=["ch_bin_type", "name"],
 	)
 	bins.update({r.ch_bin_type: r.name for r in rows})
