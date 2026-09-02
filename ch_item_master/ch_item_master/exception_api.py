@@ -19,33 +19,48 @@ from ch_erp15.config import has_counter_staff_bypass
 _MAX_EXCEPTION_SUMMARY_DAYS = 366
 
 
-def _approver_mobile(user=None) -> str:
-	"""Resolve the authenticated approver's trusted mobile number."""
+def _approver_contact(user=None) -> dict:
+	"""The authenticated approver's OTP identities: mobile (if any) and email.
+
+	A mobile is preferred for SMS/WhatsApp, but it is no longer required — an
+	approver with only an email still gets an approval OTP, delivered to that
+	email. We fail only when neither channel exists, which cannot happen for a
+	real login (email is the account name).
+	"""
 	user = user or frappe.session.user
-	row = frappe.db.get_value("User", user, ["mobile_no", "phone"], as_dict=True) or {}
+	row = frappe.db.get_value("User", user, ["mobile_no", "phone", "email"], as_dict=True) or {}
 	mobile = (row.get("mobile_no") or row.get("phone") or "").strip()
+	email = (row.get("email") or (user if "@" in (user or "") else "")).strip()
 	if not mobile and frappe.db.exists("DocType", "Employee"):
 		fields = [f for f in ("cell_number", "personal_mobile") if frappe.get_meta("Employee").has_field(f)]
-		if fields:
-			employee = frappe.db.get_value("Employee", {"user_id": user, "status": ("!=", "Left")}, fields, as_dict=True) or {}
-			mobile = next((str(employee.get(field) or "").strip() for field in fields if employee.get(field)), "")
-	if not mobile:
+		emp_fields = fields + (["company_email", "personal_email"]
+			if any(frappe.get_meta("Employee").has_field(f) for f in ("company_email", "personal_email")) else [])
+		if emp_fields:
+			employee = frappe.db.get_value(
+				"Employee", {"user_id": user, "status": ("!=", "Left")}, emp_fields, as_dict=True
+			) or {}
+			mobile = next((str(employee.get(f) or "").strip() for f in fields if employee.get(f)), "")
+			if not email:
+				email = next((str(employee.get(f) or "").strip()
+					for f in ("company_email", "personal_email") if employee.get(f)), "")
+	if mobile:
+		from ch_item_master.ch_item_master.utils import validate_indian_phone
+		mobile = validate_indian_phone(mobile, _("Approver Mobile"))
+	if not mobile and not email:
 		frappe.throw(
-			_("Add a mobile number to your User or Employee record before requesting an approval OTP."),
+			_("Add a mobile number or email to your User or Employee record before requesting an approval OTP."),
 			frappe.PermissionError,
 		)
-	from ch_item_master.ch_item_master.utils import validate_indian_phone
-
-	return validate_indian_phone(mobile, _("Approver Mobile"))
+	return {"mobile": mobile or None, "email": email or None}
 
 
-def _trusted_otp_mobile(supplied_mobile=None) -> str:
-	trusted = _approver_mobile(frappe.session.user)
-	if supplied_mobile:
+def _trusted_otp_identity(supplied_mobile=None) -> dict:
+	trusted = _approver_contact(frappe.session.user)
+	if supplied_mobile and trusted["mobile"]:
 		from ch_item_master.ch_item_master.utils import validate_indian_phone
 
 		supplied = validate_indian_phone(supplied_mobile, _("Approver Mobile"))
-		if supplied != trusted:
+		if supplied != trusted["mobile"]:
 			frappe.throw(
 				_("The OTP mobile must match the authenticated approver's registered mobile number."),
 				frappe.PermissionError,
@@ -611,10 +626,11 @@ def approve_exception(exception_name, approver_user=None, channel=None,
 	if etype.requires_otp:
 		if not otp_code:
 			frappe.throw(_("OTP is mandatory for this exception type."), frappe.AuthenticationError)
-		otp_mobile = _trusted_otp_mobile(otp_mobile)
+		identity = _trusted_otp_identity(otp_mobile)
 		from ch_item_master.ch_core.doctype.ch_otp_log.ch_otp_log import CHOTPLog
 		result = CHOTPLog.verify_otp(
-			mobile_no=otp_mobile,
+			mobile_no=identity["mobile"],
+			email=identity["email"],
 			purpose=exc.exception_type,
 			otp_code=otp_code,
 			reference_doctype="CH Exception Request",
@@ -706,23 +722,47 @@ def request_exception_otp(exception_name, mobile_no=None) -> dict:
 		frappe.throw(_("Exception {0} is already {1}").format(exception_name, exc.status), title=_("API Error"))
 	if not frappe.get_cached_value("CH Exception Type", exc.exception_type, "requires_otp"):
 		frappe.throw(_("This exception type does not require OTP approval."), frappe.ValidationError)
-	mobile_no = _trusted_otp_mobile(mobile_no)
+	identity = _trusted_otp_identity(mobile_no)
 
 	from ch_item_master.ch_core.doctype.ch_otp_log.ch_otp_log import CHOTPLog
 	otp_code = CHOTPLog.generate_otp(
-		mobile_no=mobile_no,
+		mobile_no=identity["mobile"],
+		email=identity["email"],
 		purpose=exc.exception_type,
 		reference_doctype="CH Exception Request",
 		reference_name=exception_name,
 	)
-	# Send OTP via email alongside any SMS/WhatsApp
+
+	# Delivery is email (this flow has always delivered by email — the mobile
+	# was only ever the OTP key, never an SMS target — which is exactly why an
+	# email-only approver should never have been blocked). Prefer the approver's
+	# own email; fall back to the email mapped to their mobile for older records.
+	channels = []
+	to_email = identity["email"]
 	try:
 		from buyback.buyback.whatsapp_notifications import send_otp_email, _get_email_for_mobile
-		approver_email = _get_email_for_mobile(mobile_no)
-		send_otp_email(approver_email, otp_code, exc.exception_type, exception_name)
+		if not to_email and identity["mobile"]:
+			to_email = _get_email_for_mobile(identity["mobile"])
+		if to_email:
+			send_otp_email(to_email, otp_code, exc.exception_type, exception_name)
+			channels.append("email")
 	except Exception:
 		frappe.log_error(title="Exception OTP email delivery failed")
-	return {"otp_sent": True, "mobile_no": f"******{mobile_no[-4:]}"}
+
+	return {
+		"otp_sent": True,
+		"channels": channels,
+		"mobile_no": (f"******{identity['mobile'][-4:]}" if identity["mobile"] else None),
+		"email": (_mask_email(to_email) if to_email else None),
+	}
+
+
+def _mask_email(email: str) -> str:
+	name, _, domain = (email or "").partition("@")
+	if not domain:
+		return "****"
+	head = name[:2] if len(name) > 2 else name[:1]
+	return f"{head}***@{domain}"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
