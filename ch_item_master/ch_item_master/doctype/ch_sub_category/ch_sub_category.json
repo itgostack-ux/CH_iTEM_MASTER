@@ -33,6 +33,7 @@
   "pack_size",
   "service_section",
   "is_repair_labour",
+  "is_colour_specific",
   "is_amc",
   "column_break_service",
   "gofix_service_category",
@@ -212,7 +213,7 @@
    "fieldtype": "Link",
    "label": "Default Purchase UOM",
    "options": "UOM",
-   "description": "Optional — set when buy unit differs from sell unit (e.g. buy Box, sell Nos)"
+   "description": "Optional \u2014 set when buy unit differs from sell unit (e.g. buy Box, sell Nos)"
   },
   {
    "default": "1",
@@ -255,6 +256,12 @@
    "fieldtype": "Check",
    "label": "Is GoFix Repair Labour",
    "description": "Marks items as eligible for GoFix Service Request labour lines"
+  },
+  {
+   "fieldname": "is_colour_specific",
+   "fieldtype": "Check",
+   "label": "Colour-Specific Spare",
+   "description": "Parts of this sub-category differ by colour (back cover, housing, frame). When set, spare compatibility rows ask for a colour."
   },
   {
    "default": "0",
@@ -312,7 +319,7 @@
    "fieldtype": "Link",
    "label": "Default Income Account",
    "options": "Account",
-   "description": "Optional — overrides company default for items in this sub-category"
+   "description": "Optional \u2014 overrides company default for items in this sub-category"
   },
   {
    "fieldname": "column_break_accounting",
@@ -440,7 +447,7 @@
   }
  ],
  "links": [],
- "modified": "2026-02-19 00:00:00.000000",
+ "modified": "2026-09-02 07:26:47.000000",
  "modified_by": "Administrator",
  "module": "CH Item Master",
  "name": "CH Sub Category",
