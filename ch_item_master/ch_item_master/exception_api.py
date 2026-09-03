@@ -90,6 +90,58 @@ def _assert_exception_scope(company, store_warehouse=None, pos_profile=None) -> 
 			frappe.throw(_("The POS Profile warehouse does not match the exception warehouse."), frappe.PermissionError)
 
 
+def _validate_exception_device_identity(item_code, serial_no, reference_doctype=None, reference_name=None) -> None:
+	"""Reject an exception IMEI that is not the device being approved.
+
+	A price exception is bound to one physical device.  The client may prefill
+	the identifier, but the server must compare it with the referenced GOFIX or
+	Buyback document (or the Serial No master for a serialized POS item).
+	"""
+	item_code = (item_code or "").strip()
+	serial_no = (serial_no or "").strip()
+	if not serial_no:
+		return
+
+	if reference_doctype == "Buyback Order" and reference_name:
+		order = frappe.get_doc("Buyback Order", reference_name)
+		expected_serial = (order.get("serial_no") or order.get("imei_serial") or "").strip()
+		if expected_serial and serial_no != expected_serial:
+			frappe.throw(
+				_("Exception IMEI {0} does not match Buyback Order {1} (expected {2}).").format(
+					serial_no, reference_name, expected_serial
+				),
+				title=_("IMEI Mismatch"),
+			)
+		if item_code and order.get("item") and item_code != order.item:
+			frappe.throw(_("Exception item does not match the Buyback Order item."), title=_("Item Mismatch"))
+		return
+
+	if reference_doctype == "Service Request" and reference_name:
+		request = frappe.get_doc("Service Request", reference_name)
+		expected_serials = {
+			str(request.get(fieldname) or "").strip()
+			for fieldname in ("serial_no", "actual_imei")
+		} - {""}
+		if expected_serials and serial_no not in expected_serials:
+			frappe.throw(
+				_("Exception IMEI {0} does not match Service Request {1}.").format(
+					serial_no, reference_name
+				),
+				title=_("IMEI Mismatch"),
+			)
+		if item_code and request.get("device_item") and item_code != request.device_item:
+			frappe.throw(_("Exception item does not match the Service Request device."), title=_("Item Mismatch"))
+		return
+
+	if item_code and frappe.db.get_value("Item", item_code, "has_serial_no"):
+		serial_item = frappe.db.get_value("Serial No", serial_no, "item_code")
+		if serial_item != item_code:
+			frappe.throw(
+				_("Exception IMEI {0} is not a valid serial for item {1}.").format(serial_no, item_code),
+				title=_("IMEI Mismatch"),
+			)
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Core APIs — whitelisted for POS / frontend consumption
 # ─────────────────────────────────────────────────────────────────────────────
@@ -156,6 +208,8 @@ def raise_exception(exception_type, company, reason, requested_value=0,
 			  "approvals are customer-scoped and cannot be reused across bills."),
 			title=_("Customer Required"),
 		)
+
+	_validate_exception_device_identity(item_code, serial_no, reference_doctype, reference_name)
 
 	# IM-12 fix: Prevent duplicate open exception requests for same IMEI+store+type.
 	# Fallback to item-level only when IMEI is not available.
