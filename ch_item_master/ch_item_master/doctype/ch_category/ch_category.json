@@ -16,7 +16,12 @@
   "category_manager",
   "category_manager_name",
   "disabled",
-  "lifecycle_status"
+  "lifecycle_status",
+  "repair_section",
+  "is_repairable_device",
+  "device_icon",
+  "column_break_repair",
+  "kiosk_display_order"
  ],
  "fields": [
   {
@@ -102,10 +107,38 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "description": "Governance lifecycle. Sub-categories under an Obsolete/Blocked category cannot transact."
+  },
+  {
+   "fieldname": "repair_section",
+   "fieldtype": "Section Break",
+   "label": "Repair Intake / Kiosk",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "is_repairable_device",
+   "fieldtype": "Check",
+   "label": "Repairable Device Category",
+   "description": "Offered as a device choice on the GoFix self check-in tablet and the CH Queue kiosk."
+  },
+  {
+   "fieldname": "device_icon",
+   "fieldtype": "Data",
+   "label": "Kiosk Icon (emoji)",
+   "depends_on": "is_repairable_device"
+  },
+  {
+   "fieldname": "column_break_repair",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "kiosk_display_order",
+   "fieldtype": "Int",
+   "label": "Kiosk Display Order",
+   "depends_on": "is_repairable_device"
   }
  ],
  "links": [],
- "modified": "2026-03-20 10:00:00.000000",
+ "modified": "2026-09-04 14:00:00.000000",
  "modified_by": "Administrator",
  "module": "CH Item Master",
  "name": "CH Category",
