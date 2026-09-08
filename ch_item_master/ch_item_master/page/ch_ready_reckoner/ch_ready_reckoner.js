@@ -633,7 +633,8 @@ function _render_table($wrap, state) {
     $t.find('.price-cell[data-buyback-name]').on('click', function (e) {
         e.stopPropagation();
         const item = $(this).data('item');
-        _buyback_price_dialog(item, () => _load($wrap, state));
+        const variant_count = Number($(this).closest('tr').data('variant-count') || 1);
+        _buyback_price_dialog(item, () => _load($wrap, state), null, variant_count > 1, variant_count);
     });
 
     $t.find('.chpb-open-btn').on('click', function (e) {
@@ -730,21 +731,36 @@ function _activate_item_mrp_editor($cell, $wrap, state) {
         }
         if (new_val === base_value) { restore(); return; }
 
-        // Queue as pending change — same maker/checker path as price changes
-        _set_pending_change(state, {
-            item_code,
-            channel: '__item_mrp__',
-            field: 'item_mrp',
-            old_value: base_value,
-            new_value: new_val,
-        });
-        restore();
-        _render_table($wrap, state);
-        _update_stats($wrap, state);
-        frappe.show_alert({
-            message: __('MRP change queued for {0}. Click "Send Changes for Approval" when ready.', [item_code]),
-            indicator: 'blue',
-        }, 4);
+        const member_codes = _get_row_variant_codes(state, item_code);
+        const queue_for = (codes) => {
+            // Queue as pending change — same maker/checker path as price changes
+            codes.forEach((code) => _set_pending_change(state, {
+                item_code: code,
+                channel: '__item_mrp__',
+                field: 'item_mrp',
+                old_value: base_value,
+                new_value: new_val,
+            }));
+            restore();
+            _render_table($wrap, state);
+            _update_stats($wrap, state);
+            frappe.show_alert({
+                message: codes.length > 1
+                    ? __('MRP change queued for {0} colour variants. Click "Send Changes for Approval" when ready.', [codes.length])
+                    : __('MRP change queued for {0}. Click "Send Changes for Approval" when ready.', [item_code]),
+                indicator: 'blue',
+            }, 4);
+        };
+
+        if (member_codes.length > 1) {
+            frappe.confirm(
+                __('This will update the MRP for all {0} colour variants of this item. Continue?', [member_codes.length]),
+                () => queue_for(member_codes),
+                () => restore(),
+            );
+        } else {
+            queue_for(member_codes);
+        }
     };
 
     $input.on('keydown', function (e) {
@@ -798,20 +814,35 @@ function _activate_inline_price_editor($cell, state, $wrap) {
             return;
         }
 
-        _set_pending_change(state, {
-            item_code,
-            channel,
-            field,
-            old_value: base_value,
-            new_value,
-        });
-        restore();
-        _render_table($wrap, state);
-        _update_stats($wrap, state);
-        frappe.show_alert({
-            message: __('Change queued. Click "Send Changes for Approval" when ready.'),
-            indicator: 'blue',
-        }, 3);
+        const member_codes = _get_row_variant_codes(state, item_code);
+        const queue_for = (codes) => {
+            codes.forEach((code) => _set_pending_change(state, {
+                item_code: code,
+                channel,
+                field,
+                old_value: base_value,
+                new_value,
+            }));
+            restore();
+            _render_table($wrap, state);
+            _update_stats($wrap, state);
+            frappe.show_alert({
+                message: codes.length > 1
+                    ? __('Change queued for {0} colour variants. Click "Send Changes for Approval" when ready.', [codes.length])
+                    : __('Change queued. Click "Send Changes for Approval" when ready.'),
+                indicator: 'blue',
+            }, 3);
+        };
+
+        if (member_codes.length > 1) {
+            frappe.confirm(
+                __('This will update the price for all {0} colour variants of this item. Continue?', [member_codes.length]),
+                () => queue_for(member_codes),
+                () => restore(),
+            );
+        } else {
+            queue_for(member_codes);
+        }
     };
 
     $input.on('keydown', function (e) {
@@ -830,6 +861,12 @@ function _activate_inline_price_editor($cell, state, $wrap) {
 
 function _pending_key(item_code, channel, field) {
     return [item_code || '', channel || '', field || ''].join('::');
+}
+
+/** Look up a fetched row's group membership by its (representative) item_code. */
+function _get_row_variant_codes(state, item_code) {
+    const row = ((state.data || {}).items || []).find(r => r.item_code === item_code);
+    return (row && row.variant_item_codes) || [item_code];
 }
 
 function _get_pending_change(state, item_code, channel, field) {
@@ -1069,7 +1106,9 @@ function _show_price_dialog(item_code, prefill_channel, on_success, ctx, prefill
 
 
 // ─── Buyback Price Dialog ─────────────────────────────────────────────────────
-function _buyback_price_dialog(item_code, on_success, existing_data) {
+function _buyback_price_dialog(item_code, on_success, existing_data, is_grouped, variant_count) {
+    is_grouped = !!is_grouped;
+    variant_count = variant_count || 1;
     // If we have existing data, pre-fill; otherwise fetch from API
     const _show = (data) => {
         const bb = data || {};
@@ -1135,8 +1174,23 @@ function _buyback_price_dialog(item_code, on_success, existing_data) {
             description: bb_has_data ? 'Required — explain why these prices are being changed' : '' },
         ];
 
+        if (is_grouped) {
+            fields.push({ fieldtype: 'Section Break' });
+            fields.push({
+                fieldtype: 'HTML', fieldname: 'propagation_info',
+                options: `<div class="text-muted" style="font-size:12px;padding:4px 0;">
+                    <span class="indicator-pill green" style="font-size:10px;padding:2px 8px">
+                        Applies to all ${variant_count} colour variants
+                    </span>
+                    <div style="margin-top:4px">To update a single colour, uncheck <b>Group variants</b> in the filter bar and edit the specific item.</div>
+                </div>`,
+            });
+        }
+
         const d = new frappe.ui.Dialog({
-            title: __('Buyback Prices — {0}', [item_code]),
+            title: is_grouped
+                ? __('Buyback Prices — {0} ({1} colours)', [item_code, variant_count])
+                : __('Buyback Prices — {0}', [item_code]),
             size: 'large',
             fields: fields,
             primary_action_label: __('Submit for Approval'),
@@ -1147,6 +1201,7 @@ function _buyback_price_dialog(item_code, on_success, existing_data) {
                     args: {
                         item_code,
                         change_type: 'Buyback Price',
+                        propagate: is_grouped ? 1 : 0,
                         reason: vals.reason || '',
                         current_market_price: vals.current_market_price || 0,
                         vendor_price: vals.vendor_price || 0,
@@ -1258,6 +1313,7 @@ function _open_drawer($wrap, state, item_code) {
 function _render_drawer_tab($drawer, tab, item_code, state) {
     const detail = $drawer.data('detail') || {};
     const $body = $drawer.find('#chpb-drawer-body').empty();
+    const drawer_variant_count = _get_row_variant_codes(state, item_code).length;
 
     if (tab === 'prices') {
         const prices = detail.prices || [];
@@ -1316,7 +1372,7 @@ function _render_drawer_tab($drawer, tab, item_code, state) {
                     $drawer.data('detail', null);
                     _open_drawer($drawer.closest('.chpb-wrap'), state, item_code);
                     _load($drawer.closest('.chpb-wrap'), state);
-                })).appendTo($body);
+                }, null, drawer_variant_count > 1, drawer_variant_count)).appendTo($body);
         } else {
             const fmt = (v) => v ? frappe.format(v, { fieldtype: 'Currency' }) : '—';
 
@@ -1387,7 +1443,7 @@ function _render_drawer_tab($drawer, tab, item_code, state) {
                     $drawer.data('detail', null);
                     _open_drawer($drawer.closest('.chpb-wrap'), state, item_code);
                     _load($drawer.closest('.chpb-wrap'), state);
-                }, bb)).appendTo($body);
+                }, bb, drawer_variant_count > 1, drawer_variant_count)).appendTo($body);
         }
 
     } else if (tab === 'offers') {

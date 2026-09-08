@@ -1261,25 +1261,38 @@ def create_price_change_batch(
             if val is not None:
                 new_prices[f] = float(val or 0)
 
-        existing = frappe.db.get_value(
-            "Buyback Price Master",
-            {"item_code": item_code, "is_active": 1},
-            all_bb_fields,
-            as_dict=True,
-        )
+        propagate = int(propagate or 0)
+        if propagate:
+            target_items = _get_sibling_item_codes(item_code)
+        else:
+            target_items = [item_code]
+        target_limit = get_int_setting("ready_reckoner_batch_item_limit", 500, minimum=1)
+        if len(target_items) > target_limit:
+            frappe.throw(
+                _("A price batch can contain at most {0} items.").format(target_limit),
+                frappe.ValidationError,
+            )
 
-        for field, new_val in new_prices.items():
-            old_val = float((existing or {}).get(field) or 0)
-            if old_val != new_val:
-                batch_items.append({
-                    "item_code": item_code,
-                    "channel": field,  # store DB field name for buyback apply
-                    "change_type": "Buyback Price",
-                    "field_label": _BUYBACK_FIELD_LABELS.get(field, field),
-                    "old_value": str(old_val),
-                    "new_value": str(new_val),
-                    "reason": reason,
-                })
+        for target in target_items:
+            existing = frappe.db.get_value(
+                "Buyback Price Master",
+                {"item_code": target, "is_active": 1},
+                all_bb_fields,
+                as_dict=True,
+            )
+
+            for field, new_val in new_prices.items():
+                old_val = float((existing or {}).get(field) or 0)
+                if old_val != new_val:
+                    batch_items.append({
+                        "item_code": target,
+                        "channel": field,  # store DB field name for buyback apply
+                        "change_type": "Buyback Price",
+                        "field_label": _BUYBACK_FIELD_LABELS.get(field, field),
+                        "old_value": str(old_val),
+                        "new_value": str(new_val),
+                        "reason": reason,
+                    })
 
     if not batch_items:
         frappe.throw(_("No changes detected — all values match the current prices."), title=_("API Error"))
@@ -1743,11 +1756,28 @@ def upload_ready_reckoner_prices(file_url, effective_from=None, company=None, re
             frappe.ValidationError,
         )
 
+    _sibling_cache: dict = {}
+
+    def _resolve_siblings(item_code):
+        if item_code not in _sibling_cache:
+            _sibling_cache[item_code] = _get_sibling_item_codes(item_code)
+        return _sibling_cache[item_code]
+
     def _row_targets(row):
-        """Item codes a sheet row writes to: the group's members, else itself."""
+        """Item codes a sheet row writes to.
+
+        Prefers the sheet's own "Group Members" column when present (so a
+        deliberate edit narrowing that list is respected). Otherwise — sheet
+        exported ungrouped, or the column got edited out — falls back to the
+        item's actual sibling colour variants resolved fresh, same as every
+        other propagation path in this file, instead of silently degrading to
+        a single item.
+        """
         if not row or len(row) <= item_code_idx:
             return []
         own = str(row[item_code_idx] or "").strip()
+        if not own:
+            return []
         if group_members_idx is not None and len(row) > group_members_idx:
             blob = str(row[group_members_idx] or "").strip()
             if blob:
@@ -1755,10 +1785,10 @@ def upload_ready_reckoner_prices(file_url, effective_from=None, company=None, re
                 if members:
                     # Keep the representative even if it was edited out of the
                     # membership list, so its own price is never silently skipped.
-                    if own and own not in members:
+                    if own not in members:
                         members.append(own)
                     return list(dict.fromkeys(members))
-        return [own] if own else []
+        return _resolve_siblings(own)
 
     item_codes_in_file = set()
     for row in all_rows:
