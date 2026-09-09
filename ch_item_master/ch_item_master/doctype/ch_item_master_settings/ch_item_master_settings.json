@@ -189,19 +189,19 @@
   },
   {
    "default": "System Manager\nCH Master Manager\nCH Price Manager\nCH Offer Manager\nCH Warranty Manager\nCH Viewer\nStock User",
+   "description": "Pick roles from the list.",
    "fieldname": "app_access_roles",
    "fieldtype": "Table MultiSelect",
    "label": "App Access Roles",
-   "options": "CH Role Link",
-   "description": "Pick roles from the list."
+   "options": "CH Role Link"
   },
   {
    "default": "CH Master Manager\nCH Master Approver\nSystem Manager",
    "description": "Retired. This gate is now enforced by Role Permission Manager (document permissions).",
    "fieldname": "user_directory_roles",
    "fieldtype": "Small Text",
-   "label": "User Directory Roles",
-   "hidden": 1
+   "hidden": 1,
+   "label": "User Directory Roles"
   },
   {
    "default": "CH Category Head\nCH Master Approver",
@@ -216,16 +216,16 @@
    "description": "Retired. This gate is now enforced by Role Permission Manager (document permissions).",
    "fieldname": "category_manager_assignment_roles",
    "fieldtype": "Small Text",
-   "label": "Category Manager Assignment Roles",
-   "hidden": 1
+   "hidden": 1,
+   "label": "Category Manager Assignment Roles"
   },
   {
    "default": "CH Master Approver",
    "description": "Retired. This gate is now enforced by Role Permission Manager (document permissions).",
    "fieldname": "exception_assignment_roles",
    "fieldtype": "Small Text",
-   "label": "Exception Assignment Roles",
-   "hidden": 1
+   "hidden": 1,
+   "label": "Exception Assignment Roles"
   },
   {
    "default": "50",
@@ -322,27 +322,27 @@
   },
   {
    "default": "CH Master Approver\nCH Master Manager\nSystem Manager",
+   "description": "Pick roles from the list.",
    "fieldname": "master_approval_roles",
    "fieldtype": "Table MultiSelect",
    "label": "Master Approval Roles",
-   "options": "CH Role Link",
-   "description": "Pick roles from the list."
+   "options": "CH Role Link"
   },
   {
    "default": "CH Price Manager\nCH Master Approver\nCH Master Manager\nSystem Manager",
+   "description": "Pick roles from the list.",
    "fieldname": "price_approval_roles",
    "fieldtype": "Table MultiSelect",
    "label": "Price Approval Roles",
-   "options": "CH Role Link",
-   "description": "Pick roles from the list."
+   "options": "CH Role Link"
   },
   {
    "default": "CH Viewer\nCH Price Manager\nCH Master Manager",
    "description": "Retired. This gate is now enforced by Role Permission Manager (document permissions).",
    "fieldname": "price_view_roles",
    "fieldtype": "Small Text",
-   "label": "Commercial Price View Roles",
-   "hidden": 1
+   "hidden": 1,
+   "label": "Commercial Price View Roles"
   },
   {
    "fieldname": "default_sales_price_channel",
@@ -381,8 +381,8 @@
    "description": "Retired. This gate is now enforced by Role Permission Manager (document permissions).",
    "fieldname": "pos_override_notification_roles",
    "fieldtype": "Small Text",
-   "label": "POS Override Notification Roles",
-   "hidden": 1
+   "hidden": 1,
+   "label": "POS Override Notification Roles"
   },
   {
    "default": "200",
@@ -435,51 +435,50 @@
   },
   {
    "default": "CH Offer Manager\nCH Master Approver\nCH Master Manager\nSystem Manager",
+   "description": "Retired. This gate is now enforced by Role Permission Manager (document permissions).",
    "fieldname": "offer_approval_roles",
    "fieldtype": "Small Text",
-   "label": "Offer Approval Roles",
    "hidden": 1,
-   "description": "Retired. This gate is now enforced by Role Permission Manager (document permissions)."
+   "label": "Offer Approval Roles"
   },
   {
    "default": "CH Category Head\nCH Price Manager\nCH Master Manager",
+   "description": "Pick roles from the list.",
    "fieldname": "price_batch_approval_roles",
    "fieldtype": "Table MultiSelect",
    "label": "Price Batch Approval Roles",
-   "options": "CH Role Link",
-   "description": "Pick roles from the list."
+   "options": "CH Role Link"
   },
   {
    "default": "System Manager\nCH Master Manager",
+   "description": "Pick roles from the list.",
    "fieldname": "price_batch_override_roles",
    "fieldtype": "Table MultiSelect",
    "label": "Price Batch Override Roles",
-   "options": "CH Role Link",
-   "description": "Pick roles from the list."
+   "options": "CH Role Link"
   },
   {
    "default": "CH Price Manager\nCH Master Manager",
    "description": "Retired. This gate is now enforced by Role Permission Manager (document permissions).",
    "fieldname": "price_batch_submit_roles",
    "fieldtype": "Small Text",
-   "label": "Price Batch Submit Roles",
-   "hidden": 1
+   "label": "Price Batch Submit Roles"
   },
   {
    "default": "CH Price Manager\nCH Master Manager",
    "description": "Retired. This gate is now enforced by Role Permission Manager (document permissions).",
    "fieldname": "price_batch_revise_roles",
    "fieldtype": "Small Text",
-   "label": "Price Batch Revise Roles",
-   "hidden": 1
+   "hidden": 1,
+   "label": "Price Batch Revise Roles"
   },
   {
    "default": "CH Category Head\nCH Price Manager\nCH Master Manager",
    "description": "Retired. This gate is now enforced by Role Permission Manager (document permissions).",
    "fieldname": "price_batch_apply_roles",
    "fieldtype": "Small Text",
-   "label": "Price Batch Apply Roles",
-   "hidden": 1
+   "hidden": 1,
+   "label": "Price Batch Apply Roles"
   },
   {
    "default": "100",
@@ -492,26 +491,26 @@
   },
   {
    "default": "Store Manager\nSales Manager\nService Manager\nSystem Manager",
+   "description": "Pick roles from the list.",
    "fieldname": "exception_approval_roles",
    "fieldtype": "Table MultiSelect",
    "label": "Exception Approval Roles",
-   "options": "CH Role Link",
-   "description": "Pick roles from the list."
+   "options": "CH Role Link"
   },
   {
    "default": "System Manager",
+   "description": "Pick roles from the list.",
    "fieldname": "exception_override_roles",
    "fieldtype": "Table MultiSelect",
    "label": "Exception Override Roles",
-   "options": "CH Role Link",
-   "description": "Pick roles from the list."
+   "options": "CH Role Link"
   },
   {
+   "description": "Escalation ladder for 'Return Beyond Policy' exceptions, in order. Routing walks the rows top to bottom and assigns the first role with an available user in scope. Re-order the rows to change seniority. Empty means nobody can approve.",
    "fieldname": "return_policy_approval_roles",
    "fieldtype": "Table MultiSelect",
    "label": "Return Beyond Policy Approval Roles",
-   "options": "CH Role Link",
-   "description": "Escalation ladder for 'Return Beyond Policy' exceptions, in order. Routing walks the rows top to bottom and assigns the first role with an available user in scope. Re-order the rows to change seniority. Empty means nobody can approve."
+   "options": "CH Role Link"
   },
   {
    "description": "Exact Company names governed by the Applicable to GGR flag on exception types, one per line.",
@@ -530,8 +529,8 @@
    "description": "Retired. This gate is now enforced by Role Permission Manager (document permissions).",
    "fieldname": "exception_delivery_note_creation_roles",
    "fieldtype": "Small Text",
-   "label": "Exception Delivery Note Creation Roles",
-   "hidden": 1
+   "hidden": 1,
+   "label": "Exception Delivery Note Creation Roles"
   },
   {
    "default": "50",
@@ -556,11 +555,11 @@
   },
   {
    "default": "System Manager",
+   "description": "Pick roles from the list.",
    "fieldname": "company_scope_bypass_roles",
    "fieldtype": "Table MultiSelect",
    "label": "Company Scope Bypass Roles",
-   "options": "CH Role Link",
-   "description": "Pick roles from the list."
+   "options": "CH Role Link"
   },
   {
    "default": "CH Master Manager\nStock Manager\nStock User\nStore Manager\nStore Executive",
@@ -583,8 +582,8 @@
    "description": "Retired. This gate is now enforced by Role Permission Manager (document permissions).",
    "fieldname": "warehouse_picker_roles",
    "fieldtype": "Small Text",
-   "label": "Warehouse Report Picker Roles",
-   "hidden": 1
+   "hidden": 1,
+   "label": "Warehouse Report Picker Roles"
   },
   {
    "default": "2000",
@@ -605,16 +604,16 @@
    "description": "Retired. This gate is now enforced by Role Permission Manager (document permissions).",
    "fieldname": "bin_view_roles",
    "fieldtype": "Small Text",
-   "label": "Bin Inventory View Roles",
-   "hidden": 1
+   "hidden": 1,
+   "label": "Bin Inventory View Roles"
   },
   {
    "default": "Stock Manager\nStock User\nStore Manager",
    "description": "Retired. This gate is now enforced by Role Permission Manager (document permissions).",
    "fieldname": "bin_transfer_roles",
    "fieldtype": "Small Text",
-   "label": "Bin Transfer Roles",
-   "hidden": 1
+   "hidden": 1,
+   "label": "Bin Transfer Roles"
   },
   {
    "default": "200",
@@ -632,27 +631,27 @@
   },
   {
    "default": "Purchase Manager\nScheme Manager\nSystem Manager",
+   "description": "Pick roles from the list.",
    "fieldname": "supplier_scheme_approval_roles",
    "fieldtype": "Table MultiSelect",
    "label": "Supplier Scheme Approval Roles",
-   "options": "CH Role Link",
-   "description": "Pick roles from the list."
+   "options": "CH Role Link"
   },
   {
    "default": "Accounts User\nAccounts Manager\nPurchase Manager\nScheme Manager",
    "description": "Retired. This gate is now enforced by Role Permission Manager (document permissions).",
    "fieldname": "supplier_scheme_submit_roles",
    "fieldtype": "Small Text",
-   "label": "Supplier Scheme Submit Roles",
-   "hidden": 1
+   "hidden": 1,
+   "label": "Supplier Scheme Submit Roles"
   },
   {
    "default": "Accounts User\nAccounts Manager",
    "description": "Retired. This gate is now enforced by Role Permission Manager (document permissions).",
    "fieldname": "supplier_scheme_management_roles",
    "fieldtype": "Small Text",
-   "label": "Supplier Scheme Management Roles",
-   "hidden": 1
+   "hidden": 1,
+   "label": "Supplier Scheme Management Roles"
   },
   {
    "default": "200",
@@ -693,16 +692,16 @@
    "description": "Retired. This gate is now enforced by Role Permission Manager (document permissions).",
    "fieldname": "scheme_receivable_settlement_roles",
    "fieldtype": "Small Text",
-   "label": "Scheme Receivable Settlement Roles",
-   "hidden": 1
+   "hidden": 1,
+   "label": "Scheme Receivable Settlement Roles"
   },
   {
    "default": "Accounts Manager",
    "description": "Retired. This gate is now enforced by Role Permission Manager (document permissions).",
    "fieldname": "scheme_receivable_write_off_roles",
    "fieldtype": "Small Text",
-   "label": "Scheme Receivable Write-Off Roles",
-   "hidden": 1
+   "hidden": 1,
+   "label": "Scheme Receivable Write-Off Roles"
   },
   {
    "default": "10000000",
@@ -738,24 +737,24 @@
    "description": "Retired. This gate is now enforced by Role Permission Manager (document permissions).",
    "fieldname": "vas_finance_roles",
    "fieldtype": "Small Text",
-   "label": "VAS Finance Roles",
-   "hidden": 1
+   "hidden": 1,
+   "label": "VAS Finance Roles"
   },
   {
    "default": "CH Warranty Manager\nService Manager\nSales Manager\nSales User",
    "description": "Retired. This gate is now enforced by Role Permission Manager (document permissions).",
    "fieldname": "warranty_claim_intake_roles",
    "fieldtype": "Small Text",
-   "label": "Warranty Claim Intake Roles",
-   "hidden": 1
+   "hidden": 1,
+   "label": "Warranty Claim Intake Roles"
   },
   {
    "default": "CH Warranty Manager\nService Manager\nSales Manager",
    "description": "Retired. This gate is now enforced by Role Permission Manager (document permissions).",
    "fieldname": "warranty_claim_approval_roles",
    "fieldtype": "Small Text",
-   "label": "Warranty Claim Approval Roles",
-   "hidden": 1
+   "hidden": 1,
+   "label": "Warranty Claim Approval Roles"
   },
   {
    "description": "Pick roles from the list. Empty means nobody.",
@@ -832,16 +831,16 @@
    "description": "Retired. This gate is now enforced by Role Permission Manager (document permissions).",
    "fieldname": "warranty_claim_fee_waiver_request_roles",
    "fieldtype": "Small Text",
-   "label": "Warranty Fee Waiver Request Roles",
-   "hidden": 1
+   "hidden": 1,
+   "label": "Warranty Fee Waiver Request Roles"
   },
   {
    "default": "CH Warranty Manager\nService Manager\nSales Manager\nSales User",
    "description": "Retired. This gate is now enforced by Role Permission Manager (document permissions).",
    "fieldname": "warranty_dashboard_roles",
    "fieldtype": "Small Text",
-   "label": "Warranty Dashboard Roles",
-   "hidden": 1
+   "hidden": 1,
+   "label": "Warranty Dashboard Roles"
   },
   {
    "default": "100",
@@ -872,24 +871,24 @@
    "description": "Retired. This gate is now enforced by Role Permission Manager (document permissions).",
    "fieldname": "vas_dashboard_roles",
    "fieldtype": "Small Text",
-   "label": "VAS Dashboard Roles",
-   "hidden": 1
+   "hidden": 1,
+   "label": "VAS Dashboard Roles"
   },
   {
    "default": "Sales Manager\nMarketing Manager\nCH Master Manager",
    "description": "Retired. This gate is now enforced by Role Permission Manager (document permissions).",
    "fieldname": "customer_dashboard_roles",
    "fieldtype": "Small Text",
-   "label": "Customer Dashboard Roles",
-   "hidden": 1
+   "hidden": 1,
+   "label": "Customer Dashboard Roles"
   },
   {
    "default": "Sales Manager\nService Manager\nCH Master Manager",
    "description": "Retired. This gate is now enforced by Role Permission Manager (document permissions).",
    "fieldname": "customer_360_roles",
    "fieldtype": "Small Text",
-   "label": "Customer 360 Roles",
-   "hidden": 1
+   "hidden": 1,
+   "label": "Customer 360 Roles"
   },
   {
    "default": "100",
@@ -923,48 +922,48 @@
    "description": "Retired. This gate is now enforced by Role Permission Manager (document permissions).",
    "fieldname": "voucher_management_roles",
    "fieldtype": "Small Text",
-   "label": "Voucher Management Roles",
-   "hidden": 1
+   "hidden": 1,
+   "label": "Voucher Management Roles"
   },
   {
    "default": "CH Master Manager\nCH Price Manager\nSales Manager",
    "description": "Retired. This gate is now enforced by Role Permission Manager (document permissions).",
    "fieldname": "voucher_issue_roles",
    "fieldtype": "Small Text",
-   "label": "Voucher Issue Roles",
-   "hidden": 1
+   "hidden": 1,
+   "label": "Voucher Issue Roles"
   },
   {
    "default": "Sales User\nSales Manager\nCH Price Manager",
    "description": "Retired. This gate is now enforced by Role Permission Manager (document permissions).",
    "fieldname": "voucher_redemption_roles",
    "fieldtype": "Small Text",
-   "label": "Voucher Redemption Roles",
-   "hidden": 1
+   "hidden": 1,
+   "label": "Voucher Redemption Roles"
   },
   {
    "default": "Sales Manager\nCH Price Manager",
    "description": "Retired. This gate is now enforced by Role Permission Manager (document permissions).",
    "fieldname": "voucher_refund_roles",
    "fieldtype": "Small Text",
-   "label": "Voucher Refund Roles",
-   "hidden": 1
+   "hidden": 1,
+   "label": "Voucher Refund Roles"
   },
   {
    "default": "Sales Manager\nCH Price Manager",
    "description": "Retired. This gate is now enforced by Role Permission Manager (document permissions).",
    "fieldname": "voucher_topup_roles",
    "fieldtype": "Small Text",
-   "label": "Voucher Top-Up Roles",
-   "hidden": 1
+   "hidden": 1,
+   "label": "Voucher Top-Up Roles"
   },
   {
    "default": "Sales User\nSales Manager\nCH Price Manager\nCH Viewer",
    "description": "Retired. This gate is now enforced by Role Permission Manager (document permissions).",
    "fieldname": "voucher_view_roles",
    "fieldtype": "Small Text",
-   "label": "Voucher View Roles",
-   "hidden": 1
+   "hidden": 1,
+   "label": "Voucher View Roles"
   },
   {
    "default": "Sales Invoice\nPOS Invoice\nDelivery Note\nPayment Entry\nCH Coupon Campaign\nActive VAS Plans",
@@ -1006,8 +1005,8 @@
    "description": "Retired. This gate is now enforced by Role Permission Manager (document permissions).",
    "fieldname": "coupon_code_export_roles",
    "fieldtype": "Small Text",
-   "label": "Coupon Code Export Roles",
-   "hidden": 1
+   "hidden": 1,
+   "label": "Coupon Code Export Roles"
   },
   {
    "default": "5000",
@@ -1022,36 +1021,36 @@
    "description": "Retired. This gate is now enforced by Role Permission Manager (document permissions).",
    "fieldname": "coupon_code_distribution_roles",
    "fieldtype": "Small Text",
-   "label": "Coupon Code Distribution Roles",
-   "hidden": 1
+   "hidden": 1,
+   "label": "Coupon Code Distribution Roles"
   },
   {
    "default": "Sales Manager\nCH Master Manager",
    "description": "Retired. This gate is now enforced by Role Permission Manager (document permissions).",
    "fieldname": "coupon_campaign_management_roles",
    "fieldtype": "Small Text",
-   "label": "Coupon Campaign Management Roles",
-   "hidden": 1
+   "hidden": 1,
+   "label": "Coupon Campaign Management Roles"
   },
   {
+   "description": "Pick roles from the list. Empty means nobody.",
    "fieldname": "plm_manager_roles",
    "fieldtype": "Table MultiSelect",
    "label": "PLM Manager Roles",
-   "description": "Pick roles from the list. Empty means nobody.",
    "options": "CH Role Link"
   },
   {
+   "description": "Pick roles from the list. Empty means nobody.",
    "fieldname": "vendor_manager_roles",
    "fieldtype": "Table MultiSelect",
    "label": "Vendor Manager Roles",
-   "description": "Pick roles from the list. Empty means nobody.",
    "options": "CH Role Link"
   },
   {
+   "description": "Pick roles from the list. Empty means nobody.",
    "fieldname": "vendor_view_roles",
    "fieldtype": "Table MultiSelect",
    "label": "Vendor View Roles",
-   "description": "Pick roles from the list. Empty means nobody.",
    "options": "CH Role Link"
   },
   {
@@ -1063,56 +1062,54 @@
    "reqd": 1
   },
   {
+   "description": "Pick roles from the list. Empty means nobody.",
    "fieldname": "gtin_editor_roles",
    "fieldtype": "Table MultiSelect",
    "label": "GTIN Editor Roles",
-   "description": "Pick roles from the list. Empty means nobody.",
    "options": "CH Role Link"
   },
   {
+   "description": "Pick roles from the list. Empty means nobody.",
    "fieldname": "mrp_planner_roles",
    "fieldtype": "Table MultiSelect",
    "label": "MRP Planner Roles",
-   "description": "Pick roles from the list. Empty means nobody.",
    "options": "CH Role Link"
   },
   {
    "default": "System Manager\nCH Price Manager\nCH Master Approver\nCH Master Manager\nCH GTIN Editor",
+   "description": "Pick roles from the list.",
    "fieldname": "sensitive_field_roles",
    "fieldtype": "Table MultiSelect",
    "label": "Sensitive Field Roles",
-   "options": "CH Role Link",
-   "description": "Pick roles from the list."
+   "options": "CH Role Link"
   },
   {
    "default": "System Manager",
+   "description": "Pick roles from the list.",
    "fieldname": "break_glass_supervisor_roles",
    "fieldtype": "Table MultiSelect",
    "label": "Break-Glass Supervisor Roles",
-   "options": "CH Role Link",
-   "description": "Pick roles from the list."
+   "options": "CH Role Link"
   },
   {
    "default": "System Manager\nCH Master Manager",
+   "description": "Retired. This gate is now enforced by Role Permission Manager (document permissions).",
    "fieldname": "data_import_roles",
    "fieldtype": "Small Text",
-   "label": "Data Import Roles",
    "hidden": 1,
-   "description": "Retired. This gate is now enforced by Role Permission Manager (document permissions)."
+   "label": "Data Import Roles"
   },
   {
    "fieldname": "default_stock_uom",
    "fieldtype": "Link",
    "label": "Default Stock UOM",
-   "options": "UOM",
-   "reqd": 1
+   "options": "UOM"
   },
   {
    "fieldname": "default_item_group",
    "fieldtype": "Link",
    "label": "Default Item Group",
-   "options": "Item Group",
-   "reqd": 1
+   "options": "Item Group"
   },
   {
    "default": "500",
@@ -1124,11 +1121,11 @@
   },
   {
    "default": "System Manager\nStock Manager\nCH Master Manager",
+   "description": "Pick roles from the list.",
    "fieldname": "bulk_imei_roles",
    "fieldtype": "Table MultiSelect",
    "label": "Bulk IMEI Roles",
-   "options": "CH Role Link",
-   "description": "Pick roles from the list."
+   "options": "CH Role Link"
   },
   {
    "default": "Scrapped\nLost\nIn Stock",
@@ -1503,54 +1500,54 @@
    "label": "Competitor Price Intelligence"
   },
   {
+   "default": "0",
+   "description": "Master kill switch. Off means the scheduled collector exits immediately without any outbound request.",
    "fieldname": "competitor_collection_enabled",
    "fieldtype": "Check",
-   "default": "0",
-   "label": "Enable Automated Competitor Collection",
-   "description": "Master kill switch. Off means the scheduled collector exits immediately without any outbound request."
+   "label": "Enable Automated Competitor Collection"
   },
   {
+   "default": "7",
+   "description": "A band older than this is marked stale and hidden in the planner rather than shown as current.",
    "fieldname": "competitor_data_max_age_days",
    "fieldtype": "Int",
-   "default": "7",
-   "label": "Market Data Max Age (Days)",
-   "description": "A band older than this is marked stale and hidden in the planner rather than shown as current."
+   "label": "Market Data Max Age (Days)"
   },
   {
+   "default": "5",
+   "description": "After this many consecutive failures the collector stops retrying a competitor link until it is edited.",
    "fieldname": "competitor_link_failure_limit",
    "fieldtype": "Int",
-   "default": "5",
-   "label": "Link Failure Backoff Limit",
-   "description": "After this many consecutive failures the collector stops retrying a competitor link until it is edited."
+   "label": "Link Failure Backoff Limit"
   },
   {
    "fieldname": "column_break_competitor",
    "fieldtype": "Column Break"
   },
   {
+   "description": "Identify ourselves honestly to the sites we read. Used when a source sets no agent of its own.",
    "fieldname": "competitor_user_agent",
    "fieldtype": "Data",
-   "label": "Default Collector User Agent",
-   "description": "Identify ourselves honestly to the sites we read. Used when a source sets no agent of its own."
+   "label": "Default Collector User Agent"
   },
   {
+   "default": "1000",
+   "description": "Ceiling across all sources in one scheduled run, whatever the per-source limits add up to.",
    "fieldname": "competitor_global_max_requests",
    "fieldtype": "Int",
-   "default": "1000",
-   "label": "Global Max Requests Per Run",
-   "description": "Ceiling across all sources in one scheduled run, whatever the per-source limits add up to."
+   "label": "Global Max Requests Per Run"
   },
   {
+   "description": "Roles allowed to open the planner and push price batches. System Manager always retains access. Pick roles from the list.",
    "fieldname": "buyback_planner_roles",
    "fieldtype": "Table MultiSelect",
    "label": "Buyback Price Planner Roles",
-   "description": "Roles allowed to open the planner and push price batches. System Manager always retains access. Pick roles from the list.",
    "options": "CH Role Link"
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-07-25 10:19:15.971309",
+ "modified": "2026-09-09 11:32:51.396081",
  "modified_by": "Administrator",
  "module": "CH Item Master",
  "name": "CH Item Master Settings",
