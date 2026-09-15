@@ -299,7 +299,9 @@ def _export_stores(company_filter: Iterable[str] | None) -> list[dict]:
     return out
 
 
-def export_location_hierarchy(company: str | None = None) -> dict:
+def export_location_hierarchy(
+    company: str | None = None, prune_malformed: bool = False
+) -> dict:
     """Return a JSON-serialisable snapshot of the retail geography.
 
     Parameters
@@ -308,6 +310,16 @@ def export_location_hierarchy(company: str | None = None) -> dict:
         When provided, restrict Zones and Stores to that company (States
         and Cities are always exported in full — they are cross-company
         masters).  Omit to dump every company on the source site.
+    prune_malformed : bool, default False
+        Drop cities that carry no ``state``.  Off by default so a raw
+        export stays a faithful mirror for change-control diffing; turn
+        it ON when generating the committed baseline, where a city with
+        no state is unusable — ``_canonical_city_pk`` needs the state to
+        build the ``{City}-{state_code}`` primary key, so such rows can
+        never resolve into the hierarchy and would be seeded into every
+        future environment. On this estate they are ad-hoc link-field
+        creations ("Unknown", "Default City", states entered as cities)
+        and none of them is referenced by a store.
     """
     company_filter = [company] if company else None
     payload = {
@@ -317,21 +329,51 @@ def export_location_hierarchy(company: str | None = None) -> dict:
         "filter_company": company,
         "companies": _export_companies(company_filter),
         "states": _export_states(),
-        "cities": _export_cities(),
+        "cities": _prune_stateless(_export_cities()) if prune_malformed else _export_cities(),
         "zones": _export_zones(company_filter),
         "stores": _export_stores(company_filter),
     }
+    if prune_malformed:
+        payload["stores"], ambiguous = _split_ambiguous_stores(payload["stores"])
+        if ambiguous:
+            payload["excluded_ambiguous_stores"] = ambiguous
     payload["counts"] = {
         k: len(payload[k]) for k in ("companies", "states", "cities", "zones", "stores")
     }
     return payload
 
 
-def export_to_file(out_path: str, company: str | None = None) -> dict:
+def _prune_stateless(cities: list[dict]) -> list[dict]:
+    """Drop cities with no state — see ``prune_malformed``."""
+    return [c for c in cities if (c.get("state") or "").strip()]
+
+
+def _split_ambiguous_stores(stores: list[dict]) -> tuple[list[dict], list[dict]]:
+    """Separate stores whose natural key is not unique.
+
+    Import resolves a store by ``store_name`` + company. Where two rows share
+    both, the second is skipped as "already exists" and one store silently
+    never arrives on a rebuilt site. Rather than emit a key that cannot round
+    trip, hold those rows back and list them in the payload so the ambiguity
+    is visible and can be fixed at source by renaming one of the pair.
+    """
+    from collections import Counter
+
+    seen = Counter((s.get("store_name"), s.get("company_abbr")) for s in stores)
+    keep, ambiguous = [], []
+    for entry in stores:
+        key = (entry.get("store_name"), entry.get("company_abbr"))
+        (ambiguous if seen[key] > 1 else keep).append(entry)
+    return keep, ambiguous
+
+
+def export_to_file(
+    out_path: str, company: str | None = None, prune_malformed: bool = False
+) -> dict:
     """Write the export to disk and return the summary dict."""
     if not out_path:
         frappe.throw("out_path is required")
-    payload = export_location_hierarchy(company=company)
+    payload = export_location_hierarchy(company=company, prune_malformed=prune_malformed)
     os.makedirs(os.path.dirname(os.path.abspath(out_path)) or ".", exist_ok=True)
     with open(out_path, "w", encoding="utf-8") as fh:
         json.dump(payload, fh, indent=2, sort_keys=True, default=str)

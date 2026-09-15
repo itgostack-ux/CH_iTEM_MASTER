@@ -1,6 +1,6 @@
 {
- "allow_import": 1,
  "actions": [],
+ "allow_import": 1,
  "autoname": "naming_series:",
  "creation": "2026-03-05 10:00:00.000000",
  "doctype": "DocType",
@@ -34,41 +34,41 @@
    "fieldtype": "Select",
    "hidden": 1,
    "label": "Series",
+   "no_copy": 1,
    "options": "CHOTP-.#####",
-   "print_hide": 1,
-   "no_copy": 1
+   "print_hide": 1
   },
   {
+   "description": "Auto-generated sequential ID for mobile/API integration",
    "fieldname": "otp_id",
    "fieldtype": "Int",
    "label": "OTP ID",
-   "read_only": 1,
-   "unique": 1,
    "no_copy": 1,
-   "description": "Auto-generated sequential ID for mobile/API integration"
+   "read_only": 1,
+   "unique": 1
   },
   {
+   "description": "Mobile identity for SMS/WhatsApp OTP. Optional \u2014 an email-only approver uses the email identity instead.",
    "fieldname": "mobile_no",
    "fieldtype": "Data",
-   "options": "Phone",
-   "label": "Mobile No",
    "in_list_view": 1,
-   "description": "Mobile identity for SMS/WhatsApp OTP. Optional \u2014 an email-only approver uses the email identity instead."
+   "label": "Mobile No",
+   "options": "Phone"
   },
   {
+   "description": "Email identity for email OTP, used when no mobile is on record. At least one of mobile / email is required.",
    "fieldname": "email",
    "fieldtype": "Data",
-   "options": "Email",
    "label": "Email",
-   "description": "Email identity for email OTP, used when no mobile is on record. At least one of mobile / email is required."
+   "options": "Email"
   },
   {
    "fieldname": "otp_code",
    "fieldtype": "Password",
-   "label": "OTP Code",
    "hidden": 1,
-   "read_only": 1,
-   "no_copy": 1
+   "label": "OTP Code",
+   "no_copy": 1,
+   "read_only": 1
   },
   {
    "fieldname": "column_break_01",
@@ -77,21 +77,21 @@
   {
    "fieldname": "purpose",
    "fieldtype": "Select",
-   "label": "Purpose",
-   "options": "\nBuyback Confirmation\nBuyback Customer Approval\nService Delivery\nPOS Customer Verification\nHigh Value Sale\nExchange Confirmation\nDiscount Override\nExchange Value Override\nFree Accessory\nManager Override\nBelow Margin Sale\nOld Stock Clearance\nDamaged Open Box\nSerial Substitution\nWarranty Giveaway\nService Discount\nSwap Outside Window\nReturn Beyond Policy\nReplacement Without Finance",
-   "reqd": 1,
    "in_list_view": 1,
    "in_standard_filter": 1,
+   "label": "Purpose",
+   "options": "\nBuyback Confirmation\nBuyback Customer Approval\nService Delivery\nPOS Session Open\nPOS Customer Verification\nHigh Value Sale\nExchange Confirmation\nDiscount Override\nExchange Value Override\nFree Accessory\nManager Override\nBelow Margin Sale\nOld Stock Clearance\nDamaged Open Box\nSerial Substitution\nWarranty Giveaway\nService Discount\nSwap Outside Window\nReturn Beyond Policy\nReplacement Without Finance",
+   "reqd": 1,
    "search_index": 1
   },
   {
    "default": "Pending",
    "fieldname": "status",
    "fieldtype": "Select",
-   "label": "Status",
-   "options": "Pending\nVerified\nExpired\nFailed",
    "in_list_view": 1,
    "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Pending\nVerified\nExpired\nFailed",
    "search_index": 1
   },
   {
@@ -144,9 +144,9 @@
   {
    "fieldname": "generated_at",
    "fieldtype": "Datetime",
+   "in_list_view": 1,
    "label": "Generated At",
-   "read_only": 1,
-   "in_list_view": 1
+   "read_only": 1
   },
   {
    "fieldname": "column_break_time",
@@ -167,7 +167,7 @@
  ],
  "index_web_pages_for_search": 0,
  "links": [],
- "modified": "2026-09-02 07:51:57.000000",
+ "modified": "2026-09-15 00:00:03.000000",
  "modified_by": "Administrator",
  "module": "CH Core",
  "name": "CH OTP Log",
@@ -175,17 +175,17 @@
  "owner": "Administrator",
  "permissions": [
   {
-   "role": "System Manager",
-   "read": 1,
-   "write": 1,
    "create": 1,
    "delete": 1,
    "email": 1,
    "export": 1,
    "import": 1,
    "print": 1,
+   "read": 1,
    "report": 1,
-   "share": 1
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
   }
  ],
  "search_fields": "mobile_no,purpose,status",
