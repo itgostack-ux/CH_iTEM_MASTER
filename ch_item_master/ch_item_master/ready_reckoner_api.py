@@ -1378,6 +1378,32 @@ def save_ready_reckoner_price(
     return create_price_change_batch(**args)
 
 
+def _describe_inaccessible_items(codes, cap=15) -> str:
+    """Break down a set of item codes the caller couldn't see into "doesn't
+    exist" vs "exists but outside your scope" (ch_item_master.rbac.get_item_query
+    scopes Item by company via Item Default rows), and list them so the
+    operator can actually act instead of just seeing a bare permission
+    denial. ignore_permissions=True here is read-only classification for the
+    error message — it does not grant access to anything.
+    """
+    codes = sorted(codes)
+    existing = set(frappe.get_all(
+        "Item", filters={"name": ("in", codes)}, pluck="name", ignore_permissions=True,
+    ))
+    missing = [c for c in codes if c not in existing]
+    out_of_scope = [c for c in codes if c in existing]
+
+    def _fmt(label, items):
+        if not items:
+            return None
+        shown = ", ".join(items[:cap])
+        extra = f" (+{len(items) - cap} more)" if len(items) > cap else ""
+        return f"{label}: {shown}{extra}"
+
+    parts = [p for p in (_fmt(_("Not found"), missing), _fmt(_("Outside your scope"), out_of_scope)) if p]
+    return "<br>".join(parts)
+
+
 @frappe.whitelist(methods=["POST"])
 def create_inline_price_change_batch(
     changes,
@@ -1420,7 +1446,11 @@ def create_inline_price_change_batch(
         )
     ) if requested_items else set()
     if visible_items != requested_items:
-        frappe.throw(_("One or more requested items are missing or outside your scope."), frappe.PermissionError)
+        detail = _describe_inaccessible_items(requested_items - visible_items)
+        frappe.throw(
+            _("One or more requested items are missing or outside your scope.") + (f"<br>{detail}" if detail else ""),
+            frappe.PermissionError,
+        )
 
     requested_channels = {
         (row or {}).get("channel", "").strip()
@@ -1807,8 +1837,9 @@ def upload_ready_reckoner_prices(file_url, effective_from=None, company=None, re
     )
     inaccessible_items = item_codes_in_file - visible_items
     if inaccessible_items:
+        detail = _describe_inaccessible_items(inaccessible_items)
         frappe.throw(
-            _("The upload contains items that are missing or outside your scope."),
+            _("The upload contains items that are missing or outside your scope.") + (f"<br>{detail}" if detail else ""),
             frappe.PermissionError,
         )
 
