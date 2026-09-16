@@ -87,6 +87,13 @@ def setup_roles():
             "POS Profile": {
                 "CH Master Manager": {"read", "write", "create"},
             },
+            # The device-model picker on the GoFix Service Intake form. Read
+            # was System-Manager-only, which was invisible while every cashier
+            # held that role; a counter user now has to be able to name the
+            # device they are taking in.
+            "CH Model": {
+                "POS User": {"read", "report"},
+            },
             "Country": {
                 "CH Master Manager": {"read"},
             },
