@@ -80,7 +80,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Purpose",
-   "options": "\nBuyback Confirmation\nBuyback Customer Approval\nService Delivery\nPOS Session Open\nPOS Customer Verification\nHigh Value Sale\nExchange Confirmation\nDiscount Override\nExchange Value Override\nFree Accessory\nManager Override\nBelow Margin Sale\nOld Stock Clearance\nDamaged Open Box\nSerial Substitution\nWarranty Giveaway\nService Discount\nSwap Outside Window\nReturn Beyond Policy\nReplacement Without Finance",
+   "options": "\nBuyback Confirmation\nBuyback Customer Approval\nService Delivery\nPOS Session Open\nPOS Business Date Override\nPOS Customer Verification\nHigh Value Sale\nExchange Confirmation\nDiscount Override\nExchange Value Override\nFree Accessory\nManager Override\nBelow Margin Sale\nOld Stock Clearance\nDamaged Open Box\nSerial Substitution\nWarranty Giveaway\nService Discount\nSwap Outside Window\nReturn Beyond Policy\nReplacement Without Finance",
    "reqd": 1,
    "search_index": 1
   },
@@ -167,7 +167,7 @@
  ],
  "index_web_pages_for_search": 0,
  "links": [],
- "modified": "2026-09-15 00:00:03.000000",
+ "modified": "2026-09-16 00:00:01.000000",
  "modified_by": "Administrator",
  "module": "CH Core",
  "name": "CH OTP Log",
