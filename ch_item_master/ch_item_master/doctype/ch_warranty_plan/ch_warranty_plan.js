@@ -66,6 +66,16 @@ frappe.ui.form.on('CH Warranty Plan', {
 			);
 		}
 
+		// ── Sell the plan from the Desk ──────────────────────────────────
+		// warranty_api.issue_warranty_plan has always been able to sell one —
+		// GoFix and the POS both call it — but nothing in the Desk did, so a
+		// plan bought at the back office had no way in. Reuses that whitelisted
+		// call rather than adding a second path to the same record.
+		if (!frm.is_new() && frm.doc.status === 'Active' && frm.doc.is_sellable) {
+			frm.add_custom_button(__('Issue to Customer'), () => issue_plan(frm))
+				.addClass('btn-primary');
+		}
+
 		// Show margin info
 		if (frm.doc.price && frm.doc.cost_to_company && frm.doc.pricing_mode === 'Fixed') {
 			let margin = frm.doc.price - frm.doc.cost_to_company;
@@ -122,3 +132,116 @@ frappe.ui.form.on('CH Warranty Plan', {
 		}
 	},
 });
+
+
+/**
+ * Sell this plan to a customer against one device.
+ *
+ * Everything the server needs is already validated inside
+ * issue_warranty_plan — company access, customer and item read permission, the
+ * plan's own company, base-warranty stacking and the coverage window. This
+ * collects the four things it cannot infer and gets out of the way.
+ */
+function issue_plan(frm) {
+	const zero_priced = frm.doc.pricing_mode === 'Fixed' && !frm.doc.price;
+	const percentage_priced = frm.doc.pricing_mode === 'Percentage of Device Price';
+	const d = new frappe.ui.Dialog({
+		title: __('Issue {0}', [frm.doc.plan_name || frm.doc.name]),
+		fields: [
+			{
+				fieldname: 'customer', fieldtype: 'Link', options: 'Customer',
+				label: __('Customer'), reqd: 1,
+			},
+			{
+				fieldname: 'item_code', fieldtype: 'Link', options: 'Item',
+				label: __('Device'), reqd: 1,
+				description: __('The device being covered, not the plan itself.'),
+				onchange: () => price_from_device(frm, d),
+			},
+			{ fieldtype: 'Column Break' },
+			{
+				fieldname: 'serial_no', fieldtype: 'Data', label: __('Serial / IMEI'),
+				description: __('Required for a serialised device.'),
+			},
+			{
+				fieldname: 'start_date', fieldtype: 'Date', label: __('Coverage Starts'),
+				default: frappe.datetime.get_today(),
+				description: frm.doc.starts_after_base_warranty
+					? __('Ignored while this plan stacks on the base warranty — the server starts it the day that expires.')
+					: '',
+			},
+			{ fieldtype: 'Section Break' },
+			{
+				fieldname: 'plan_price', fieldtype: 'Currency', label: __('Price Charged'),
+				default: frm.doc.price || 0,
+				// A Fixed plan with no price would be given away silently; a
+				// percentage plan carries price 0 by design and is priced off
+				// the device once one is chosen.
+				description: zero_priced
+					? __('This plan has no price set, so it will be issued free unless you enter one.')
+					: (percentage_priced
+						? __('Set from {0}% of the device price once you pick a device.',
+							[frm.doc.percentage_value])
+						: ''),
+			},
+			{
+				fieldname: 'sales_invoice', fieldtype: 'Link', options: 'Sales Invoice',
+				label: __('Against Invoice'),
+				description: __('Optional — links the cover to the sale that paid for it.'),
+			},
+		],
+		primary_action_label: __('Issue Plan'),
+		primary_action: (values) => {
+			d.hide();
+			frappe.call({
+				method: 'ch_item_master.ch_item_master.warranty_api.issue_warranty_plan',
+				args: Object.assign({ warranty_plan: frm.doc.name }, values),
+				freeze: true,
+				freeze_message: __('Issuing plan…'),
+				callback: (r) => {
+					if (!r.message) return;
+					frappe.show_alert({
+						message: __('Issued {0}', [r.message.active_plan]),
+						indicator: 'green',
+					});
+					frappe.set_route('Form', 'Active VAS Plans', r.message.active_plan);
+				},
+			});
+		},
+	});
+	d.show();
+}
+
+
+/**
+ * Price a percentage plan off the chosen device.
+ *
+ * A "Percentage of Device Price" plan stores price 0 — every VAS and
+ * Protection plan on this estate is one — so the dialog would otherwise
+ * default the charge to zero and issue the cover free. The POS attach panel
+ * resolves the same number from CH Item Price (POS channel), so this reads the
+ * same source rather than inventing a second answer.
+ */
+function price_from_device(frm, dialog) {
+	if (frm.doc.pricing_mode !== 'Percentage of Device Price') return;
+	const item_code = dialog.get_value('item_code');
+	if (!item_code) return;
+	frappe.db.get_value(
+		'CH Item Price',
+		{ item_code: item_code, channel: 'POS', status: 'Active' },
+		'selling_price'
+	).then((r) => {
+		const device_price = (r && r.message && r.message.selling_price) || 0;
+		if (!device_price) {
+			dialog.set_df_property('plan_price', 'description',
+				__('{0} has no active POS price, so the percentage cannot be applied — enter the charge.',
+					[item_code]));
+			return;
+		}
+		const computed = flt(device_price * flt(frm.doc.percentage_value) / 100.0, 2);
+		dialog.set_value('plan_price', computed);
+		dialog.set_df_property('plan_price', 'description',
+			__('{0}% of {1} (POS price for {2}).',
+				[frm.doc.percentage_value, format_currency(device_price), item_code]));
+	});
+}
