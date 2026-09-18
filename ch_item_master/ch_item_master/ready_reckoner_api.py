@@ -1777,12 +1777,25 @@ def upload_ready_reckoner_prices(file_url, effective_from=None, company=None, re
     # ── Collect all item codes first for batch DB lookups ─────────────────
     from itertools import islice
 
-    row_limit = get_int_setting("ready_reckoner_upload_row_limit", 5000, minimum=1)
+    # 25,000 sheet rows, raised from 5,000 now that applying a batch is no
+    # longer what limits it (a 34,965-row apply went from ~310 s to 33 s).
+    #
+    # The ceiling is memory, and it is a sheet row that is cheap while a batch
+    # row is not: one buyback sheet row becomes ~17 batch rows, one per
+    # grade/warranty band. Measured here at 5.16 MB of RSS per 1,000 batch
+    # rows, so 25,000 sheet rows is ~425,000 batch rows and ~2.2 GB held at
+    # once — comfortable on the 15 GiB box, with room for the rest of the
+    # site. Doubling it again would not: 50,000 rows is ~4.4 GB for a single
+    # upload.
+    #
+    # Sheets past this must be split. That is a real limit of reading the
+    # whole workbook in one request, not a number picked for caution.
+    row_limit = get_int_setting("ready_reckoner_upload_row_limit", 25000, minimum=1)
     all_rows = list(islice(rows_iter, row_limit + 1))
     wb.close()
     if len(all_rows) > row_limit:
         frappe.throw(
-            _("The upload contains more than {0} data rows.").format(row_limit),
+            _("The upload contains more than {0} data rows. Split the sheet and upload it in parts.").format(row_limit),
             frappe.ValidationError,
         )
 

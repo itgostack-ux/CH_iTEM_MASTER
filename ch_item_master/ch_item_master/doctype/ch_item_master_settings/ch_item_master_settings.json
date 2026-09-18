@@ -401,7 +401,8 @@
    "reqd": 1
   },
   {
-   "default": "5000",
+   "default": "25000",
+   "description": "Maximum data rows in one Ready Reckoner upload. One buyback sheet row becomes ~17 batch rows, and the whole sheet is held in memory while it is parsed (~5 MB per 1,000 batch rows), so raise this only with the server's RAM in mind.",
    "fieldname": "ready_reckoner_upload_row_limit",
    "fieldtype": "Int",
    "label": "Ready Reckoner Upload Row Limit",
