@@ -74,10 +74,29 @@ def sync_item_mrp_to_price(doc, method=None):
 	if old_doc and old_mrp == new_mrp:
 		return
 
+	apply_mrp_to_prices(doc.item_code, new_mrp)
+
+
+def apply_mrp_to_prices(item_code: str, new_mrp: float) -> int:
+	"""Push an item's MRP ceiling onto its Active/Scheduled CH Item Price rows.
+
+	Split out of ``sync_item_mrp_to_price`` so a caller that already wrote
+	``Item.ch_item_mrp`` itself can run the same sync without paying for a full
+	``Item.save()`` just to trigger the hook. A full save costs ~177 ms on this
+	estate — Item carries 20 of its own ``doc_events`` plus the 29 global
+	``doc_events["*"]`` hooks — which is why the price-upload batch applies MRP
+	directly and calls this. One implementation, so the two paths cannot drift.
+
+	Returns the number of price rows updated.
+	"""
+	new_mrp = flt(new_mrp)
+	if not item_code or not new_mrp:
+		return 0
+
 	active_prices = frappe.get_all(
 		"CH Item Price",
 		filters={
-			"item_code": doc.item_code,
+			"item_code": item_code,
 			"status": ("in", ["Active", "Scheduled"]),
 			"mrp": ("!=", new_mrp),
 		},
@@ -85,7 +104,7 @@ def sync_item_mrp_to_price(doc, method=None):
 	)
 
 	if not active_prices:
-		return
+		return 0
 
 	frappe.flags["ch_mrp_sync_in_progress"] = True
 	try:
@@ -101,11 +120,12 @@ def sync_item_mrp_to_price(doc, method=None):
 				update_modified=False,
 			)
 			frappe.logger("item_mrp").info(
-				f"[MRP Sync] Item→Price: {doc.item_code} "
+				f"[MRP Sync] Item→Price: {item_code} "
 				f"ch_item_mrp={new_mrp} → CH Item Price {price.name} (was {price.mrp})"
 			)
 	finally:
 		frappe.flags["ch_mrp_sync_in_progress"] = False
+	return len(active_prices)
 
 
 # ──────────────────────────────────────────────────────────────

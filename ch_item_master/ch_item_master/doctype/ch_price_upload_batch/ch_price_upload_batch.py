@@ -18,6 +18,55 @@ def _safe_float(val):
 	return float(str(val).replace(",", "").strip() or 0)
 
 
+def _async_apply_threshold() -> int:
+	"""Row count past which applying moves to a background worker.
+
+	Small batches — which is nearly all of them here — stay synchronous so the
+	approver still sees the result in the dialog they clicked from. Settable so
+	a site can lower it without a deploy.
+	"""
+	from ch_item_master.config import get_int_setting
+
+	return get_int_setting("price_batch_async_threshold", 500, minimum=1)
+
+
+def _async_apply_timeout() -> int:
+	from ch_item_master.config import get_int_setting
+
+	return get_int_setting("price_batch_async_timeout", 1800, minimum=300)
+
+
+def apply_batch_in_background(batch_name: str) -> None:
+	"""Worker entry point for ``apply_approved_categories`` on a large batch.
+
+	Runs as the enqueuing user (Frappe restores the session), so the same
+	scope and role gates apply as they would in the request. Failure is
+	recorded on the document itself rather than only in the Error Log: the
+	person who clicked Approve has no request left to receive it, and a batch
+	stuck at "Applying" with nothing said is how the previous timeouts read.
+	"""
+	batch = frappe.get_doc("CH Price Upload Batch", batch_name)
+	# Without this the worker would re-enter the same size check and enqueue
+	# itself again, forever.
+	batch.flags.in_background_apply = True
+	try:
+		batch.apply_approved_categories()
+	except Exception:
+		frappe.db.rollback()
+		frappe.log_error(frappe.get_traceback(), f"Price Batch Apply Failed: {batch_name}")
+		# Re-read: the rollback discarded whatever the failed pass had staged.
+		frappe.db.set_value(
+			"CH Price Upload Batch", batch_name,
+			{"status": "Partially Applied"},
+			update_modified=False)
+		frappe.db.commit()
+		frappe.publish_realtime(
+			"price_batch_apply_failed",
+			{"batch": batch_name},
+			user=frappe.session.user)
+		raise
+
+
 class CHPriceUploadBatch(Document):
 	"""Maker / checker price-upload batch, routed per product category.
 
@@ -469,8 +518,40 @@ class CHPriceUploadBatch(Document):
 		if not pending_rows:
 			return {"applied": 0, "skipped": 0, "errors": 0}
 
+		# Field-level write, not a full save: marking the batch "Applying" must
+		# not rewrite every child row (190.8 s on a 34,965-row batch) just to
+		# move one Select field.
 		self.status = "Applying"
-		self.save()
+		frappe.db.set_value(
+			"CH Price Upload Batch", self.name, "status", "Applying", update_modified=False)
+
+		# Past a certain size this cannot finish inside a web request, and the
+		# user's only feedback is a gateway timeout — after which they upload
+		# the same file again. Three identical 32,961-row drafts seconds apart
+		# on this site are exactly that. Hand the big ones to a worker.
+		if (
+			len(pending_rows) > _async_apply_threshold()
+			and not self.flags.get("in_background_apply")
+		):
+			frappe.enqueue(
+				"ch_item_master.ch_item_master.doctype.ch_price_upload_batch"
+				".ch_price_upload_batch.apply_batch_in_background",
+				queue="long",
+				# The RQ default is 300 s, which a large batch could still
+				# outrun; ask for room rather than inherit a second deadline.
+				timeout=_async_apply_timeout(),
+				job_id=f"price-batch-apply::{self.name}",
+				# A second click while the first is still running must not
+				# start a second pass over the same rows.
+				deduplicate=True,
+				enqueue_after_commit=True,
+				batch_name=self.name,
+			)
+			return {
+				"queued": True,
+				"rows": len(pending_rows),
+				"applied": 0, "skipped": 0, "errors": 0,
+			}
 
 		try:
 			result = self._apply_changes(rows=pending_rows)
@@ -494,11 +575,23 @@ class CHPriceUploadBatch(Document):
 		errors = 0
 		target_rows = self.items if rows is None else rows
 
-		# Group rows by (item_code, channel, change_type) for batch upserts
+		# Group rows so each target document is opened and written once.
+		#
+		# `channel` does not mean the same thing for every change type. For a
+		# Selling Price it is a real CH Price Channel and two channels are two
+		# different price records, so it belongs in the key. For a Buyback Price
+		# it holds the *field name* — one of 17 grade/warranty bands — and every
+		# band lives on the one Buyback Price Master row for the item. Keying on
+		# it there split one item into ~16 groups, and _apply_buyback_price then
+		# re-fetched and re-saved the same document once per band: 6,602 groups
+		# for 417 items on a real batch, which is where ~120 s of a 126 s apply
+		# went. _apply_buyback_price already takes many rows and sets every field
+		# in a single save — it was simply never handed them together.
 		from collections import defaultdict
 		groups = defaultdict(list)
 		for row in target_rows:
-			groups[(row.item_code, row.channel or "", row.change_type)].append(row)
+			key_channel = row.channel or "" if row.change_type == "Selling Price" else ""
+			groups[(row.item_code, key_channel, row.change_type)].append(row)
 
 		for (item_code, channel, change_type), rows in groups.items():
 			try:
@@ -545,25 +638,91 @@ class CHPriceUploadBatch(Document):
 		# ── Write price change logs for applied rows ──────────────────────
 		self._write_change_logs(rows=target_rows)
 
-		self.save()
+		self._persist_apply_results(target_rows)
 		return {"applied": applied, "skipped": skipped, "errors": errors}
 
+	def _persist_apply_results(self, target_rows):
+		"""Save what this pass decided, without rewriting the whole batch.
+
+		``self.save()`` here cost 190.8 s on a 34,965-row batch — by far the
+		largest remaining slice of an apply, against 13.5 s of actual work.
+		Frappe persists a child table by deleting and re-inserting every row,
+		so the parent save rewrote all 34,965 rows to record a status on the
+		subset this pass touched, and re-ran validate over the lot.
+
+		All that has to survive is: each touched row's status/error_message,
+		and the parent's counters. Rows are grouped by the pair they now share
+		— an all-applied pass is one UPDATE — so the write scales with the
+		number of distinct outcomes, not with the size of the batch.
+		"""
+		by_outcome = {}
+		for row in target_rows:
+			by_outcome.setdefault((row.status, row.error_message or ""), []).append(row.name)
+
+		for (status, message), names in by_outcome.items():
+			for chunk in (names[i:i + 500] for i in range(0, len(names), 500)):
+				frappe.db.sql(
+					"""UPDATE `tabCH Price Upload Item`
+					      SET status = %s, error_message = %s
+					    WHERE name IN ({})""".format(", ".join(["%s"] * len(chunk))),
+					[status, message, *chunk],
+				)
+
+		frappe.db.set_value(
+			"CH Price Upload Batch",
+			self.name,
+			{
+				"applied_count": self.applied_count,
+				"skipped_count": self.skipped_count,
+				"error_count": self.error_count,
+				"applied_at": self.applied_at,
+				"status": self.status,
+			},
+			update_modified=False,
+		)
+
 	def _apply_item_mrp(self, item_code, rows):
-		"""Apply Item MRP changes directly to Item.ch_item_mrp."""
+		"""Apply Item MRP changes directly to Item.ch_item_mrp.
+
+		Writes the field and runs the MRP -> price sync itself rather than
+		paying for a full ``Item.save()``. A full save measured ~177 ms here —
+		Item carries 20 of its own ``doc_events`` on top of the 29 global
+		``doc_events["*"]`` hooks — so a 6,602-row MRP batch spent ~19.5 minutes
+		inside save() alone and could never finish inside any request timeout.
+
+		Nothing is skipped by going direct. The only Item hook this path needs
+		is ``item_mrp.sync_item_mrp_to_price``, whose write half is now the
+		shared ``apply_mrp_to_prices`` called below. The other Item-level gate,
+		``validate_item_mrp``, refuses a non-positive MRP on a *stock* item, and
+		is restated below rather than dropped — going direct must not become a
+		way to smuggle a blank MRP past it.
+		"""
+		from ch_item_master.ch_item_master.item_mrp import apply_mrp_to_prices
+
 		applied = 0
 		skipped = 0
+		is_stock_item = frappe.db.get_value("Item", item_code, "is_stock_item")
+		# One read for the group instead of one per row: every row here targets
+		# the same item, so re-reading inside the loop asked the same question
+		# repeatedly and, worse, re-read a value this loop had already written.
+		cur_val = _safe_float(frappe.db.get_value("Item", item_code, "ch_item_mrp") or 0)
 		for row in rows:
 			new_val = _safe_float(row.new_value)
-			cur_val = _safe_float(frappe.db.get_value("Item", item_code, "ch_item_mrp") or 0)
 			if cur_val == new_val:
 				row.status = "Skipped"
 				row.error_message = f"No change — Item MRP is already {cur_val}"
 				skipped += 1
 				continue
-			item_doc = frappe.get_doc("Item", item_code)
-			item_doc.ch_item_mrp = new_val
-			item_doc.flags.from_price_batch = True
-			item_doc.save(ignore_permissions=True)
+			if is_stock_item and new_val <= 0:
+				# The refusal validate_item_mrp would have raised on save —
+				# raised the same way, so _apply_changes still counts it an error
+				# rather than silently recording a blank MRP as applied.
+				frappe.throw(
+					_("MRP is mandatory for stock item {0}.").format(item_code),
+					title=_("MRP Required"))
+			frappe.db.set_value("Item", item_code, "ch_item_mrp", new_val, update_modified=False)
+			apply_mrp_to_prices(item_code, new_val)
+			cur_val = new_val
 			row.status = "Applied"
 			applied += 1
 		return applied, skipped
@@ -783,6 +942,15 @@ class CHPriceUploadBatch(Document):
 
 		``rows`` is scoped to the pass so that a batch applied over several
 		category approvals does not re-log rows applied in an earlier pass.
+
+		Written with one bulk insert rather than a ``new_doc().insert()`` per
+		row. The log is append-only bookkeeping — no hooks, ``track_changes``
+		off, ``autoname`` hash — yet the document path made it the single most
+		expensive part of applying a batch: measured 8.9 ms per row, so 58.8 s
+		for a 6,602-row buyback batch and 293 s for a 34,965-row one, against a
+		120 s request timeout. Nothing else in the apply came close. Each insert
+		also dragged the 9 global ``doc_events["*"]`` on_update hooks behind it,
+		for a row nothing observes.
 		"""
 		# Field label → DB field name mapping for selling prices
 		_selling_field_map = {"MRP": "mrp", "MOP": "mop", "Selling Price": "selling_price"}
@@ -797,6 +965,11 @@ class CHPriceUploadBatch(Document):
 			if not batch_reason:
 				batch_reason = (self.notes or "").strip()
 
+		changed_by = self.approved_by or frappe.session.user
+		changed_at = now_datetime()
+		user = frappe.session.user
+
+		values = []
 		for row in (self.items if rows is None else rows):
 			if row.status != "Applied":
 				continue
@@ -811,17 +984,33 @@ class CHPriceUploadBatch(Document):
 			elif row.change_type == "Item MRP":
 				field_name = "ch_item_mrp"
 
-			log = frappe.new_doc("CH Price Change Log")
-			log.item_code = row.item_code
-			log.channel = row.channel if row.change_type == "Selling Price" else ""
-			log.change_type = row.change_type
-			log.field_name = field_name
-			log.field_label = row.field_label
-			log.old_value = row.old_value
-			log.new_value = row.new_value
-			log.source = "Upload Batch"
-			log.batch_ref = self.name
-			log.reason = (row.reason or "").strip() or batch_reason
-			log.changed_by = self.approved_by or frappe.session.user
-			log.changed_at = now_datetime()
-			log.insert(ignore_permissions=True)
+			values.append((
+				frappe.generate_hash(length=10),   # autoname is "hash"
+				changed_at, changed_at, user, user,
+				row.item_code,
+				row.channel if row.change_type == "Selling Price" else "",
+				row.change_type,
+				field_name,
+				row.field_label,
+				row.old_value,
+				row.new_value,
+				"Upload Batch",
+				self.name,
+				(row.reason or "").strip() or batch_reason,
+				changed_by,
+				changed_at,
+			))
+
+		if not values:
+			return
+
+		frappe.db.bulk_insert(
+			"CH Price Change Log",
+			fields=[
+				"name", "creation", "modified", "owner", "modified_by",
+				"item_code", "channel", "change_type", "field_name", "field_label",
+				"old_value", "new_value", "source", "batch_ref", "reason",
+				"changed_by", "changed_at",
+			],
+			values=values,
+		)
