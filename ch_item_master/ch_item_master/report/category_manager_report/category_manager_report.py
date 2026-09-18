@@ -25,11 +25,29 @@ def execute(filters=None):
         frappe.has_permission(doctype, "read", throw=True)
     filters = filters or {}
     columns = get_columns()
-    data = get_data(filters)
+    data, truncated = get_data(filters)
     chart = get_chart(data)
     summary = get_summary(data)
-    return columns, data, None, chart, summary
+    return columns, data, _truncated_message(truncated), chart, summary
 
+
+
+def _truncated_message(truncated):
+    """Say the list was cut instead of refusing to draw it.
+
+    This report used to `frappe.throw` as soon as the catalogue passed its row
+    limit, so the biggest categories -- the ones most worth looking at -- were
+    the ones that produced nothing. The bound stays; the reader is now told it
+    applied, and the rows are ordered by category, sub-category then model name, so the kept page is coherent
+    rather than an arbitrary slice.
+    """
+    if not truncated:
+        return None
+    limit = min(get_int_setting("interactive_report_row_limit", 2000, minimum=1), 10000)
+    return _(
+        "Showing the first {0} models, by category, sub-category then model name — there are more. "
+        "Narrow the filters to see the rest."
+    ).format(limit)
 
 def get_columns():
     return [
@@ -83,15 +101,11 @@ def get_data(filters):
         LIMIT %(row_limit)s
     """.format(where=where), values, as_dict=True)  # noqa: UP032
 
-    if len(models) > row_limit:
-        frappe.throw(
-            _("Category Manager Report exceeds the configured limit of {0} models. Narrow the filters.").format(
-                row_limit
-            ),
-            frappe.ValidationError,
-        )
-    if not models:
-        return []
+    truncated = len(models) > row_limit
+    if truncated:
+        # Trimmed and reported, not refused: a catalogue larger than the
+        # bound used to yield no report at all.
+        models = models[:row_limit]
 
     model_names = tuple(row.model for row in models)
 
@@ -203,7 +217,7 @@ def get_data(filters):
             "status_flag": status_flag,
         })
 
-    return data
+    return data, truncated
 
 
 def get_chart(data):
