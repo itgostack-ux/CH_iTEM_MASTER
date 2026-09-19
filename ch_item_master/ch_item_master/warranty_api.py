@@ -64,10 +64,14 @@ def _require_warranty_dashboard_access(company=None):
 			"CH Store",
 			filters={"company": scoped_company, "disabled": 0},
 			pluck="name"))
-		if not company_stores or not company_stores.issubset(allowed_stores):
+		
+		# FIX: Allow access if the user has at least one store assigned in this company, 
+		# instead of requiring ALL stores (issubset).
+		if company_stores and not company_stores.intersection(allowed_stores):
 			frappe.throw(
-				_("Warranty network dashboards require full store scope for {0}.").format(scoped_company),
+				_("You do not have store scope access for {0}.").format(scoped_company),
 				frappe.PermissionError)
+				
 	return company_scope
 
 
