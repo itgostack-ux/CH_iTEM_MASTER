@@ -40,21 +40,47 @@ function load_dashboard(page) {
 	});
 }
 
+// A card's link must carry the SAME filters the card counted, or clicking it
+// lands on a different number. Both of these were wrong: Items said 10,692 and
+// opened a list of 14,248 because the link dropped has_variants=0 and
+// disabled=0, and Models was off by the one disabled model. A card you can open
+// onto a contradiction is worse than one you cannot open at all.
+function kpi_link(doctype, filters) {
+	const qs = Object.entries(filters)
+		.map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(
+			Array.isArray(v) ? JSON.stringify(v) : v)}`)
+		.join("&");
+	return `/app/${doctype}${qs ? "?" + qs : ""}`;
+}
+
 function render_dashboard(page, data) {
+	// The price and offer counts are company-filtered when the page is; the
+	// links have to be too.
+	const company = page.company_field?.get_value() || "";
+	const co = company ? { company } : {};
+
 	let html = `<div class="ch-dash">
 		<style>${get_dashboard_css()}</style>
 
 		<!-- KPI Cards -->
 		<div class="ch-section">
 			<div class="ch-kpi-grid">
-				${kpi_card('stock', data.kpis.total_items, 'Items', '/app/item?ch_model=%5B%22is%22%2C%22set%22%5D', 'purple')}
-				${kpi_card('project', data.kpis.total_models, 'Models', '/app/ch-model', 'blue')}
-				${kpi_card('tag', data.kpis.active_prices, 'Active Prices', '/app/ch-item-price?status=Active', 'green')}
-				${kpi_card('sell', data.kpis.active_offers, 'Active Offers', '/app/ch-item-offer?status=Active', 'orange')}
-				${kpi_card('folder-normal', data.kpis.total_categories, 'Categories', '/app/ch-category', 'cyan')}
-				${kpi_card('list', data.kpis.total_sub_categories, 'Sub Categories', '/app/ch-sub-category', 'teal')}
-				${kpi_card('tool', data.kpis.total_manufacturers, 'Manufacturers', '/app/manufacturer', 'gray')}
-				${kpi_card('share-people', data.kpis.active_channels, 'Channels', '/app/ch-price-channel', 'indigo')}
+				${kpi_card('stock', data.kpis.total_items, 'Items',
+					kpi_link('item', { ch_model: ['is', 'set'], has_variants: 0, disabled: 0 }), 'purple')}
+				${kpi_card('project', data.kpis.total_models, 'Models',
+					kpi_link('ch-model', { disabled: 0 }), 'blue')}
+				${kpi_card('tag', data.kpis.active_prices, 'Active Prices',
+					kpi_link('ch-item-price', { status: 'Active', ...co }), 'green')}
+				${kpi_card('sell', data.kpis.active_offers, 'Active Offers',
+					kpi_link('ch-item-offer', { status: 'Active', ...co }), 'orange')}
+				${kpi_card('folder-normal', data.kpis.total_categories, 'Categories',
+					kpi_link('ch-category', { disabled: 0 }), 'cyan')}
+				${kpi_card('list', data.kpis.total_sub_categories, 'Sub Categories',
+					kpi_link('ch-sub-category', { disabled: 0 }), 'teal')}
+				${kpi_card('tool', data.kpis.total_manufacturers, 'Manufacturers',
+					kpi_link('manufacturer', {}), 'gray')}
+				${kpi_card('share-people', data.kpis.active_channels, 'Channels',
+					kpi_link('ch-price-channel', { disabled: 0 }), 'indigo')}
 			</div>
 		</div>
 
