@@ -1,7 +1,7 @@
 frappe.pages["vas-hub"].on_page_load = function (wrapper) {
 	const page = frappe.ui.make_app_page({
 		parent: wrapper,
-		title: __("VAS Hub"),
+		title: __("Protection Plans"),
 		single_column: true,
 	});
 	wrapper.vas_hub = new VASHub(page);

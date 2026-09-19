@@ -24,7 +24,7 @@ frappe.provide("ch_item_master.imei_tracker");
 frappe.pages["imei-tracker"].on_page_load = function (wrapper) {
 	const page = frappe.ui.make_app_page({
 		parent: wrapper,
-		title: __("IMEI Tracker"),
+		title: __("Find an Item"),
 		single_column: true,
 	});
 

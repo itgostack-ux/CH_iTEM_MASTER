@@ -8,7 +8,7 @@
 frappe.pages['ch-ready-reckoner'].on_page_load = function (wrapper) {
     const page = frappe.ui.make_app_page({
         parent: wrapper,
-        title: __('CH Ready Reckoner'),
+        title: __("Price Book"),
         single_column: true,
     });
 

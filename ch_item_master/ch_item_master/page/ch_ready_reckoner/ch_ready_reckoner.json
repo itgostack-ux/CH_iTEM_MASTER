@@ -7,12 +7,18 @@
  "name": "ch-ready-reckoner",
  "page_name": "ch-ready-reckoner",
  "roles": [
-  {"role": "System Manager"},
-  {"role": "CH Master Manager"},
-  {"role": "Stock User"}
+  {
+   "role": "System Manager"
+  },
+  {
+   "role": "CH Master Manager"
+  },
+  {
+   "role": "Stock User"
+  }
  ],
  "script": null,
  "style": null,
  "system_page": 0,
- "title": "CH Ready Reckoner"
+ "title": "Price Book"
 }
