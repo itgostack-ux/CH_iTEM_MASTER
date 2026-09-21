@@ -245,21 +245,35 @@ class TestItemGovernanceTierA(unittest.TestCase):
 
 	# ── Soft duplicate ───────────────────────────────────────────────────
 	def test_30_soft_duplicate_warning_for_simple_nature(self):
+		"""A Simple-nature duplicate warns; it must not block, and it must not
+		displace the original.
+
+		The second item is inserted directly rather than through
+		`_force_recreate_item`: that helper deletes any existing item carrying
+		the same `item_name` first, so building the "duplicate" with it would
+		remove `base` and leave only one row — the assertion below then fails
+		on an item the test itself deleted, and the soft-duplicate path is
+		never exercised at all.
+		"""
 		base = _force_recreate_item(
 			"Gov Soft Dup A",
 			ch_sub_category=self.sc_simple,
 			ch_category=self.cat,
 			gst_hsn_code=HSN,
 		)
-		dup = _force_recreate_item(
-			"Gov Soft Dup A",  # same item_name => same signature (no mfr/model)
-			ch_sub_category=self.sc_simple,
-			ch_category=self.cat,
-			gst_hsn_code=HSN,
-		)
-		# Simple nature: duplicate should not raise (msgprint only).
-		self.assertTrue(frappe.db.exists("Item", base.name))
-		self.assertTrue(frappe.db.exists("Item", dup.name))
+		# Same item_name => same duplicate signature (no manufacturer/model).
+		dup = frappe.new_doc("Item")
+		dup.item_name = "Gov Soft Dup A"
+		dup.item_group = ITEM_GROUP
+		dup.ch_item_mrp = 100
+		dup.ch_sub_category = self.sc_simple
+		dup.ch_category = self.cat
+		dup.gst_hsn_code = HSN
+		dup.insert(ignore_permissions=True)  # Simple nature: must not raise.
+
+		self.assertNotEqual(base.name, dup.name)
+		self.assertTrue(frappe.db.exists("Item", base.name), "the original must survive")
+		self.assertTrue(frappe.db.exists("Item", dup.name), "the duplicate must be created")
 
 	# ── Completeness ─────────────────────────────────────────────────────
 	def test_40_activation_blocked_when_completeness_fails(self):

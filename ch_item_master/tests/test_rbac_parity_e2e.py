@@ -16,9 +16,9 @@ Features covered:
   09:    check_plm_role() blocks users without the role
   10:    check_sod() with blank submitted_by is a no-op (safe)
   11:    Sensitive Item custom fields have permlevel=1
-  12:    Custom DocPerm at permlevel=1 installed for CH Price Manager on Item
-  13:    CH Role Assignment record can be created
-  14:    expire_role_assignments() marks past-valid_to records as Expired
+  12:    Every configured sensitive_field_role holds the permlevel=1 Item DocPerm
+  13:    CH Role Assignment stays retired (patch v34) — no doctype, no table
+  14:    expire_role_assignments() is dormant, not broken, while the table is gone
   15:    open_break_glass() creates a CH Break Glass Log; empty reason raises
 
 Run:  bench --site erpnext.local run-tests --module ch_item_master.tests.test_rbac_parity_e2e
@@ -281,68 +281,76 @@ class TestRBACFieldSecurity(unittest.TestCase):
 				f"{cf_name} must have permlevel=1 (got {permlevel}). Run the v6 patch.",
 			)
 
-	def test_12_price_manager_has_permlevel1_custom_docperm(self):
-		"""CH Price Manager must have a Custom DocPerm at permlevel=1 for Item."""
-		exists = frappe.db.exists(
-			"Custom DocPerm",
-			{"parent": "Item", "role": "CH Price Manager", "permlevel": 1},
+	def test_12_configured_sensitive_field_roles_have_permlevel1_docperm(self):
+		"""Every role in `sensitive_field_roles` must hold the permlevel-1 grant.
+
+		The grant is configuration-driven, not hardcoded: `install_custom_docperms`
+		reads the `sensitive_field_roles` Table MultiSelect on CH Item Master
+		Settings and creates one permlevel-1 Custom DocPerm on Item per role.
+		Asserting a fixed role name here would only test this site's current
+		configuration; the invariant that actually has to hold is that a role
+		an administrator *has* configured is really granted — a role listed in
+		the setting but missing its DocPerm is a silently powerless role.
+		"""
+		from ch_item_master.ch_item_master.rbac import get_role_setting, install_custom_docperms
+
+		configured = {
+			role for role in get_role_setting("sensitive_field_roles")
+			if frappe.db.exists("Role", role)
+		}
+		self.assertTrue(
+			configured,
+			"sensitive_field_roles resolves to no existing role — the permlevel-1 "
+			"fields on Item (standard cost, MSP, GTIN) would be Administrator-only.",
 		)
-		self.assertIsNotNone(
-			exists,
-			"Custom DocPerm for CH Price Manager at permlevel=1 on Item is missing. "
-			"Run install_custom_docperms() or the v6 patch.",
+
+		install_custom_docperms()
+		granted = set(
+			frappe.get_all(
+				"Custom DocPerm",
+				filters={"parent": "Item", "permlevel": 1},
+				pluck="role",
+			)
+		)
+		self.assertEqual(
+			configured - granted,
+			set(),
+			"Roles configured in sensitive_field_roles but holding no permlevel=1 "
+			"Custom DocPerm on Item. Run install_custom_docperms() or the v6 patch.",
 		)
 
 
 class TestRBACTimeboundRoles(unittest.TestCase):
-	"""CH Role Assignment time-bound expiry."""
+	"""CH Role Assignment is RETIRED — these tests pin that it stays retired.
+
+	``ch_erp15`` patch ``v34_consolidate_user_authorization`` dropped the
+	doctype (0 rows) and folded time-bounded grants into Role Profile.  The
+	expiry job in ``ch_item_master.ch_item_master.rbac`` was deliberately kept
+	rather than deleted — Frappe has no native time-bounded role grant, so the
+	job stays dormant behind a ``table_exists`` guard in case bounded grants
+	come back.  What has to keep working is exactly that: the doctype is gone,
+	and the still-scheduled job returns an empty result instead of throwing a
+	nightly "table doesn't exist" in the scheduler.
+	"""
 
 	def setUp(self):
 		frappe.set_user("Administrator")
 
-	def test_13_role_assignment_created(self):
-		"""CH Role Assignment doctype can be created."""
-		doc = frappe.get_doc({
-			"doctype": "CH Role Assignment",
-			"user": "Guest",
-			"role": "CH Viewer",
-			"valid_from": today(),
-			"valid_to": add_days(today(), 30),
-		})
-		doc.insert(ignore_permissions=True)
-		self.assertTrue(frappe.db.exists("CH Role Assignment", doc.name))
-		frappe.delete_doc("CH Role Assignment", doc.name, ignore_permissions=True)
+	def test_13_role_assignment_stays_retired(self):
+		"""v34 retired the doctype; nothing may resurrect it."""
+		self.assertFalse(
+			frappe.db.exists("DocType", "CH Role Assignment"),
+			"CH Role Assignment was retired by ch_erp15 patch v34. If it is back, "
+			"something re-created it — bounded grants belong on CH User Scope.",
+		)
+		self.assertFalse(frappe.db.table_exists("CH Role Assignment"))
 
-	def test_14_expire_role_assignments_marks_expired(self):
-		"""expire_role_assignments() sets status=Expired for past-valid_to records."""
+	def test_14_expire_role_assignments_is_dormant_not_broken(self):
+		"""The still-scheduled job must no-op, not raise, with the table gone."""
 		from ch_item_master.ch_item_master.rbac import expire_role_assignments
 
-		# Insert directly via SQL to bypass Frappe ORM hooks (which can cause rollbacks)
-		test_name = "ROLASS-E2E-TEST-14"
-		frappe.db.sql(
-			"""
-				INSERT IGNORE INTO `tabCH Role Assignment`
-				  (name, status, `user`, role, valid_from, valid_to,
-				   creation, modified, modified_by, owner, docstatus)
-				VALUES (%s, 'Active', 'Guest', 'CH Viewer', %s, %s,
-				        NOW(), NOW(), 'Administrator', 'Administrator', 0)
-			""",
-			(test_name, frappe.utils.add_days(frappe.utils.today(), -10), frappe.utils.add_days(frappe.utils.today(), -1)),
-		)
-		frappe.db.commit()
-
 		result = expire_role_assignments()
-
-		status_row = frappe.db.sql(
-			"SELECT status FROM `tabCH Role Assignment` WHERE name = %s",
-			test_name, as_dict=True,
-		)
-		actual_status = status_row[0].status if status_row else None
-		self.assertEqual(actual_status, "Expired", "Past-valid_to assignment must be Expired after scheduled task.")
-		self.assertGreaterEqual(result.get("expired", 0), 1)
-
-		frappe.db.sql("DELETE FROM `tabCH Role Assignment` WHERE name = %s", test_name)
-		frappe.db.commit()
+		self.assertEqual(result, {"expired": 0, "failed": 0, "has_more": False})
 
 
 class TestRBACBreakGlass(unittest.TestCase):

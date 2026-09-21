@@ -189,29 +189,35 @@ class TestTierBMSP(unittest.TestCase):
         return doc
 
     def test_04_msp_blocks_non_approver(self):
-        """MSP enforce hard-blocks non-approver when rate < MSP."""
-        from ch_item_master.ch_item_master.tier_b import enforce_msp
+        """MSP enforce hard-blocks non-approver when rate < MSP.
+
+        The approver test is `has_role_setting("master_approval_roles")` — a
+        configurable gate on CH Item Master Settings, not the hardcoded
+        `_user_roles` / `_MSP_BYPASS_ROLES` pair this module used to carry.
+        Patching the gate (rather than the caller's roles) keeps the test
+        independent of how this site happens to have the setting configured.
+        """
+        from unittest.mock import patch
+
         import ch_item_master.ch_item_master.tier_b as tier_b_mod
-        original_user_roles = tier_b_mod._user_roles
-        try:
-            # Patch _user_roles to return non-approver roles
-            tier_b_mod._user_roles = lambda: {"Desk User", "All"}
-            doc = self._make_invoice_doc(rate=100.0)
+
+        doc = self._make_invoice_doc(rate=100.0)
+        with patch.object(tier_b_mod, "has_role_setting", return_value=False):
             with self.assertRaises(frappe.ValidationError):
-                enforce_msp(doc)
-        finally:
-            tier_b_mod._user_roles = original_user_roles
+                tier_b_mod.enforce_msp(doc)
 
     def test_05_msp_warns_approver(self):
         """MSP enforce warns (does not raise) for approver below MSP."""
-        from ch_item_master.ch_item_master.tier_b import enforce_msp
+        from unittest.mock import patch
 
-        # Administrator has System Manager role which is in _MSP_BYPASS_ROLES
+        import ch_item_master.ch_item_master.tier_b as tier_b_mod
+
         doc = self._make_invoice_doc(rate=100.0)
-        try:
-            enforce_msp(doc)  # Should NOT raise
-        except frappe.ValidationError:
-            self.fail("MSP enforce should warn, not raise, for approvers")
+        with patch.object(tier_b_mod, "has_role_setting", return_value=True):
+            try:
+                tier_b_mod.enforce_msp(doc)  # Should NOT raise
+            except frappe.ValidationError:
+                self.fail("MSP enforce should warn, not raise, for approvers")
 
     def test_06_msp_passes_when_rate_ok(self):
         """MSP enforce passes with no error when rate >= MSP."""
