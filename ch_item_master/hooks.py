@@ -54,6 +54,9 @@ after_migrate = [
 	"ch_item_master.setup.setup_vas_settings",
 	"ch_item_master.setup.seed_stock_count_variance_exception_type",
 	"ch_item_master.setup.seed_external_device_item",
+	# Competitor-price configuration (sources, item links, operational
+	# settings) as code — a restore wiped it once. Never enables collection.
+	"ch_item_master.ch_item_master.competitor_pricing.seed.after_migrate",
 	"ch_item_master.ch_core.location_hierarchy.backfill_location_hierarchy",
 	"ch_item_master.ch_core.location_hierarchy.backfill_store_bins",
 	"ch_item_master.ch_core.location_hierarchy.backfill_zone_hubs",
