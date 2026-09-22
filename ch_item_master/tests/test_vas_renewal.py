@@ -37,13 +37,21 @@ def _plan_master():
     item and any plan gets a device-not-covered rejection, which is the
     doctype behaving correctly.
     """
-    candidates = frappe.get_all(
-        "CH Warranty Plan",
-        filters={"status": "Active", "duration_months": (">", 0),
-                 "service_item": ("is", "set")},
-        fields=["name", "company", "duration_months", "price", "max_claims",
-                "service_item"],
-        limit_page_length=0,
+    # The service item has to be live too. An item in lifecycle status "Draft"
+    # is refused by Sales Invoice, so a plan pointing at one cannot be sold and
+    # the fixture dies on the sale rather than on anything under test. Without
+    # this the suite passes or fails depending on which plan happens to sort
+    # first, which changes as data comes and goes.
+    candidates = frappe.db.sql(
+        """SELECT wp.name, wp.company, wp.duration_months, wp.price,
+                  wp.max_claims, wp.service_item
+           FROM `tabCH Warranty Plan` wp
+           JOIN `tabItem` i ON i.name = wp.service_item
+           WHERE wp.status = 'Active' AND wp.duration_months > 0
+             AND IFNULL(i.disabled, 0) = 0
+             AND (i.ch_lifecycle_status IS NULL OR i.ch_lifecycle_status = 'Active')
+           ORDER BY wp.name""",
+        as_dict=True,
     )
     for master in candidates:
         cats = frappe.get_all("CH Warranty Plan Category",
