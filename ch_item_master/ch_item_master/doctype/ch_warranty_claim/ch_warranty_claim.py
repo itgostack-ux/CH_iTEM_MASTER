@@ -2756,6 +2756,15 @@ class CHWarrantyClaim(Document):
 			# If a custom_claim_channel field exists on SR, populate it
 			if frappe.db.has_column("Service Request", "custom_claim_channel"):
 				sr.custom_claim_channel = channel
+			# Service Request ships its own `warranty_claim` link, and nothing
+			# had ever written to it -- the line below wrote `custom_warranty_`
+			# `claim` instead, behind a has_column guard, and that column does
+			# not exist, so the write was a silent no-op. Two guards read the
+			# real field: the one that lets an approved claim assert cover on
+			# every later save, and the one that stops this Service Request and
+			# the claim's own closure both bumping `claims_used`. Both were dead
+			# for want of this line.
+			sr.warranty_claim = self.name
 			if frappe.db.has_column("Service Request", "custom_warranty_claim"):
 				sr.custom_warranty_claim = self.name
 
