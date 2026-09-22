@@ -330,11 +330,24 @@ def _repair_and_part_coverage(serial_no, company=None) -> list:
 		order_by="service_date desc",
 		limit_page_length=10,
 	):
+		# What the repair actually addressed. Carried on the cover so a caller
+		# can tell whether a given plan would duplicate it -- "a screen is
+		# already covered" is only answerable if the cover says it was a screen.
+		issue_categories = sorted({
+			row.issue_category for row in frappe.get_all(
+				"SR Solution Line",
+				filters={"parent": sr.name, "parenttype": "Service Request",
+				         "status": ("in", ("Completed", "Skipped"))},
+				fields=["issue_category"])
+			if row.issue_category
+		})
+
 		if sr.repair_warranty_expiry and getdate(sr.repair_warranty_expiry) >= today_:
 			coverage.append({
 				"coverage_type": "repair_warranty",
 				"service_request": sr.name,
 				"covers": _("Workmanship on repair {0}").format(sr.name),
+				"issue_categories": issue_categories,
 				"expires_on": str(sr.repair_warranty_expiry),
 				"days_left": (getdate(sr.repair_warranty_expiry) - today_).days,
 				"claim_against": _("Own cost"),
@@ -361,6 +374,7 @@ def _repair_and_part_coverage(serial_no, company=None) -> list:
 				"service_request": sr.name,
 				"item_code": line.spare_item,
 				"covers": line.item_name or line.spare_item,
+				"issue_categories": issue_categories,
 				"installed_serial": line.installed_part_serial or "",
 				"expires_on": str(expiry),
 				"days_left": (getdate(expiry) - today_).days,
@@ -501,6 +515,40 @@ def validate_vas_category(serial_no, warranty_plan, external_item_code=None) -> 
 	return {"valid": True, "item_code": item_code, "category": category}
 
 
+def _plan_would_duplicate(plan, cover) -> bool:
+	"""Would this plan cover the same thing a live repair cover already does?
+
+	Answered from what the plan declares, never inferred from a name. Two
+	sources, most specific first:
+
+	  ``coverage_rules``  per Issue Category, with an explicit ``covered`` flag.
+	                      Authoritative when configured.
+	  ``coverage_scope``  "Full Device" overlaps everything by definition, so it
+	                      needs no mapping. The narrower scopes do — "Screen
+	                      Only" against an issue category called "Screen &
+	                      Display" is a guess, and a wrong guess here either
+	                      sells a duplicated month or withholds a paid one.
+
+	So a narrow-scope plan with no coverage rules returns False: it starts
+	immediately. That is the answer that does not take cover away from someone
+	who has paid for it, and the fix is to configure the rules.
+	"""
+	issues = (cover or {}).get("issue_categories") or []
+
+	rules = plan.get("coverage_rules") or []
+	if rules and issues:
+		covered = {r.get("issue_type"): bool(cint(r.get("covered"))) for r in rules}
+		# Overlap on any one of the issues the repair addressed is enough: the
+		# plan would be paying twice for that part of the device.
+		if any(covered.get(i) for i in issues):
+			return True
+		# Rules exist and none of them covers what was repaired -- a deliberate
+		# omission, not an unknown.
+		return False
+
+	return (plan.get("coverage_scope") or "") == "Full Device"
+
+
 # ── Plan Issuance ────────────────────────────────────────────────────────────
 
 @frappe.whitelist(methods=["POST"])
@@ -540,17 +588,11 @@ def issue_warranty_plan(warranty_plan, customer, item_code, serial_no=None,
 
 	if not start_date:
 		start_date = nowdate()
-		if cint(plan.get("starts_after_base_warranty")):
-			# Stack on the device's base (manufacturer/seller) warranty:
-			# coverage begins the day after the base warranty expires.
-			base_expiry = None
-			if serial_no:
-				base_expiry = frappe.db.get_value(
-					"CH Customer Device", {"serial_no": serial_no}, "base_warranty_expiry")
-			if not base_expiry and item_code:
-				base_expiry = get_base_warranty_expiry(item_code, start_date)
-			if base_expiry and getdate(base_expiry) >= getdate(start_date):
-				start_date = frappe.utils.add_days(base_expiry, 1)
+		# When cover starts is decided by Active VAS Plans.validate, not here:
+		# `_bind_issuance_to_source` recomputes coverage_start from the sale and
+		# overwrites whatever this function sets. Keeping a second copy of the
+		# stacking rule here is what made it look fixed while every plan still
+		# started on the day of sale, so there is only one copy now.
 
 	if not company:
 		company = plan.company

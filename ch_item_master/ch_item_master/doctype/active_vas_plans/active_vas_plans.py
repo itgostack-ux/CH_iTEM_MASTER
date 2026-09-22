@@ -179,6 +179,12 @@ class ActiveVASPlans(Document):
 			sale_date = source.get("posting_date") or source.get("transaction_date")
 		coverage_start = getdate(sale_date or nowdate())
 		if cint(plan.get("starts_after_base_warranty")):
+			# Cover begins the day after whatever the customer already holds runs
+			# out, so the same period is never sold twice. This is the copy that
+			# decides: whatever the issuing API worked out, validate recomputes
+			# coverage_start from the sale and overwrites it.
+			anchors = []
+
 			base_expiry = None
 			if self.serial_no:
 				base_expiry = frappe.db.get_value(
@@ -188,8 +194,27 @@ class ActiveVASPlans(Document):
 				from ch_item_master.ch_item_master.warranty_api import get_base_warranty_expiry
 
 				base_expiry = get_base_warranty_expiry(self.item_code, coverage_start)
-			if base_expiry and getdate(base_expiry) >= coverage_start:
-				coverage_start = frappe.utils.add_days(base_expiry, 1)
+			if base_expiry:
+				anchors.append(getdate(base_expiry))
+
+			# Cover the device earned by being repaired here — our workmanship
+			# and the fitted part's own term — but only where this plan would
+			# actually duplicate it. A screen plan sold after a screen
+			# replacement waits for that screen's cover to end; a defects-only
+			# extended warranty does not, because it never covered the damage.
+			if self.serial_no:
+				from ch_item_master.ch_item_master.warranty_api import (
+					_plan_would_duplicate,
+					_repair_and_part_coverage,
+				)
+
+				for cover in _repair_and_part_coverage(self.serial_no):
+					if cover.get("expires_on") and _plan_would_duplicate(plan, cover):
+						anchors.append(getdate(cover["expires_on"]))
+
+			latest = max(anchors) if anchors else None
+			if latest and latest >= coverage_start:
+				coverage_start = frappe.utils.add_days(latest, 1)
 
 		self.customer_name = customer.customer_name
 		self.customer_phone = customer.mobile_no
