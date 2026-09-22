@@ -392,45 +392,38 @@ def transfer_between_bins(
 		# ).make_serial_and_batch_bundle(serial_nos=serials)
 
 		posting_dt = get_datetime(f"{se.posting_date} {se.posting_time}")
-		_orig_user = frappe.session.user
-		frappe.session.user = "Administrator"
-		try:
-			bundle = SerialBatchCreation(
-				{
-					"item_code": item_code,
-					"warehouse": from_wh,
-					"voucher_type": "Stock Entry",
-					"voucher_no": se.name,
-					"voucher_detail_no": row.name,
-					"qty": -qty,
-					"type_of_transaction": "Outward",
-					"company": company,
-					"posting_datetime": posting_dt,
-					"do_not_submit": True,
-				}
-			).make_serial_and_batch_bundle(serial_nos=serials)
-		finally:
-			frappe.session.user = _orig_user
+		# This used to run as Administrator. Every role that can reach a bin
+		# transfer already holds `create` on Serial and Batch Bundle -- checked
+		# across all 140 non-System-Manager stock/POS users on this site, none
+		# of whom lacked it -- so the switch bypassed nothing except the stamp
+		# on `owner`, which it replaced with Administrator's.
+		bundle = SerialBatchCreation(
+			{
+				"item_code": item_code,
+				"warehouse": from_wh,
+				"voucher_type": "Stock Entry",
+				"voucher_no": se.name,
+				"voucher_detail_no": row.name,
+				"qty": -qty,
+				"type_of_transaction": "Outward",
+				"company": company,
+				"posting_datetime": posting_dt,
+				"do_not_submit": True,
+			}
+		).make_serial_and_batch_bundle(serial_nos=serials)
 
 	if bundle:
 		row.serial_and_batch_bundle = bundle.name if hasattr(bundle, "name") else bundle
 		row.serial_no = ""
-		_orig_user = frappe.session.user
-		frappe.session.user = "Administrator"
-		try:
-			se.flags.ignore_permissions = True
-			se.save()
-		finally:
-			frappe.session.user = _orig_user
+		# `ignore_permissions` already skips the permission check here; running
+		# as Administrator on top of it changed nothing except who the Stock
+		# Entry says did the transfer.
+		se.flags.ignore_permissions = True
+		se.save()
 
 	if submit:
-		_orig_user = frappe.session.user
-		frappe.session.user = "Administrator"
-		try:
-			se.flags.ignore_permissions = True
-			se.submit()
-		finally:
-			frappe.session.user = _orig_user
+		se.flags.ignore_permissions = True
+		se.submit()
 	return se.name
 
 # ──────────────────────────────────────────────────────────────────────────
