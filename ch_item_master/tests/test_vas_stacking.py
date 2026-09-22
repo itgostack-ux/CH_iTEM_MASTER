@@ -48,7 +48,18 @@ from ch_item_master.tests.test_vas_renewal import (
 
 def _fit_part(sr, days):
     """Fit a spare carrying its own supplier warranty onto a delivered repair."""
-    spare = frappe.db.get_value("Item", {"disabled": 0, "is_stock_item": 1}, "name")
+    # Ordered and filtered rather than "any stock item": without this the row
+    # MySQL returns varies between runs, and a template item makes the spare
+    # line throw. That is the shape of a test that passes three times and
+    # errors on the fourth.
+    spare = frappe.db.sql(
+        """SELECT name FROM `tabItem`
+           WHERE IFNULL(disabled, 0) = 0 AND is_stock_item = 1
+             AND IFNULL(has_variants, 0) = 0
+           ORDER BY name LIMIT 1""",
+        pluck=True,
+    )
+    spare = spare[0] if spare else None
     if not spare:
         return None
     frappe.db.set_value("Item", spare, "gofix_part_warranty_days", days, update_modified=False)
@@ -106,7 +117,7 @@ class TestVasStacksOnRepairCover(unittest.TestCase):
         frappe.db.set_value("CH Warranty Plan", self.master.name,
                             "starts_after_base_warranty", 1 if stacking else 0)
         frappe.clear_document_cache("CH Warranty Plan", self.master.name)
-        customer = frappe.db.get_value("Customer", {}, "name")
+        customer = frappe.db.get_value("Customer", {}, "name", order_by="name")
         item = self.master.item_code
         _ensure_serial(item)
         si = _sales_invoice(self.master, customer, self.master.company,
@@ -271,7 +282,7 @@ class TestPartWarrantyDelaysThePlan(unittest.TestCase):
         frappe.db.set_value("CH Warranty Plan", self.master.name,
                             "starts_after_base_warranty", 1)
         frappe.clear_document_cache("CH Warranty Plan", self.master.name)
-        customer = frappe.db.get_value("Customer", {}, "name")
+        customer = frappe.db.get_value("Customer", {}, "name", order_by="name")
         _ensure_serial(self.master.item_code)
         si = _sales_invoice(self.master, customer, self.master.company,
                             device_item=self.master.item_code, serial_no=SERIAL)
