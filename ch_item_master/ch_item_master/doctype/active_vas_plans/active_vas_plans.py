@@ -197,6 +197,14 @@ class ActiveVASPlans(Document):
 		self.item_name = item.item_name
 		self.brand = item.brand
 		self.status = "Active"
+		if self.get("renewed_from"):
+			# A renewal's cover starts where the previous term ends, not on the
+			# day its invoice was raised. Taking the sale date here would either
+			# overlap the plan being continued -- two live plans on one device --
+			# or, for a customer renewing early, silently shorten what they paid
+			# for. The renewal flow has already worked out the right date and
+			# refuses to backdate it.
+			coverage_start = getdate(self.start_date or coverage_start)
 		self.start_date = coverage_start
 		self.end_date = add_months(coverage_start, cint(plan.duration_months))
 		self.duration_months = cint(plan.duration_months)
@@ -257,6 +265,35 @@ class ActiveVASPlans(Document):
 		if len(plan_prices) > 1:
 			frappe.throw(_("The commercial source has ambiguous prices for this warranty plan."))
 		plan_price = next(iter(plan_prices), 0)
+
+		if not cint(self.is_external_device) and not device_rows and self.get("renewed_from"):
+			# A renewal does not re-sell the handset. The customer bought it
+			# once, possibly years ago, so the renewal invoice carries the plan
+			# line and nothing else -- requiring the device and its serial on
+			# it would make every renewal unissuable.
+			#
+			# Provenance is not waived, only moved: the plan being continued
+			# already proved this device was sold to this customer, and it
+			# carries the purchase price that sets the coverage ceiling. Taking
+			# it from there rather than defaulting to zero is what stops a
+			# renewal covering nothing. The parent must match on both customer
+			# and device, so pointing renewed_from at an unrelated plan buys
+			# nothing.
+			parent = frappe.db.get_value(
+				"Active VAS Plans",
+				self.renewed_from,
+				["customer", "item_code", "serial_no", "device_purchase_price"],
+				as_dict=True,
+			)
+			if not parent:
+				frappe.throw(_("The plan being renewed no longer exists."))
+			if parent.customer != self.customer or parent.item_code != self.item_code:
+				frappe.throw(
+					_("A renewal must be for the same customer and device as the plan "
+					  "it continues."))
+			if (parent.serial_no or "") != (self.serial_no or ""):
+				frappe.throw(_("A renewal must cover the same serial number."))
+			return source, plan_price, flt(parent.device_purchase_price)
 
 		if not cint(self.is_external_device):
 			if not device_rows:
@@ -492,6 +529,25 @@ class ActiveVASPlans(Document):
 			},
 			"name",
 		)
+		if existing and self.get("renewed_from") == existing:
+			# A renewal is the successor of the plan it names, not a second
+			# copy of it. Refusing it here would make renewing before expiry
+			# impossible -- which is the normal case, and the only one that
+			# keeps cover continuous.
+			#
+			# Only the exact plan being continued may be stacked on, and only
+			# for a term that begins after that one ends, so this cannot be
+			# used to run two overlapping plans on one device.
+			predecessor_end = frappe.db.get_value("Active VAS Plans", existing, "end_date")
+			if predecessor_end and getdate(self.start_date) > getdate(predecessor_end):
+				return
+			frappe.throw(
+				_("A renewal must start after {0} ends on {1}. Overlapping cover on one "
+				  "device is two plans, not a renewal.").format(existing, predecessor_end),
+				exc=DuplicateSoldPlanError,
+				title=_("Overlapping Cover"),
+			)
+
 		if existing:
 			plan_title = (
 				frappe.db.get_value("CH Warranty Plan", self.warranty_plan, "plan_name")

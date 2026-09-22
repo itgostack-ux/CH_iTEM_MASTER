@@ -1,82 +1,125 @@
 {
- "name": "Active VAS Plans",
- "module": "CH Item Master",
+ "actions": [],
+ "allow_import": 1,
+ "autoname": "naming_series:",
+ "creation": "2026-02-28 00:00:00.000000",
  "doctype": "DocType",
  "document_type": "Document",
- "engine": "InnoDB",
- "naming_rule": "By \"Naming Series\" field",
- "autoname": "naming_series:",
- "istable": 0,
- "issingle": 0,
- "is_submittable": 1,
  "editable_grid": 1,
- "track_changes": 1,
- "title_field": "plan_title",
+ "engine": "InnoDB",
  "field_order": [
-  "naming_series", "sold_plan_id", "company", "warranty_plan", "plan_title", "plan_type", "column_break_basic", "customer", "customer_name", "customer_phone", "membership_id", "status", "section_device", "item_code", "item_name", "column_break_device", "serial_no", "is_external_device", "external_device_source", "external_device_model_item", "external_device_sub_category", "brand", "section_coverage", "start_date", "end_date", "duration_months", "column_break_coverage", "max_claims", "claims_used", "deductible_amount", "section_transaction", "sales_invoice", "sales_order", "column_break_transaction", "sold_by", "plan_price", "custom_deferred_revenue_je", "revenue_recognized_amount", "revenue_last_recognized_on", "section_snapshot", "fulfillment_type", "plan_snapshot_json", "benefit_snapshot_json", "section_value_cap", "device_purchase_price", "max_coverage_value", "column_break_value_cap", "total_claimed_value", "claims_per_year", "section_notes", "remarks", "amended_from"
+  "naming_series",
+  "sold_plan_id",
+  "company",
+  "warranty_plan",
+  "plan_title",
+  "plan_type",
+  "column_break_basic",
+  "customer",
+  "customer_name",
+  "customer_phone",
+  "membership_id",
+  "status",
+  "section_device",
+  "item_code",
+  "item_name",
+  "column_break_device",
+  "serial_no",
+  "is_external_device",
+  "external_device_source",
+  "external_device_model_item",
+  "external_device_sub_category",
+  "brand",
+  "section_coverage",
+  "start_date",
+  "end_date",
+  "duration_months",
+  "column_break_coverage",
+  "max_claims",
+  "claims_used",
+  "deductible_amount",
+  "section_transaction",
+  "sales_invoice",
+  "sales_order",
+  "column_break_transaction",
+  "sold_by",
+  "plan_price",
+  "custom_deferred_revenue_je",
+  "revenue_recognized_amount",
+  "revenue_last_recognized_on",
+  "section_snapshot",
+  "fulfillment_type",
+  "plan_snapshot_json",
+  "benefit_snapshot_json",
+  "section_value_cap",
+  "device_purchase_price",
+  "max_coverage_value",
+  "column_break_value_cap",
+  "total_claimed_value",
+  "claims_per_year",
+  "section_notes",
+  "remarks",
+  "renewed_from",
+  "amended_from"
  ],
- "search_fields": "customer,serial_no,warranty_plan,item_code",
- "sort_field": "modified",
- "sort_order": "DESC",
  "fields": [
   {
+   "default": "CH-SP-.YYYY.-",
    "fieldname": "naming_series",
    "fieldtype": "Select",
+   "hidden": 1,
    "label": "Series",
    "options": "CH-SP-.YYYY.-",
-   "default": "CH-SP-.YYYY.-",
-   "reqd": 1,
-   "hidden": 1
+   "reqd": 1
   },
   {
+   "description": "Auto-generated sequential ID for mobile/API integration",
    "fieldname": "sold_plan_id",
    "fieldtype": "Int",
-    "label": "Active VAS Plan ID",
-   "read_only": 1,
-   "unique": 1,
+   "label": "Active VAS Plan ID",
    "no_copy": 1,
-   "description": "Auto-generated sequential ID for mobile/API integration"
+   "read_only": 1,
+   "unique": 1
   },
   {
    "fieldname": "company",
    "fieldtype": "Link",
+   "in_standard_filter": 1,
    "label": "Company",
    "options": "Company",
-   "reqd": 1,
-   "in_standard_filter": 1,
    "remember_last_selected_value": 1,
+   "reqd": 1,
    "search_index": 1
   },
   {
+   "description": "The CH Warranty Plan being issued to this customer/device.",
    "fieldname": "warranty_plan",
    "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Warranty Plan",
    "options": "CH Warranty Plan",
    "reqd": 1,
-   "in_list_view": 1,
-   "in_standard_filter": 1,
-   "description": "The CH Warranty Plan being issued to this customer/device.",
    "search_index": 1
   },
   {
+   "description": "Auto-fetched from the linked Warranty Plan.",
+   "fetch_from": "warranty_plan.plan_name",
    "fieldname": "plan_title",
    "fieldtype": "Data",
-   "label": "Plan Title",
-   "fetch_from": "warranty_plan.plan_name",
-   "read_only": 1,
-   "permlevel": 1,
    "in_list_view": 1,
-   "description": "Auto-fetched from the linked Warranty Plan."
+   "label": "Plan Title",
+   "permlevel": 1,
+   "read_only": 1
   },
   {
+   "fetch_from": "warranty_plan.plan_type",
    "fieldname": "plan_type",
    "fieldtype": "Data",
+   "in_standard_filter": 1,
    "label": "Plan Type",
-   "fetch_from": "warranty_plan.plan_type",
-   "read_only": 1,
    "permlevel": 1,
    "read_only": 1,
-   "in_standard_filter": 1,
    "search_index": 1
   },
   {
@@ -86,53 +129,53 @@
   {
    "fieldname": "customer",
    "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Customer",
    "options": "Customer",
    "reqd": 1,
-   "in_list_view": 1,
-   "in_standard_filter": 1,
    "search_index": 1
   },
   {
+   "fetch_from": "customer.customer_name",
    "fieldname": "customer_name",
    "fieldtype": "Data",
    "label": "Customer Name",
-   "fetch_from": "customer.customer_name",
-   "read_only": 1,
-   "permlevel": 1
+   "permlevel": 1,
+   "read_only": 1
   },
   {
+   "fetch_from": "customer.mobile_no",
+   "fetch_if_empty": 1,
    "fieldname": "customer_phone",
    "fieldtype": "Data",
    "label": "Customer Phone",
    "options": "Phone",
-   "fetch_from": "customer.mobile_no",
-   "fetch_if_empty": 1,
-   "read_only": 1,
-   "permlevel": 1
+   "permlevel": 1,
+   "read_only": 1
   },
   {
+   "description": "Customer's membership ID for reference",
+   "fetch_from": "customer.ch_membership_id",
    "fieldname": "membership_id",
    "fieldtype": "Data",
-   "label": "Membership ID",
-   "fetch_from": "customer.ch_membership_id",
-   "read_only": 1,
-   "permlevel": 1,
    "in_list_view": 1,
-   "description": "Customer's membership ID for reference"
+   "label": "Membership ID",
+   "permlevel": 1,
+   "read_only": 1
   },
   {
+   "default": "Active",
+   "description": "Active = warranty in effect. Expired = past end_date. Claimed = max claims reached. Void = manually voided.",
    "fieldname": "status",
    "fieldtype": "Select",
-   "label": "Status",
-   "options": "Active\nExpired\nClaimed\nVoid\nCancelled",
-   "default": "Active",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "read_only": 1,
-   "permlevel": 1,
+   "label": "Status",
    "no_copy": 1,
-   "description": "Active = warranty in effect. Expired = past end_date. Claimed = max claims reached. Void = manually voided.",
+   "options": "Active\nExpired\nClaimed\nVoid\nCancelled",
+   "permlevel": 1,
+   "read_only": 1,
    "search_index": 1
   },
   {
@@ -141,78 +184,78 @@
    "label": "Device"
   },
   {
+   "description": "The device/product this plan covers.",
    "fieldname": "item_code",
    "fieldtype": "Link",
+   "in_standard_filter": 1,
    "label": "Item",
    "options": "Item",
    "reqd": 1,
-   "in_standard_filter": 1,
-   "description": "The device/product this plan covers.",
    "search_index": 1
   },
   {
+   "fetch_from": "item_code.item_name",
    "fieldname": "item_name",
    "fieldtype": "Data",
    "label": "Item Name",
-   "fetch_from": "item_code.item_name",
-   "read_only": 1,
-   "permlevel": 1
+   "permlevel": 1,
+   "read_only": 1
   },
   {
    "fieldname": "column_break_device",
    "fieldtype": "Column Break"
   },
   {
+   "description": "Serial number or IMEI of the device covered by this plan.",
    "fieldname": "serial_no",
    "fieldtype": "Data",
-   "label": "Serial / IMEI",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "description": "Serial number or IMEI of the device covered by this plan.",
+   "label": "Serial / IMEI",
    "search_index": 1
   },
   {
+   "default": "0",
+   "description": "Checked when the plan was sold against a customer-provided IMEI outside GoGizmo inventory.",
    "fieldname": "is_external_device",
    "fieldtype": "Check",
-   "label": "External Customer Device",
-   "default": "0",
-   "read_only": 1,
    "in_standard_filter": 1,
-   "description": "Checked when the plan was sold against a customer-provided IMEI outside GoGizmo inventory."
+   "label": "External Customer Device",
+   "read_only": 1
   },
   {
+   "depends_on": "eval:doc.is_external_device",
+   "description": "How the external IMEI was captured, e.g. POS Customer-Provided IMEI.",
    "fieldname": "external_device_source",
    "fieldtype": "Data",
    "label": "External Device Source",
-   "read_only": 1,
-   "depends_on": "eval:doc.is_external_device",
-   "description": "How the external IMEI was captured, e.g. POS Customer-Provided IMEI."
+   "read_only": 1
   },
   {
+   "depends_on": "eval:doc.is_external_device",
+   "description": "Actual model declared for a customer-provided IMEI. Blank is allowed only when the plan has no sub-category restriction.",
    "fieldname": "external_device_model_item",
    "fieldtype": "Link",
    "label": "External Device Model",
    "options": "Item",
-   "read_only": 1,
-   "depends_on": "eval:doc.is_external_device",
-   "description": "Actual model declared for a customer-provided IMEI. Blank is allowed only when the plan has no sub-category restriction."
+   "read_only": 1
   },
   {
+   "depends_on": "eval:doc.is_external_device",
    "fieldname": "external_device_sub_category",
    "fieldtype": "Link",
    "label": "External Device Sub Category",
    "options": "CH Sub Category",
-   "read_only": 1,
-   "depends_on": "eval:doc.is_external_device"
+   "read_only": 1
   },
   {
+   "fetch_from": "item_code.brand",
    "fieldname": "brand",
    "fieldtype": "Link",
    "label": "Brand",
    "options": "Brand",
-   "fetch_from": "item_code.brand",
-   "read_only": 1,
-   "permlevel": 1
+   "permlevel": 1,
+   "read_only": 1
   },
   {
    "fieldname": "section_coverage",
@@ -220,59 +263,59 @@
    "label": "Coverage Period"
   },
   {
+   "description": "When the coverage begins (typically sale date).",
    "fieldname": "start_date",
    "fieldtype": "Date",
    "label": "Start Date",
-   "reqd": 1,
-   "read_only": 1,
    "permlevel": 1,
-   "description": "When the coverage begins (typically sale date)."
+   "read_only": 1,
+   "reqd": 1
   },
   {
+   "description": "When the coverage expires.",
    "fieldname": "end_date",
    "fieldtype": "Date",
    "label": "End Date",
-   "reqd": 1,
-   "read_only": 1,
    "permlevel": 1,
-   "description": "When the coverage expires."
+   "read_only": 1,
+   "reqd": 1
   },
   {
+   "fetch_from": "warranty_plan.duration_months",
    "fieldname": "duration_months",
    "fieldtype": "Int",
    "label": "Duration (Months)",
-   "fetch_from": "warranty_plan.duration_months",
-   "read_only": 1,
-   "permlevel": 1
+   "permlevel": 1,
+   "read_only": 1
   },
   {
    "fieldname": "column_break_coverage",
    "fieldtype": "Column Break"
   },
   {
+   "description": "Snapshot from plan master at purchase time. 0 = unlimited.",
    "fieldname": "max_claims",
    "fieldtype": "Int",
    "label": "Max Claims",
-   "read_only": 1,
    "permlevel": 1,
-   "description": "Snapshot from plan master at purchase time. 0 = unlimited."
+   "read_only": 1
   },
   {
+   "default": "0",
+   "description": "Number of warranty claims consumed against this plan.",
    "fieldname": "claims_used",
    "fieldtype": "Int",
    "label": "Claims Used",
-   "default": "0",
-   "read_only": 1,
    "permlevel": 1,
-   "description": "Number of warranty claims consumed against this plan."
+   "read_only": 1
   },
   {
+   "description": "Snapshot from plan master at purchase time.",
    "fieldname": "deductible_amount",
    "fieldtype": "Currency",
    "label": "Deductible per Claim",
-   "read_only": 1,
    "permlevel": 1,
-   "description": "Snapshot from plan master at purchase time."
+   "read_only": 1
   },
   {
    "fieldname": "section_transaction",
@@ -280,106 +323,106 @@
    "label": "Transaction Reference"
   },
   {
+   "description": "The invoice where this plan was sold.",
    "fieldname": "sales_invoice",
    "fieldtype": "Link",
    "label": "Sales Invoice",
-   "options": "Sales Invoice",
-   "description": "The invoice where this plan was sold."
+   "options": "Sales Invoice"
   },
   {
+   "description": "The sales order / service order (if applicable).",
    "fieldname": "sales_order",
    "fieldtype": "Link",
    "label": "Sales Order",
-   "options": "Sales Order",
-   "description": "The sales order / service order (if applicable)."
+   "options": "Sales Order"
   },
   {
    "fieldname": "column_break_transaction",
    "fieldtype": "Column Break"
   },
   {
+   "description": "User who sold/issued this plan.",
    "fieldname": "sold_by",
    "fieldtype": "Link",
    "label": "Sold By",
    "options": "User",
-   "read_only": 1,
    "permlevel": 1,
-   "description": "User who sold/issued this plan."
+   "read_only": 1
   },
   {
+   "description": "Actual price charged to the customer for this plan.",
    "fieldname": "plan_price",
    "fieldtype": "Currency",
    "label": "Plan Price",
-   "read_only": 1,
    "permlevel": 1,
-   "description": "Actual price charged to the customer for this plan."
+   "read_only": 1
   },
   {
+   "description": "System-created journal entry that moved VAS revenue to deferred revenue.",
    "fieldname": "custom_deferred_revenue_je",
    "fieldtype": "Link",
-   "label": "Deferred Revenue Journal Entry",
-   "options": "Journal Entry",
-   "read_only": 1,
-   "permlevel": 1,
-   "no_copy": 1,
    "hidden": 1,
-   "description": "System-created journal entry that moved VAS revenue to deferred revenue."
+   "label": "Deferred Revenue Journal Entry",
+   "no_copy": 1,
+   "options": "Journal Entry",
+   "permlevel": 1,
+   "read_only": 1
   },
   {
+   "allow_on_submit": 1,
+   "default": "0",
+   "description": "ASC 606 straight-line: running total of revenue recognised from the deferred balance. Updated by the monthly recognition scheduler.",
    "fieldname": "revenue_recognized_amount",
    "fieldtype": "Currency",
    "label": "Revenue Recognized (Cumulative)",
-   "default": "0",
-   "read_only": 1,
-   "permlevel": 1,
-   "allow_on_submit": 1,
    "no_copy": 1,
-   "description": "ASC 606 straight-line: running total of revenue recognised from the deferred balance. Updated by the monthly recognition scheduler."
+   "permlevel": 1,
+   "read_only": 1
   },
   {
+   "allow_on_submit": 1,
+   "description": "Period-end date of the most recent recognition JE posted for this plan.",
    "fieldname": "revenue_last_recognized_on",
    "fieldtype": "Date",
-   "label": "Last Recognition Posting",
-   "read_only": 1,
-   "permlevel": 1,
-   "allow_on_submit": 1,
-   "no_copy": 1,
    "hidden": 1,
-   "description": "Period-end date of the most recent recognition JE posted for this plan."
+   "label": "Last Recognition Posting",
+   "no_copy": 1,
+   "permlevel": 1,
+   "read_only": 1
   },
   {
+   "collapsible": 1,
+   "description": "Immutable copy of plan terms and benefits captured when the Active VAS Plan was issued.",
    "fieldname": "section_snapshot",
    "fieldtype": "Section Break",
-   "label": "Active Plan Snapshot",
-   "collapsible": 1,
-   "description": "Immutable copy of plan terms and benefits captured when the Active VAS Plan was issued."
+   "label": "Active Plan Snapshot"
   },
   {
+   "description": "Snapshot of the operational fulfillment flow from the plan master.",
    "fieldname": "fulfillment_type",
    "fieldtype": "Data",
-   "label": "Fulfillment Type",
-   "read_only": 1,
-   "permlevel": 1,
    "in_standard_filter": 1,
-   "description": "Snapshot of the operational fulfillment flow from the plan master."
+   "label": "Fulfillment Type",
+   "permlevel": 1,
+   "read_only": 1
   },
   {
+   "description": "Immutable sale-time snapshot of commercial, coverage, fee, and fulfillment terms.",
    "fieldname": "plan_snapshot_json",
    "fieldtype": "Code",
    "label": "Plan Snapshot JSON",
    "options": "JSON",
-   "read_only": 1,
    "permlevel": 1,
-   "description": "Immutable sale-time snapshot of commercial, coverage, fee, and fulfillment terms."
+   "read_only": 1
   },
   {
+   "description": "Immutable sale-time snapshot of configured VAS benefit rules.",
    "fieldname": "benefit_snapshot_json",
    "fieldtype": "Code",
    "label": "Benefit Snapshot JSON",
    "options": "JSON",
-   "read_only": 1,
    "permlevel": 1,
-   "description": "Immutable sale-time snapshot of configured VAS benefit rules."
+   "read_only": 1
   },
   {
    "fieldname": "section_value_cap",
@@ -387,47 +430,47 @@
    "label": "Value Cap & Tracking"
   },
   {
+   "description": "Original device sale price at plan purchase time. Used as ceiling for total claim value.",
    "fieldname": "device_purchase_price",
    "fieldtype": "Currency",
    "label": "Device Purchase Price",
-   "read_only": 1,
    "permlevel": 1,
-   "description": "Original device sale price at plan purchase time. Used as ceiling for total claim value."
+   "read_only": 1
   },
   {
+   "description": "Maximum total claim value this plan will cover. 0 = no value cap (count-based only). Typically set to device_purchase_price.",
    "fieldname": "max_coverage_value",
    "fieldtype": "Currency",
    "label": "Max Coverage Value",
-   "read_only": 1,
    "permlevel": 1,
-   "description": "Maximum total claim value this plan will cover. 0 = no value cap (count-based only). Typically set to device_purchase_price."
+   "read_only": 1
   },
   {
    "fieldname": "column_break_value_cap",
    "fieldtype": "Column Break"
   },
   {
+   "default": "0",
+   "description": "Running total of claim costs charged against this plan.",
    "fieldname": "total_claimed_value",
    "fieldtype": "Currency",
    "label": "Total Claimed Value",
-   "default": "0",
-   "read_only": 1,
    "permlevel": 1,
-   "description": "Running total of claim costs charged against this plan."
+   "read_only": 1
   },
   {
+   "description": "Snapshot from plan master. Annual claim limit (anniversary-based).",
    "fieldname": "claims_per_year",
    "fieldtype": "Int",
    "label": "Claims Per Year",
-   "read_only": 1,
    "permlevel": 1,
-   "description": "Snapshot from plan master. Annual claim limit (anniversary-based)."
+   "read_only": 1
   },
   {
+   "collapsible": 1,
    "fieldname": "section_notes",
    "fieldtype": "Section Break",
-   "label": "Notes",
-   "collapsible": 1
+   "label": "Notes"
   },
   {
    "fieldname": "remarks",
@@ -435,116 +478,27 @@
    "label": "Remarks"
   },
   {
+   "description": "The plan this one continues. Set by the renewal flow; a plan can be renewed once.",
+   "fieldname": "renewed_from",
+   "fieldtype": "Link",
+   "label": "Renewed From",
+   "no_copy": 1,
+   "options": "Active VAS Plans",
+   "read_only": 1
+  },
+  {
    "fieldname": "amended_from",
    "fieldtype": "Link",
+   "hidden": 1,
    "label": "Amended From",
-   "options": "Active VAS Plans",
-   "read_only": 1,
    "no_copy": 1,
-   "hidden": 1
+   "options": "Active VAS Plans",
+   "read_only": 1
   }
  ],
- "permissions": [
-  {
-   "role": "System Manager",
-   "read": 1,
-   "write": 1,
-   "create": 1,
-   "delete": 1,
-   "submit": 1,
-   "cancel": 1,
-   "amend": 1,
-   "export": 1,
-   "import": 1,
-   "share": 1
-  },
-  {
-   "role": "System Manager",
-   "permlevel": 1,
-   "read": 1,
-   "write": 1,
-   "create": 1
-  },
-  {
-   "role": "CH Warranty Manager",
-   "read": 1,
-   "write": 1,
-   "create": 1,
-   "submit": 1,
-   "cancel": 1,
-   "amend": 1,
-   "export": 1
-  },
-  {
-   "role": "CH Warranty Manager",
-   "permlevel": 1,
-   "read": 1
-  },
-  {
-   "role": "CH Master Manager",
-   "read": 1,
-   "write": 1,
-   "create": 1,
-   "submit": 1,
-   "export": 1
-  },
-  {
-   "role": "CH Master Manager",
-   "permlevel": 1,
-   "read": 1
-  },
-  {
-   "role": "Sales User",
-   "read": 1,
-   "write": 1,
-   "create": 1,
-   "submit": 1,
-   "export": 1
-  },
-  {
-   "role": "Sales User",
-   "permlevel": 1,
-   "read": 1
-  },
-  {
-   "role": "CH Viewer",
-   "read": 1,
-   "export": 1
-  },
-  {
-   "role": "CH Viewer",
-   "permlevel": 1,
-   "read": 1
-  },
-  {
-   "role": "Stock User",
-   "read": 1,
-   "export": 1
-  },
-  {
-   "role": "Stock User",
-   "permlevel": 1,
-   "read": 1
-  },
-  {
-   "role": "Service Manager",
-   "read": 1
-  },
-  {
-   "role": "Service Manager",
-   "permlevel": 1,
-   "read": 1
-  },
-  {
-   "role": "Sales Manager",
-   "read": 1
-  },
-  {
-   "role": "Sales Manager",
-   "permlevel": 1,
-   "read": 1
-  }
- ],
+ "is_submittable": 1,
+ "issingle": 0,
+ "istable": 0,
  "links": [
   {
    "group": "Claims",
@@ -562,30 +516,136 @@
    "link_fieldname": "plan"
   }
  ],
- "allow_import": 1,
- "actions": [],
- "states": [
+ "modified": "2026-02-28 00:00:00.000000",
+ "module": "CH Item Master",
+ "name": "Active VAS Plans",
+ "naming_rule": "By \"Naming Series\" field",
+ "permissions": [
   {
-   "title": "Active",
-   "color": "Green"
+   "amend": 1,
+   "cancel": 1,
+   "create": 1,
+   "delete": 1,
+   "export": 1,
+   "import": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
   },
   {
-   "title": "Expired",
-   "color": "Grey"
+   "create": 1,
+   "permlevel": 1,
+   "read": 1,
+   "role": "System Manager",
+   "write": 1
   },
   {
-   "title": "Claimed",
-   "color": "Orange"
+   "amend": 1,
+   "cancel": 1,
+   "create": 1,
+   "export": 1,
+   "read": 1,
+   "role": "CH Warranty Manager",
+   "submit": 1,
+   "write": 1
   },
   {
-   "title": "Void",
-   "color": "Red"
+   "permlevel": 1,
+   "read": 1,
+   "role": "CH Warranty Manager"
   },
   {
-   "title": "Cancelled",
-   "color": "Red"
+   "create": 1,
+   "export": 1,
+   "read": 1,
+   "role": "CH Master Manager",
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "permlevel": 1,
+   "read": 1,
+   "role": "CH Master Manager"
+  },
+  {
+   "create": 1,
+   "export": 1,
+   "read": 1,
+   "role": "Sales User",
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "permlevel": 1,
+   "read": 1,
+   "role": "Sales User"
+  },
+  {
+   "export": 1,
+   "read": 1,
+   "role": "CH Viewer"
+  },
+  {
+   "permlevel": 1,
+   "read": 1,
+   "role": "CH Viewer"
+  },
+  {
+   "export": 1,
+   "read": 1,
+   "role": "Stock User"
+  },
+  {
+   "permlevel": 1,
+   "read": 1,
+   "role": "Stock User"
+  },
+  {
+   "read": 1,
+   "role": "Service Manager"
+  },
+  {
+   "permlevel": 1,
+   "read": 1,
+   "role": "Service Manager"
+  },
+  {
+   "read": 1,
+   "role": "Sales Manager"
+  },
+  {
+   "permlevel": 1,
+   "read": 1,
+   "role": "Sales Manager"
   }
  ],
- "modified": "2026-02-28 00:00:00.000000",
- "creation": "2026-02-28 00:00:00.000000"
+ "search_fields": "customer,serial_no,warranty_plan,item_code",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [
+  {
+   "color": "Green",
+   "title": "Active"
+  },
+  {
+   "color": "Grey",
+   "title": "Expired"
+  },
+  {
+   "color": "Orange",
+   "title": "Claimed"
+  },
+  {
+   "color": "Red",
+   "title": "Void"
+  },
+  {
+   "color": "Red",
+   "title": "Cancelled"
+  }
+ ],
+ "title_field": "plan_title",
+ "track_changes": 1
 }

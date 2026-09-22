@@ -101,6 +101,9 @@ scheduler_events = {
 		"ch_item_master.ch_item_master.commercial_api.run_channel_parity_check",
 		"ch_item_master.ch_item_master.commercial_api.run_tag_auto_repricing",
 		"ch_item_master.ch_item_master.voucher_api.expire_vouchers",
+		# Runs after auto_expire_records above, so a plan that lapsed today is
+		# already Expired when the renewal digest reads it.
+		"ch_item_master.ch_item_master.vas_renewal.notify_renewals_due",
 		"ch_item_master.ch_item_master.doctype.ch_coupon_campaign.ch_coupon_campaign.expire_campaigns",
 		"ch_item_master.supplier_scheme.scheduled.auto_close_expired_schemes",
 		"ch_item_master.supplier_scheme.scheduled.send_expiry_claim_reminders",

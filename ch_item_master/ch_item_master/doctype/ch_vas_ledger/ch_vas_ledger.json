@@ -1,41 +1,45 @@
 {
- "name": "CH VAS Ledger",
- "module": "CH Item Master",
- "doctype": "DocType",
- "document_type": "Document",
- "engine": "InnoDB",
- "naming_rule": "Autoincrement",
- "autoname": "autoincrement",
- "istable": 0,
- "issingle": 0,
- "is_submittable": 0,
- "editable_grid": 0,
- "track_changes": 0,
- "in_create": 1,
- "field_order": ["sold_plan", "event_type", "column_break_1", "claim_amount", "remaining_claims", "remaining_value", "section_reference", "reference_doctype", "reference_name", "column_break_ref", "remarks"],
+ "actions": [],
  "allow_import": 1,
  "allow_rename": 0,
- "sort_field": "creation",
- "sort_order": "DESC",
+ "autoname": "autoincrement",
+ "creation": "2026-03-29 00:00:00.000000",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": [
+  "sold_plan",
+  "event_type",
+  "column_break_1",
+  "claim_amount",
+  "remaining_claims",
+  "remaining_value",
+  "section_reference",
+  "reference_doctype",
+  "reference_name",
+  "column_break_ref",
+  "remarks"
+ ],
  "fields": [
   {
    "fieldname": "sold_plan",
    "fieldtype": "Link",
-    "label": "Active VAS Plans",
-   "options": "Active VAS Plans",
-   "reqd": 1,
    "in_list_view": 1,
    "in_standard_filter": 1,
+   "label": "Active VAS Plans",
+   "options": "Active VAS Plans",
+   "reqd": 1,
    "search_index": 1
   },
   {
    "fieldname": "event_type",
    "fieldtype": "Select",
-   "label": "Event",
-   "options": "Plan Activated\nClaim Used\nClaim Reversed\nVoucher Issued\nVoucher Redeemed\nPlan Expired\nPlan Voided\nPlan Cancelled",
-   "reqd": 1,
    "in_list_view": 1,
    "in_standard_filter": 1,
+   "label": "Event",
+   "options": "Plan Activated\nClaim Used\nClaim Reversed\nVoucher Issued\nVoucher Redeemed\nPlan Renewed\nPlan Expired\nPlan Voided\nPlan Cancelled",
+   "reqd": 1,
    "search_index": 1
   },
   {
@@ -43,25 +47,25 @@
    "fieldtype": "Column Break"
   },
   {
+   "description": "Claim cost, voucher value, or plan price depending on event",
    "fieldname": "claim_amount",
    "fieldtype": "Currency",
-   "label": "Amount",
    "in_list_view": 1,
-   "description": "Claim cost, voucher value, or plan price depending on event"
+   "label": "Amount"
   },
   {
+   "description": "Snapshot after this event. 0 = plan fully consumed or unlimited.",
    "fieldname": "remaining_claims",
    "fieldtype": "Int",
    "label": "Remaining Claims",
-   "read_only": 1,
-   "description": "Snapshot after this event. 0 = plan fully consumed or unlimited."
+   "read_only": 1
   },
   {
+   "description": "Remaining coverage value after this event.",
    "fieldname": "remaining_value",
    "fieldtype": "Currency",
    "label": "Remaining Value",
-   "read_only": 1,
-   "description": "Remaining coverage value after this event."
+   "read_only": 1
   },
   {
    "fieldname": "section_reference",
@@ -78,10 +82,10 @@
   {
    "fieldname": "reference_name",
    "fieldtype": "Dynamic Link",
+   "in_list_view": 1,
    "label": "Reference Name",
    "options": "reference_doctype",
-   "read_only": 1,
-   "in_list_view": 1
+   "read_only": 1
   },
   {
    "fieldname": "column_break_ref",
@@ -93,40 +97,10 @@
    "label": "Remarks"
   }
  ],
- "permissions": [
-  {
-   "role": "System Manager",
-   "read": 1,
-   "write": 1,
-   "create": 1,
-   "delete": 1,
-   "export": 1,
-   "import": 1,
-   "share": 1
-  },
-  {
-   "role": "CH Warranty Manager",
-   "read": 1,
-   "export": 1
-  },
-  {
-   "role": "CH Viewer",
-   "read": 1,
-   "export": 1
-  },
-  {
-   "role": "Service Manager",
-   "read": 1
-  },
-  {
-   "role": "Sales Manager",
-   "read": 1
-  },
-  {
-   "role": "Sales User",
-   "read": 1
-  }
- ],
+ "in_create": 1,
+ "is_submittable": 0,
+ "issingle": 0,
+ "istable": 0,
  "links": [
   {
    "group": "Membership",
@@ -134,9 +108,47 @@
    "link_fieldname": "name"
   }
  ],
- "actions": [],
- "creation": "2026-03-29 00:00:00.000000",
  "modified": "2026-03-29 00:00:00.000000",
  "modified_by": "Administrator",
- "owner": "Administrator"
+ "module": "CH Item Master",
+ "name": "CH VAS Ledger",
+ "naming_rule": "Autoincrement",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "export": 1,
+   "import": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "export": 1,
+   "read": 1,
+   "role": "CH Warranty Manager"
+  },
+  {
+   "export": 1,
+   "read": 1,
+   "role": "CH Viewer"
+  },
+  {
+   "read": 1,
+   "role": "Service Manager"
+  },
+  {
+   "read": 1,
+   "role": "Sales Manager"
+  },
+  {
+   "read": 1,
+   "role": "Sales User"
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "track_changes": 0
 }
