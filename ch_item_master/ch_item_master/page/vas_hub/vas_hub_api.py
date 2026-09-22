@@ -213,6 +213,10 @@ def get_vas_hub_data(company=None, store=None, from_date=None, to_date=None, cit
             ORDER BY v.creation DESC LIMIT 50""", prm, as_dict=True
     )
 
+    # A plan someone has already renewed is not expiring — the cover continues
+    # under the successor. Left in, it would be chased again by whoever works
+    # this list, and the "expiring in 30 days" alert below would keep counting
+    # customers who are already looked after.
     expiring_soon = frappe.db.sql(
         f"""SELECT sp.name, sp.customer_name, sp.customer, sp.warranty_plan,
                    sp.end_date,
@@ -220,6 +224,9 @@ def get_vas_hub_data(company=None, store=None, from_date=None, to_date=None, cit
             FROM `tabActive VAS Plans` sp
             WHERE sp.status = 'Active'
             AND sp.end_date BETWEEN %(today)s AND %(thirty_days)s
+            AND NOT EXISTS (
+                SELECT 1 FROM `tabActive VAS Plans` r
+                WHERE r.renewed_from = sp.name AND r.docstatus < 2)
             {co_sp}
             ORDER BY sp.end_date ASC LIMIT 30""", prm, as_dict=True
     )

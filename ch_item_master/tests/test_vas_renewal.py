@@ -341,3 +341,42 @@ class TestRenewalsDue(unittest.TestCase):
         row = next(r for r in renewals_due(within_days=30) if r["name"] == plan.name)
         self.assertEqual(row["days_to_expiry"], 7)
         self.assertFalse(row["lapsed"])
+
+
+class TestVasHubExpiringList(unittest.TestCase):
+    """The hub list that has always asked staff to chase renewals.
+
+    The VAS Hub shows what is about to lapse and raises an insight reading
+    "Opportunity for renewal outreach before coverage lapses." Until now there
+    was no renewal to make, so the advice ended nowhere. Now that it does, a
+    plan that has been renewed has to leave the list — otherwise the next
+    person works down it and rings a customer who is already covered.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.master = _plan_master()
+        if not cls.master:
+            raise unittest.SkipTest("no active CH Warranty Plan with a duration on this site")
+
+    def tearDown(self):
+        frappe.db.rollback()
+
+    def _expiring(self):
+        from ch_item_master.ch_item_master.page.vas_hub.vas_hub_api import get_vas_hub_data
+
+        data = get_vas_hub_data() or {}
+        return [r["name"] for r in (data.get("expiring_soon") or [])]
+
+    def test_an_expiring_plan_is_on_the_hub_list(self):
+        plan = _sold_plan(self.master, end_date=add_days(nowdate(), 10))
+        self.assertIn(plan.name, self._expiring())
+
+    def test_renewing_takes_it_off_the_hub_list(self):
+        plan = _sold_plan(self.master, end_date=add_days(nowdate(), 10))
+        self.assertIn(plan.name, self._expiring())
+        renew_plan(plan.name, sales_invoice=_renewal_source(plan))
+        self.assertNotIn(
+            plan.name, self._expiring(),
+            "a renewed plan stayed on the hub's expiring list — it will be chased twice")

@@ -224,6 +224,8 @@ class VASHub {
 			</div>
 		`);
 
+		this._bind_renew(this.$root);
+
 		this.$root.find(".hub-tab").on("click", (e) => {
 			const key = $(e.currentTarget).data("tab");
 			this.$root.find(".hub-tab").removeClass("active");
@@ -288,14 +290,75 @@ class VASHub {
 		if (!rows.length) return `<div class="hub-empty"><i class="fa fa-check-circle"></i> ${__("Nothing expiring soon")}</div>`;
 		return `<div class="hub-table-wrap"><table class="hub-table"><thead><tr>
 			<th>${__("Plan")}</th><th>${__("Customer")}</th><th>${__("Type")}</th>
-			<th>${__("Expiry")}</th><th>${__("Days Left")}</th>
+			<th>${__("Expiry")}</th><th>${__("Days Left")}</th><th></th>
 		</tr></thead><tbody>${rows.map((r) => `<tr>
 			<td>${this._lnk("Active VAS Plans", r.name)}</td>
 			<td>${r.customer_name || r.customer || ""}</td>
 			<td>${r.warranty_plan || ""}</td>
 			<td>${r.end_date ? frappe.datetime.str_to_user(r.end_date) : "-"}</td>
 			<td class="text-warning">${r.days_left || "-"}</td>
+			<td class="text-right"><button class="btn btn-xs btn-default vas-renew"
+				data-plan="${frappe.utils.escape_html(r.name)}">${__("Renew")}</button></td>
 		</tr>`).join("")}</tbody></table></div>`;
+	}
+
+	/**
+	 * Renewing from the list that already asks for it.
+	 *
+	 * This hub has always shown what is about to lapse, and has always raised
+	 * an insight reading "Opportunity for renewal outreach before coverage
+	 * lapses." There was no renewal to make — the flow did not exist — so the
+	 * advice went to a dead end. It now ends in a button.
+	 *
+	 * The dialog asks only for the sale, because that is the one thing the
+	 * server cannot work out: the term, the dates and the price all follow
+	 * from the plan being continued. Cover is never backdated and a plan
+	 * renews once, both enforced server-side.
+	 */
+	_bind_renew(container) {
+		container.find(".vas-renew").on("click", (e) => {
+			const plan = $(e.currentTarget).data("plan");
+			const dialog = new frappe.ui.Dialog({
+				title: __("Renew Plan"),
+				fields: [
+					{
+						fieldtype: "HTML", fieldname: "note",
+						options: `<p class="text-muted small">${__(
+							"Cover continues the day after the current term ends. If it has already lapsed, the new term starts today — it is never backdated."
+						)}</p>`,
+					},
+					{
+						fieldtype: "Link", fieldname: "sales_invoice", options: "Sales Invoice",
+						label: __("Renewal Invoice"), reqd: 1,
+						description: __("The sale that pays for the next term."),
+					},
+					{
+						fieldtype: "Link", fieldname: "warranty_plan", options: "CH Warranty Plan",
+						label: __("Renew Onto"),
+						description: __("Only if they are moving to a different plan."),
+					},
+				],
+				primary_action_label: __("Renew"),
+				primary_action: async (values) => {
+					try {
+						const out = await frappe.xcall(
+							"ch_item_master.ch_item_master.vas_renewal.renew_plan",
+							{ sold_plan: plan, ...values });
+						dialog.hide();
+						frappe.show_alert({
+							message: __("Renewed as {0}, covering to {1}.",
+								[out.renewal, frappe.datetime.str_to_user(out.end_date)]),
+							indicator: "green",
+						});
+						this.refresh();
+					} catch (err) {
+						// The server says why; repeating it here would double the dialog.
+						console.error("VAS Hub: renew", err);
+					}
+				},
+			});
+			dialog.show();
+		});
 	}
 
 	_table_plan_perf(rows) {
