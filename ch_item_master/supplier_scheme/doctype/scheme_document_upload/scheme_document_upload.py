@@ -10,7 +10,7 @@ from pathlib import Path
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import flt, getdate
+from frappe.utils import cint, flt, getdate
 
 from ch_item_master.config import get_int_setting
 from ch_item_master.outbound_security import parse_exact_host_allowlist, post_json_with_credentials

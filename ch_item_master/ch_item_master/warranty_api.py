@@ -1080,10 +1080,12 @@ def get_customer_warranty_dashboard(identifier, company=None) -> dict:
 		# Fallback: ERPNext Serial No
 		if not customer and frappe.db.exists("Serial No", identifier):
 			customer = frappe.db.get_value("Serial No", identifier, "customer")
-			if not customer:
-				cd = _get_customer_from_serial(identifier)
-				if cd:
-					customer = cd.get("customer")
+			# c2aa8ef removed _get_customer_from_serial and the other call to
+			# it, but not this one, so the Serial No fallback raised NameError
+			# for exactly the serials it was meant to rescue -- those with no
+			# customer on the Serial No itself. Dropping the orphaned call
+			# matches what that commit did at its other call site; the Active
+			# VAS Plans fallback below still covers the case.
 
 		# Fallback: check Active VAS Plans
 		if not customer:
