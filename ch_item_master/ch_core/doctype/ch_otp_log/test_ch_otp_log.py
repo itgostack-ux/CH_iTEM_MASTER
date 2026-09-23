@@ -1,10 +1,29 @@
+import unittest
+
 import frappe
-from frappe.tests import IntegrationTestCase
 
 from ch_item_master.ch_core.doctype.ch_otp_log.ch_otp_log import CHOTPLog
 
 
-class TestCHOTPLog(IntegrationTestCase):
+class TestCHOTPLog(unittest.TestCase):
+    """Plain unittest.TestCase, wrapped in a savepoint.
+
+    IntegrationTestCase pulls in erpnext's test-record bootstrap, which tries
+    to create its own Fiscal Years and dies on this site with "Year start date
+    or end date is overlapping with Fiscal Year 2021-2022" -- before a single
+    assertion runs. The bench convention is unittest.TestCase plus a savepoint
+    for exactly this reason; the savepoint also guarantees the cleanup these
+    tests used to do by hand, which a failing assertion would have skipped.
+    """
+
+    def setUp(self):
+        frappe.set_user("Administrator")
+        self._savepoint = "ch_otp_log_test"
+        frappe.db.savepoint(self._savepoint)
+
+    def tearDown(self):
+        frappe.db.rollback(save_point=self._savepoint)
+
     def test_generate_and_verify(self):
         mobile = "9876500001"
         purpose = "Buyback Confirmation"
