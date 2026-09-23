@@ -85,6 +85,7 @@ _INDEXES = [
 	("Item", ["ch_lifecycle_status"], "idx_ch_lifecycle"),
 	("Item", ["ch_sub_category"], "idx_ch_sub_category"),
 	("Item", ["ch_category"], "idx_ch_category"),
+	("Item", ["ch_model"], "idx_ch_model"),
 	("CH Sub Category", ["item_nature"], "idx_item_nature"),
 	("CH Sub Category", ["lifecycle_status"], "idx_sc_lifecycle"),
 	("CH Category", ["lifecycle_status"], "idx_cat_lifecycle"),

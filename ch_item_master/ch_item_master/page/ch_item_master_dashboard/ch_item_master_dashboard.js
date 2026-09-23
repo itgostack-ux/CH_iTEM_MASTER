@@ -8,7 +8,7 @@ frappe.pages['ch-item-master-dashboard'].on_page_load = function (wrapper) {
 		single_column: true,
 	});
 
-	page.main.html('<div id="ch-dashboard-root" class="ch-dash-loading">' +
+	dash_wrap(page).html('<div id="ch-dashboard-root" class="ch-dash-loading">' +
 		'<div style="text-align:center;padding:80px 0;">' +
 		'<div class="spinner-border text-primary" role="status"></div>' +
 		'<p class="text-muted mt-3">Loading dashboard...</p></div></div>');
@@ -16,14 +16,12 @@ frappe.pages['ch-item-master-dashboard'].on_page_load = function (wrapper) {
 	// Refresh button
 	page.set_primary_action(__('Refresh'), () => load_dashboard(page), 'refresh-ccw');
 	// A toolbar filter must not decide whether the dashboard loads. add_field()
-	// ends in a Bootstrap .tooltip() call, and during on_page_load that plugin
-	// is not always ready — the call throws, Frappe's page loader swallows it,
-	// and everything after it never runs. The symptom was the page sitting on
-	// "Loading dashboard..." for ever with no error in the console, while the
-	// endpoint behind it was perfectly healthy. Proven on this site: the
-	// Refresh button was present (set_primary_action, the line before, had
-	// succeeded) and the Company field was not, and the same add_field call
-	// succeeds when made a moment later.
+	// ends in a Bootstrap .tooltip() call which is not guaranteed to be ready
+	// during on_page_load; if it threw here, Frappe's page loader would swallow
+	// it and the load_dashboard() call below would never run. Cheap insurance,
+	// not a diagnosis: the "Loading dashboard..." hang this page was reported
+	// for was get_dashboard_data taking 24s (Item.ch_model had no index — see
+	// patches/v41_index_item_ch_model.py), and add_field was not throwing.
 	try {
 		page.company_field = page.add_field({
 			fieldname: 'company',
@@ -39,6 +37,20 @@ frappe.pages['ch-item-master-dashboard'].on_page_load = function (wrapper) {
 
 	load_dashboard(page);
 };
+
+// Everything this page paints goes inside its own container, never straight
+// into page.main. Frappe prepends the toolbar's own .page-form into page.main
+// (page.js:164), so page.main.html() silently destroyed the Company filter:
+// the control object survived in page.fields_dict, so get_value() kept
+// answering with the default, but its input was detached from the document and
+// the company could never be changed. Symptom was a dashboard permanently
+// pinned to one company with no visible filter to explain why.
+function dash_wrap(page) {
+	if (!page.dash_container || !page.dash_container.parent().length) {
+		page.dash_container = $('<div class="ch-dash-wrap"></div>').appendTo(page.main);
+	}
+	return page.dash_container;
+}
 
 function load_dashboard(page) {
 	frappe.call({
@@ -212,7 +224,7 @@ function render_dashboard(page, data) {
 		</div>
 	</div>`;
 
-	page.main.html(html);
+	dash_wrap(page).html(html);
 }
 
 // ── Component Renderers ─────────────────────────────────────────────────────
