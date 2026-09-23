@@ -15,14 +15,27 @@ frappe.pages['ch-item-master-dashboard'].on_page_load = function (wrapper) {
 
 	// Refresh button
 	page.set_primary_action(__('Refresh'), () => load_dashboard(page), 'refresh-ccw');
-	page.company_field = page.add_field({
-		fieldname: 'company',
-		label: __('Company'),
-		fieldtype: 'Link',
-		options: 'Company',
-		default: frappe.defaults.get_user_default('Company'),
-		change: () => load_dashboard(page),
-	});
+	// A toolbar filter must not decide whether the dashboard loads. add_field()
+	// ends in a Bootstrap .tooltip() call, and during on_page_load that plugin
+	// is not always ready — the call throws, Frappe's page loader swallows it,
+	// and everything after it never runs. The symptom was the page sitting on
+	// "Loading dashboard..." for ever with no error in the console, while the
+	// endpoint behind it was perfectly healthy. Proven on this site: the
+	// Refresh button was present (set_primary_action, the line before, had
+	// succeeded) and the Company field was not, and the same add_field call
+	// succeeds when made a moment later.
+	try {
+		page.company_field = page.add_field({
+			fieldname: 'company',
+			label: __('Company'),
+			fieldtype: 'Link',
+			options: 'Company',
+			default: frappe.defaults.get_user_default('Company'),
+			change: () => load_dashboard(page),
+		});
+	} catch (e) {
+		console.warn('[item master dashboard] company filter unavailable:', e);
+	}
 
 	load_dashboard(page);
 };
