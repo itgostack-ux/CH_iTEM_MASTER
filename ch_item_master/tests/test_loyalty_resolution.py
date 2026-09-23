@@ -110,3 +110,31 @@ def run_congruence_default_check():
 
 	print({"program": name, "healed": result.get("healed_dangling_customers"), "ok": True})
 	return {"program": name, "ok": True}
+
+
+def run():
+    """Entry point for bench run-tests / bench execute.
+
+    The four checks below are named run_* individually, so neither unittest
+    (no TestCase) nor the bench recipe convention (a single run()) picked them
+    up and none of them had ever executed.
+    """
+    checks = (
+        run_resolution_check,
+        run_end_to_end_fix,
+        run_enrollment_smoke,
+        run_congruence_default_check,
+    )
+    failed = 0
+    for fn in checks:
+        try:
+            fn()
+            print("  \u2705 %s" % fn.__name__)
+        except Exception as exc:
+            failed += 1
+            print("  \u274c %s: %s" % (fn.__name__, str(exc)[:200]))
+    print("  Total: %s, Failed: %s" % (len(checks), failed))
+    return failed
+
+
+run_all = run
