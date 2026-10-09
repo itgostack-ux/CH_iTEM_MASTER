@@ -183,6 +183,8 @@ doc_events = {
 			"ch_item_master.ch_item_master.governance.validate_sub_category_enabled",
 			# MRP mandatory for stock items; must be > 0 before save.
 			"ch_item_master.ch_item_master.item_mrp.validate_item_mrp",
+			# Variants are always sellable and purchasable.
+			"ch_item_master.ch_item_master.api.set_variant_trade_flags",
 		],
 		"before_save": [
 			"ch_item_master.ch_item_master.overrides.item.before_save",

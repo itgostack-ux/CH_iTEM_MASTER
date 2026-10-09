@@ -15,6 +15,9 @@ Endpoints called from client-side JS:
   - get_property_spec_values        (item.js ch_spec_values autocomplete)
   - generate_items_from_model      (ch_model.js — bulk variant generation)
 
+Doc-event hooks (registered in hooks.py):
+  - set_variant_trade_flags        (Item.validate — variants always sellable/purchasable)
+
 Internal helpers (in utils.py — imported here for use):
   - _next_item_code         (overrides/item.py)
   - _group_model_spec_values (shared by _get_spec_selectors, _get_property_specs, get_model_attribute_values)
@@ -563,6 +566,10 @@ def generate_items_from_model(model) -> dict:
 
         try:
             variant = create_variant(template_code, args)
+            # Variants are always sellable and purchasable, regardless of
+            # what was copied from the template.
+            variant.is_sales_item = 1
+            variant.is_purchase_item = 1
             variant.insert()
             created += 1
         except Exception:
@@ -578,6 +585,23 @@ def generate_items_from_model(model) -> dict:
         "skipped": skipped,
         "errors": errors,
     }
+
+
+# ───────────────────────────────────────────────────────────────────────────────
+# Variant trade flags (Item.validate hook)
+# ───────────────────────────────────────────────────────────────────────────────
+
+def set_variant_trade_flags(doc, method=None):
+    """Force is_sales_item / is_purchase_item = 1 on every Item variant.
+
+    Runs on Item.validate (insert and every save), so it covers variants
+    created from the Item form (Create Variant), data import and
+    generate_items_from_model alike.  Templates and plain items are left
+    untouched.
+    """
+    if doc.variant_of:
+        doc.is_sales_item = 1
+        doc.is_purchase_item = 1
 
 
 # ───────────────────────────────────────────────────────────────────────────────
