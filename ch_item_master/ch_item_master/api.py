@@ -15,7 +15,12 @@ Endpoints called from client-side JS:
   - get_property_spec_values        (item.js ch_spec_values autocomplete)
   - generate_items_from_model      (ch_model.js — bulk variant generation)
 
+  - create_ch_variant              (item.js "Create Variant" — replaces ERPNext's
+                                    create_variant via override_whitelisted_methods)
+
 Doc-event hooks (registered in hooks.py):
+  - set_item_code                  (Item.before_insert — template: code = Item Name;
+                                    variant / simple item: <PREFIX> + 7-digit code)
   - set_variant_trade_flags        (Item.validate — variants sellable/purchasable, templates not)
 
 Internal helpers (in utils.py — imported here for use):
@@ -585,6 +590,228 @@ def generate_items_from_model(model) -> dict:
         "skipped": skipped,
         "errors": errors,
     }
+
+
+# ───────────────────────────────────────────────────────────────────────────────
+# Item Code — template: Item Name; others: <PREFIX> + 7-digit sequence
+# (Item.before_insert hook)
+# ───────────────────────────────────────────────────────────────────────────────
+
+ITEM_CODE_DIGITS = 7
+_AUTONAME = "__autoname"  # placeholder item.js puts in item_code on new CH items
+
+
+def _next_ch_item_code(prefix):
+    """Return the next free ``<PREFIX><7-digit seq>`` code, e.g. SP0000041.
+
+    Uses the same row-locked counter as before (CH-ITEM-CODE per prefix), so
+    numbering simply continues with one more digit of padding.
+    """
+    from ch_item_master.id_sequences import next_prefixed_code
+
+    while True:
+        code = next_prefixed_code("CH-ITEM-CODE", prefix, ITEM_CODE_DIGITS)
+        if not frappe.db.exists("Item", code):
+            return code
+
+
+def _code_prefix_for(doc):
+    """Return the CH Sub Category prefix that codes *doc*, or None.
+
+    The sub-category is taken from the item itself, else from its template
+    (variants built by ERPNext may not carry it yet), else from its CH Model.
+    None means the item is not CH-coded and keeps ERPNext's own code.
+    """
+    sub_category = doc.get("ch_sub_category")
+    if not sub_category and doc.get("variant_of"):
+        sub_category = frappe.db.get_value("Item", doc.variant_of, "ch_sub_category")
+    if not sub_category and doc.get("ch_model"):
+        sub_category = frappe.db.get_value("CH Model", doc.ch_model, "sub_category")
+    if not sub_category:
+        return None
+    prefix = frappe.db.get_value("CH Sub Category", sub_category, "prefix")
+    return (prefix or "").strip().upper() or None
+
+
+def _erpnext_variant_code(doc):
+    """Return the ``<template code>-<ABBR>-<ABBR>`` code ERPNext builds for *doc*."""
+    from erpnext.controllers.item_variant import make_variant_item_code
+
+    probe = frappe._dict(item_code=None, item_name=None, attributes=doc.get("attributes") or [])
+    make_variant_item_code(doc.variant_of, "", probe)
+    return (probe.item_code or "").strip()
+
+
+def _set_template_item_code(doc):
+    """Code a template with its own Item Name; return True when done.
+
+    Templates are never transacted, so they do not take a number from the
+    sub-category sequence: Item Code = Item Name (``Oneplus 1 = 3``), the
+    convention the existing templates already follow.
+
+    Runs before overrides.item.before_insert, so that hook's own helpers are
+    called here first to learn whether the item ends up a template and what
+    its generated name is.  Both only fill what is still empty, and the
+    override calling them again afterwards changes nothing.
+    """
+    from ch_item_master.ch_item_master.overrides.item import (
+        _populate_from_model,
+        _set_item_name,
+    )
+
+    _populate_from_model(doc)  # may turn a model-driven item into a template
+    if not frappe.utils.cint(doc.get("has_variants")):
+        return False
+
+    # One template per model: overrides.item.before_insert turns a second
+    # "template" for the same model into a variant, which is sequence-coded.
+    if doc.get("ch_model") and frappe.db.exists(
+        "Item", {"ch_model": doc.ch_model, "has_variants": 1}
+    ):
+        return False
+
+    if doc.get("ch_sub_category"):
+        _set_item_name(doc)
+
+    name = (doc.item_name or "").strip()
+    if not name or name.lower() == _AUTONAME:
+        return False
+
+    if frappe.db.exists("Item", name):
+        frappe.throw(
+            _("A template takes its Item Name as its Item Code, but an Item with "
+              "code {0} already exists.").format(frappe.bold(name)),
+            title=_("Duplicate Item Code"))
+
+    doc.item_code = name
+    return True
+
+
+def set_item_code(doc, method=None):
+    """Assign the item code of every CH item before it is named.
+
+      - Template (has_variants = 1) -> Item Code = Item Name
+      - Variant / simple item       -> ``<PREFIX><7-digit>`` from the
+                                       sub-category sequence
+
+    Hooked on Item.before_insert ahead of overrides.item.before_insert, so
+    the code is final before the document is named.
+
+    ERPNext codes a variant ``<template code>-<ABBR>-<ABBR>`` (for a template
+    whose code is its name that reads ``Apple 17 Pro Back Glass-WHT-ULT``).
+    That code is replaced by the sub-category sequence.  A code supplied
+    explicitly (Data Import / API) is always kept; only a blank code, the
+    ``__autoname`` placeholder, or ERPNext's generated variant code is replaced.
+    """
+    code = (doc.item_code or "").strip()
+    placeholder = not code or code.lower() == _AUTONAME
+
+    if doc.get("variant_of"):
+        if not placeholder and code.lower() != _erpnext_variant_code(doc).lower():
+            return
+        prefix = _code_prefix_for(doc)
+        if prefix:
+            doc.item_code = _next_ch_item_code(prefix)
+        elif placeholder:
+            # Not CH-coded: never let the placeholder be saved as the code.
+            from erpnext.controllers.item_variant import make_variant_item_code
+
+            doc.item_code = None
+            make_variant_item_code(
+                doc.variant_of, frappe.db.get_value("Item", doc.variant_of, "item_name"), doc
+            )
+        return
+
+    if not placeholder:
+        return
+    if not (doc.get("ch_sub_category") or doc.get("ch_model")):
+        return  # plain ERPNext item, not CH-coded
+    if _set_template_item_code(doc):
+        return
+    # No prefix -> leave the code alone; overrides.item.before_insert raises
+    # the proper "no Prefix configured" / "select a Sub Category" errors.
+    prefix = _code_prefix_for(doc)
+    if prefix:
+        doc.item_code = _next_ch_item_code(prefix)
+
+
+# ───────────────────────────────────────────────────────────────────────────────
+# Single variant creation from the Item form ("Create > Variant")
+# ───────────────────────────────────────────────────────────────────────────────
+
+def _variant_display_name(doc):
+    """Return the full variant name, e.g. ``Apple 17 Pro Back Glass White Ultimate``.
+
+    Same rule overrides.item.before_save applies on save: attribute VALUES in
+    full (never the abbreviations ERPNext uses), joined by single spaces.
+    """
+    if not doc.get("ch_sub_category") or not doc.get("ch_model"):
+        return ""
+
+    model = frappe.db.get_value(
+        "CH Model", doc.ch_model, ["manufacturer", "brand"], as_dict=True) or frappe._dict()
+
+    spec_values = [
+        {"spec": row.attribute, "spec_value": row.attribute_value}
+        for row in (doc.get("attributes") or [])
+        if row.attribute and row.attribute_value not in (None, "")
+    ]
+    attribute_specs = {sv["spec"] for sv in spec_values}
+    for row in (doc.get("ch_spec_values") or []):
+        if row.spec not in attribute_specs and row.spec_value:
+            spec_values.append({"spec": row.spec, "spec_value": row.spec_value})
+
+    name = generate_item_name(
+        sub_category=doc.ch_sub_category,
+        manufacturer=model.get("manufacturer"),
+        brand=model.get("brand"),
+        model=doc.ch_model,
+        spec_values=spec_values)
+
+    if name and doc.get("ch_item_type"):
+        name = f"{name} {doc.get('ch_item_type')}"
+
+    # Never let a variant share its template's name.
+    if name and name == frappe.db.get_value("Item", doc.variant_of, "item_name"):
+        values = [str(sv["spec_value"]).strip() for sv in spec_values if sv["spec"] in attribute_specs]
+        if values:
+            name = f"{name} {' '.join(values)}"
+    return name
+
+
+@frappe.whitelist()
+def create_ch_variant(item, args, use_template_image=False):
+    """Build the unsaved variant shown after "Create Variant" on the Item form.
+
+    Replaces ``erpnext.controllers.item_variant.create_variant`` for desk
+    calls (override_whitelisted_methods in hooks.py).  ERPNext returns the
+    variant with code and name ``<template>-<ABBR>-<ABBR>``; for CH items the
+    form instead opens with the full name and the "auto-generated on save"
+    code placeholder, which is exactly what saving then persists.  Templates
+    that are not CH-coded get ERPNext's result unchanged.
+    """
+    from erpnext.controllers.item_variant import create_variant
+
+    variant = create_variant(item, args, use_template_image=use_template_image)
+
+    template = frappe.db.get_value(
+        "Item", variant.variant_of, ["ch_model", "ch_sub_category", "ch_category"], as_dict=True)
+    for field, value in (template or {}).items():
+        if value and not variant.get(field):
+            variant.set(field, value)
+
+    if not _code_prefix_for(variant):
+        return variant
+
+    variant.item_code = _AUTONAME
+    set_variant_trade_flags(variant)
+
+    name = _variant_display_name(variant)
+    if name:
+        variant.item_name = name
+        variant.ch_display_name = name
+        variant.description = name
+    return variant
 
 
 # ───────────────────────────────────────────────────────────────────────────────

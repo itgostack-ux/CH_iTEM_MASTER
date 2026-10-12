@@ -166,11 +166,21 @@ has_permission = {
 	"CH Item Price": "ch_item_master.security.has_ch_item_price_permission",
 }
 
+# "Create Variant" on the Item form: open the new variant with its full name
+# and auto-code placeholder instead of ERPNext's <template>-<ABBR> values.
+override_whitelisted_methods = {
+	"erpnext.controllers.item_variant.create_variant":
+		"ch_item_master.ch_item_master.api.create_ch_variant",
+}
+
 # Document Events
 doc_events = {
 	"Item": {
 		"before_insert": [
 			"ch_item_master.ch_item_master.bulk_import.apply_active_defaults",
+			# <PREFIX> + 7-digit item code (variants included). Must run before
+			# overrides.item.before_insert, which only codes still-blank items.
+			"ch_item_master.ch_item_master.api.set_item_code",
 			"ch_item_master.ch_item_master.overrides.item.before_insert",
 			"ch_item_master.ch_item_master.tier_b.apply_uom_defaults",
 		],
