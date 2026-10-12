@@ -36,10 +36,13 @@ class CHModel(Document):
 		"""
 		if not self.model_id:
 			self.model_id = next_free_numeric_id("model")
+		# Runs before autoname(), which builds the name from the brand.
+		self._set_brand_from_manufacturer()
 
 	def validate(self):
 		if self.model_name:
 			self.model_name = " ".join(self.model_name.split())
+		self._set_brand_from_manufacturer()
 		self._populate_ids()
 		self.validate_unique_model()
 		self.validate_manufacturer_allowed()
@@ -48,6 +51,16 @@ class CHModel(Document):
 		self.validate_variant_specs_have_values()
 		self.validate_deactivation()
 		self._default_status()
+
+	def _set_brand_from_manufacturer(self):
+		"""Auto-fetch Brand from Manufacturer when Brand is empty.
+
+		Never overrides a brand that is already set, so a user/import
+		choice always wins.
+		"""
+		if self.brand or not self.manufacturer:
+			return
+		self.brand = get_brand_for_manufacturer(self.manufacturer)
 
 	def _populate_ids(self):
 		"""Copy numeric IDs from linked master records for API."""
@@ -321,3 +334,35 @@ class CHModel(Document):
 		"""Set status to Active for existing records with no status (migration safety)."""
 		if not self.status:
 			self.status = "Active"
+
+
+@frappe.whitelist()
+def get_brand_for_manufacturer(manufacturer=None) -> str | None:
+	"""Return the Brand to auto-fetch for a Manufacturer, or None.
+
+	Brand <-> Manufacturer is many-to-many (Brand.ch_manufacturers), so a
+	brand is returned only when the manufacturer maps to exactly one enabled
+	brand.  With several candidates (e.g. Xiaomi -> Mi / Poco / Redmi /
+	Xiaomi) nothing is guessed and the user picks from the filtered list.
+
+	Called from ch_model.js on Manufacturer change, and from
+	CHModel._set_brand_from_manufacturer for imports / API inserts.
+	"""
+	if not manufacturer:
+		return None
+
+	linked = frappe.get_all(
+		"CH Brand Manufacturer",
+		filters={"manufacturer": manufacturer, "parenttype": "Brand"},
+		pluck="parent",
+		distinct=True,
+	)
+	if not linked:
+		return None
+
+	filters = {"name": ("in", linked)}
+	if frappe.db.has_column("Brand", "ch_disabled"):
+		filters["ch_disabled"] = 0
+	brands = frappe.get_all("Brand", filters=filters, pluck="name")
+
+	return brands[0] if len(brands) == 1 else None

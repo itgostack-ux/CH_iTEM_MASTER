@@ -16,7 +16,7 @@ Endpoints called from client-side JS:
   - generate_items_from_model      (ch_model.js — bulk variant generation)
 
 Doc-event hooks (registered in hooks.py):
-  - set_variant_trade_flags        (Item.validate — variants always sellable/purchasable)
+  - set_variant_trade_flags        (Item.validate — variants sellable/purchasable, templates not)
 
 Internal helpers (in utils.py — imported here for use):
   - _next_item_code         (overrides/item.py)
@@ -592,16 +592,22 @@ def generate_items_from_model(model) -> dict:
 # ───────────────────────────────────────────────────────────────────────────────
 
 def set_variant_trade_flags(doc, method=None):
-    """Force is_sales_item / is_purchase_item = 1 on every Item variant.
+    """Keep is_sales_item / is_purchase_item consistent with the Item's role.
 
-    Runs on Item.validate (insert and every save), so it covers variants
-    created from the Item form (Create Variant), data import and
-    generate_items_from_model alike.  Templates and plain items are left
-    untouched.
+      - Variant  (variant_of set)   -> both flags forced to 1
+      - Template (has_variants = 1) -> both flags forced to 0
+      - Plain item                  -> left untouched
+
+    Runs on Item.validate (insert and every save), so it covers items
+    created from the Item form, data import and generate_items_from_model
+    alike.
     """
     if doc.variant_of:
         doc.is_sales_item = 1
         doc.is_purchase_item = 1
+    elif doc.has_variants:
+        doc.is_sales_item = 0
+        doc.is_purchase_item = 0
 
 
 # ───────────────────────────────────────────────────────────────────────────────

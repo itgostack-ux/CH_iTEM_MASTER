@@ -286,6 +286,21 @@ frappe.ui.form.on('CH Model', {
 		frm.set_value('item_name_preview', '');
 		// Refresh allowed brands for the newly selected manufacturer
 		ch_model._refresh_allowed_brands(frm);
+
+		// Auto-fetch Brand when the manufacturer maps to exactly one brand
+		// (lookup logic lives in ch_model.py).
+		const manufacturer = frm.doc.manufacturer;
+		if (!manufacturer) return;
+		frappe.call({
+			method: 'ch_item_master.ch_item_master.doctype.ch_model.ch_model.get_brand_for_manufacturer',
+			args: { manufacturer },
+			callback(r) {
+				// Ignore stale replies and never overwrite a brand picked meanwhile.
+				if (r.message && frm.doc.manufacturer === manufacturer && !frm.doc.brand) {
+					frm.set_value('brand', r.message);
+				}
+			},
+		});
 	},
 
 	brand(frm) {
