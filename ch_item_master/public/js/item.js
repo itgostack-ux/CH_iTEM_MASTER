@@ -55,6 +55,7 @@ frappe.ui.form.on('Item', {
 
     refresh(frm) {
         _toggle_property_specs_section(frm);
+        _lock_role_flags(frm);
 
         // CH Item Master — Status Dashboard (lifecycle / PLM / approval badges + completeness)
         if (frm.doc.ch_model) {
@@ -119,6 +120,11 @@ frappe.ui.form.on('Item', {
         // Tri-state contract:
         //   IMEI / Barcode → has_serial_no = 1 (per-unit tracking)
         //   UOM            → has_serial_no = 0 (quantity only)
+        if (cint(frm.doc.has_variants) && !frm.doc.variant_of) {
+            // A template is never stocked, so never serial tracked — the
+            // server forces this off too. Don't prompt for a kind on Save.
+            frm.doc.has_serial_no = 0;
+        }
         if (frm.doc.ch_serial_kind === 'UOM' && cint(frm.doc.has_serial_no)) {
             // Force off — UOM means quantity only, no per-unit serial.
             frm.doc.has_serial_no = 0;
@@ -193,12 +199,24 @@ frappe.ui.form.on('Item', {
     // modal forcing them to pick IMEI vs Barcode at the right moment (item
     // master), by the right person (item creator), not at transaction time.
     has_serial_no(frm) {
-        if (cint(frm.doc.has_serial_no) && frm.doc.ch_serial_kind === 'UOM') {
-            // Can't be both — UOM means quantity only. Flip back off.
+        // A template is never stocked, so it cannot be serial tracked (the
+        // server forces Has Serial No off on templates). Decline the tick
+        // here with a note, instead of opening the Serial Number Kind prompt
+        // again every time the box is ticked.
+        if (cint(frm.doc.has_serial_no) && cint(frm.doc.has_variants) && !frm.doc.variant_of) {
             frm.set_value('has_serial_no', 0);
+            frappe.show_alert({
+                message: __('A template is not stocked, so it cannot have serial numbers. Tick Has Serial No on its variants instead.'),
+                indicator: 'orange',
+            }, 7);
             return;
         }
-        if (cint(frm.doc.has_serial_no) && !frm.doc.ch_serial_kind) {
+        // Ticked without a per-unit kind → ask, every time. That covers a
+        // blank kind and UOM (quantity only): ticking the box on a UOM item
+        // is how the user switches it to IMEI / Barcode, so it must open the
+        // prompt too instead of silently unticking itself.
+        if (cint(frm.doc.has_serial_no)
+            && (!frm.doc.ch_serial_kind || frm.doc.ch_serial_kind === 'UOM')) {
             _prompt_serial_kind(frm);
         } else if (!cint(frm.doc.has_serial_no)
                    && frm.doc.ch_serial_kind
@@ -234,6 +252,9 @@ frappe.ui.form.on('Item', {
                     // TEMPLATE item — ERPNext variant system
                     frm.doc.has_variants = 1;
                     frm.doc.variant_based_on = 'Item Attribute';
+                    // A template is never stocked (the server forces this too);
+                    // show the final value now that the box is locked.
+                    frm.doc.is_stock_item = 0;
 
                     // Set only VARIANT specs as Item Attributes
                     frm.clear_table('attributes');
@@ -270,6 +291,7 @@ frappe.ui.form.on('Item', {
                 });
 
                 frm.refresh_fields();
+                _lock_role_flags(frm);
 
                 // Re-apply mandatory suppression after model load
                 // (refresh fires before ch_model callback on new docs)
@@ -371,6 +393,29 @@ function _load_property_spec_options(frm, cdt, cdn) {
     });
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Has Variants / Maintain Stock are read-only in the form.
+//
+// Both follow from the item's role and are set by the server
+// (api.set_template_variant_stock_flags): template = Has Variants on,
+// Maintain Stock off; variant = the reverse. Has Variants itself comes from
+// the CH Model, never from a manual tick.
+//
+// ERPNext's own refresh handler sets both fields editable again whenever the
+// item has no stock, which overrides a Customize Form read-only. This runs
+// after it, so it has to be re-applied on every refresh.
+//
+// Maintain Stock stays editable on a plain item (neither template nor
+// variant): nothing in code decides it there, so locking it would leave it
+// stuck at the field default.
+// ─────────────────────────────────────────────────────────────────────────────
+function _lock_role_flags(frm) {
+    frm.set_df_property('has_variants', 'read_only', 1);
+    if (cint(frm.doc.has_variants) || frm.doc.variant_of) {
+        frm.set_df_property('is_stock_item', 'read_only', 1);
+    }
+}
+
 function _toggle_property_specs_section(frm, show) {
     // If show is not passed, derive from current ch_spec_values rows
     if (show === undefined) {
@@ -393,6 +438,15 @@ function _prompt_serial_kind(frm) {
     // Avoid stacking dialogs if validate fires repeatedly
     if (frm.__serial_kind_dialog_open) return;
     frm.__serial_kind_dialog_open = true;
+
+    // UOM is a valid classification on its own, so backing out of the prompt
+    // must put it back rather than blank it.
+    const previous_kind = frm.doc.ch_serial_kind === 'UOM' ? 'UOM' : null;
+    let decided = false;
+    const turn_off_serial_tracking = () => {
+        frm.set_value('has_serial_no', 0);
+        frm.set_value('ch_serial_kind', previous_kind);
+    };
 
     // Heuristic suggestion based on Item Group ancestry
     let suggested = 'Barcode';
@@ -435,7 +489,7 @@ function _prompt_serial_kind(frm) {
                 frappe.msgprint(__('Please select IMEI, Barcode, or UOM.'));
                 return;
             }
-            frm.__serial_kind_dialog_open = false;
+            decided = true;
             d.hide();
             // UOM implies has_serial_no=0 (quantity only, no per-unit trace).
             // Set both fields atomically so the subsequent save is consistent.
@@ -448,13 +502,21 @@ function _prompt_serial_kind(frm) {
         },
         secondary_action_label: __('Cancel — Turn Off Serial Tracking'),
         secondary_action() {
-            frm.__serial_kind_dialog_open = false;
+            decided = true;
             d.hide();
-            frm.set_value('has_serial_no', 0);
-            frm.set_value('ch_serial_kind', null);
+            turn_off_serial_tracking();
         },
     });
-    d.$wrapper.find('.modal-header .modal-actions .close').hide(); // force a decision
+    // Runs however the dialog closes — Apply, Cancel, the X button or Esc.
+    // Clearing the flag here is what lets the prompt open again the next
+    // time the box is ticked. Closing with X / Esc makes no choice, so it
+    // counts as Cancel: the box must not stay ticked without a kind.
+    d.onhide = () => {
+        frm.__serial_kind_dialog_open = false;
+        if (!decided) {
+            turn_off_serial_tracking();
+        }
+    };
     d.show();
 }
 

@@ -3,6 +3,10 @@
 
 // Custom Quick Entry for Item — model-driven flow.
 //
+// CURRENTLY DISABLED via is_quick_entry() below: new Items open in the full
+// form. This class must stay registered while disabled, because Item's meta
+// has quick_entry=1 and Frappe would otherwise show its generic popup.
+//
 // Replaces ERPNext's generic quick entry (Item Code, Item Group, HSN, UOM)
 // with a CH Model–driven dialog. User selects a model; everything else
 // (category, sub-category, item group, HSN, has_variants, attributes,
@@ -21,9 +25,11 @@ frappe.ui.form.ItemQuickEntryForm = class ItemQuickEntryForm extends frappe.ui.f
 		this._model_details = null;
 	}
 
-	// Always show quick entry (Item's meta may have quick_entry=0)
+	// Popup disabled: "Add Item" (and "Create a new Item" from link fields)
+	// opens the full Item form directly. Return true to bring the
+	// model-driven popup below back.
 	is_quick_entry() {
-		return true;
+		return false;
 	}
 
 	// Replace the default mandatory-field detection with our curated fields

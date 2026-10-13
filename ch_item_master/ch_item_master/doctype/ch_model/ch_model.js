@@ -89,6 +89,10 @@ ch_model._refresh_allowed_brands = function (frm) {
 // Helper: pre-populate spec_value dropdown with all allowed values for a spec.
 // Called from form_render (row dialog opened) and spec change event.
 // Sets awesomplete.list + minChars=0 so ALL values appear on click.
+//
+// The whole value list is loaded (Colour has 1,400+ values), not just the
+// first 50, and the dropdown is allowed to render all of them. Typing then
+// filters the list in the browser — Frappe's Autocomplete does that itself.
 // ─────────────────────────────────────────────────────────────────────────────
 ch_model._load_spec_value_options = function (frm, cdt, cdn) {
 	let row = frappe.get_doc(cdt, cdn);
@@ -99,13 +103,113 @@ ch_model._load_spec_value_options = function (frm, cdt, cdn) {
 	let field = gf.fields_dict['spec_value'];
 	if (!field) return;
 
-	ch_model._fetch_and_set_values(field, row.spec, '');
-
+	const spec = row.spec;
 	$(field.input).off('input.ch_search');
-	$(field.input).on('input.ch_search', frappe.utils.debounce(function () {
-		let typed = $(this).val() || '';
-		ch_model._fetch_and_set_values(field, row.spec, typed);
-	}, 300));
+
+	ch_model._fetch_all_values(spec).then((all_values) => {
+		// The row may have been closed or pointed at another spec meanwhile.
+		if (row.spec !== spec || !document.body.contains(field.input)) return;
+
+		if (all_values && all_values.length) {
+			ch_model._set_dropdown_values(field, all_values);
+			return;
+		}
+
+		// Fallback (user cannot read Items, or nothing came back): first 50
+		// values from our own API, searching on the server while typing.
+		ch_model._fetch_and_set_values(field, spec, '');
+		$(field.input).on('input.ch_search', frappe.utils.debounce(function () {
+			let typed = $(this).val() || '';
+			ch_model._fetch_and_set_values(field, spec, typed);
+		}, 300));
+	});
+};
+
+// Every value of an Item Attribute, sorted A-Z. Resolves null when the full
+// list is not available to this user. Uses ERPNext's own attribute-value
+// lookup (the one its variant dialogs use), which has no row limit;
+// ch_item_master's get_attribute_values stops at 50.
+ch_model._fetch_all_values = function (spec) {
+	return new Promise((resolve) => {
+		if (!frappe.model.can_read('Item')) {
+			resolve(null);
+			return;
+		}
+		frappe.call({
+			method: 'erpnext.stock.doctype.item.item.get_item_attribute',
+			args: { parent: spec },
+			callback(r) {
+				let values = [...new Set(
+					(r.message || []).map((d) => d.attribute_value).filter(Boolean)
+				)];
+				values.sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+				resolve(values);
+			},
+			error() {
+				resolve(null);
+			},
+		});
+	});
+};
+
+// Put values into the dropdown. One line per value: label and value are the
+// same text, so no description is passed (it used to repeat the name on a
+// second line, halving how many values fit on screen).
+ch_model._set_dropdown_values = function (field, values) {
+	let formatted = values.map((v) => ({ label: v, value: v }));
+
+	if (field.set_data) {
+		field.set_data(formatted);
+	}
+
+	if (field.awesomplete && formatted.length) {
+		field.awesomplete.list = formatted;
+		// Frappe caps the dropdown at 99 rows; show every value instead.
+		field.awesomplete.maxItems = Math.max(formatted.length, 99);
+		// Closest matches first while typing (see _relevance_sorter).
+		field.awesomplete.sort = ch_model._relevance_sorter(field);
+		// Show the full allowed-value list on focus/click without
+		// forcing the user to type first (this helper's documented
+		// intent). Without minChars=0 the dropdown stayed hidden until
+		// a character was typed, so the values looked unselectable.
+		field.awesomplete.minChars = 0;
+		field.awesomplete.evaluate();
+	}
+};
+
+// Order the dropdown by how closely each value matches what was typed, so
+// typing "black" lists:
+//   1. the value itself                      — Black
+//   2. values that start with it             — Black & Blue, Black Beauty, ...
+//   3. values where a later word starts with it — Absolute Black, Ace Black, ...
+//   4. any other match
+// Inside each group the list's own A-Z order is kept, and with nothing typed
+// the whole list stays A-Z.
+ch_model._match_rank = function (text, typed) {
+	if (text === typed) return 0;
+	if (text.startsWith(typed)) return 1;
+	if (text.split(/[^a-z0-9]+/).some((word) => word.startsWith(typed))) return 2;
+	return 3;
+};
+
+ch_model._relevance_sorter = function (field) {
+	let cache = { typed: null, ranks: new Map() };
+	const rank = (suggestion, typed) => {
+		const text = String(suggestion.label || suggestion.value || suggestion).trim().toLowerCase();
+		if (!cache.ranks.has(text)) {
+			cache.ranks.set(text, ch_model._match_rank(text, typed));
+		}
+		return cache.ranks.get(text);
+	};
+	return function (a, b) {
+		const typed = (field.input.value || '').trim().toLowerCase();
+		if (!typed) return 0;
+		if (cache.typed !== typed) {
+			cache = { typed: typed, ranks: new Map() };
+		}
+		// Equal rank returns 0: the sort is stable, so A-Z order is kept.
+		return rank(a, typed) - rank(b, typed);
+	};
 };
 
 ch_model._fetch_and_set_values = function (field, spec, txt) {
@@ -117,28 +221,64 @@ ch_model._fetch_and_set_values = function (field, spec, txt) {
 		},
 		async: true,
 		callback(r) {
-			let values = r.message || [];
-
-			let formatted = values.map(v => ({
-				label: v,
-				value: v,
-				description: v
-			}));
-
-			if (field.set_data) {
-				field.set_data(formatted);
-			}
-
-			if (field.awesomplete && formatted.length) {
-				field.awesomplete.list = formatted;
-				// Show the full allowed-value list on focus/click without
-				// forcing the user to type first (this helper's documented
-				// intent). Without minChars=0 the dropdown stayed hidden until
-				// a character was typed, so the values looked unselectable.
-				field.awesomplete.minChars = 0;
-				field.awesomplete.evaluate();
-			}
+			ch_model._set_dropdown_values(field, r.message || []);
 		},
+	});
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Helper: bigger "Editing Row" popup for this form's child tables.
+//
+// Frappe sizes the row popup at 80% of the window, capped at the page width,
+// and only as tall as its fields — for the two-field Spec Values row that is
+// a short strip whose Specification / Value dropdowns have to scroll inside
+// it. Inside, the fields sit in a centred 900px column at half width, and a
+// dropdown is at most 300px tall.
+//
+// Here the popup is wider and taller, the fields use its full width, and a
+// dropdown may fill the popup's height. Change the values below to adjust.
+// The rules are scoped by a class on this form's own grids, so no other
+// form's row popup is affected.
+// ─────────────────────────────────────────────────────────────────────────────
+ch_model.ROW_POPUP = {
+	width: '92vw',       // share of the window width
+	max_width: '1500px', // upper limit on very wide screens
+	min_height: '75vh',  // height of the area holding the fields (Frappe's own limit is 80vh)
+	// Room kept above an open dropdown for the field labels and inputs; the
+	// dropdown gets the rest of min_height.
+	dropdown_offset: '200px',
+};
+
+ch_model._enlarge_row_popup = function (frm) {
+	if (!document.getElementById('ch-model-row-popup-style')) {
+		const p = ch_model.ROW_POPUP;
+		const popup = '.ch-model-big-row-popup .grid-row-open .form-in-grid';
+		$(`<style id="ch-model-row-popup-style">
+			${popup} {
+				width: ${p.width} !important;
+				max-width: ${p.max_width} !important;
+			}
+			${popup} .grid-form-body {
+				min-height: ${p.min_height};
+			}
+			${popup} .section-body {
+				max-width: none;
+				margin-left: 0;
+				margin-right: 0;
+			}
+			${popup} .frappe-control.input-max-width {
+				max-width: 100%;
+			}
+			${popup} .awesomplete > [role="listbox"] {
+				max-height: max(220px, calc(${p.min_height} - ${p.dropdown_offset}));
+			}
+		</style>`).appendTo('head');
+	}
+	['spec_values', 'model_features'].forEach((fieldname) => {
+		const field = frm.fields_dict[fieldname];
+		if (field && field.grid) {
+			field.grid.wrapper.addClass('ch-model-big-row-popup');
+		}
 	});
 };
 
@@ -312,6 +452,8 @@ frappe.ui.form.on('CH Model', {
 	},
 
 	refresh(frm) {
+		ch_model._enlarge_row_popup(frm);
+
 		// Apply manufacturer filter on form load (not just sub_category change)
 		// so that re-opening an existing model still restricts the dropdown.
 		if (frm.doc.sub_category) {

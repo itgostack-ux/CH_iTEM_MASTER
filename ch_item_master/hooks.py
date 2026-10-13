@@ -184,6 +184,12 @@ doc_events = {
 			"ch_item_master.ch_item_master.overrides.item.before_insert",
 			"ch_item_master.ch_item_master.tier_b.apply_uom_defaults",
 		],
+		# Template = non-stock, variant = stock item. before_validate runs
+		# ahead of ERPNext's own Item.validate, so core checks and the MRP
+		# rule see the final flags.
+		"before_validate": [
+			"ch_item_master.ch_item_master.api.set_template_variant_stock_flags",
+		],
 		"validate": [
 			# SAP/Oracle parity: has_serial_no=1 requires ch_serial_kind set.
 			"ch_item_master.ch_item_master.overrides.item.validate_serial_kind",

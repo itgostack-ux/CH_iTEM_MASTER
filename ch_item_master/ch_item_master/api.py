@@ -21,6 +21,8 @@ Endpoints called from client-side JS:
 Doc-event hooks (registered in hooks.py):
   - set_item_code                  (Item.before_insert — template: code = Item Name;
                                     variant / simple item: <PREFIX> + 7-digit code)
+  - set_template_variant_stock_flags (Item.before_validate — template: non-stock;
+                                    variant: has_variants off, Maintain Stock on)
   - set_variant_trade_flags        (Item.validate — variants sellable/purchasable, templates not)
 
 Internal helpers (in utils.py — imported here for use):
@@ -805,6 +807,7 @@ def create_ch_variant(item, args, use_template_image=False):
 
     variant.item_code = _AUTONAME
     set_variant_trade_flags(variant)
+    set_template_variant_stock_flags(variant)
 
     name = _variant_display_name(variant)
     if name:
@@ -812,6 +815,41 @@ def create_ch_variant(item, args, use_template_image=False):
         variant.ch_display_name = name
         variant.description = name
     return variant
+
+
+# ───────────────────────────────────────────────────────────────────────────────
+# Template / variant stock flags (Item.before_validate hook)
+# ───────────────────────────────────────────────────────────────────────────────
+
+def set_template_variant_stock_flags(doc, method=None):
+    """Keep has_variants / is_stock_item consistent with the Item's role.
+
+      - Template (has_variants = 1) -> is_stock_item = 0, has_serial_no = 0
+      - Variant  (variant_of set)   -> has_variants = 0, is_stock_item = 1
+      - Plain item                  -> left untouched
+
+    A template is only the pattern its variants are built from; it is the
+    variants that are stocked.  ERPNext copies the template's Maintain Stock
+    onto each new variant, so the variant is switched back on here.  ERPNext
+    also refuses Has Serial No on a non-stock item, so that goes off together
+    with Maintain Stock on a template.
+
+    Hooked on before_validate so ERPNext's own Item.validate and the MRP rule
+    (mandatory for stock items) already see the final flags.
+    """
+    # variant_of is checked first: an item linked to a template is a variant
+    # even if it somehow also carries has_variants = 1.
+    if doc.get("variant_of"):
+        doc.has_variants = 0
+        if not frappe.utils.cint(doc.get("is_fixed_asset")):  # assets must stay non-stock
+            doc.is_stock_item = 1
+    elif frappe.utils.cint(doc.get("has_variants")):
+        doc.is_stock_item = 0
+        doc.has_serial_no = 0
+        # IMEI / Barcode only apply to serialised items. Blank it as "" (how
+        # the existing templates store it) so variants copy the same value.
+        if (doc.get("ch_serial_kind") or "") in ("IMEI", "Barcode"):
+            doc.ch_serial_kind = ""
 
 
 # ───────────────────────────────────────────────────────────────────────────────
