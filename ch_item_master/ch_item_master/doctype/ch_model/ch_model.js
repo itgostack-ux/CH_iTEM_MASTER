@@ -400,6 +400,7 @@ frappe.ui.form.on('CH Model', {
 
 		frappe.db
 			.get_list('CH Sub Category Spec', {
+				parent_doctype: 'CH Sub Category',
 				filters: { parent: frm.doc.sub_category },
 				fields: ['spec', 'name_order'],
 				order_by: 'name_order asc, idx asc',
@@ -560,6 +561,7 @@ frappe.ui.form.on('CH Model', {
 							method: 'frappe.client.get_list',
 							args: {
 								doctype: 'CH Sub Category Spec',
+								parent: 'CH Sub Category',
 								filters: { parent: values.new_sub_category, parenttype: 'CH Sub Category' },
 								fields: ['spec'],
 								limit_page_length: 100,

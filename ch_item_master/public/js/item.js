@@ -56,6 +56,7 @@ frappe.ui.form.on('Item', {
     refresh(frm) {
         _toggle_property_specs_section(frm);
         _lock_role_flags(frm);
+        frm.toggle_display('serial_no_series', false);
 
         // CH Item Master — Status Dashboard (lifecycle / PLM / approval badges + completeness)
         if (frm.doc.ch_model) {
@@ -324,6 +325,10 @@ frappe.ui.form.on('Item', {
     ch_sub_category(frm) {
         // no-op — model is the primary driver
     },
+
+    onload(frm) {
+        frm.toggle_display('serial_no_series', false);
+    }
 });
 
 // ── CH Item Spec Value — populate spec_value options from model ─────────────

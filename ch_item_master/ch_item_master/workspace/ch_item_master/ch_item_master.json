@@ -507,7 +507,7 @@
    "type": "Link"
   }
  ],
- "modified": "2026-08-12 17:10:12.232476",
+ "modified": "2026-10-14 13:11:22.884268",
  "modified_by": "Administrator",
  "module": "CH Item Master",
  "name": "CH Item Master",
@@ -516,7 +516,23 @@
  "parent_page": "CH Core",
  "public": 1,
  "quick_lists": [],
- "roles": [],
+ "roles": [
+  {
+   "role": "Category Manager"
+  },
+  {
+   "role": "Administrator"
+  },
+  {
+   "role": "System Manager"
+  },
+  {
+   "role": "Item Manager"
+  },
+  {
+   "role": "CH Category Head"
+  }
+ ],
  "sequence_id": 2.1,
  "shortcuts": [
   {

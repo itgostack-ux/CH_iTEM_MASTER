@@ -1,6 +1,6 @@
 {
  "actions": [],
- "creation": "2026-02-19 00:00:00.000000",
+ "creation": "2026-02-19 00:00:00",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -37,7 +37,6 @@
    "fieldname": "is_variant",
    "fieldtype": "Check",
    "hidden": 1,
-   "in_list_view": 0,
    "label": "Variant"
   },
   {
@@ -58,7 +57,7 @@
   },
   {
    "default": "0",
-   "description": "Mandatory: item cannot be saved without a value for this spec. Optional: value is not required — if provided and Include in Name is checked, it will appear in the item name; if blank, it is silently skipped.",
+   "description": "Mandatory: item cannot be saved without a value for this spec. Optional: value is not required \u2014 if provided and Include in Name is checked, it will appear in the item name; if blank, it is silently skipped.",
    "fieldname": "is_mandatory",
    "fieldtype": "Check",
    "in_list_view": 1,
@@ -73,17 +72,16 @@
    "label": "Name Order"
   }
  ],
- "index_web_pages_for_search": 0,
  "istable": 1,
  "links": [],
- "modified": "2026-02-19 00:00:00.000000",
+ "modified": "2026-10-14 15:34:17.747390",
  "modified_by": "Administrator",
  "module": "CH Item Master",
  "name": "CH Sub Category Spec",
  "owner": "Administrator",
  "permissions": [],
+ "row_format": "Dynamic",
  "sort_field": "name_order",
  "sort_order": "ASC",
- "states": [],
- "track_changes": 0
+ "states": []
 }

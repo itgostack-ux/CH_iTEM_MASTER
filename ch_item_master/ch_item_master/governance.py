@@ -139,6 +139,11 @@ def validate_lifecycle_transition(doc) -> None:
 		if not new_status:
 			doc.ch_lifecycle_status = "Draft"
 			return
+		# A variant inherits its template's status via Item Variant Settings;
+		# a non-approver's variant starts in Draft like any other new item.
+		if doc.get("variant_of") and new_status != "Draft" and not _is_approver():
+			doc.ch_lifecycle_status = "Draft"
+			return
 		# Allow inserting straight into Active only if approver (e.g. data import).
 		if new_status != "Draft" and not _is_approver():
 			raise InvalidLifecycleTransitionError(
