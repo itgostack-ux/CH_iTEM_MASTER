@@ -303,6 +303,80 @@ class CHModel(Document):
 				title=_("Items Exist"),
 			)
 
+	def on_update(self):
+		self._sync_template_attributes()
+
+	def _sync_template_attributes(self):
+		"""Add this model's new variant specs to its template Item.
+
+		The template's Attributes table is fixed when the template is created,
+		and the Item's "Create > Variant / Multiple Variants" dialogs only
+		offer those attributes. So when a variant spec gets its first value
+		on the model later (e.g. Colour added after Grade), the template has
+		to gain that attribute too, or variants can never use it.
+
+		Only adds: an attribute is never removed here, because existing
+		variants may still use it (ERPNext refuses that removal anyway).
+		Existing variants are left as they are.
+		"""
+		if not self.sub_category:
+			return
+		template = frappe.db.get_value(
+			"Item", {"ch_model": self.name, "has_variants": 1}, "name"
+		)
+		if not template:
+			return
+
+		from ch_item_master.ch_item_master.utils import _get_spec_selectors
+
+		wanted = [s["spec"] for s in _get_spec_selectors(self.sub_category, self.name)]
+		existing = set(
+			frappe.get_all(
+				"Item Variant Attribute",
+				filters={"parent": template, "parenttype": "Item", "parentfield": "attributes"},
+				pluck="attribute",
+			)
+		)
+		missing = [spec for spec in wanted if spec not in existing]
+		if not missing:
+			return
+
+		frappe.db.savepoint("ch_model_template_attributes")
+		try:
+			doc = frappe.get_doc("Item", template)
+			for spec in missing:
+				doc.append("attributes", {"attribute": spec})
+			# The model edit, not the person saving it, drives this change.
+			doc.flags.ignore_permissions = True
+			# Only the attribute list changes. Without this, ERPNext re-saves
+			# every variant with the template's fields copied onto it, which
+			# fails for serial-tracked variants and would undo their settings.
+			doc.flags.dont_update_variants = True
+			doc.save()
+		except Exception:
+			frappe.db.rollback(save_point="ch_model_template_attributes")
+			frappe.log_error(
+				frappe.get_traceback(), f"CH Model {self.name}: template attribute sync failed"
+			)
+			frappe.msgprint(
+				_("Model saved, but {0} could not be added to template {1}. "
+				  "See the Error Log for details.").format(
+					", ".join(frappe.bold(s) for s in missing),
+					frappe.bold(template),
+				),
+				title=_("Template Not Updated"),
+				indicator="orange",
+			)
+			return
+
+		frappe.msgprint(
+			_("Added {0} to template {1}, so variants can now use it.").format(
+				", ".join(frappe.bold(s) for s in missing), frappe.bold(template)
+			),
+			alert=True,
+			indicator="green",
+		)
+
 	def after_rename(self, old, new, merge=False):
 		"""Keep model_name in sync with the document name
 		(name format: {sub_category}-{brand}-{model_name})."""
