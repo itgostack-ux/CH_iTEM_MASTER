@@ -32,6 +32,13 @@ frappe.ui.form.on("CH Exception Request", {
 	},
 
 	refresh(frm) {
+		// Approve / Reject submit the request themselves; a bare Submit would
+		// finalise it with no decision recorded. Only a new, unsaved request
+		// keeps its Save.
+		if (!frm.is_new() && frm.doc.docstatus === 0) {
+			frm.disable_save();
+		}
+
 		if (frm.doc.docstatus === 0 && ["Pending", "Escalated"].includes(frm.doc.status)) {
 			const request_id = (frm.__exception_capability_request || 0) + 1;
 			frm.__exception_capability_request = request_id;
