@@ -152,7 +152,9 @@ def setup_item_variant_settings():
     """Add CH custom fields to 'Copy Fields to Variant' in Item Variant Settings.
 
     This ensures ERPNext's native variant creation copies ch_model, ch_sub_category,
-    ch_category, display/spec data, and the item-level MRP from template to variant.
+    ch_category, display/spec data, the item-level MRP and the serial profile
+    (Has Serial No + Serial Number Kind) from template to variant. ERPNext also
+    re-copies these onto existing variants whenever the template is saved.
     """
     import frappe
 
@@ -164,6 +166,8 @@ def setup_item_variant_settings():
         "ch_item_mrp",
         "ch_spec_values",
         "ch_model_features",
+        "has_serial_no",
+        "ch_serial_kind",
     ]
 
     settings = frappe.get_single("Item Variant Settings")

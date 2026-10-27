@@ -121,11 +121,6 @@ frappe.ui.form.on('Item', {
         // Tri-state contract:
         //   IMEI / Barcode → has_serial_no = 1 (per-unit tracking)
         //   UOM            → has_serial_no = 0 (quantity only)
-        if (cint(frm.doc.has_variants) && !frm.doc.variant_of) {
-            // A template is never stocked, so never serial tracked — the
-            // server forces this off too. Don't prompt for a kind on Save.
-            frm.doc.has_serial_no = 0;
-        }
         if (frm.doc.ch_serial_kind === 'UOM' && cint(frm.doc.has_serial_no)) {
             // Force off — UOM means quantity only, no per-unit serial.
             frm.doc.has_serial_no = 0;
@@ -200,18 +195,9 @@ frappe.ui.form.on('Item', {
     // modal forcing them to pick IMEI vs Barcode at the right moment (item
     // master), by the right person (item creator), not at transaction time.
     has_serial_no(frm) {
-        // A template is never stocked, so it cannot be serial tracked (the
-        // server forces Has Serial No off on templates). Decline the tick
-        // here with a note, instead of opening the Serial Number Kind prompt
-        // again every time the box is ticked.
-        if (cint(frm.doc.has_serial_no) && cint(frm.doc.has_variants) && !frm.doc.variant_of) {
-            frm.set_value('has_serial_no', 0);
-            frappe.show_alert({
-                message: __('A template is not stocked, so it cannot have serial numbers. Tick Has Serial No on its variants instead.'),
-                indicator: 'orange',
-            }, 7);
-            return;
-        }
+        // On a template this is the serial profile of all its variants —
+        // Item Variant Settings copy it onto each one when the template is
+        // saved.
         // Ticked without a per-unit kind → ask, every time. That covers a
         // blank kind and UOM (quantity only): ticking the box on a UOM item
         // is how the user switches it to IMEI / Barcode, so it must open the
@@ -406,6 +392,10 @@ function _load_property_spec_options(frm, cdt, cdn) {
 // Maintain Stock off; variant = the reverse. Has Variants itself comes from
 // the CH Model, never from a manual tick.
 //
+// The Inventory tab and Has Serial No hang on Maintain Stock in ERPNext, so
+// they are also shown on a template: its serial profile is set there and
+// copied onto every variant (Item Variant Settings).
+//
 // ERPNext's own refresh handler sets both fields editable again whenever the
 // item has no stock, which overrides a Customize Form read-only. This runs
 // after it, so it has to be re-applied on every refresh.
@@ -416,6 +406,10 @@ function _load_property_spec_options(frm, cdt, cdn) {
 // ─────────────────────────────────────────────────────────────────────────────
 function _lock_role_flags(frm) {
     frm.set_df_property('has_variants', 'read_only', 1);
+    const stock_or_template = 'eval:doc.is_stock_item || (doc.has_variants && !doc.variant_of)';
+    ['inventory_section', 'serial_nos_and_batches', 'has_serial_no'].forEach((f) => {
+        frm.set_df_property(f, 'depends_on', stock_or_template);
+    });
     if (cint(frm.doc.has_variants) || frm.doc.variant_of) {
         frm.set_df_property('is_stock_item', 'read_only', 1);
     }

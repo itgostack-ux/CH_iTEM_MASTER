@@ -824,15 +824,17 @@ def create_ch_variant(item, args, use_template_image=False):
 def set_template_variant_stock_flags(doc, method=None):
     """Keep has_variants / is_stock_item consistent with the Item's role.
 
-      - Template (has_variants = 1) -> is_stock_item = 0, has_serial_no = 0
+      - Template (has_variants = 1) -> is_stock_item = 0
       - Variant  (variant_of set)   -> has_variants = 0, is_stock_item = 1
       - Plain item                  -> left untouched
 
     A template is only the pattern its variants are built from; it is the
     variants that are stocked.  ERPNext copies the template's Maintain Stock
-    onto each new variant, so the variant is switched back on here.  ERPNext
-    also refuses Has Serial No on a non-stock item, so that goes off together
-    with Maintain Stock on a template.
+    onto each new variant, so the variant is switched back on here.
+
+    A template keeps its Has Serial No / Serial Number Kind even though it is
+    non-stock: it is the serial profile Item Variant Settings copy onto every
+    variant (see monkey_patches._patch_template_serial_no_check).
 
     Hooked on before_validate so ERPNext's own Item.validate and the MRP rule
     (mandatory for stock items) already see the final flags.
@@ -845,11 +847,6 @@ def set_template_variant_stock_flags(doc, method=None):
             doc.is_stock_item = 1
     elif frappe.utils.cint(doc.get("has_variants")):
         doc.is_stock_item = 0
-        doc.has_serial_no = 0
-        # IMEI / Barcode only apply to serialised items. Blank it as "" (how
-        # the existing templates store it) so variants copy the same value.
-        if (doc.get("ch_serial_kind") or "") in ("IMEI", "Barcode"):
-            doc.ch_serial_kind = ""
 
 
 # ───────────────────────────────────────────────────────────────────────────────
