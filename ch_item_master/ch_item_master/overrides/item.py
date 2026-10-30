@@ -946,3 +946,51 @@ def validate_serial_kind(doc, method=None):
         ).format(doc.item_code or doc.name or _("(new)")),
         title=_("Serial Number Kind Required"),
     )
+
+
+def validate_mandatory_master_status(doc, method=None):
+    """Block saving an Item that is still at its form defaults.
+
+      • Default Warranty Type must be set.
+      • Lifecycle Status must not be Draft.
+      • PLM Status must not be NPI.
+      • Approval Status must not be Draft.
+      • Has Serial No must be ticked by the user.
+
+    Hooked last in before_save so it sees the final values — governance's
+    before_save can still reset a new variant's lifecycle to Draft.
+
+    Skipped when flags.ignore_validate is set for trusted server-side work, or
+    under the test runner unless enforce_ch_item_governance is set.
+    """
+    if getattr(doc.flags, "ignore_validate", False):
+        return
+
+    if frappe.flags.in_test and not frappe.flags.get("enforce_ch_item_governance"):
+        return
+
+    label = doc.meta.get_label
+    errors = []
+
+    if not (doc.get("ch_default_warranty_type") or "").strip():
+        errors.append(_("<b>{0}</b> is mandatory.").format(_(label("ch_default_warranty_type"))))
+
+    for fieldname, blocked in (
+        ("ch_lifecycle_status", "Draft"),
+        ("ch_plm_status", "NPI"),
+        ("ch_approval_status", "Draft"),
+    ):
+        if (doc.get(fieldname) or blocked) == blocked:
+            errors.append(
+                _("<b>{0}</b> cannot be <b>{1}</b>.").format(_(label(fieldname)), _(blocked))
+            )
+
+    if not cint(doc.get("has_serial_no")):
+        errors.append(_("<b>{0}</b> must be checked.").format(_(label("has_serial_no"))))
+
+    if errors:
+        frappe.throw(
+            _("Item <b>{0}</b> cannot be saved:").format(doc.item_code or doc.name or _("(new)"))
+            + "<br><br>• " + "<br>• ".join(errors),
+            title=_("Item Validation"),
+        )

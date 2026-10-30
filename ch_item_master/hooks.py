@@ -208,6 +208,9 @@ doc_events = {
 			"ch_item_master.ch_item_master.tier_c.enforce_approval_gate",
 			"ch_item_master.ch_item_master.tier_c.validate_gtin",
 			"ch_item_master.ch_item_master.tier_c.validate_plm_transition",
+			# Warranty type, non-default statuses and Has Serial No are
+			# mandatory. Kept last: earlier hooks may still reset statuses.
+			"ch_item_master.ch_item_master.overrides.item.validate_mandatory_master_status",
 		],
 		"on_update": [
 			"ch_item_master.ch_item_master.governance.on_item_after_save",
